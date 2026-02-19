@@ -122,25 +122,27 @@ benchmark/results/
 
 ## Testing a Different Model
 
-1. Edit `benchmark/config.py` — update the model identity constants:
+The pipeline includes a model registry in `benchmark/config.py`. Use the `--model` flag to select which model to benchmark:
 
-   ```python
-   MODEL_HF_REPO = "bartowski/Qwen2.5-7B-Instruct-GGUF"
-   MODEL_QUANT = "Q4_K_M"
-   MODEL_NAME = "qwen2.5-7b"          # Must match what the server reports in /v1/models
-   MODEL_DISPLAY = f"Qwen2.5-7B-Instruct ({MODEL_QUANT})"
-   MODEL_SLUG = f"Qwen2.5-7B-Instruct-{MODEL_QUANT}"
-   ```
+```bash
+# Available models:
+#   qwen2.5-3b   — Qwen2.5-3B-Instruct (Q4_K_M)  [default]
+#   llama-3.2-3b  — Llama-3.2-3B-Instruct (Q4_K_M)
 
-2. Restart `llama-server` with the new `-hf` argument.
+# 1. Start llama-server with the desired model
+./llama.cpp/build/bin/llama-server \
+  --jinja -fa on \
+  -hf bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M \
+  --host 0.0.0.0 --port 8080 \
+  -ngl 99 -c 4096 --temp 0.0
 
-3. Run the benchmark again — results go into a new directory automatically:
+# 2. Run the benchmark
+uv run python -m benchmark.run_all --model llama-3.2-3b
+```
 
-   ```bash
-   uv run python -m benchmark.run_all
-   ```
+Results land in `benchmark/results/Llama-3.2-3B-Instruct-Q4_K_M/`.
 
-   Output lands in `benchmark/results/Qwen2.5-7B-Instruct-Q4_K_M/`.
+To add a new model, add an entry to the `MODELS` dict in `benchmark/config.py`.
 
 ## Project Structure
 

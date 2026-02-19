@@ -1,5 +1,6 @@
 """Orchestrator: generate → evaluate → collect metrics → visualize."""
 
+import argparse
 import sys
 import time
 
@@ -23,6 +24,16 @@ def check_server() -> bool:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Run the BFCL benchmark pipeline.")
+    parser.add_argument(
+        "--model",
+        choices=config.MODELS.keys(),
+        default=config.DEFAULT_MODEL,
+        help="Model to benchmark (default: %(default)s)",
+    )
+    args = parser.parse_args()
+    config.select_model(args.model)
+
     print("=" * 60)
     print("BFCL Benchmark Pipeline")
     print(f"Model : {config.MODEL_DISPLAY}")

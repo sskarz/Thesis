@@ -4,29 +4,28 @@ import csv
 import json
 from pathlib import Path
 
+from bfcl_eval.constants.model_config import MODEL_CONFIG_MAPPING, ModelConfig
+from bfcl_eval.eval_checker.ast_eval.ast_checker import ast_checker
+
 from . import config
 
-# ---------------------------------------------------------------------------
-# Register our custom model so the AST checker's convert_func_name works
-# ---------------------------------------------------------------------------
-from bfcl_eval.constants.model_config import MODEL_CONFIG_MAPPING, ModelConfig  # noqa: E402
 
-_MODEL_KEY = config.MODEL_NAME
-if _MODEL_KEY not in MODEL_CONFIG_MAPPING:
-    MODEL_CONFIG_MAPPING[_MODEL_KEY] = ModelConfig(
-        model_name=_MODEL_KEY,
-        display_name="Qwen2.5-3B-Instruct (local)",
-        org="local",
-        underscore_to_dot=False,
-        is_fc_model=True,
-        url="",
-        license="Apache-2.0",
-        input_price=0,
-        output_price=0,
-        model_handler=None,
-    )
-
-from bfcl_eval.eval_checker.ast_eval.ast_checker import ast_checker  # noqa: E402
+def _ensure_model_registered() -> None:
+    """Register the active model in BFCL's config if not already present."""
+    key = config.MODEL_NAME
+    if key not in MODEL_CONFIG_MAPPING:
+        MODEL_CONFIG_MAPPING[key] = ModelConfig(
+            model_name=key,
+            display_name=f"{config.MODEL_DISPLAY} (local)",
+            org="local",
+            underscore_to_dot=False,
+            is_fc_model=True,
+            url="",
+            license="Apache-2.0",
+            input_price=0,
+            output_price=0,
+            model_handler=None,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +160,7 @@ def evaluate_category(category: str, category_info: dict) -> dict:
 
 def run() -> Path:
     """Evaluate all categories. Returns path to accuracy CSV."""
+    _ensure_model_registered()
     config.SCORES_DIR.mkdir(parents=True, exist_ok=True)
 
     rows: list[dict] = []
