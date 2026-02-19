@@ -1,0 +1,15 @@
+[project]
+name = "thesis"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "bfcl-eval>=2025.8.6.2",
+    "matplotlib>=3.10.8",
+    "pandas>=2.3.3",
+    "psutil>=7.2.2",
+    "requests>=2.32.5",
+    "seaborn>=0.13.2",
+    "soundfile>=0.13.1",
+    "tqdm>=4.67.3",
+]
