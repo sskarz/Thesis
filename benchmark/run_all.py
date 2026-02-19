@@ -25,7 +25,7 @@ def check_server() -> bool:
 def main():
     print("=" * 60)
     print("BFCL Benchmark Pipeline")
-    print(f"Model : {config.MODEL_NAME}")
+    print(f"Model : {config.MODEL_DISPLAY}")
     print(f"Server: {config.SERVER_URL}")
     print("=" * 60)
 

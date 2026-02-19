@@ -6,17 +6,26 @@ from pathlib import Path
 # Server
 # ---------------------------------------------------------------------------
 SERVER_URL = "http://localhost:8080"
-MODEL_NAME = "qwen2.5-3b"
 
 # ---------------------------------------------------------------------------
-# Paths
+# Model identity
+# ---------------------------------------------------------------------------
+MODEL_HF_REPO = "bartowski/Qwen2.5-3B-Instruct-GGUF"
+MODEL_QUANT = "Q4_K_M"
+MODEL_NAME = "qwen2.5-3b"  # API name reported by llama-server
+MODEL_DISPLAY = f"Qwen2.5-3B-Instruct ({MODEL_QUANT})"
+MODEL_SLUG = f"Qwen2.5-3B-Instruct-{MODEL_QUANT}"
+
+# ---------------------------------------------------------------------------
+# Paths  (results are organized per model)
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = PROJECT_ROOT / "benchmark" / "results"
-RESPONSES_DIR = RESULTS_DIR / "responses"
-METRICS_DIR = RESULTS_DIR / "metrics"
-SCORES_DIR = RESULTS_DIR / "scores"
-FIGURES_DIR = RESULTS_DIR / "figures"
+MODEL_RESULTS_DIR = RESULTS_DIR / MODEL_SLUG
+RESPONSES_DIR = MODEL_RESULTS_DIR / "responses"
+METRICS_DIR = MODEL_RESULTS_DIR / "metrics"
+SCORES_DIR = MODEL_RESULTS_DIR / "scores"
+FIGURES_DIR = MODEL_RESULTS_DIR / "figures"
 
 import bfcl_eval  # noqa: E402
 

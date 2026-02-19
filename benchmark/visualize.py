@@ -55,7 +55,7 @@ def chart_accuracy(scores: pd.DataFrame) -> plt.Figure:
             f"{val:.1%}", va="center", fontsize=9,
         )
     ax.set_xlabel("Accuracy (%)")
-    ax.set_title(f"BFCL Accuracy by Category — {config.MODEL_NAME}")
+    ax.set_title(f"BFCL Accuracy by Category — {config.MODEL_DISPLAY}")
     ax.set_xlim(0, 105)
     ax.xaxis.set_major_formatter(mtick.PercentFormatter(decimals=0))
     return fig
@@ -245,7 +245,7 @@ def chart_dashboard(scores, timings, metrics) -> plt.Figure:
     overall_acc = scores["accuracy"].mean() * 100
     m = metrics
     lines = [
-        f"Model: {config.MODEL_NAME}",
+        f"Model: {config.MODEL_DISPLAY}",
         f"Overall accuracy: {overall_acc:.1f}%",
         f"Prompt throughput: {m.get('prompt_tokens_per_sec', {}).get('mean', 0):.0f} tok/s (mean)",
         f"Gen throughput: {m.get('generation_tokens_per_sec', {}).get('mean', 0):.0f} tok/s (mean)",
@@ -263,7 +263,7 @@ def chart_dashboard(scores, timings, metrics) -> plt.Figure:
     ax6.set_title("Summary", fontsize=11)
 
     fig.suptitle(
-        f"BFCL Benchmark — {config.MODEL_NAME} (Q4_K_M, Metal)",
+        f"BFCL Benchmark — {config.MODEL_DISPLAY} (Metal)",
         fontsize=14, fontweight="bold", y=0.98,
     )
     return fig
