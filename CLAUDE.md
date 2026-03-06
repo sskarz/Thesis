@@ -10,10 +10,24 @@ Evaluate LLM tool/function calling on local hardware using llama.cpp + BFCL (Ber
 Thesis/
 ├── CLAUDE.md                          # This file
 ├── README.md
+├── pyproject.toml                     # Python dependencies (managed by uv)
 ├── .gitignore
 ├── llama-cpp-bfcl-setup-guide.md      # Full setup guide (Steps 1-7)
-└── llama.cpp/                         # Git-ignored; built locally
-    └── build/bin/llama-server         # The server binary
+├── llama.cpp/                         # Git-ignored; built locally
+│   └── build/bin/llama-server         # The server binary
+└── benchmark/
+    ├── config.py                      # Model registry, server URL, paths
+    ├── generate_responses.py          # Send BFCL tests → save responses + timings
+    ├── evaluate_responses.py          # Score responses using BFCL AST checker
+    ├── collect_metrics.py             # Throughput, TTFT, memory measurement
+    ├── visualize.py                   # Per-model thesis-quality charts
+    ├── run_all.py                     # Orchestrator (all steps in sequence)
+    └── results/
+        ├── Qwen2.5-3B-Instruct-Q4_K_M/    # Per-model results
+        ├── Llama-3.2-3B-Instruct-Q4_K_M/
+        └── comparison/
+            ├── index.html             # Interactive comparison dashboard (Chart.js)
+            └── *.png / *.pdf          # Static comparison charts
 ```
 
 ## Development Environment
@@ -103,14 +117,34 @@ curl -s http://localhost:8080/v1/chat/completions \
 - Prompt processing: ~591 tokens/sec
 - Generation: ~100 tokens/sec
 
-## What Remains (Steps 4-7)
+## What Has Been Done (Steps 4-6)
 
-- **Step 4:** Install BFCL (`conda create -n BFCL python=3.10`, `pip install bfcl-eval`)
-- **Step 5:** Run BFCL evaluation (`bfcl generate` + `bfcl evaluate`)
-- **Step 6:** Collect inference metrics (tokens/sec, memory, power draw)
-- **Step 7:** Test additional models and quantization levels
+### Step 4-5: BFCL Benchmark Pipeline
 
-See `llama-cpp-bfcl-setup-guide.md` for full details on Steps 4-7.
+Full benchmark pipeline implemented in `benchmark/`. Install deps with `uv sync`, run with `uv run python -m benchmark.run_all`.
+
+### Step 6: Results & Comparison Dashboard
+
+Benchmarks completed for Qwen2.5-3B and Llama-3.2-3B (both Q4_K_M). Results in `benchmark/results/`.
+
+**Interactive comparison dashboard:**
+
+```bash
+# Option A: Open the HTML file directly
+open benchmark/results/comparison/index.html
+
+# Option B: Serve locally (required for some browsers that block file:// CDN loads)
+cd benchmark/results/comparison
+python3 -m http.server 8765
+# Then open http://localhost:8765
+```
+
+The dashboard supports N models — to add a new model, append an entry to the `MODELS[]` array in `index.html`. Features: category filters, model visibility toggles, mean/median metric switch, grouped bar charts, ranked category detail, and a dynamic summary table.
+
+## What Remains
+
+- **Step 7:** Test additional models and quantization levels (e.g., Qwen3.5-4B)
+- Migrate to NVIDIA Jetson Orin Nano Super
 
 ## Quick Reference
 

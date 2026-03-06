@@ -82,43 +82,61 @@ Total runtime is ~20-25 minutes on an M4 Pro.
 
 ## Results
 
-Results are organized per model under `benchmark/results/<model-slug>/`:
+Results are organized per model under `benchmark/results/<model-slug>/`, with a cross-model comparison dashboard:
 
 ```
 benchmark/results/
-└── Qwen2.5-3B-Instruct-Q4_K_M/
-    ├── responses/          # Raw model responses (JSONL) + timing CSV
-    ├── scores/             # accuracy.csv — per-category accuracy
-    ├── metrics/            # inference_metrics.json + per-request CSV
-    └── figures/            # Charts (PNG + PDF)
+├── Qwen2.5-3B-Instruct-Q4_K_M/
+│   ├── responses/          # Raw model responses (JSONL) + timing CSV
+│   ├── scores/             # accuracy.csv — per-category accuracy
+│   ├── metrics/            # inference_metrics.json + per-request CSV
+│   └── figures/            # Charts (PNG + PDF)
+├── Llama-3.2-3B-Instruct-Q4_K_M/
+│   └── ...                 # Same structure
+└── comparison/
+    ├── index.html          # Interactive comparison dashboard
+    └── *.png / *.pdf       # Static comparison charts
 ```
 
-### Qwen2.5-3B-Instruct (Q4_K_M) on Apple M4 Pro
+### Comparison Dashboard
 
-#### Accuracy (BFCL v3)
+An interactive Chart.js dashboard compares all benchmarked models side-by-side:
 
-| Category | Correct | Total | Accuracy |
-|---|---|---|---|
-| simple | 373 | 400 | 93.2% |
-| multiple | 185 | 200 | 92.5% |
-| irrelevance | 141 | 240 | 58.8% |
-| java | 37 | 100 | 37.0% |
-| javascript | 17 | 50 | 34.0% |
-| parallel | 0 | 200 | 0.0% |
-| parallel_multiple | 0 | 200 | 0.0% |
+```bash
+# Option A: Open directly (works in most browsers)
+open benchmark/results/comparison/index.html
 
-> **Note:** parallel/parallel_multiple score 0% because the model consistently returns a single tool call instead of multiple. This is a known limitation of Qwen2.5-3B, not a pipeline bug.
+# Option B: Serve locally (if your browser blocks file:// CDN loads)
+cd benchmark/results/comparison && python3 -m http.server 8765
+# Then visit http://localhost:8765
+```
 
-#### Inference Performance
+Features: category filters, model visibility toggles, mean/median metric switch, accuracy + throughput + latency + memory charts, ranked category detail, and a dynamic summary table. The dashboard uses an N-model data architecture — to add a new model, append an entry to the `MODELS[]` array in `index.html` (zero code changes needed).
 
-| Metric | Value |
-|---|---|
-| Prompt throughput (mean) | 192 tok/s |
-| Generation throughput (mean) | 93 tok/s |
-| TTFT (median) | 12 ms |
-| TTFT (mean) | 35 ms |
-| Memory baseline (RSS) | 8,513 MB |
-| Memory peak (RSS) | 8,547 MB |
+### Accuracy (BFCL v3) — Apple M4 Pro
+
+| Category | Qwen2.5-3B | Llama-3.2-3B |
+|---|---|---|
+| simple | **93.2%** (373/400) | 51.8% (207/400) |
+| multiple | **92.5%** (185/200) | 33.5% (67/200) |
+| irrelevance | **58.8%** (141/240) | 0.8% (2/240) |
+| java | 37.0% (37/100) | **54.0%** (54/100) |
+| javascript | 34.0% (17/50) | **70.0%** (35/50) |
+| parallel | 0.0% | 0.0% |
+| parallel_multiple | 0.0% | 0.0% |
+
+> **Note:** parallel/parallel_multiple score 0% on both models — a known limitation of 3B-parameter models at Q4_K_M quantization (single tool call returned instead of multiple).
+
+### Inference Performance — Apple M4 Pro
+
+| Metric | Qwen2.5-3B | Llama-3.2-3B |
+|---|---|---|
+| Prompt throughput (mean) | 192 tok/s | **825 tok/s** |
+| Generation throughput (mean) | **93 tok/s** | 89 tok/s |
+| TTFT (mean) | **35 ms** | 249 ms |
+| TTFT (median) | **12 ms** | 218 ms |
+| Memory baseline (RSS) | **8,513 MB** | 10,778 MB |
+| Memory peak (RSS) | **8,547 MB** | 12,384 MB |
 
 ## Testing a Different Model
 
@@ -156,18 +174,21 @@ Thesis/
 │   └── build/bin/llama-server
 └── benchmark/
     ├── __init__.py
-    ├── config.py                      # Server URL, model identity, paths, BFCL categories
+    ├── config.py                      # Server URL, model registry, paths, BFCL categories
     ├── generate_responses.py          # Send BFCL tests to llama-server, save responses + timings
     ├── evaluate_responses.py          # Score responses using BFCL's AST checker
     ├── collect_metrics.py             # Dedicated metrics collection (warmup + controlled requests)
     ├── visualize.py                   # Generate thesis-quality charts
     ├── run_all.py                     # Orchestrator (runs all steps in sequence)
-    └── results/                       # Git-ignored output
-        └── <model-slug>/
-            ├── responses/
-            ├── scores/
-            ├── metrics/
-            └── figures/
+    └── results/
+        ├── <model-slug>/             # Per-model results
+        │   ├── responses/
+        │   ├── scores/
+        │   ├── metrics/
+        │   └── figures/
+        └── comparison/
+            ├── index.html            # Interactive N-model comparison dashboard
+            └── *.png / *.pdf         # Static comparison charts
 ```
 
 ## Known Issues
