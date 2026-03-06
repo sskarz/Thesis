@@ -182,5 +182,8 @@ cython_debug/
 
 llama.cpp/
 .claude
-benchmark/results/
+benchmark/results/*
+!benchmark/results/comparison/
+benchmark/results/comparison/*
+!benchmark/results/comparison/index.html
 uv.lock
