@@ -426,7 +426,7 @@
     <section class="section">
       <h2>Accuracy by Category</h2>
       <div class="card"><canvas id="accuracyChart"></canvas></div>
-      <p class="chart-note">Both models score 0 % on parallel and parallel_multiple — a known limitation of 3B-parameter models at Q4_K_M quantization.</p>
+      <p class="chart-note">All models score 0 % on parallel and parallel_multiple — a known limitation of small models at Q4_K_M quantization.</p>
     </section>
 
     <section class="section">
@@ -519,6 +519,23 @@ const MODELS = [
     },
     ttft:   { mean:249.15,  median:218.25,  p95:520.24, p99:569.06 },
     memory: { baseline:10778.2, peak:12383.7 },
+  },
+  {
+    id: 'qwen35-4b',
+    name: 'Qwen3.5-4B',
+    fullName: 'Qwen3.5-4B-Instruct (Q4_K_M)',
+    color: '#059669',
+    colorBg: 'rgba(5,150,105,0.55)',
+    accuracy: {
+      correct: { simple:361, multiple:181, parallel:0, parallel_multiple:0, irrelevance:219, java:39, javascript:17 },
+      pct:     { simple:90.25, multiple:90.5, parallel:0, parallel_multiple:0, irrelevance:91.25, java:39, javascript:34 },
+    },
+    throughput: {
+      prompt:     { mean:620.54, median:623.82 },
+      generation: { mean:37.94,  median:37.99 },
+    },
+    ttft:   { mean:723.58,  median:656.34,  p95:1051.43, p99:1099.62 },
+    memory: { baseline:3974.8, peak:4075.4 },
   },
   // To add a model, append an object here — nothing else changes.
 ];
