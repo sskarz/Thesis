@@ -967,7 +967,11 @@ function renderSummary() {
   }
 
   cats.forEach(c => row(CAT_LABELS[c]+' Accuracy', models.map(mod => mod.accuracy.pct[c] ?? null), true, '%', false));
-  if (cats.length && models.length) row('Average Accuracy', models.map(mod => avg(cats.map(c => mod.accuracy.pct[c]))), true, '%', true);
+  const stCats = cats.filter(c => SINGLE_TURN_CATEGORIES.includes(c));
+  const mtCats = cats.filter(c => MULTI_TURN_CATEGORIES.includes(c));
+  if (stCats.length && models.length) row('Avg Accuracy (Single-Turn)', models.map(mod => avg(stCats.map(c => mod.accuracy.pct[c]))), true, '%', true);
+  if (mtCats.length && models.length) row('Avg Accuracy (Multi-Turn)', models.map(mod => avg(mtCats.map(c => mod.accuracy.pct[c]))), true, '%', false);
+  if (cats.length && models.length) row('Avg Accuracy (Overall)', models.map(mod => avg(cats.map(c => mod.accuracy.pct[c]))), true, '%', !mtCats.length);
 
   row(`Prompt Throughput (${m})`, models.map(mod => mod.throughput.prompt[m]), true, ' tok/s', false);
   row(`Gen Throughput (${m})`, models.map(mod => mod.throughput.generation[m]), true, ' tok/s', false);

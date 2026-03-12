@@ -8,6 +8,18 @@ from . import config
 from .evaluate_responses import _ensure_model_registered, load_jsonl
 
 
+def _save_errors(category: str, errors: list[dict]) -> None:
+    """Persist per-entry evaluation errors to a JSONL file for debugging."""
+    if not errors:
+        return
+    config.SCORES_DIR.mkdir(parents=True, exist_ok=True)
+    out = config.SCORES_DIR / f"{category}_eval_errors.jsonl"
+    with open(out, "w") as f:
+        for e in errors:
+            f.write(json.dumps(e) + "\n")
+    print(f"  → {len(errors)} errors saved to {out.name}")
+
+
 # ---------------------------------------------------------------------------
 # Per-category evaluation
 # ---------------------------------------------------------------------------
@@ -66,6 +78,7 @@ def evaluate_category(category: str, category_info: dict) -> dict:
             errors.append({"id": entry_id, "error": str(e)})
 
     accuracy = correct / total if total else 0
+    _save_errors(category, errors)
     return {
         "category": category,
         "correct": correct,

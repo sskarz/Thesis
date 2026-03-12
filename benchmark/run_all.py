@@ -39,22 +39,35 @@ def main():
         action="store_true",
         help="Skip multi-turn categories (e.g., for FunctionGemma)",
     )
+    parser.add_argument(
+        "--only-multi-turn",
+        action="store_true",
+        help="Run only multi-turn categories (skip single-turn)",
+    )
     args = parser.parse_args()
+    if args.skip_multi_turn and args.only_multi_turn:
+        parser.error("--skip-multi-turn and --only-multi-turn are mutually exclusive")
     config.select_model(args.model)
 
+    do_single = not args.only_multi_turn
     do_multi = not args.skip_multi_turn
-    n_steps = 7 if do_multi else 5
+    n_steps = (2 if do_single else 0) + (2 if do_multi else 0) + 3  # server + metrics + viz
 
     print("=" * 60)
     print("BFCL Benchmark Pipeline")
     print(f"Model : {config.MODEL_DISPLAY}")
     print(f"Server: {config.SERVER_URL}")
+    if not do_single:
+        print("Single-turn: SKIPPED")
     if not do_multi:
         print("Multi-turn: SKIPPED")
     print("=" * 60)
 
+    step = 0
+
     # 1. Verify server
-    print(f"\n[1/{n_steps}] Checking server...", end=" ")
+    step += 1
+    print(f"\n[{step}/{n_steps}] Checking server...", end=" ")
     if not check_server():
         print("FAILED")
         print(f"Server not reachable at {config.SERVER_URL}")
@@ -64,43 +77,60 @@ def main():
 
     t0 = time.time()
 
-    # 2. Generate single-turn responses
-    print(f"\n[2/{n_steps}] Generating single-turn responses")
-    generate_responses.run()
+    # Generate single-turn responses
+    st_csv = None
+    if do_single:
+        step += 1
+        print(f"\n[{step}/{n_steps}] Generating single-turn responses")
+        generate_responses.run()
 
-    # 3. Generate multi-turn responses (optional)
+    # Generate multi-turn responses
     if do_multi:
-        print(f"\n[3/{n_steps}] Generating multi-turn responses")
+        step += 1
+        print(f"\n[{step}/{n_steps}] Generating multi-turn responses")
         generate_multi_turn.run()
 
-    # 4. Evaluate single-turn responses
-    step_eval_st = 4 if do_multi else 3
-    print(f"\n[{step_eval_st}/{n_steps}] Evaluating single-turn responses")
-    st_csv = evaluate_responses.run()
+    # Evaluate single-turn responses
+    if do_single:
+        step += 1
+        print(f"\n[{step}/{n_steps}] Evaluating single-turn responses")
+        st_csv = evaluate_responses.run()
 
-    # 5. Evaluate multi-turn responses (optional) & combine accuracy.csv
+    # Evaluate multi-turn responses & combine accuracy.csv
     multi_turn_rows: list[dict] = []
     if do_multi:
-        print(f"\n[5/{n_steps}] Evaluating multi-turn responses")
+        step += 1
+        print(f"\n[{step}/{n_steps}] Evaluating multi-turn responses")
         multi_turn_rows = evaluate_multi_turn.run()
 
     # Append multi-turn rows to accuracy.csv if present
-    if multi_turn_rows:
+    if multi_turn_rows and st_csv:
         with open(st_csv, "a", newline="") as f:
             writer = csv.DictWriter(
                 f, fieldnames=["category", "correct", "total", "accuracy"]
             )
             writer.writerows(multi_turn_rows)
         print(f"[evaluate] Multi-turn scores appended to {st_csv.name}")
+    elif multi_turn_rows and not st_csv:
+        # Only multi-turn was run — write a standalone accuracy.csv
+        config.SCORES_DIR.mkdir(parents=True, exist_ok=True)
+        st_csv = config.SCORES_DIR / "accuracy.csv"
+        with open(st_csv, "w", newline="") as f:
+            writer = csv.DictWriter(
+                f, fieldnames=["category", "correct", "total", "accuracy"]
+            )
+            writer.writeheader()
+            writer.writerows(multi_turn_rows)
+        print(f"[evaluate] Multi-turn scores saved to {st_csv.name}")
 
-    # 6. Collect metrics
-    step_metrics = 6 if do_multi else 4
-    print(f"\n[{step_metrics}/{n_steps}] Collecting metrics")
+    # Collect metrics
+    step += 1
+    print(f"\n[{step}/{n_steps}] Collecting metrics")
     collect_metrics.run()
 
-    # 7. Visualize
-    step_viz = 7 if do_multi else 5
-    print(f"\n[{step_viz}/{n_steps}] Generating charts")
+    # Visualize
+    step += 1
+    print(f"\n[{step}/{n_steps}] Generating charts")
     visualize.run()
 
     elapsed = time.time() - t0
