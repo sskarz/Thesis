@@ -126,7 +126,7 @@ def generate_for_entry(
 
     for turn_idx, turn_messages in enumerate(questions):
         # miss_func: if this turn's question is [], add back withheld functions
-        if is_miss_func and (not turn_messages or turn_messages == []):
+        if is_miss_func and not turn_messages:
             # Restore withheld functions
             if turn_idx in restore_map:
                 for tool in withheld_tools:
@@ -143,6 +143,10 @@ def generate_for_entry(
             # Append user messages for this turn
             for msg in turn_messages:
                 chat_history.append(msg)
+            if not turn_messages:
+                # No user message this turn — skip model call
+                turn_results.append([])
+                continue
 
         # Inner step loop: model calls tools until it gives a text response
         step_results: list[list[str]] = []
@@ -177,6 +181,10 @@ def generate_for_entry(
             total_predicted_n += t.get("predicted_n", 0)
             total_predicted_ms += t.get("predicted_ms", 0)
 
+            if not data.get("choices"):
+                step_results.append(["ERROR: empty choices in response"])
+                break
+
             choice = data["choices"][0]
             message = choice["message"]
             finish_reason = choice.get("finish_reason", "")
@@ -200,7 +208,7 @@ def generate_for_entry(
                         model_name=config.MODEL_NAME,
                         test_entry_id=entry_id,
                         long_context=(category == "multi_turn_long_context"),
-                        is_evaL_run=False,
+                        is_evaL_run=False,  # sic: upstream parameter name
                     )
                 except Exception as e:
                     exec_results = [str(e)] * len(func_strings)
@@ -217,6 +225,12 @@ def generate_for_entry(
                 content = message.get("content", "")
                 chat_history.append({"role": "assistant", "content": content})
                 break
+        else:
+            # Loop completed without break — model never gave a text response
+            print(
+                f"  [warn] {entry_id} turn {turn_idx}: "
+                f"hit {config.MULTI_TURN_MAX_STEPS}-step limit without text response"
+            )
 
         turn_results.append(step_results)
 
