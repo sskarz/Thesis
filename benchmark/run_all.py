@@ -126,12 +126,12 @@ def main():
     # Collect metrics
     step += 1
     print(f"\n[{step}/{n_steps}] Collecting metrics")
-    collect_metrics.run()
+    collect_metrics.run(include_single=do_single, include_multi=do_multi)
 
     # Visualize
     step += 1
     print(f"\n[{step}/{n_steps}] Generating charts")
-    visualize.run()
+    visualize.run(include_single=do_single, include_multi=do_multi)
 
     elapsed = time.time() - t0
     print(f"\nDone in {elapsed / 60:.1f} minutes.")
