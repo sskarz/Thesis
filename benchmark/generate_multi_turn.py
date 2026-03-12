@@ -45,10 +45,17 @@ def _tool_calls_to_func_strings(tool_calls: list[dict]) -> list[str]:
     result = []
     for tc in tool_calls:
         name = tc["function"]["name"]
+        raw_args = tc["function"].get("arguments")
         try:
-            args = json.loads(tc["function"]["arguments"])
+            # If arguments is a JSON string, parse it; if it's already a mapping,
+            # use it directly; otherwise default to empty dict.
+            args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
         except (json.JSONDecodeError, TypeError):
-            args = {}
+            # Preserve the raw argument string so malformed tool calls are not
+            # silently converted into a different (e.g., empty-arg) call.
+            parts = [f"__arg_parse_error__={repr(raw_args)}"]
+            result.append(f"{name}({', '.join(parts)})")
+            continue
         parts = [f"{k}={repr(v)}" for k, v in args.items()]
         result.append(f"{name}({', '.join(parts)})")
     return result
