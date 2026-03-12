@@ -1,7 +1,5 @@
 """Score BFCL multi-turn responses using the execution-based checker."""
 
-import json
-
 from bfcl_eval.eval_checker.multi_turn_eval.multi_turn_checker import (
     multi_turn_checker,
 )
