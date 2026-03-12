@@ -1,5 +1,7 @@
 # Optimizing Tool Calling on Edge Devices Using RAG and Structured Output
 
+**Thesis:** *Optimized Tool Calling for On-Device LLMs in Resource Constraint Environments.*
+
 Benchmark LLM tool/function-calling accuracy and inference performance on local hardware using [llama.cpp](https://github.com/ggml-org/llama.cpp) and the [Berkeley Function Calling Leaderboard (BFCL)](https://gorilla.cs.berkeley.edu/leaderboard.html).
 
 ## Prerequisites

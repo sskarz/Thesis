@@ -67,7 +67,12 @@ def parse_tool_calls(response_json: dict) -> list[dict] | str:
                 arguments = {}
             result.append({name: arguments})
         return result
-    return message.get("content", "")
+    content = message.get("content", "")
+    from .parse_functiongemma import parse_functiongemma_content
+    parsed = parse_functiongemma_content(content)
+    if parsed is not None:
+        return parsed
+    return content
 
 
 # ---------------------------------------------------------------------------

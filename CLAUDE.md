@@ -18,6 +18,7 @@ Thesis/
 └── benchmark/
     ├── config.py                      # Model registry, server URL, paths
     ├── generate_responses.py          # Send BFCL tests → save responses + timings
+    ├── parse_functiongemma.py         # Custom output parser for FunctionGemma
     ├── evaluate_responses.py          # Score responses using BFCL AST checker
     ├── collect_metrics.py             # Throughput, TTFT, memory measurement
     ├── visualize.py                   # Per-model thesis-quality charts
@@ -25,6 +26,7 @@ Thesis/
     └── results/
         ├── Qwen2.5-3B-Instruct-Q4_K_M/    # Per-model results
         ├── Llama-3.2-3B-Instruct-Q4_K_M/
+        ├── FunctionGemma-270M-IT/
         └── comparison/
             ├── index.html             # Interactive comparison dashboard (Chart.js)
             └── *.png / *.pdf          # Static comparison charts
@@ -185,8 +187,20 @@ curl -s http://localhost:8080/v1/models | python3 -m json.tool
 | `-c 4096` | Context window size |
 | `--temp 0.0` | Deterministic output (BFCL recommends this) |
 
+### Start FunctionGemma server
+
+```bash
+cd /Users/sanskarthapa/Documents/GitHub/Thesis/llama.cpp
+./build/bin/llama-server --jinja -fa on \
+  -hf ggml-org/functiongemma-270m-it-GGUF \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 4096 --temp 0.0
+```
+
+**Note:** FunctionGemma uses a non-standard output format (`<start_function_call>call:name{args}<end_function_call>`) that llama-server cannot parse into OpenAI-style `tool_calls`. The custom parser in `benchmark/parse_functiongemma.py` post-processes the raw `content` field into the `[{"func": {args}}]` format expected by the BFCL evaluator. This is called automatically by `generate_responses.py`.
+
 ## Known Issues / Gotchas
 
 1. **`-fa` flag change:** The `-fa` (flash attention) flag now requires an explicit value. Use `-fa on`, not bare `-fa`. This is a recent llama.cpp change.
 2. **Model download on first run:** First launch takes several minutes to download the GGUF (~1.8 GB for Q4_K_M). Subsequent runs use the cached file at `~/Library/Caches/llama.cpp/`.
 3. **`llama.cpp/` is git-ignored:** The entire llama.cpp directory is in `.gitignore`. It must be cloned and built locally on each machine.
+4. **FunctionGemma output format:** FunctionGemma does not produce OpenAI-style `tool_calls`. Its output arrives as raw text in the `content` field using custom control tokens. The `parse_functiongemma.py` module handles this transparently.

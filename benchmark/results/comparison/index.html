@@ -426,7 +426,7 @@
     <section class="section">
       <h2>Accuracy by Category</h2>
       <div class="card"><canvas id="accuracyChart"></canvas></div>
-      <p class="chart-note">All models score 0 % on parallel and parallel_multiple — a known limitation of small models at Q4_K_M quantization.</p>
+      <p class="chart-note">All models score 0 % on parallel and parallel_multiple — a known limitation of small (&le;4B) models.</p>
     </section>
 
     <section class="section">
@@ -468,7 +468,7 @@
 
     <footer>
       <div class="footer-rule"></div>
-      Apple M4 Pro &middot; macOS Tahoe &middot; llama.cpp b8111 (Metal) &middot; BFCL v1 &middot; Q4_K_M quantization &middot; Temperature 0.0
+      Apple M4 Pro &middot; macOS Tahoe &middot; llama.cpp b8111 (Metal) &middot; BFCL v1 &middot; Q4_K_M quantization (FunctionGemma: bf16) &middot; Temperature 0.0
     </footer>
   </div>
 
@@ -536,6 +536,23 @@ const MODELS = [
     },
     ttft:   { mean:723.58,  median:656.34,  p95:1051.43, p99:1099.62 },
     memory: { baseline:3974.8, peak:4075.4 },
+  },
+  {
+    id: 'functiongemma-270m',
+    name: 'FunctionGemma-270M',
+    fullName: 'FunctionGemma-270M-IT (bf16)',
+    color: '#d97706',
+    colorBg: 'rgba(217,119,6,0.55)',
+    accuracy: {
+      correct: { simple:205, multiple:118, parallel:0, parallel_multiple:0, irrelevance:48, java:15, javascript:9 },
+      pct:     { simple:51.25, multiple:59.0, parallel:0, parallel_multiple:0, irrelevance:20.0, java:15, javascript:18 },
+    },
+    throughput: {
+      prompt:     { mean:2567.52, median:64.63 },
+      generation: { mean:201.02,  median:204.19 },
+    },
+    ttft:   { mean:19.88,  median:16.20,  p95:34.02, p99:37.92 },
+    memory: { baseline:6389.2, peak:6562.2 },
   },
   // To add a model, append an object here — nothing else changes.
 ];

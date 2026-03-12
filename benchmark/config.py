@@ -32,6 +32,13 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Qwen3.5-4B-Instruct (Q4_K_M)",
         "slug": "Qwen3.5-4B-Instruct-Q4_K_M",
     },
+    "functiongemma-270m": {
+        "hf_repo": "ggml-org/functiongemma-270m-it-GGUF",
+        "quant": "",
+        "api_name": "functiongemma-270m",
+        "display": "FunctionGemma-270M-IT",
+        "slug": "FunctionGemma-270M-IT",
+    },
 }
 DEFAULT_MODEL = "qwen2.5-3b"
 
