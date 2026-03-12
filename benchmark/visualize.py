@@ -40,13 +40,24 @@ def _save(fig, name: str):
 # Chart 1: BFCL accuracy by category (horizontal bar)
 # ---------------------------------------------------------------------------
 
+MULTI_TURN_CATS = {"multi_turn_base", "multi_turn_miss_func", "multi_turn_miss_param", "multi_turn_long_context"}
+
+
 def chart_accuracy(scores: pd.DataFrame) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(8, 4))
+    n_cats = len(scores)
+    height = max(4, 0.55 * n_cats)
+    fig, ax = plt.subplots(figsize=(8, height))
     scores_sorted = scores.sort_values("accuracy")
+    # Color multi-turn bars differently from single-turn
+    colors = [
+        sns.color_palette("Set2")[1] if cat in MULTI_TURN_CATS
+        else sns.color_palette("colorblind")[i % 10]
+        for i, cat in enumerate(scores_sorted["category"])
+    ]
     bars = ax.barh(
         scores_sorted["category"],
         scores_sorted["accuracy"] * 100,
-        color=sns.color_palette("colorblind", len(scores_sorted)),
+        color=colors,
         edgecolor="white",
     )
     for bar, val in zip(bars, scores_sorted["accuracy"]):
