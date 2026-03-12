@@ -86,6 +86,7 @@ def generate_for_entry(
     entry: dict,
     category: str,
     all_tools: list[dict],
+    execution_model_name: str | None = None,
 ) -> tuple[list[list[list[str]]], dict]:
     """Run the multi-turn inference loop for a single test entry.
 
@@ -123,6 +124,8 @@ def generate_for_entry(
     total_prompt_n = 0
     total_predicted_n = 0
     api_calls = 0
+
+    exec_model_name = execution_model_name or config.MODEL_NAME
 
     for turn_idx, turn_messages in enumerate(questions):
         # miss_func: if this turn's question is [], add back withheld functions
@@ -205,7 +208,7 @@ def generate_for_entry(
                         func_call_list=func_strings,
                         initial_config=initial_config,
                         involved_classes=involved_classes,
-                        model_name=config.MODEL_NAME,
+                        model_name=exec_model_name,
                         test_entry_id=entry_id,
                         long_context=(category == "multi_turn_long_context"),
                         is_evaL_run=False,  # sic: upstream parameter name

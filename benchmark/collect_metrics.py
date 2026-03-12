@@ -1,10 +1,9 @@
 """Dedicated metrics collection: warmup, controlled requests, memory."""
 
-import json
 import csv
+import json
 import random
 import subprocess
-import time
 from pathlib import Path
 
 import psutil
@@ -12,6 +11,7 @@ import requests
 from tqdm import tqdm
 
 from . import config
+from . import generate_multi_turn
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
 
 # ---------------------------------------------------------------------------
@@ -46,16 +46,47 @@ def find_llama_server_pid() -> int | None:
     return best_pid
 
 
-def sample_requests(n: int) -> list[dict]:
+def sample_requests(
+    n: int,
+    include_single: bool = True,
+    include_multi: bool = False,
+) -> list[dict]:
     """Sample *n* test entries across all categories, reproducibly."""
     rng = random.Random(RANDOM_SEED)
-    pool: list[dict] = []
-    for cat, info in config.CATEGORIES.items():
-        data_file = config.BFCL_DATA_DIR / info["file"]
-        for entry in load_jsonl(data_file):
-            entry["_category"] = cat
-            pool.append(entry)
-    return rng.sample(pool, min(n, len(pool)))
+    category_pools: list[list[dict]] = []
+    if include_single:
+        for cat, info in config.CATEGORIES.items():
+            data_file = config.BFCL_DATA_DIR / info["file"]
+            category_entries: list[dict] = []
+            for entry in load_jsonl(data_file):
+                entry["_category"] = cat
+                entry["_mode"] = "single"
+                category_entries.append(entry)
+            category_pools.append(category_entries)
+    if include_multi:
+        for cat, info in config.MULTI_TURN_CATEGORIES.items():
+            data_file = config.BFCL_DATA_DIR / info["file"]
+            category_entries = []
+            for entry in load_jsonl(data_file):
+                entry["_category"] = cat
+                entry["_mode"] = "multi"
+                category_entries.append(entry)
+            category_pools.append(category_entries)
+    if not category_pools:
+        return []
+
+    selected: list[dict] = []
+    if n >= len(category_pools):
+        for entries in category_pools:
+            selected.append(rng.choice(entries))
+            entries.remove(selected[-1])
+
+    remaining_pool = [entry for entries in category_pools for entry in entries]
+    remaining_n = min(n - len(selected), len(remaining_pool))
+    if remaining_n > 0:
+        selected.extend(rng.sample(remaining_pool, remaining_n))
+
+    return selected
 
 
 def build_payload(entry: dict) -> dict:
@@ -83,6 +114,55 @@ def send_request(payload: dict) -> dict:
     )
     resp.raise_for_status()
     return resp.json()
+
+
+def _to_tokens_per_second(token_count: int, ms: float) -> float:
+    if ms <= 0:
+        return 0
+    return token_count / (ms / 1000.0)
+
+
+def measure_request(entry: dict) -> dict:
+    """Execute one sampled entry and return a normalized timing row."""
+    if entry.get("_mode") == "multi":
+        all_tools = generate_multi_turn._load_func_docs(
+            entry.get("involved_classes", [])
+        )
+        _, timing = generate_multi_turn.generate_for_entry(
+            entry,
+            entry["_category"],
+            all_tools,
+            execution_model_name=f"{config.MODEL_NAME}_metrics",
+        )
+        prompt_n = timing.get("total_prompt_n", 0)
+        prompt_ms = timing.get("total_prompt_ms", 0)
+        predicted_n = timing.get("total_predicted_n", 0)
+        predicted_ms = timing.get("total_predicted_ms", 0)
+        return {
+            "id": entry["id"],
+            "category": entry["_category"],
+            "prompt_n": prompt_n,
+            # Multi-turn generation only tracks cumulative prompt-processing time,
+            # not TTFT per request. Keep TTFT-specific metrics excluded.
+            "prompt_ms": 0,
+            "prompt_per_second": _to_tokens_per_second(prompt_n, prompt_ms),
+            "predicted_n": predicted_n,
+            "predicted_ms": predicted_ms,
+            "predicted_per_second": _to_tokens_per_second(predicted_n, predicted_ms),
+        }
+
+    data = send_request(build_payload(entry))
+    t = data.get("timings", {})
+    return {
+        "id": entry["id"],
+        "category": entry["_category"],
+        "prompt_n": t.get("prompt_n", 0),
+        "prompt_ms": t.get("prompt_ms", 0),
+        "prompt_per_second": t.get("prompt_per_second", 0),
+        "predicted_n": t.get("predicted_n", 0),
+        "predicted_ms": t.get("predicted_ms", 0),
+        "predicted_per_second": t.get("predicted_per_second", 0),
+    }
 
 
 def get_memory_rss(pid: int) -> int:
@@ -118,7 +198,7 @@ def try_power_draw() -> float | None:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run() -> Path:
+def run(include_single: bool = True, include_multi: bool = False) -> Path:
     """Run controlled metrics collection. Returns path to metrics JSON."""
     config.METRICS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -132,7 +212,13 @@ def run() -> Path:
     baseline_rss = get_memory_rss(pid) if pid else 0
 
     # Sample requests
-    entries = sample_requests(WARMUP_REQUESTS + BENCHMARK_REQUESTS)
+    entries = sample_requests(
+        WARMUP_REQUESTS + BENCHMARK_REQUESTS,
+        include_single=include_single,
+        include_multi=include_multi,
+    )
+    if not entries:
+        raise ValueError("No benchmark categories selected for metrics collection.")
     warmup_entries = entries[:WARMUP_REQUESTS]
     bench_entries = entries[WARMUP_REQUESTS:]
 
@@ -140,7 +226,7 @@ def run() -> Path:
     print(f"[metrics] Warmup: {WARMUP_REQUESTS} requests (discarded)")
     for entry in warmup_entries:
         try:
-            send_request(build_payload(entry))
+            measure_request(entry)
         except Exception:
             pass
 
@@ -150,20 +236,8 @@ def run() -> Path:
     peak_rss = baseline_rss
 
     for entry in tqdm(bench_entries, desc="  metrics", unit="req"):
-        payload = build_payload(entry)
         try:
-            data = send_request(payload)
-            t = data.get("timings", {})
-            timing_rows.append({
-                "id": entry["id"],
-                "category": entry["_category"],
-                "prompt_n": t.get("prompt_n", 0),
-                "prompt_ms": t.get("prompt_ms", 0),
-                "prompt_per_second": t.get("prompt_per_second", 0),
-                "predicted_n": t.get("predicted_n", 0),
-                "predicted_ms": t.get("predicted_ms", 0),
-                "predicted_per_second": t.get("predicted_per_second", 0),
-            })
+            timing_rows.append(measure_request(entry))
         except Exception as e:
             print(f"  [warn] Request failed for {entry['id']}: {e}")
             continue
