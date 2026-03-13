@@ -111,6 +111,19 @@ CATEGORIES = {
 }
 
 # ---------------------------------------------------------------------------
+# BFCL multi-turn categories (execution-evaluated)
+# ---------------------------------------------------------------------------
+MULTI_TURN_CATEGORIES = {
+    "multi_turn_base": {"file": "BFCL_v3_multi_turn_base.json"},
+    "multi_turn_miss_func": {"file": "BFCL_v3_multi_turn_miss_func.json"},
+    "multi_turn_miss_param": {"file": "BFCL_v3_multi_turn_miss_param.json"},
+    "multi_turn_long_context": {"file": "BFCL_v3_multi_turn_long_context.json"},
+}
+
+MULTI_TURN_FUNC_DOC_DIR = BFCL_DATA_DIR / "multi_turn_func_doc"
+MULTI_TURN_MAX_STEPS = 20
+
+# ---------------------------------------------------------------------------
 # BFCL → JSON-Schema type mapping
 # ---------------------------------------------------------------------------
 GORILLA_TO_OPENAPI: dict[str, str] = {

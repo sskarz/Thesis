@@ -426,7 +426,7 @@
     <section class="section">
       <h2>Accuracy by Category</h2>
       <div class="card"><canvas id="accuracyChart"></canvas></div>
-      <p class="chart-note">All models score 0 % on parallel and parallel_multiple — a known limitation of small (&le;4B) models.</p>
+      <p class="chart-note">All models score 0 % on parallel and parallel_multiple — a known limitation of small (&le;4B) models. Multi-turn categories (MT *) show N/A when not yet benchmarked.</p>
     </section>
 
     <section class="section">
@@ -476,13 +476,18 @@
 /* ═══════════════════════════════════════════════
    DATA
    ═══════════════════════════════════════════════ */
-const CATEGORIES = ['simple','multiple','parallel','parallel_multiple','irrelevance','java','javascript'];
+const SINGLE_TURN_CATEGORIES = ['simple','multiple','parallel','parallel_multiple','irrelevance','java','javascript'];
+const MULTI_TURN_CATEGORIES = ['multi_turn_base','multi_turn_miss_func','multi_turn_miss_param','multi_turn_long_context'];
+const CATEGORIES = [...SINGLE_TURN_CATEGORIES, ...MULTI_TURN_CATEGORIES];
 const CAT_LABELS = {
   simple: 'Simple', multiple: 'Multiple', parallel: 'Parallel',
   parallel_multiple: 'Parallel Multiple', irrelevance: 'Irrelevance',
   java: 'Java', javascript: 'JavaScript',
+  multi_turn_base: 'MT Base', multi_turn_miss_func: 'MT Miss Func',
+  multi_turn_miss_param: 'MT Miss Param', multi_turn_long_context: 'MT Long Context',
 };
-const TOTALS = { simple:400, multiple:200, parallel:200, parallel_multiple:200, irrelevance:240, java:100, javascript:50 };
+const TOTALS = { simple:400, multiple:200, parallel:200, parallel_multiple:200, irrelevance:240, java:100, javascript:50,
+  multi_turn_base:200, multi_turn_miss_func:200, multi_turn_miss_param:200, multi_turn_long_context:200 };
 
 /*  ── Add models here. Zero code changes needed. ──  */
 const MODELS = [
@@ -493,8 +498,10 @@ const MODELS = [
     color: '#2563eb',
     colorBg: 'rgba(37,99,235,0.55)',
     accuracy: {
-      correct: { simple:373, multiple:185, parallel:0, parallel_multiple:0, irrelevance:141, java:37, javascript:17 },
-      pct:     { simple:93.25, multiple:92.5, parallel:0, parallel_multiple:0, irrelevance:58.75, java:37, javascript:34 },
+      correct: { simple:373, multiple:185, parallel:0, parallel_multiple:0, irrelevance:141, java:37, javascript:17,
+                 multi_turn_base:null, multi_turn_miss_func:null, multi_turn_miss_param:null, multi_turn_long_context:null },
+      pct:     { simple:93.25, multiple:92.5, parallel:0, parallel_multiple:0, irrelevance:58.75, java:37, javascript:34,
+                 multi_turn_base:null, multi_turn_miss_func:null, multi_turn_miss_param:null, multi_turn_long_context:null },
     },
     throughput: {
       prompt:     { mean:192.45, median:86.94 },
@@ -510,8 +517,10 @@ const MODELS = [
     color: '#dc2626',
     colorBg: 'rgba(220,38,38,0.55)',
     accuracy: {
-      correct: { simple:207, multiple:67, parallel:0, parallel_multiple:0, irrelevance:2, java:54, javascript:35 },
-      pct:     { simple:51.75, multiple:33.5, parallel:0, parallel_multiple:0, irrelevance:0.83, java:54, javascript:70 },
+      correct: { simple:207, multiple:67, parallel:0, parallel_multiple:0, irrelevance:2, java:54, javascript:35,
+                 multi_turn_base:null, multi_turn_miss_func:null, multi_turn_miss_param:null, multi_turn_long_context:null },
+      pct:     { simple:51.75, multiple:33.5, parallel:0, parallel_multiple:0, irrelevance:0.83, java:54, javascript:70,
+                 multi_turn_base:null, multi_turn_miss_func:null, multi_turn_miss_param:null, multi_turn_long_context:null },
     },
     throughput: {
       prompt:     { mean:824.88, median:935.85 },
@@ -527,8 +536,10 @@ const MODELS = [
     color: '#059669',
     colorBg: 'rgba(5,150,105,0.55)',
     accuracy: {
-      correct: { simple:361, multiple:181, parallel:0, parallel_multiple:0, irrelevance:219, java:39, javascript:17 },
-      pct:     { simple:90.25, multiple:90.5, parallel:0, parallel_multiple:0, irrelevance:91.25, java:39, javascript:34 },
+      correct: { simple:361, multiple:181, parallel:0, parallel_multiple:0, irrelevance:219, java:39, javascript:17,
+                 multi_turn_base:null, multi_turn_miss_func:null, multi_turn_miss_param:null, multi_turn_long_context:null },
+      pct:     { simple:90.25, multiple:90.5, parallel:0, parallel_multiple:0, irrelevance:91.25, java:39, javascript:34,
+                 multi_turn_base:null, multi_turn_miss_func:null, multi_turn_miss_param:null, multi_turn_long_context:null },
     },
     throughput: {
       prompt:     { mean:620.54, median:623.82 },
@@ -544,8 +555,10 @@ const MODELS = [
     color: '#d97706',
     colorBg: 'rgba(217,119,6,0.55)',
     accuracy: {
-      correct: { simple:205, multiple:118, parallel:0, parallel_multiple:0, irrelevance:48, java:15, javascript:9 },
-      pct:     { simple:51.25, multiple:59.0, parallel:0, parallel_multiple:0, irrelevance:20.0, java:15, javascript:18 },
+      correct: { simple:205, multiple:118, parallel:0, parallel_multiple:0, irrelevance:48, java:15, javascript:9,
+                 multi_turn_base:null, multi_turn_miss_func:null, multi_turn_miss_param:null, multi_turn_long_context:null },
+      pct:     { simple:51.25, multiple:59.0, parallel:0, parallel_multiple:0, irrelevance:20.0, java:15, javascript:18,
+                 multi_turn_base:null, multi_turn_miss_func:null, multi_turn_miss_param:null, multi_turn_long_context:null },
     },
     throughput: {
       prompt:     { mean:2567.52, median:64.63 },
@@ -572,7 +585,7 @@ const state = {
    ═══════════════════════════════════════════════ */
 const $ = id => document.getElementById(id);
 function getVisible() { return MODELS.filter(m => state.selectedModels.has(m.id)); }
-function avg(arr) { return arr.length ? arr.reduce((a,b) => a + b, 0) / arr.length : 0; }
+function avg(arr) { const valid = arr.filter(v => v != null && typeof v === 'number'); return valid.length ? valid.reduce((a,b) => a + b, 0) / valid.length : 0; }
 
 function best(models, fn, higher = true) {
   if (!models.length) return null;
@@ -800,7 +813,7 @@ function renderKPIs() {
 /* ═══════════════════════════════════════════════
    RENDER: ACCURACY CHART
    ═══════════════════════════════════════════════ */
-function accExtractor(cats) { return m => cats.map(c => m.accuracy.pct[c]); }
+function accExtractor(cats) { return m => cats.map(c => m.accuracy.pct[c] ?? null); }
 
 function createAccuracy() {
   const cats = [...state.selectedCats];
@@ -830,11 +843,20 @@ function renderDetail() {
     return;
   }
   const ranked = vis
-    .map(m => ({ m, pct: m.accuracy.pct[c], cor: m.accuracy.correct[c] }))
-    .sort((a,b) => b.pct - a.pct);
-  const mx = Math.max(...ranked.map(r => r.pct), 1);
+    .map(m => ({ m, pct: m.accuracy.pct[c] ?? null, cor: m.accuracy.correct[c] ?? null }))
+    .sort((a,b) => (b.pct ?? -1) - (a.pct ?? -1));
+  const mx = Math.max(...ranked.map(r => r.pct ?? 0), 1);
 
-  $('detailBars').innerHTML = ranked.map((r,i) => `
+  $('detailBars').innerHTML = ranked.map((r,i) => {
+    if (r.pct == null) return `
+    <div class="detail-bar">
+      <div class="detail-rank">#${i+1}</div>
+      <div class="detail-model-name" style="color:${r.m.color}">${r.m.name}</div>
+      <div class="detail-track"><div class="detail-fill" style="width:0%;background:${r.m.color}"></div></div>
+      <div class="detail-pct" style="color:var(--text-muted)">N/A</div>
+      <div class="detail-counts">--/${total}</div>
+    </div>`;
+    return `
     <div class="detail-bar">
       <div class="detail-rank">#${i+1}</div>
       <div class="detail-model-name" style="color:${r.m.color}">${r.m.name}</div>
@@ -843,7 +865,8 @@ function renderDetail() {
       </div>
       <div class="detail-pct" style="color:${r.m.color}">${r.pct.toFixed(2)}%</div>
       <div class="detail-counts">${r.cor}/${total}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 /* ═══════════════════════════════════════════════
@@ -932,17 +955,23 @@ function renderSummary() {
   let rows = '';
   function row(name, vals, higher, unit, sep) {
     rows += `<tr${sep ? ' class="row-sep"' : ''}><td>${name}</td>`;
-    vals.forEach(v => { rows += `<td class="col-data">${typeof v === 'number' ? v.toFixed(2) : v}${unit}</td>`; });
-    if (!vals.length) { rows += `<td class="col-best" style="color:var(--text-muted)">--</td></tr>`; return; }
+    vals.forEach(v => { rows += `<td class="col-data">${v == null ? 'N/A' : (typeof v === 'number' ? v.toFixed(2) : v) + unit}</td>`; });
+    const numVals = vals.filter(v => v != null && typeof v === 'number');
+    if (!numVals.length) { rows += `<td class="col-best" style="color:var(--text-muted)">--</td></tr>`; return; }
     let bi = 0;
-    for (let i = 1; i < vals.length; i++) { if (higher ? vals[i] > vals[bi] : vals[i] < vals[bi]) bi = i; }
-    const tie = vals.every(v => v === vals[0]);
+    for (let i = 1; i < vals.length; i++) { if (vals[i] != null && (vals[bi] == null || (higher ? vals[i] > vals[bi] : vals[i] < vals[bi]))) bi = i; }
+    const validVals = vals.filter(v => v != null);
+    const tie = validVals.length > 0 && validVals.every(v => v === validVals[0]);
     const w = tie ? null : models[bi];
     rows += `<td class="col-best" style="color:${tie ? 'var(--text-muted)' : w.color}">${tie ? 'Tie' : w.name}</td></tr>`;
   }
 
-  cats.forEach(c => row(CAT_LABELS[c]+' Accuracy', models.map(mod => mod.accuracy.pct[c]), true, '%', false));
-  if (cats.length && models.length) row('Average Accuracy', models.map(mod => avg(cats.map(c => mod.accuracy.pct[c]))), true, '%', true);
+  cats.forEach(c => row(CAT_LABELS[c]+' Accuracy', models.map(mod => mod.accuracy.pct[c] ?? null), true, '%', false));
+  const stCats = cats.filter(c => SINGLE_TURN_CATEGORIES.includes(c));
+  const mtCats = cats.filter(c => MULTI_TURN_CATEGORIES.includes(c));
+  if (stCats.length && models.length) row('Avg Accuracy (Single-Turn)', models.map(mod => avg(stCats.map(c => mod.accuracy.pct[c]))), true, '%', true);
+  if (mtCats.length && models.length) row('Avg Accuracy (Multi-Turn)', models.map(mod => avg(mtCats.map(c => mod.accuracy.pct[c]))), true, '%', false);
+  if (cats.length && models.length) row('Avg Accuracy (Overall)', models.map(mod => avg(cats.map(c => mod.accuracy.pct[c]))), true, '%', !mtCats.length);
 
   row(`Prompt Throughput (${m})`, models.map(mod => mod.throughput.prompt[m]), true, ' tok/s', false);
   row(`Gen Throughput (${m})`, models.map(mod => mod.throughput.generation[m]), true, ' tok/s', false);

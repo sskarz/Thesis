@@ -125,6 +125,31 @@ curl -s http://localhost:8080/v1/chat/completions \
 
 Full benchmark pipeline implemented in `benchmark/`. Install deps with `uv sync`, run with `uv run python -m benchmark.run_all`.
 
+### Test Suite
+
+The repo now includes a `pytest` suite for benchmark correctness and artifact validity.
+
+```bash
+# Hermetic regression suite
+uv run pytest -q
+```
+
+Coverage includes:
+- BFCL schema/tool conversion and output parsing
+- Multi-turn loop behavior, withheld-function restoration, and timing aggregation
+- AST and multi-turn evaluator accounting, including persisted error files
+- Metrics sampling for single-turn and multi-turn modes
+- Visualization loading/normalization and chart generation
+- `benchmark.run_all` orchestration flags such as `--skip-multi-turn` and `--only-multi-turn`
+
+Optional live smoke tests are available for local thesis validation:
+
+```bash
+BENCHMARK_LIVE=1 uv run pytest -q -m live
+```
+
+These tests require a running local `llama-server` on `http://localhost:8080` and only assert structural validity, not accuracy thresholds.
+
 ### Step 6: Results & Comparison Dashboard
 
 Benchmarks completed for Qwen2.5-3B and Llama-3.2-3B (both Q4_K_M). Results in `benchmark/results/`.
@@ -174,6 +199,13 @@ cd /Users/sanskarthapa/Documents/GitHub/Thesis/llama.cpp
 
 ```bash
 curl -s http://localhost:8080/v1/models | python3 -m json.tool
+```
+
+### Run tests
+
+```bash
+uv run pytest -q
+BENCHMARK_LIVE=1 uv run pytest -q -m live
 ```
 
 ### Server flag reference
