@@ -52,6 +52,23 @@ def bfcl_to_openai_tools(bfcl_functions: list[dict]) -> list[dict]:
     return tools
 
 
+def build_payload(entry: dict) -> dict:
+    """Convert a single-turn BFCL test entry to an API request payload."""
+    messages = entry["question"][0]
+    bfcl_functions = entry.get("function", [])
+    tools = bfcl_to_openai_tools(bfcl_functions) if bfcl_functions else None
+
+    payload: dict = {
+        "model": config.MODEL_NAME,
+        "messages": messages,
+        "temperature": 0.0,
+    }
+    if tools:
+        payload["tools"] = tools
+        payload["tool_choice"] = "auto"
+    return payload
+
+
 def parse_tool_calls(response_json: dict) -> list[dict] | str:
     """Return list-of-dicts for tool calls, or text content when none."""
     choice = response_json["choices"][0]
@@ -101,19 +118,7 @@ def generate_for_category(
     timings: list[dict] = []
 
     for entry in tqdm(entries, desc=f"  {category}", unit="req"):
-        messages = entry["question"][0]  # single-turn → first (only) turn
-        bfcl_functions = entry.get("function", [])
-
-        tools = bfcl_to_openai_tools(bfcl_functions) if bfcl_functions else None
-
-        payload: dict = {
-            "model": config.MODEL_NAME,
-            "messages": messages,
-            "temperature": 0.0,
-        }
-        if tools:
-            payload["tools"] = tools
-            payload["tool_choice"] = "auto"
+        payload = build_payload(entry)
 
         try:
             resp = requests.post(
