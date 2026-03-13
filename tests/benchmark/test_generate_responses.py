@@ -87,3 +87,45 @@ def test_parse_tool_calls_handles_openai_and_functiongemma_payloads():
     assert generate_responses.parse_tool_calls(functiongemma_response) == [
         {"lookup_weather": {"city": "San Francisco"}}
     ]
+
+
+def test_build_payload_includes_tools_only_when_functions_exist():
+    payload_with_tools = generate_responses.build_payload(
+        {
+            "question": [[{"role": "user", "content": "Weather?"}]],
+            "function": [
+                {
+                    "name": "lookup_weather",
+                    "description": "Weather lookup",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"city": {"type": "string"}},
+                    },
+                }
+            ],
+        }
+    )
+    payload_without_tools = generate_responses.build_payload(
+        {
+            "question": [[{"role": "user", "content": "Hello"}]],
+        }
+    )
+
+    assert payload_with_tools["model"] == generate_responses.config.MODEL_NAME
+    assert payload_with_tools["messages"] == [{"role": "user", "content": "Weather?"}]
+    assert payload_with_tools["tool_choice"] == "auto"
+    assert payload_with_tools["tools"] == [
+        {
+            "type": "function",
+            "function": {
+                "name": "lookup_weather",
+                "description": "Weather lookup",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"city": {"type": "string"}},
+                },
+            },
+        }
+    ]
+    assert "tools" not in payload_without_tools
+    assert "tool_choice" not in payload_without_tools
