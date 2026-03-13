@@ -13,3 +13,15 @@ dependencies = [
     "soundfile>=0.13.1",
     "tqdm>=4.67.3",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "live: requires a running local llama-server and explicit opt-in",
+    "slow: longer-running artifact or pipeline coverage",
+]

@@ -40,13 +40,82 @@ def _save(fig, name: str):
 # Chart 1: BFCL accuracy by category (horizontal bar)
 # ---------------------------------------------------------------------------
 
+MULTI_TURN_CATS = {"multi_turn_base", "multi_turn_miss_func", "multi_turn_miss_param", "multi_turn_long_context"}
+
+
+def _tokens_per_second(token_count, ms):
+    if ms <= 0:
+        return 0
+    return token_count / (ms / 1000.0)
+
+
+def _normalize_multi_turn_timings(timings: pd.DataFrame) -> pd.DataFrame:
+    if timings.empty:
+        return timings
+
+    normalized = pd.DataFrame({
+        "id": timings["id"],
+        "category": timings["category"],
+        "prompt_n": timings["total_prompt_n"],
+        # Multi-turn timings track cumulative prompt-processing time, not TTFT.
+        "prompt_ms": 0,
+        "predicted_n": timings["total_predicted_n"],
+        "predicted_ms": timings["total_predicted_ms"],
+    })
+    normalized["prompt_per_second"] = [
+        _tokens_per_second(token_count, ms)
+        for token_count, ms in zip(
+            timings["total_prompt_n"], timings["total_prompt_ms"]
+        )
+    ]
+    normalized["predicted_per_second"] = [
+        _tokens_per_second(token_count, ms)
+        for token_count, ms in zip(
+            timings["total_predicted_n"], timings["total_predicted_ms"]
+        )
+    ]
+    return normalized
+
+
+def _load_timings(
+    include_single: bool = True,
+    include_multi: bool = True,
+) -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+
+    if include_single:
+        single_path = config.RESPONSES_DIR / "all_timings.csv"
+        if single_path.exists():
+            frames.append(pd.read_csv(single_path))
+
+    if include_multi:
+        multi_path = config.RESPONSES_DIR / "multi_turn_timings.csv"
+        if multi_path.exists():
+            frames.append(
+                _normalize_multi_turn_timings(pd.read_csv(multi_path))
+            )
+
+    if not frames:
+        return pd.DataFrame()
+
+    return pd.concat(frames, ignore_index=True)
+
+
 def chart_accuracy(scores: pd.DataFrame) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(8, 4))
+    n_cats = len(scores)
+    height = max(4, 0.55 * n_cats)
+    fig, ax = plt.subplots(figsize=(8, height))
     scores_sorted = scores.sort_values("accuracy")
+    # Color multi-turn bars differently from single-turn
+    colors = [
+        sns.color_palette("Set2")[1] if cat in MULTI_TURN_CATS
+        else sns.color_palette("colorblind")[i % 10]
+        for i, cat in enumerate(scores_sorted["category"])
+    ]
     bars = ax.barh(
         scores_sorted["category"],
         scores_sorted["accuracy"] * 100,
-        color=sns.color_palette("colorblind", len(scores_sorted)),
+        color=colors,
         edgecolor="white",
     )
     for bar, val in zip(bars, scores_sorted["accuracy"]):
@@ -273,18 +342,17 @@ def chart_dashboard(scores, timings, metrics) -> plt.Figure:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run():
+def run(include_single: bool = True, include_multi: bool = True):
     """Generate all charts. Reads from results dirs."""
     _setup_style()
     config.FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     # Load data
     scores_path = config.SCORES_DIR / "accuracy.csv"
-    timings_path = config.RESPONSES_DIR / "all_timings.csv"
     metrics_path = config.METRICS_DIR / "inference_metrics.json"
 
     scores = pd.read_csv(scores_path) if scores_path.exists() else pd.DataFrame()
-    timings = pd.read_csv(timings_path) if timings_path.exists() else pd.DataFrame()
+    timings = _load_timings(include_single=include_single, include_multi=include_multi)
     metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
 
     charts_saved = 0

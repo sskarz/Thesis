@@ -55,7 +55,37 @@ uv sync
 
 This creates a `.venv/` and installs all dependencies from `pyproject.toml`.
 
-### 4. Run the benchmark
+### 4. Run the tests
+
+The repository includes a `pytest` suite for benchmark validity and answer-format checks.
+
+```bash
+# Hermetic suite: fixture-driven, no local llama-server required
+uv run pytest -q
+```
+
+This covers:
+
+1. BFCL function-to-tool conversion and response parsing
+2. Multi-turn tool-loop behavior and timing aggregation
+3. Single-turn and multi-turn evaluator error accounting
+4. Metrics sampling/normalization
+5. Visualization input handling
+6. `benchmark.run_all` mode wiring for single-turn vs multi-turn runs
+
+Optional live smoke tests exercise the real local `llama-server` with structural assertions only:
+
+```bash
+BENCHMARK_LIVE=1 uv run pytest -q -m live
+```
+
+The live smoke layer:
+
+1. Skips cleanly when `BENCHMARK_LIVE` is unset
+2. Skips cleanly when `http://localhost:8080` is unavailable
+3. Checks that single-turn and multi-turn responses are structurally valid for the pipeline
+
+### 5. Run the benchmark
 
 ```bash
 uv run python -m benchmark.run_all
