@@ -4,8 +4,15 @@ import csv
 import json
 from pathlib import Path
 
+from bfcl_eval.constants.enums import Language
 from bfcl_eval.constants.model_config import MODEL_CONFIG_MAPPING, ModelConfig
 from bfcl_eval.eval_checker.ast_eval.ast_checker import ast_checker
+
+LANGUAGE_MAP: dict[str, Language] = {
+    "Python": Language.PYTHON,
+    "Java": Language.JAVA,
+    "JavaScript": Language.JAVASCRIPT,
+}
 
 from . import config
 
@@ -87,14 +94,14 @@ def evaluate_category(category: str, category_info: dict) -> dict:
     if category == "irrelevance":
         return _evaluate_irrelevance(responses)
 
-    language = category_info["language"]
+    language = LANGUAGE_MAP[category_info["language"]]
 
     # Load test data (for func_description)
     data_file = config.BFCL_DATA_DIR / category_info["file"]
     test_entries = {e["id"]: e for e in load_jsonl(data_file)}
 
     # Load possible answers
-    answer_file = config.BFCL_POSSIBLE_ANSWER_DIR / f"BFCL_v3_{category}.json"
+    answer_file = config.BFCL_POSSIBLE_ANSWER_DIR / category_info["file"]
     if not answer_file.exists():
         print(f"  [warn] No possible-answer file for {category}, skipping.")
         return {"category": category, "correct": 0, "total": 0, "accuracy": 0}
