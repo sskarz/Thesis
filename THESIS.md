@@ -28,7 +28,7 @@ Edge devices (NVIDIA Jetson Orin Nano Super: 8 GB, smartphones: 6–8 GB) constr
 
 ## Methodology
 
-### Benchmark: BFCL v3
+### Benchmark: BFCL v4
 
 All models are evaluated on the Berkeley Function Calling Leaderboard (BFCL) v3, which provides standardized test cases across 7 categories totaling 1,390 test cases:
 
@@ -88,7 +88,7 @@ The comparison remains controlled because the variable under study is **model ar
 
 ## Accuracy Results
 
-All results on BFCL v3, evaluated with the AST checker. **Bold** indicates best-in-class per category.
+All results on BFCL v4, evaluated with the AST checker. **Bold** indicates best-in-class per category.
 
 | Category | Qwen2.5-3B (Q4_K_M) | Llama-3.2-3B (Q4_K_M) | Qwen3.5-4B (Q4_K_M) | FunctionGemma-270M (bf16) |
 |----------|---------------------|----------------------|---------------------|--------------------------|

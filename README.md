@@ -9,11 +9,10 @@ Benchmark LLM tool/function-calling accuracy and inference performance on local 
 | Requirement | Tested version | Notes |
 |---|---|---|
 | macOS (Apple Silicon) | 26.3 (Tahoe), M4 Pro | Metal GPU backend |
-| cmake | 4.2.3 | `brew install cmake` |
+| Ubuntu + NVIDIA GPU | RTX 4090, CUDA 13.0 | CUDA GPU backend |
+| cmake | 4.2.3+ | `brew install cmake` / `apt install cmake` |
 | Xcode CLI tools | — | Pre-installed on macOS |
 | [uv](https://docs.astral.sh/uv/) | latest | Python package manager |
-
-> Future target: NVIDIA Jetson Orin Nano Super (CUDA backend).
 
 ## Quick Start
 
@@ -22,8 +21,13 @@ Benchmark LLM tool/function-calling accuracy and inference performance on local 
 ```bash
 git clone https://github.com/ggml-org/llama.cpp.git
 cd llama.cpp
+# macOS (Apple Silicon)
 cmake -B build -DGGML_METAL=ON
 cmake --build build --config Release -j$(sysctl -n hw.ncpu)
+
+# Linux (NVIDIA GPU)
+# cmake -B build -DGGML_CUDA=ON
+# cmake --build build --config Release -j$(nproc)
 cd ..
 ```
 
@@ -36,10 +40,10 @@ The `llama.cpp/` directory is git-ignored. It must be built locally on each mach
   --jinja -fa on \
   -hf bartowski/Qwen2.5-3B-Instruct-GGUF:Q4_K_M \
   --host 0.0.0.0 --port 8080 \
-  -ngl 99 -c 4096 --temp 0.0
+  -ngl 99 -c 8192 --temp 0.0
 ```
 
-The first launch downloads the GGUF model (~1.8 GB) to `~/Library/Caches/llama.cpp/`. Subsequent runs use the cache.
+The first launch downloads the GGUF model (~1.8 GB) to `~/Library/Caches/llama.cpp/` (macOS) or `~/.cache/llama.cpp/` (Linux). Subsequent runs use the cache.
 
 Verify the server is up:
 
@@ -108,8 +112,8 @@ Total runtime is ~20-25 minutes on an M4 Pro.
 | `--jinja` | Activate the model's chat template (required for tool calling) |
 | `-fa on` | Enable flash attention (`on`/`off`/`auto` — bare `-fa` no longer works) |
 | `-hf` | Download GGUF from HuggingFace (cached after first run) |
-| `-ngl 99` | Offload all layers to GPU (Metal on Mac, CUDA on Jetson) |
-| `-c 4096` | Context window size |
+| `-ngl 99` | Offload all layers to GPU (Metal on Mac, CUDA on Linux) |
+| `-c 8192` | Context window size (8192 needed for multi-turn long_context) |
 | `--temp 0.0` | Deterministic output (recommended by BFCL) |
 
 ## Results
@@ -145,7 +149,7 @@ cd benchmark/results/comparison && python3 -m http.server 8765
 
 Features: category filters, model visibility toggles, mean/median metric switch, accuracy + throughput + latency + memory charts, ranked category detail, and a dynamic summary table. The dashboard uses an N-model data architecture — to add a new model, append an entry to the `MODELS[]` array in `index.html` (zero code changes needed).
 
-### Accuracy (BFCL v3) — Apple M4 Pro
+### Accuracy (BFCL v4) — Apple M4 Pro
 
 | Category | Qwen2.5-3B | Llama-3.2-3B |
 |---|---|---|
@@ -184,7 +188,7 @@ The pipeline includes a model registry in `benchmark/config.py`. Use the `--mode
   --jinja -fa on \
   -hf bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M \
   --host 0.0.0.0 --port 8080 \
-  -ngl 99 -c 4096 --temp 0.0
+  -ngl 99 -c 8192 --temp 0.0
 
 # 2. Run the benchmark
 uv run python -m benchmark.run_all --model llama-3.2-3b

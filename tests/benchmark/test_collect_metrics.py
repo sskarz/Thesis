@@ -21,21 +21,21 @@ def test_sample_requests_respects_single_and_multi_selection(
         config,
         "CATEGORIES",
         {
-            "simple": {"file": "BFCL_v3_simple.json"},
-            "multiple": {"file": "BFCL_v3_multiple.json"},
+            "simple": {"file": "BFCL_v4_simple_python.json"},
+            "multiple": {"file": "BFCL_v4_multiple.json"},
         },
     )
     monkeypatch.setattr(
         config,
         "MULTI_TURN_CATEGORIES",
         {
-            "multi_turn_base": {"file": "BFCL_v3_multi_turn_base.json"},
+            "multi_turn_base": {"file": "BFCL_v4_multi_turn_base.json"},
         },
     )
-    _write_jsonl(Path(data_dir) / "BFCL_v3_simple.json", [{"id": "s1", "question": [[]]}])
-    _write_jsonl(Path(data_dir) / "BFCL_v3_multiple.json", [{"id": "s2", "question": [[]]}])
+    _write_jsonl(Path(data_dir) / "BFCL_v4_simple_python.json", [{"id": "s1", "question": [[]]}])
+    _write_jsonl(Path(data_dir) / "BFCL_v4_multiple.json", [{"id": "s2", "question": [[]]}])
     _write_jsonl(
-        Path(data_dir) / "BFCL_v3_multi_turn_base.json",
+        Path(data_dir) / "BFCL_v4_multi_turn_base.json",
         [{"id": "m1", "question": [[]]}],
     )
 

@@ -98,26 +98,26 @@ BFCL_POSSIBLE_ANSWER_DIR = BFCL_DATA_DIR / "possible_answer"
 # BFCL categories (single-turn, AST-evaluated)
 # ---------------------------------------------------------------------------
 CATEGORIES = {
-    "simple": {"language": "Python", "file": "BFCL_v3_simple.json"},
-    "multiple": {"language": "Python", "file": "BFCL_v3_multiple.json"},
-    "parallel": {"language": "Python", "file": "BFCL_v3_parallel.json"},
+    "simple": {"language": "Python", "file": "BFCL_v4_simple_python.json"},
+    "multiple": {"language": "Python", "file": "BFCL_v4_multiple.json"},
+    "parallel": {"language": "Python", "file": "BFCL_v4_parallel.json"},
     "parallel_multiple": {
         "language": "Python",
-        "file": "BFCL_v3_parallel_multiple.json",
+        "file": "BFCL_v4_parallel_multiple.json",
     },
-    "irrelevance": {"language": "Python", "file": "BFCL_v3_irrelevance.json"},
-    "java": {"language": "Java", "file": "BFCL_v3_java.json"},
-    "javascript": {"language": "JavaScript", "file": "BFCL_v3_javascript.json"},
+    "irrelevance": {"language": "Python", "file": "BFCL_v4_irrelevance.json"},
+    "java": {"language": "Java", "file": "BFCL_v4_simple_java.json"},
+    "javascript": {"language": "JavaScript", "file": "BFCL_v4_simple_javascript.json"},
 }
 
 # ---------------------------------------------------------------------------
 # BFCL multi-turn categories (execution-evaluated)
 # ---------------------------------------------------------------------------
 MULTI_TURN_CATEGORIES = {
-    "multi_turn_base": {"file": "BFCL_v3_multi_turn_base.json"},
-    "multi_turn_miss_func": {"file": "BFCL_v3_multi_turn_miss_func.json"},
-    "multi_turn_miss_param": {"file": "BFCL_v3_multi_turn_miss_param.json"},
-    "multi_turn_long_context": {"file": "BFCL_v3_multi_turn_long_context.json"},
+    "multi_turn_base": {"file": "BFCL_v4_multi_turn_base.json"},
+    "multi_turn_miss_func": {"file": "BFCL_v4_multi_turn_miss_func.json"},
+    "multi_turn_miss_param": {"file": "BFCL_v4_multi_turn_miss_param.json"},
+    "multi_turn_long_context": {"file": "BFCL_v4_multi_turn_long_context.json"},
 }
 
 MULTI_TURN_FUNC_DOC_DIR = BFCL_DATA_DIR / "multi_turn_func_doc"

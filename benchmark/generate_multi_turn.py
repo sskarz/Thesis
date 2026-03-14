@@ -1,4 +1,4 @@
-"""Multi-turn generation: model ↔ tool execution ↔ model loop for BFCL v3."""
+"""Multi-turn generation: model ↔ tool execution ↔ model loop for BFCL v4."""
 
 import csv
 import json
@@ -11,7 +11,7 @@ from . import config
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
 
 # Mapping from class name → func-doc JSON filename
-from bfcl_eval.constants.category_mapping import MULTI_TURN_FUNC_DOC_FILE_MAPPING
+from bfcl_eval.constants.executable_backend_config import MULTI_TURN_FUNC_DOC_FILE_MAPPING
 from bfcl_eval.eval_checker.multi_turn_eval.multi_turn_utils import (
     execute_multi_turn_func_call,
 )

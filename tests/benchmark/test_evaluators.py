@@ -12,14 +12,14 @@ def test_evaluate_responses_category_counts_valid_and_invalid_entries(
 ):
     data_dir, answers_dir = bfcl_fixture_dirs
     write_jsonl(
-        Path(data_dir) / "BFCL_v3_simple.json",
+        Path(data_dir) / "BFCL_v4_simple_python.json",
         [
             {"id": "ok", "function": [{"name": "weather"}]},
             {"id": "bad", "function": [{"name": "weather"}]},
         ],
     )
     write_jsonl(
-        Path(answers_dir) / "BFCL_v3_simple.json",
+        Path(answers_dir) / "BFCL_v4_simple_python.json",
         [
             {"id": "ok", "ground_truth": [{"weather": {"city": "Paris"}}]},
             {"id": "bad", "ground_truth": [{"weather": {"city": "Paris"}}]},
@@ -41,7 +41,7 @@ def test_evaluate_responses_category_counts_valid_and_invalid_entries(
 
     result = evaluate_responses.evaluate_category(
         "simple",
-        {"language": "Python", "file": "BFCL_v3_simple.json"},
+        {"language": "Python", "file": "BFCL_v4_simple_python.json"},
     )
 
     assert result["correct"] == 1
@@ -67,11 +67,11 @@ def test_evaluate_multi_turn_category_records_checker_failures(
 ):
     data_dir, answers_dir = bfcl_fixture_dirs
     write_jsonl(
-        Path(data_dir) / "BFCL_v3_multi_turn_base.json",
+        Path(data_dir) / "BFCL_v4_multi_turn_base.json",
         [{"id": "mt-1", "question": [[{"role": "user", "content": "hello"}]]}],
     )
     write_jsonl(
-        Path(answers_dir) / "BFCL_v3_multi_turn_base.json",
+        Path(answers_dir) / "BFCL_v4_multi_turn_base.json",
         [{"id": "mt-1", "ground_truth": [["weather(city='Paris')"]]}],
     )
     write_jsonl(
@@ -87,7 +87,7 @@ def test_evaluate_multi_turn_category_records_checker_failures(
 
     result = evaluate_multi_turn.evaluate_category(
         "multi_turn_base",
-        {"file": "BFCL_v3_multi_turn_base.json"},
+        {"file": "BFCL_v4_multi_turn_base.json"},
     )
 
     assert result["correct"] == 0

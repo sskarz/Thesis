@@ -40,7 +40,7 @@ def evaluate_category(category: str, category_info: dict) -> dict:
     test_entries = {e["id"]: e for e in load_jsonl(data_file)}
 
     # Load ground truth
-    answer_file = config.BFCL_POSSIBLE_ANSWER_DIR / f"BFCL_v3_{category}.json"
+    answer_file = config.BFCL_POSSIBLE_ANSWER_DIR / category_info["file"]
     if not answer_file.exists():
         print(f"  [warn] No possible-answer file for {category}, skipping.")
         return {"category": category, "correct": 0, "total": 0, "accuracy": 0}
