@@ -1,6 +1,7 @@
 import json
 
 from benchmark import generate_responses
+from benchmark.coerce_types import coerce_value, coerce_tool_call, coerce_tool_calls
 
 
 def test_bfcl_to_openai_tools_converts_types_and_adds_default_parameters():
@@ -132,7 +133,9 @@ def test_build_payload_includes_tools_only_when_functions_exist():
     )
 
     assert payload_with_tools["model"] == generate_responses.config.MODEL_NAME
-    assert payload_with_tools["messages"] == [{"role": "user", "content": "Weather?"}]
+    # System prompt is prepended when tools are present
+    assert payload_with_tools["messages"][0]["role"] == "system"
+    assert payload_with_tools["messages"][1] == {"role": "user", "content": "Weather?"}
     assert payload_with_tools["tool_choice"] == "auto"
     assert payload_with_tools["tools"] == [
         {
@@ -149,3 +152,150 @@ def test_build_payload_includes_tools_only_when_functions_exist():
     ]
     assert "tools" not in payload_without_tools
     assert "tool_choice" not in payload_without_tools
+    # No system prompt when no tools
+    assert payload_without_tools["messages"] == [{"role": "user", "content": "Hello"}]
+
+
+# ---------------------------------------------------------------------------
+# Type coercion tests
+# ---------------------------------------------------------------------------
+
+
+def test_coerce_value_string_to_integer():
+    assert coerce_value("5", {"type": "integer"}) == 5
+    assert coerce_value("3.0", {"type": "integer"}) == 3
+
+
+def test_coerce_value_string_to_number():
+    assert coerce_value("3.14", {"type": "number"}) == 3.14
+    assert coerce_value("10", {"type": "number"}) == 10
+    assert coerce_value("0", {"type": "float"}) == 0
+
+
+def test_coerce_value_string_to_array():
+    assert coerce_value("[1, 2, 3]", {"type": "array"}) == [1, 2, 3]
+    assert coerce_value("['a', 'b']", {"type": "array"}) == ["a", "b"]
+    assert coerce_value("[3, 4]", {"type": "tuple"}) == [3, 4]
+
+
+def test_coerce_value_string_to_object():
+    assert coerce_value('{"a": 1}', {"type": "object"}) == {"a": 1}
+    assert coerce_value("{'a': 1}", {"type": "dict"}) == {"a": 1}
+
+
+def test_coerce_value_nested_object():
+    schema = {
+        "type": "object",
+        "properties": {
+            "min": {"type": "integer"},
+            "max": {"type": "integer"},
+        },
+    }
+    # Already-parsed dict with string leaf values
+    assert coerce_value({"min": "100", "max": "200"}, schema) == {
+        "min": 100,
+        "max": 200,
+    }
+
+
+def test_coerce_value_string_to_boolean():
+    assert coerce_value("true", {"type": "boolean"}) is True
+    assert coerce_value("false", {"type": "boolean"}) is False
+
+
+def test_coerce_value_passthrough():
+    """Values that already have the correct type are unchanged."""
+    assert coerce_value(5, {"type": "integer"}) == 5
+    assert coerce_value([1, 2], {"type": "array"}) == [1, 2]
+    assert coerce_value("hello", {"type": "string"}) == "hello"
+    assert coerce_value("not a number", {"type": "integer"}) == "not a number"
+
+
+def test_coerce_tool_call_uses_schema():
+    func_defs = [
+        {
+            "name": "calculate",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer"},
+                    "y": {"type": "number"},
+                    "items": {"type": "array"},
+                },
+            },
+        }
+    ]
+    tc = {"calculate": {"x": "10", "y": "3.14", "items": "[1, 2]"}}
+    assert coerce_tool_call(tc, func_defs) == {
+        "calculate": {"x": 10, "y": 3.14, "items": [1, 2]}
+    }
+
+
+def test_coerce_tool_calls_list():
+    func_defs = [
+        {
+            "name": "add",
+            "parameters": {
+                "type": "object",
+                "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+            },
+        }
+    ]
+    calls = [{"add": {"a": "1", "b": "2"}}]
+    assert coerce_tool_calls(calls, func_defs) == [{"add": {"a": 1, "b": 2}}]
+
+
+def test_parse_tool_calls_applies_coercion_when_func_defs_provided():
+    response = {
+        "choices": [
+            {
+                "message": {
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "calculate",
+                                "arguments": json.dumps(
+                                    {"x": "5", "y": "3.14"}
+                                ),
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    func_defs = [
+        {
+            "name": "calculate",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer"},
+                    "y": {"type": "number"},
+                },
+            },
+        }
+    ]
+    result = generate_responses.parse_tool_calls(response, func_defs=func_defs)
+    assert result == [{"calculate": {"x": 5, "y": 3.14}}]
+
+
+def test_parse_tool_calls_without_func_defs_no_coercion():
+    response = {
+        "choices": [
+            {
+                "message": {
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "calc",
+                                "arguments": json.dumps({"x": "5"}),
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    result = generate_responses.parse_tool_calls(response)
+    assert result == [{"calc": {"x": "5"}}]

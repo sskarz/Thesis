@@ -9,6 +9,20 @@ import requests
 from tqdm import tqdm
 
 from . import config
+from .coerce_types import coerce_tool_calls
+
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+TOOL_CALLING_SYSTEM_PROMPT = (
+    "You are a helpful assistant with access to tools. When calling tools:\n"
+    '- Pass numeric values as numbers, not strings (e.g., 5 not "5")\n'
+    "- Pass arrays as JSON arrays, not strings (e.g., [1,2] not \"[1,2]\")\n"
+    "- Pass objects as JSON objects, not strings\n"
+    "- Always use the correct JSON types matching the parameter schema."
+)
 
 
 # ---------------------------------------------------------------------------
@@ -58,9 +72,15 @@ def bfcl_to_openai_tools(bfcl_functions: list[dict]) -> list[dict]:
 
 def build_payload(entry: dict) -> dict:
     """Convert a single-turn BFCL test entry to an API request payload."""
-    messages = entry["question"][0]
+    messages = list(entry["question"][0])
     bfcl_functions = entry.get("function", [])
     tools = bfcl_to_openai_tools(bfcl_functions) if bfcl_functions else None
+
+    if tools:
+        messages = [
+            {"role": "system", "content": TOOL_CALLING_SYSTEM_PROMPT},
+            *messages,
+        ]
 
     payload: dict = {
         "model": config.MODEL_NAME,
@@ -73,8 +93,16 @@ def build_payload(entry: dict) -> dict:
     return payload
 
 
-def parse_tool_calls(response_json: dict) -> list[dict] | str:
-    """Return list-of-dicts for tool calls, or text content when none."""
+def parse_tool_calls(
+    response_json: dict,
+    func_defs: list[dict] | None = None,
+) -> list[dict] | str:
+    """Return list-of-dicts for tool calls, or text content when none.
+
+    When *func_defs* is provided, argument values are coerced to the types
+    declared in the BFCL function schema (fixes Llama's string-for-everything
+    serialization).
+    """
     choice = response_json["choices"][0]
     message = choice["message"]
     tool_calls = message.get("tool_calls")
@@ -87,11 +115,15 @@ def parse_tool_calls(response_json: dict) -> list[dict] | str:
             except (json.JSONDecodeError, TypeError):
                 arguments = {}
             result.append({name: arguments})
+        if func_defs:
+            result = coerce_tool_calls(result, func_defs)
         return result
     content = message.get("content", "")
     from .parse_functiongemma import parse_functiongemma_content
     parsed = parse_functiongemma_content(content)
     if parsed is not None:
+        if func_defs:
+            parsed = coerce_tool_calls(parsed, func_defs)
         return parsed
     return content
 
@@ -123,6 +155,7 @@ def generate_for_category(
 
     for entry in tqdm(entries, desc=f"  {category}", unit="req"):
         payload = build_payload(entry)
+        func_defs = entry.get("function", [])
 
         try:
             resp = requests.post(
@@ -133,7 +166,7 @@ def generate_for_category(
             resp.raise_for_status()
             data = resp.json()
 
-            result = parse_tool_calls(data)
+            result = parse_tool_calls(data, func_defs=func_defs)
 
             # Capture timings
             t = data.get("timings", {})
