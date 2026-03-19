@@ -154,5 +154,5 @@ GORILLA_TO_OPENAPI: dict[str, str] = {
     "boolean": "boolean",
     "object": "object",
     "array": "array",
-    "any": "string",
+    "any": None,
 }

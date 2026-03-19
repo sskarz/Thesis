@@ -1,5 +1,3 @@
-import os
-
 import pytest
 import requests
 
@@ -9,8 +7,6 @@ from benchmark import generate_responses
 
 
 def _require_live_server():
-    if os.getenv("BENCHMARK_LIVE") != "1":
-        pytest.skip("Set BENCHMARK_LIVE=1 to enable live benchmark smoke tests.")
     try:
         resp = requests.get(
             f"{collect_metrics.config.SERVER_URL}/v1/models",

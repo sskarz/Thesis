@@ -50,6 +50,26 @@ def test_bfcl_to_openai_tools_converts_types_and_adds_default_parameters():
     ]
 
 
+def test_convert_types_omits_any_type():
+    tools = generate_responses.bfcl_to_openai_tools(
+        [
+            {
+                "name": "flexible",
+                "description": "Takes anything",
+                "parameters": {
+                    "type": "dict",
+                    "properties": {
+                        "data": {"type": "any", "description": "Any value"},
+                    },
+                },
+            }
+        ]
+    )
+    props = tools[0]["function"]["parameters"]["properties"]
+    assert "type" not in props["data"]
+    assert props["data"]["description"] == "Any value"
+
+
 def test_parse_tool_calls_handles_openai_and_functiongemma_payloads():
     openai_response = {
         "choices": [

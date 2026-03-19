@@ -142,9 +142,7 @@ def measure_request(entry: dict) -> dict:
             "id": entry["id"],
             "category": entry["_category"],
             "prompt_n": prompt_n,
-            # Multi-turn generation only tracks cumulative prompt-processing time,
-            # not TTFT per request. Keep TTFT-specific metrics excluded.
-            "prompt_ms": 0,
+            "prompt_ms": timing.get("first_prompt_ms", 0),
             "prompt_per_second": _to_tokens_per_second(prompt_n, prompt_ms),
             "predicted_n": predicted_n,
             "predicted_ms": predicted_ms,
@@ -165,6 +163,20 @@ def measure_request(entry: dict) -> dict:
     }
 
 
+def get_gpu_memory_mb() -> float:
+    """Return GPU VRAM usage in MB via nvidia-smi, or 0 if unavailable."""
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return float(result.stdout.strip().split("\n")[0])
+    except Exception:
+        pass
+    return 0.0
+
+
 def get_memory_rss(pid: int) -> int:
     """Return RSS in bytes for the given PID."""
     try:
@@ -174,7 +186,19 @@ def get_memory_rss(pid: int) -> int:
 
 
 def try_power_draw() -> float | None:
-    """Try to get instantaneous CPU+GPU power draw via powermetrics (needs sudo)."""
+    """Try to get instantaneous power draw (NVIDIA GPU first, then macOS powermetrics)."""
+    # NVIDIA GPU (Linux/CUDA)
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=power.draw", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            val = result.stdout.strip().split("\n")[0]
+            return float(val)
+    except Exception:
+        pass
+    # macOS (Apple Silicon)
     try:
         result = subprocess.run(
             ["sudo", "-n", "powermetrics", "-n", "1", "-i", "1000", "--samplers", "cpu_power"],
@@ -184,7 +208,6 @@ def try_power_draw() -> float | None:
             return None
         for line in result.stdout.splitlines():
             if "Combined Power" in line or "CPU Power" in line:
-                # Lines look like: "CPU Power: 1234 mW"
                 parts = line.split(":")
                 if len(parts) >= 2:
                     val = parts[1].strip().split()[0]
@@ -210,6 +233,7 @@ def run(include_single: bool = True, include_multi: bool = False) -> Path:
 
     # Baseline memory
     baseline_rss = get_memory_rss(pid) if pid else 0
+    baseline_gpu_mb = get_gpu_memory_mb()
 
     # Sample requests
     entries = sample_requests(
@@ -234,6 +258,7 @@ def run(include_single: bool = True, include_multi: bool = False) -> Path:
     print(f"[metrics] Benchmark: {len(bench_entries)} requests")
     timing_rows: list[dict] = []
     peak_rss = baseline_rss
+    peak_gpu_mb = baseline_gpu_mb
 
     for entry in tqdm(bench_entries, desc="  metrics", unit="req"):
         try:
@@ -247,6 +272,9 @@ def run(include_single: bool = True, include_multi: bool = False) -> Path:
             rss = get_memory_rss(pid)
             if rss > peak_rss:
                 peak_rss = rss
+        gpu_mb = get_gpu_memory_mb()
+        if gpu_mb > peak_gpu_mb:
+            peak_gpu_mb = gpu_mb
 
     # Optional power draw
     power_w = try_power_draw()
@@ -292,6 +320,8 @@ def run(include_single: bool = True, include_multi: bool = False) -> Path:
             "peak_rss_bytes": peak_rss,
             "baseline_rss_mb": round(baseline_rss / 1024 / 1024, 1),
             "peak_rss_mb": round(peak_rss / 1024 / 1024, 1),
+            "baseline_gpu_vram_mb": round(baseline_gpu_mb, 1),
+            "peak_gpu_vram_mb": round(peak_gpu_mb, 1),
         },
         "power_watts": power_w,
     }
@@ -318,6 +348,7 @@ def run(include_single: bool = True, include_multi: bool = False) -> Path:
     # Print summary
     mem = summary["memory"]
     print(f"[metrics] Memory: baseline={mem['baseline_rss_mb']}MB, peak={mem['peak_rss_mb']}MB")
+    print(f"[metrics] GPU VRAM: baseline={mem['baseline_gpu_vram_mb']}MB, peak={mem['peak_gpu_vram_mb']}MB")
     if power_w is not None:
         print(f"[metrics] Power draw: {power_w:.1f} W")
     else:
