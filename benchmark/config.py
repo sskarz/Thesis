@@ -124,6 +124,11 @@ MULTI_TURN_FUNC_DOC_DIR = BFCL_DATA_DIR / "multi_turn_func_doc"
 MULTI_TURN_MAX_STEPS = 20
 
 # ---------------------------------------------------------------------------
+# Concurrency (must match llama-server -np flag)
+# ---------------------------------------------------------------------------
+PARALLEL_SLOTS = 4
+
+# ---------------------------------------------------------------------------
 # BFCL → JSON-Schema type mapping
 # ---------------------------------------------------------------------------
 GORILLA_TO_OPENAPI: dict[str, str] = {

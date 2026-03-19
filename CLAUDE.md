@@ -83,7 +83,8 @@ cmake --build build --config Release -j$(nproc)
 cd /home/sanskar/Documents/Github/Thesis/llama.cpp
 ./build/bin/llama-server --jinja -fa on \
   -hf bartowski/Qwen2.5-3B-Instruct-GGUF:Q4_K_M \
-  --host 0.0.0.0 --port 8080 -ngl 99 -c 8192 --temp 0.0
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 32768 --temp 0.0 \
+  -np 4 -cb -ub 1024
 ```
 
 ### Check if server is running
@@ -115,6 +116,9 @@ uv run python -m benchmark.run_all --model qwen2.5-3b
 | `-ngl 99` | Offload all layers to GPU (Metal on Mac, CUDA on Linux) |
 | `-c 8192` | Context window size (8192 needed for multi-turn long_context) |
 | `--temp 0.0` | Deterministic output (BFCL recommends this) |
+| `-np 4` | 4 parallel request slots (matches `config.PARALLEL_SLOTS`) |
+| `-cb` | Continuous batching — lets new requests fill freed slots immediately |
+| `-ub 1024` | Larger micro-batch for faster prompt processing (default 512) |
 
 ### Start FunctionGemma server
 
@@ -122,7 +126,8 @@ uv run python -m benchmark.run_all --model qwen2.5-3b
 cd /home/sanskar/Documents/Github/Thesis/llama.cpp
 ./build/bin/llama-server --jinja -fa on \
   -hf ggml-org/functiongemma-270m-it-GGUF \
-  --host 0.0.0.0 --port 8080 -ngl 99 -c 8192 --temp 0.0
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 32768 --temp 0.0 \
+  -np 4 -cb -ub 1024
 ```
 
 **Note:** FunctionGemma uses a non-standard output format (`<start_function_call>call:name{args}<end_function_call>`) that llama-server cannot parse into OpenAI-style `tool_calls`. The custom parser in `benchmark/parse_functiongemma.py` post-processes the raw `content` field into the `[{"func": {args}}]` format expected by the BFCL evaluator. This is called automatically by `generate_responses.py`.
@@ -155,5 +160,5 @@ cd /home/sanskar/Documents/Github/Thesis/llama.cpp
 3. **`llama.cpp/` is git-ignored:** The entire llama.cpp directory is in `.gitignore`. It must be cloned and built locally on each machine.
 4. **FunctionGemma output format:** FunctionGemma does not produce OpenAI-style `tool_calls`. Its output arrives as raw text in the `content` field using custom control tokens. The `parse_functiongemma.py` module handles this transparently.
 5. **HTTPS support for `-hf` flag:** On Linux, llama.cpp must be built with `-DLLAMA_OPENSSL=ON` (requires `libssl-dev`) to use the `-hf` flag for downloading models.
-6. **Context window:** Use `-c 8192` (not 4096) to accommodate multi-turn long_context entries where two large tool doc sets can exceed 4096 tokens.
+6. **Context window:** Use `-c 32768` with `-np 4` (8192 per slot) to accommodate multi-turn long_context entries and enable parallel request processing. The RTX 4090 has ample VRAM for this.
 7. **Llama argument type serialization:** Llama 3.2 wraps all tool-call arguments as JSON strings (e.g., `"5"` instead of `5`). The `coerce_types.py` module post-processes arguments using the BFCL function schema to fix this. A tool-calling system prompt is also injected by `generate_responses.py` when tools are present. Both are applied to all models uniformly (no-op for Qwen which produces correct types natively).
