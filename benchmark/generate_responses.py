@@ -1,11 +1,12 @@
 """Send BFCL test entries to llama-server and save responses + timings."""
 
+import asyncio
 import copy
 import csv
 import json
 from pathlib import Path
 
-import requests
+import aiohttp
 from tqdm import tqdm
 
 from . import config
@@ -129,7 +130,7 @@ def parse_tool_calls(
 
 
 # ---------------------------------------------------------------------------
-# Per-category generation
+# Per-category generation (async)
 # ---------------------------------------------------------------------------
 
 TIMING_FIELDS = [
@@ -139,6 +140,87 @@ TIMING_FIELDS = [
 ]
 
 
+async def _generate_one(
+    session: aiohttp.ClientSession,
+    semaphore: asyncio.Semaphore,
+    entry: dict,
+    category: str,
+    pbar: tqdm,
+) -> tuple[dict, dict]:
+    """Send one request with concurrency bounded by *semaphore*."""
+    payload = build_payload(entry)
+    func_defs = entry.get("function", [])
+
+    async with semaphore:
+        try:
+            async with session.post(
+                f"{config.SERVER_URL}/v1/chat/completions",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=120),
+            ) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+
+            result = parse_tool_calls(data, func_defs=func_defs)
+
+            t = data.get("timings", {})
+            timing = {
+                "id": entry["id"],
+                "category": category,
+                "prompt_n": t.get("prompt_n", 0),
+                "prompt_ms": t.get("prompt_ms", 0),
+                "prompt_per_second": t.get("prompt_per_second", 0),
+                "predicted_n": t.get("predicted_n", 0),
+                "predicted_ms": t.get("predicted_ms", 0),
+                "predicted_per_second": t.get("predicted_per_second", 0),
+            }
+
+        except Exception as e:
+            result = f"ERROR: {e}"
+            timing = {
+                "id": entry["id"],
+                "category": category,
+                "prompt_n": 0, "prompt_ms": 0, "prompt_per_second": 0,
+                "predicted_n": 0, "predicted_ms": 0, "predicted_per_second": 0,
+            }
+
+    pbar.update(1)
+
+    result_row = {
+        "id": entry["id"],
+        "result": json.dumps(result) if isinstance(result, list) else result,
+    }
+    return result_row, timing
+
+
+async def _generate_for_category_async(
+    session: aiohttp.ClientSession,
+    semaphore: asyncio.Semaphore,
+    category: str,
+    category_info: dict,
+) -> tuple[list[dict], list[dict]]:
+    """Generate responses for every entry in one BFCL category concurrently."""
+    data_file = config.BFCL_DATA_DIR / category_info["file"]
+    entries = load_jsonl(data_file)
+
+    pbar = tqdm(total=len(entries), desc=f"  {category}", unit="req")
+
+    tasks = [
+        _generate_one(session, semaphore, entry, category, pbar)
+        for entry in entries
+    ]
+    pairs = await asyncio.gather(*tasks)
+    pbar.close()
+
+    results = [p[0] for p in pairs]
+    timings = [p[1] for p in pairs]
+    return results, timings
+
+
+# ---------------------------------------------------------------------------
+# Sync wrappers (keep the same public API)
+# ---------------------------------------------------------------------------
+
 def generate_for_category(
     category: str,
     category_info: dict,
@@ -147,18 +229,21 @@ def generate_for_category(
 
     Returns (results, timings) where each is a list of dicts.
     """
+    # Fallback for callers outside the async run() path (e.g. tests)
     data_file = config.BFCL_DATA_DIR / category_info["file"]
     entries = load_jsonl(data_file)
 
     results: list[dict] = []
     timings: list[dict] = []
 
+    import requests as req_lib
+
     for entry in tqdm(entries, desc=f"  {category}", unit="req"):
         payload = build_payload(entry)
         func_defs = entry.get("function", [])
 
         try:
-            resp = requests.post(
+            resp = req_lib.post(
                 f"{config.SERVER_URL}/v1/chat/completions",
                 json=payload,
                 timeout=120,
@@ -168,7 +253,6 @@ def generate_for_category(
 
             result = parse_tool_calls(data, func_defs=func_defs)
 
-            # Capture timings
             t = data.get("timings", {})
             timings.append({
                 "id": entry["id"],
@@ -202,25 +286,27 @@ def generate_for_category(
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run() -> Path:
-    """Generate responses for all categories. Returns path to timings CSV."""
+async def _run_async() -> Path:
+    """Async implementation of run()."""
     config.RESPONSES_DIR.mkdir(parents=True, exist_ok=True)
 
+    semaphore = asyncio.Semaphore(config.PARALLEL_SLOTS)
     all_timings: list[dict] = []
 
-    for category, info in config.CATEGORIES.items():
-        print(f"[generate] Category: {category}")
-        results, timings = generate_for_category(category, info)
-        all_timings.extend(timings)
+    async with aiohttp.ClientSession() as session:
+        for category, info in config.CATEGORIES.items():
+            print(f"[generate] Category: {category}")
+            results, timings = await _generate_for_category_async(
+                session, semaphore, category, info
+            )
+            all_timings.extend(timings)
 
-        # Write responses JSONL
-        out_file = config.RESPONSES_DIR / f"{category}_responses.jsonl"
-        with open(out_file, "w") as f:
-            for r in results:
-                f.write(json.dumps(r) + "\n")
-        print(f"  → {len(results)} responses saved to {out_file.name}")
+            out_file = config.RESPONSES_DIR / f"{category}_responses.jsonl"
+            with open(out_file, "w") as f:
+                for r in results:
+                    f.write(json.dumps(r) + "\n")
+            print(f"  → {len(results)} responses saved to {out_file.name}")
 
-    # Write combined timings CSV
     timings_csv = config.RESPONSES_DIR / "all_timings.csv"
     with open(timings_csv, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=TIMING_FIELDS)
@@ -229,6 +315,11 @@ def run() -> Path:
     print(f"[generate] Timings saved to {timings_csv.name}")
 
     return timings_csv
+
+
+def run() -> Path:
+    """Generate responses for all categories. Returns path to timings CSV."""
+    return asyncio.run(_run_async())
 
 
 if __name__ == "__main__":
