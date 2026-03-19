@@ -64,6 +64,7 @@ def test_measure_request_normalizes_multi_turn_timing_row(monkeypatch):
                 "total_prompt_ms": 100,
                 "total_predicted_n": 20,
                 "total_predicted_ms": 50,
+                "first_prompt_ms": 100,
             },
         ),
     )
@@ -81,7 +82,7 @@ def test_measure_request_normalizes_multi_turn_timing_row(monkeypatch):
         "id": "mt-1",
         "category": "multi_turn_base",
         "prompt_n": 200,
-        "prompt_ms": 0,
+        "prompt_ms": 100,
         "prompt_per_second": 2000.0,
         "predicted_n": 20,
         "predicted_ms": 50,
@@ -120,6 +121,7 @@ def test_run_writes_metrics_summary_and_csv(monkeypatch):
 
     monkeypatch.setattr(collect_metrics, "measure_request", fake_measure)
     monkeypatch.setattr(collect_metrics, "try_power_draw", lambda: 12.5)
+    monkeypatch.setattr(collect_metrics, "get_gpu_memory_mb", lambda: 4096.0)
 
     out = collect_metrics.run(include_single=True, include_multi=True)
 
@@ -132,3 +134,5 @@ def test_run_writes_metrics_summary_and_csv(monkeypatch):
     assert summary["num_requests"] == 2
     assert summary["power_watts"] == 12.5
     assert summary["ttft_ms"]["mean"] == 5
+    assert summary["memory"]["baseline_gpu_vram_mb"] == 4096.0
+    assert summary["memory"]["peak_gpu_vram_mb"] == 4096.0

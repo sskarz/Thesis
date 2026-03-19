@@ -23,11 +23,15 @@ def load_jsonl(path: Path) -> list[dict]:
 def _convert_types(obj):
     """Recursively map BFCL/Gorilla types to JSON-Schema types."""
     if isinstance(obj, dict):
-        return {
-            k: (config.GORILLA_TO_OPENAPI.get(v, v) if k == "type" and isinstance(v, str)
-                 else _convert_types(v))
-            for k, v in obj.items()
-        }
+        result = {}
+        for k, v in obj.items():
+            if k == "type" and isinstance(v, str):
+                mapped = config.GORILLA_TO_OPENAPI.get(v, v)
+                if mapped is not None:
+                    result[k] = mapped
+            else:
+                result[k] = _convert_types(v)
+        return result
     if isinstance(obj, list):
         return [_convert_types(item) for item in obj]
     return obj

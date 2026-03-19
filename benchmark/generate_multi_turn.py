@@ -119,13 +119,15 @@ def generate_for_entry(
 
     chat_history: list[dict] = []
     turn_results: list[list[list[str]]] = []
+    flags: list[str] = []
     total_prompt_ms = 0.0
     total_predicted_ms = 0.0
     total_prompt_n = 0
     total_predicted_n = 0
     api_calls = 0
+    first_prompt_ms: float = 0.0
 
-    exec_model_name = execution_model_name or config.MODEL_NAME
+    exec_model_name = execution_model_name or f"{config.MODEL_NAME}_gen"
 
     for turn_idx, turn_messages in enumerate(questions):
         # miss_func: if this turn's question is [], add back withheld functions
@@ -172,8 +174,15 @@ def generate_for_entry(
                 resp.raise_for_status()
                 data = resp.json()
                 api_calls += 1
+            except requests.exceptions.HTTPError as e:
+                status = e.response.status_code if e.response is not None else None
+                if status == 400:
+                    flags.append(f"context_overflow:turn_{turn_idx}")
+                else:
+                    flags.append(f"http_error_{status}:turn_{turn_idx}")
+                step_results.append([f"ERROR: {e}"])
+                break
             except Exception as e:
-                # On error, record empty step and break
                 step_results.append([f"ERROR: {e}"])
                 break
 
@@ -183,6 +192,8 @@ def generate_for_entry(
             total_prompt_ms += t.get("prompt_ms", 0)
             total_predicted_n += t.get("predicted_n", 0)
             total_predicted_ms += t.get("predicted_ms", 0)
+            if api_calls == 1:
+                first_prompt_ms = t.get("prompt_ms", 0)
 
             if not data.get("choices"):
                 step_results.append(["ERROR: empty choices in response"])
@@ -230,6 +241,7 @@ def generate_for_entry(
                 break
         else:
             # Loop completed without break — model never gave a text response
+            flags.append(f"hit_step_limit:turn_{turn_idx}")
             print(
                 f"  [warn] {entry_id} turn {turn_idx}: "
                 f"hit {config.MULTI_TURN_MAX_STEPS}-step limit without text response"
@@ -246,6 +258,8 @@ def generate_for_entry(
         "total_prompt_ms": round(total_prompt_ms, 2),
         "total_predicted_n": total_predicted_n,
         "total_predicted_ms": round(total_predicted_ms, 2),
+        "first_prompt_ms": round(first_prompt_ms, 2),
+        "flags": json.dumps(flags) if flags else "",
     }
     return turn_results, timing_summary
 
@@ -274,6 +288,7 @@ def generate_for_category(
         results.append({
             "id": entry["id"],
             "result": turn_results,
+            "flags": timing.get("flags", ""),
         })
         timings.append(timing)
 
@@ -288,6 +303,7 @@ TIMING_FIELDS = [
     "id", "category", "turns", "api_calls",
     "total_prompt_n", "total_prompt_ms",
     "total_predicted_n", "total_predicted_ms",
+    "first_prompt_ms", "flags",
 ]
 
 

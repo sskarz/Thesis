@@ -144,4 +144,6 @@ def test_generate_for_entry_restores_missing_functions_and_collects_timings(
         "total_prompt_ms": 120.0,
         "total_predicted_n": 10,
         "total_predicted_ms": 50.0,
+        "first_prompt_ms": 50.0,
+        "flags": "",
     }
