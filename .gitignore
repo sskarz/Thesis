@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -181,9 +181,8 @@ cython_debug/
 .cursorindexingignore
 
 llama.cpp/
+frontend/node_modules/
+frontend/dist/
 .claude
-benchmark/results/*
-!benchmark/results/comparison/
-benchmark/results/comparison/*
-!benchmark/results/comparison/index.html
+benchmark/results/
 uv.lock
