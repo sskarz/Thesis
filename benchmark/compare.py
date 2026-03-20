@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from . import config
+from . import config, db
 
 # ---------------------------------------------------------------------------
 # Output directory
@@ -42,6 +42,21 @@ def _save(fig, name: str):
 
 def _load_models() -> list[dict]:
     """Load accuracy + metrics for every model that has results."""
+    db_results = db.get_all_model_results()
+    if db_results:
+        models = []
+        for r in db_results:
+            scores_df = pd.DataFrame(r["scores"])
+            models.append({
+                "key": r["key"],
+                "display": r["display"],
+                "slug": r["slug"],
+                "scores": scores_df,
+                "metrics": r["metrics"],
+            })
+        return models
+
+    # Fallback to flat files
     models = []
     for key, info in config.MODELS.items():
         slug = info["slug"]

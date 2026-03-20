@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from benchmark import collect_metrics
-from benchmark import config
+from benchmark import config, db
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -90,7 +90,11 @@ def test_measure_request_normalizes_multi_turn_timing_row(monkeypatch):
     }
 
 
-def test_run_writes_metrics_summary_and_csv(monkeypatch):
+def test_run_writes_metrics_summary_to_db(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    run_id = db.create_run("qwen2.5-3b")
+    monkeypatch.setattr(config, "RUN_ID", run_id)
+
     monkeypatch.setattr(collect_metrics, "WARMUP_REQUESTS", 1)
     monkeypatch.setattr(collect_metrics, "BENCHMARK_REQUESTS", 2)
     monkeypatch.setattr(collect_metrics, "find_llama_server_pid", lambda: None)
@@ -123,16 +127,19 @@ def test_run_writes_metrics_summary_and_csv(monkeypatch):
     monkeypatch.setattr(collect_metrics, "try_power_draw", lambda: 12.5)
     monkeypatch.setattr(collect_metrics, "get_gpu_memory_mb", lambda: 4096.0)
 
-    out = collect_metrics.run(include_single=True, include_multi=True)
-
-    summary = json.loads(out.read_text())
-    csv_path = collect_metrics.config.METRICS_DIR / "inference_metrics.csv"
+    summary = collect_metrics.run(include_single=True, include_multi=True)
 
     assert calls == ["warmup", "bench-1", "bench-2"]
-    assert out.name == "inference_metrics.json"
-    assert csv_path.exists()
     assert summary["num_requests"] == 2
     assert summary["power_watts"] == 12.5
     assert summary["ttft_ms"]["mean"] == 5
     assert summary["memory"]["baseline_gpu_vram_mb"] == 4096.0
     assert summary["memory"]["peak_gpu_vram_mb"] == 4096.0
+
+    # Verify DB storage
+    db_metrics = db.get_inference_metrics(run_id)
+    assert db_metrics["num_requests"] == 2
+    assert db_metrics["power_watts"] == 12.5
+
+    per_req = db.get_metrics_per_request(run_id)
+    assert len(per_req) == 2

@@ -8,6 +8,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from benchmark import config
+from benchmark import db
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +31,12 @@ def isolated_config_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Pat
     monkeypatch.setattr(config, "METRICS_DIR", metrics_dir)
     monkeypatch.setattr(config, "SCORES_DIR", scores_dir)
     monkeypatch.setattr(config, "FIGURES_DIR", figures_dir)
+    monkeypatch.setattr(config, "RUN_ID", None)
+
+    # Isolate DB: each test gets its own SQLite database
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "test.db")
+    monkeypatch.setattr(db, "_conn", None)
+
     return tmp_path
 
 

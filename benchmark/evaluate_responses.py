@@ -1,6 +1,5 @@
 """Score BFCL responses using the AST checker."""
 
-import csv
 import json
 from pathlib import Path
 
@@ -14,7 +13,7 @@ LANGUAGE_MAP: dict[str, Language] = {
     "JavaScript": Language.JAVASCRIPT,
 }
 
-from . import config
+from . import config, db
 
 
 def _ensure_model_registered() -> None:
@@ -85,11 +84,16 @@ def _evaluate_irrelevance(responses: dict[str, dict]) -> dict:
 
 def evaluate_category(category: str, category_info: dict) -> dict:
     """Evaluate one BFCL category. Returns accuracy dict."""
-    # Load response file
-    response_file = config.RESPONSES_DIR / f"{category}_responses.jsonl"
-    if not response_file.exists():
-        return {"category": category, "correct": 0, "total": 0, "accuracy": 0}
-    responses = {e["id"]: e for e in load_jsonl(response_file)}
+    run_id = config.RUN_ID
+    db_rows = db.get_responses(run_id, category=category, mode="single") if run_id else []
+    if db_rows:
+        responses = {r["entry_id"]: {"id": r["entry_id"], "result": r["result"]} for r in db_rows}
+    else:
+        # Fallback to flat files for backward compatibility / tests
+        response_file = config.RESPONSES_DIR / f"{category}_responses.jsonl"
+        if not response_file.exists():
+            return {"category": category, "correct": 0, "total": 0, "accuracy": 0}
+        responses = {e["id"]: e for e in load_jsonl(response_file)}
 
     if category == "irrelevance":
         return _evaluate_irrelevance(responses)
@@ -165,17 +169,18 @@ def evaluate_category(category: str, category_info: dict) -> dict:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run() -> Path:
-    """Evaluate all categories. Returns path to accuracy CSV."""
+def run() -> list[dict]:
+    """Evaluate all categories. Returns list of score rows."""
     _ensure_model_registered()
-    config.SCORES_DIR.mkdir(parents=True, exist_ok=True)
+    run_id = config.RUN_ID
 
     rows: list[dict] = []
 
     for category, info in config.CATEGORIES.items():
         print(f"[evaluate] Category: {category}")
         result = evaluate_category(category, info)
-        n_errors = len(result.get("errors", []))
+        errors = result.get("errors", [])
+        n_errors = len(errors)
         print(
             f"  → {result['correct']}/{result['total']} correct "
             f"({result['accuracy']:.1%})"
@@ -187,15 +192,14 @@ def run() -> Path:
             "total": result["total"],
             "accuracy": round(result["accuracy"], 4),
         })
+        if run_id and errors:
+            db.insert_eval_errors(run_id, category, errors)
 
-    csv_path = config.SCORES_DIR / "accuracy.csv"
-    with open(csv_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["category", "correct", "total", "accuracy"])
-        writer.writeheader()
-        writer.writerows(rows)
-    print(f"[evaluate] Scores saved to {csv_path.name}")
+    if run_id:
+        db.insert_scores(run_id, rows)
+    print(f"[evaluate] Scores saved to DB")
 
-    return csv_path
+    return rows
 
 
 if __name__ == "__main__":

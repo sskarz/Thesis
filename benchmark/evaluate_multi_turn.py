@@ -6,20 +6,8 @@ from bfcl_eval.eval_checker.multi_turn_eval.multi_turn_checker import (
     multi_turn_checker,
 )
 
-from . import config
+from . import config, db
 from .evaluate_responses import _ensure_model_registered, load_jsonl
-
-
-def _save_errors(category: str, errors: list[dict]) -> None:
-    """Persist per-entry evaluation errors to a JSONL file for debugging."""
-    if not errors:
-        return
-    config.SCORES_DIR.mkdir(parents=True, exist_ok=True)
-    out = config.SCORES_DIR / f"{category}_eval_errors.jsonl"
-    with open(out, "w") as f:
-        for e in errors:
-            f.write(json.dumps(e) + "\n")
-    print(f"  → {len(errors)} errors saved to {out.name}")
 
 
 # ---------------------------------------------------------------------------
@@ -28,12 +16,25 @@ def _save_errors(category: str, errors: list[dict]) -> None:
 
 def evaluate_category(category: str, category_info: dict) -> dict:
     """Evaluate one multi-turn category. Returns accuracy dict."""
-    response_file = config.RESPONSES_DIR / f"{category}_responses.jsonl"
-    if not response_file.exists():
-        print(f"  [warn] No response file for {category}, skipping.")
-        return {"category": category, "correct": 0, "total": 0, "accuracy": 0}
-
-    responses = {e["id"]: e for e in load_jsonl(response_file)}
+    run_id = config.RUN_ID
+    db_rows = db.get_responses(run_id, category=category, mode="multi") if run_id else []
+    if db_rows:
+        responses = {}
+        for r in db_rows:
+            result = r["result"]
+            if isinstance(result, str):
+                try:
+                    result = json.loads(result)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            responses[r["entry_id"]] = {"id": r["entry_id"], "result": result}
+    else:
+        # Fallback to flat files for backward compatibility / tests
+        response_file = config.RESPONSES_DIR / f"{category}_responses.jsonl"
+        if not response_file.exists():
+            print(f"  [warn] No response file for {category}, skipping.")
+            return {"category": category, "correct": 0, "total": 0, "accuracy": 0}
+        responses = {e["id"]: e for e in load_jsonl(response_file)}
 
     # Load test entries
     data_file = config.BFCL_DATA_DIR / category_info["file"]
@@ -80,7 +81,9 @@ def evaluate_category(category: str, category_info: dict) -> dict:
             errors.append({"id": entry_id, "error": str(e)})
 
     accuracy = correct / total if total else 0
-    _save_errors(category, errors)
+    if config.RUN_ID and errors:
+        db.insert_eval_errors(config.RUN_ID, category, errors)
+        print(f"  → {len(errors)} errors saved to DB")
     return {
         "category": category,
         "correct": correct,
@@ -97,6 +100,7 @@ def evaluate_category(category: str, category_info: dict) -> dict:
 def run() -> list[dict]:
     """Evaluate all multi-turn categories. Returns list of accuracy rows."""
     _ensure_model_registered()
+    run_id = config.RUN_ID
 
     rows: list[dict] = []
 
@@ -115,6 +119,10 @@ def run() -> list[dict]:
             "total": result["total"],
             "accuracy": round(result["accuracy"], 4),
         })
+
+    if run_id:
+        db.insert_scores(run_id, rows)
+    print(f"[multi-turn evaluate] Scores saved to DB")
 
     return rows
 
