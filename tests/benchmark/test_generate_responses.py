@@ -109,6 +109,25 @@ def test_parse_tool_calls_handles_openai_and_functiongemma_payloads():
         {"lookup_weather": {"city": "San Francisco"}}
     ]
 
+    # <tool_call> XML blocks (from tool_choice="none" bypass)
+    tool_call_xml_response = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": (
+                        '<tool_call>\n{"name": "math.factorial", "arguments": {"number": 5}}\n</tool_call>\n'
+                        '<tool_call>\n{"name": "math.factorial", "arguments": {"number": 10}}\n</tool_call>'
+                    ),
+                }
+            }
+        ]
+    }
+    assert generate_responses.parse_tool_calls(tool_call_xml_response) == [
+        {"math.factorial": {"number": 5}},
+        {"math.factorial": {"number": 10}},
+    ]
+
 
 def test_build_payload_includes_tools_only_when_functions_exist():
     payload_with_tools = generate_responses.build_payload(
@@ -154,6 +173,37 @@ def test_build_payload_includes_tools_only_when_functions_exist():
     assert "tool_choice" not in payload_without_tools
     # No system prompt when no tools
     assert payload_without_tools["messages"] == [{"role": "user", "content": "Hello"}]
+
+    # Parallel categories bypass grammar constraining
+    payload_parallel = generate_responses.build_payload(
+        {
+            "question": [[{"role": "user", "content": "Do two things"}]],
+            "function": [
+                {
+                    "name": "do_thing",
+                    "description": "Do a thing",
+                    "parameters": {"type": "object", "properties": {}},
+                }
+            ],
+        },
+        category="parallel",
+    )
+    assert payload_parallel["tool_choice"] == "none"
+
+    payload_parallel_multiple = generate_responses.build_payload(
+        {
+            "question": [[{"role": "user", "content": "Do two things"}]],
+            "function": [
+                {
+                    "name": "do_thing",
+                    "description": "Do a thing",
+                    "parameters": {"type": "object", "properties": {}},
+                }
+            ],
+        },
+        category="parallel_multiple",
+    )
+    assert payload_parallel_multiple["tool_choice"] == "none"
 
 
 # ---------------------------------------------------------------------------

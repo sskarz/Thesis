@@ -94,13 +94,15 @@ All results on BFCL v4, evaluated with the AST checker. **Bold** indicates best-
 |----------|---------------------|----------------------|---------------------|--------------------------|
 | Simple (400) | **373/400 (93.25%)** | 207/400 (51.75%) | 361/400 (90.25%) | 205/400 (51.25%) |
 | Multiple (200) | **185/200 (92.50%)** | 67/200 (33.50%) | 181/200 (90.50%) | 118/200 (59.00%) |
-| Parallel (200) | 0/200 (0.00%) | 0/200 (0.00%) | 0/200 (0.00%) | 0/200 (0.00%) |
-| Parallel Multiple (200) | 0/200 (0.00%) | 0/200 (0.00%) | 0/200 (0.00%) | 0/200 (0.00%) |
+| Parallel (200)* | 0/200 (0.00%) | 0/200 (0.00%) | 0/200 (0.00%) | 0/200 (0.00%) |
+| Parallel Multiple (200)* | 0/200 (0.00%) | 0/200 (0.00%) | 0/200 (0.00%) | 0/200 (0.00%) |
 | Irrelevance (240) | 141/240 (58.75%) | 2/240 (0.83%) | **219/240 (91.25%)** | 48/240 (20.00%) |
 | Java (100) | 37/100 (37.00%) | **54/100 (54.00%)** | 39/100 (39.00%) | 15/100 (15.00%) |
 | JavaScript (50) | 17/50 (34.00%) | **35/50 (70.00%)** | 17/50 (34.00%) | 9/50 (18.00%) |
 
-### Overall accuracy (excluding parallel categories)
+\* *Parallel scores invalidated by a llama-server grammar bug that truncated generation after the first tool call. See [Parallel calling](#parallel-calling-server-side-grammar-bug-not-a-model-limitation) for details. Fix implemented; re-run pending.*
+
+### Overall accuracy (excluding parallel categories — affected by server bug, pending re-run)
 
 | Model | Weighted Avg (5 categories, 990 cases) |
 |-------|-----------------------------------------|
@@ -203,9 +205,40 @@ This analysis reveals that **benchmark scores can significantly understate a mod
 
 Both techniques are now integrated into the benchmark pipeline (`benchmark/coerce_types.py` and a tool-calling system prompt in `benchmark/generate_responses.py`) and applied to all models uniformly.
 
-### Parallel calling: Universal failure
+### Parallel calling: Server-side grammar bug, not a model limitation
 
-All four models score 0% on `parallel` and `parallel_multiple`. This is a structural limitation of small models — emitting multiple well-formed function calls in a single response requires a level of structured output control that sub-5B models consistently fail to achieve. This is the single largest gap between SLMs and cloud-scale models, and the most significant barrier to fully agentic multi-step workflows.
+All four models initially scored 0% on `parallel` and `parallel_multiple` (400 test cases total). This appeared to be a fundamental SLM limitation — but investigation revealed the root cause is a **llama-server bug in grammar-constrained decoding**, not a model capability gap.
+
+#### Diagnosis
+
+When `tools` are passed in the OpenAI-compatible API payload, llama-server generates a PEG grammar to constrain the model's output to valid tool-call syntax. For the Qwen chat template, the grammar produced is:
+
+```
+tool-call ::= "<tool_call>\n" (tool-func) ("," (tool-func))* "</tool_call>"
+```
+
+This grammar expects multiple tool calls **inside a single `<tool_call>` block separated by commas**. But the Qwen template's actual format uses **separate `<tool_call>...</tool_call>` blocks per call**. After the first `</tool_call>` tag, the grammar is satisfied and generation terminates — the model never gets to produce the 2nd or 3rd call.
+
+Evidence from a controlled test (Qwen2.5-3B, prompt: "Find the factorial of 5, 10, and 15"):
+
+| Mode | Tool calls produced | Tokens generated |
+|------|-------------------|-----------------|
+| With `tools` param (grammar active) | 1 (only `factorial(5)`) | 21 |
+| Without `tools` (raw text, no grammar) | 3 (all correct: 5, 10, 15) | 65 |
+
+The model generates all three calls correctly when unconstrained. The grammar kills the 2nd and 3rd calls by stopping generation early.
+
+#### Fix
+
+For `parallel` and `parallel_multiple` categories, the pipeline now passes `tool_choice: "none"` instead of `"auto"`. This bypasses grammar-constrained decoding while still including the tool definitions in the Jinja-templated prompt (the model sees the same tools, just isn't grammar-constrained). A content parser extracts `<tool_call>` blocks from the raw response text. Non-parallel categories continue using `tool_choice: "auto"` with full grammar constraining.
+
+#### Implications
+
+This finding has significant implications for SLM benchmarking infrastructure:
+
+1. **Benchmark validity**: Any llama.cpp-based evaluation reporting 0% parallel tool-calling accuracy should be scrutinized — the failure may be in the serving layer, not the model.
+2. **Grammar-constrained decoding is a double-edged sword**: It guarantees valid JSON output for single tool calls but silently breaks multi-call scenarios. The grammar's repetition structure must match the model's trained output format exactly.
+3. **SLMs can do parallel tool calling**: The 3B-parameter Qwen2.5 correctly emits 2–4 parallel function calls when unconstrained, suggesting that parallel tool calling is within reach for sub-5B models — contrary to the initial 0% scores.
 
 ### Accuracy vs. speed trade-off
 
@@ -229,4 +262,4 @@ FunctionGemma-270M is a purpose-built tool-calling model fine-tuned from Gemma 3
 - **NVIDIA Jetson Orin Nano Super migration**: Repeat all benchmarks on CUDA with 8 GB shared memory to measure real edge-device performance.
 - **RAG augmentation for large tool sets**: The `multiple` category only presents 2–4 tools per test case, so RAG-based tool filtering provides no benefit. However, real-world agentic applications may expose 50–100+ tools. Test whether retrieval-augmented generation (embedding-based tool retrieval to pre-filter the tool set before prompting) improves accuracy and reduces prompt length for large tool registries.
 - **Additional models and quantizations**: Expand the model matrix (e.g., Phi-3.5-mini, Gemma-2-2B) and test alternative quantization levels (Q5_K_M, Q8_0) to map the accuracy-size Pareto frontier.
-- **Parallel function calling investigation**: Analyze failure modes on `parallel`/`parallel_multiple` to determine if structured output constraints (e.g., grammar-guided decoding) can unlock this capability in small models.
+- **Re-run parallel benchmarks**: Now that the grammar-constraining bypass is in place, re-run `parallel` and `parallel_multiple` categories across all models to measure true SLM parallel tool-calling accuracy.

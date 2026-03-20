@@ -91,8 +91,8 @@ cmake --build build --config Release -j$(nproc)
 cd /home/sanskar/Documents/Github/Thesis/llama.cpp
 ./build/bin/llama-server --jinja -fa on \
   -hf bartowski/Qwen2.5-3B-Instruct-GGUF:Q4_K_M \
-  --host 0.0.0.0 --port 8080 -ngl 99 -c 32768 --temp 0.0 \
-  -np 4 -cb -ub 1024
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 \
+  -np 8 -cb -ub 1024
 ```
 
 ### Check if server is running
@@ -148,7 +148,7 @@ db.get_all_model_results()              # latest run per model (for comparison)
 | `-ngl 99` | Offload all layers to GPU (Metal on Mac, CUDA on Linux) |
 | `-c 8192` | Context window size (8192 needed for multi-turn long_context) |
 | `--temp 0.0` | Deterministic output (BFCL recommends this) |
-| `-np 4` | 4 parallel request slots (matches `config.PARALLEL_SLOTS`) |
+| `-np 8` | 8 parallel request slots (matches `config.PARALLEL_SLOTS`) |
 | `-cb` | Continuous batching — lets new requests fill freed slots immediately |
 | `-ub 1024` | Larger micro-batch for faster prompt processing (default 512) |
 
@@ -202,6 +202,6 @@ All benchmark results are stored in a SQLite database at `benchmark/results/benc
 3. **`llama.cpp/` is git-ignored:** The entire llama.cpp directory is in `.gitignore`. It must be cloned and built locally on each machine.
 4. **FunctionGemma output format:** FunctionGemma does not produce OpenAI-style `tool_calls`. Its output arrives as raw text in the `content` field using custom control tokens. The `parse_functiongemma.py` module handles this transparently.
 5. **HTTPS support for `-hf` flag:** On Linux, llama.cpp must be built with `-DLLAMA_OPENSSL=ON` (requires `libssl-dev`) to use the `-hf` flag for downloading models.
-6. **Context window:** Use `-c 32768` with `-np 4` (8192 per slot) to accommodate multi-turn long_context entries and enable parallel request processing. The RTX 4090 has ample VRAM for this.
+6. **Context window:** Use `-c 65536` with `-np 8` (8192 per slot) to accommodate multi-turn long_context entries and maximize parallel request processing. The RTX 4090 has ample VRAM for this (~14.5 GB used out of 24 GB).
 7. **Llama argument type serialization:** Llama 3.2 wraps all tool-call arguments as JSON strings (e.g., `"5"` instead of `5`). The `coerce_types.py` module post-processes arguments using the BFCL function schema to fix this. A tool-calling system prompt is also injected by `generate_responses.py` when tools are present. Both are applied to all models uniformly (no-op for Qwen which produces correct types natively).
 8. **Database file is git-ignored:** `benchmark/results/benchmark.db` is under the `benchmark/results/` gitignore pattern. After cloning on a new machine, run benchmarks to populate the DB.
