@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from . import config
+from . import config, db
 
 # ---------------------------------------------------------------------------
 # Global style
@@ -81,19 +81,37 @@ def _load_timings(
     include_single: bool = True,
     include_multi: bool = True,
 ) -> pd.DataFrame:
+    run_id = config.RUN_ID
     frames: list[pd.DataFrame] = []
 
-    if include_single:
-        single_path = config.RESPONSES_DIR / "all_timings.csv"
-        if single_path.exists():
-            frames.append(pd.read_csv(single_path))
-
-    if include_multi:
-        multi_path = config.RESPONSES_DIR / "multi_turn_timings.csv"
-        if multi_path.exists():
-            frames.append(
-                _normalize_multi_turn_timings(pd.read_csv(multi_path))
-            )
+    if run_id:
+        # Read from DB
+        if include_single:
+            rows = db.get_single_turn_timings(run_id)
+            if rows:
+                df = pd.DataFrame(rows)
+                df = df.rename(columns={"entry_id": "id"})
+                frames.append(df[["id", "category", "prompt_n", "prompt_ms",
+                                  "prompt_per_second", "predicted_n",
+                                  "predicted_ms", "predicted_per_second"]])
+        if include_multi:
+            rows = db.get_multi_turn_timings(run_id)
+            if rows:
+                df = pd.DataFrame(rows)
+                df = df.rename(columns={"entry_id": "id"})
+                frames.append(_normalize_multi_turn_timings(df))
+    else:
+        # Fallback to flat files
+        if include_single:
+            single_path = config.RESPONSES_DIR / "all_timings.csv"
+            if single_path.exists():
+                frames.append(pd.read_csv(single_path))
+        if include_multi:
+            multi_path = config.RESPONSES_DIR / "multi_turn_timings.csv"
+            if multi_path.exists():
+                frames.append(
+                    _normalize_multi_turn_timings(pd.read_csv(multi_path))
+                )
 
     if not frames:
         return pd.DataFrame()
@@ -343,17 +361,23 @@ def chart_dashboard(scores, timings, metrics) -> plt.Figure:
 # ---------------------------------------------------------------------------
 
 def run(include_single: bool = True, include_multi: bool = True):
-    """Generate all charts. Reads from results dirs."""
+    """Generate all charts. Reads from DB or results dirs."""
     _setup_style()
     config.FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Load data
-    scores_path = config.SCORES_DIR / "accuracy.csv"
-    metrics_path = config.METRICS_DIR / "inference_metrics.json"
+    run_id = config.RUN_ID
 
-    scores = pd.read_csv(scores_path) if scores_path.exists() else pd.DataFrame()
+    # Load data
+    if run_id:
+        score_rows = db.get_scores(run_id)
+        scores = pd.DataFrame(score_rows) if score_rows else pd.DataFrame()
+        metrics = db.get_inference_metrics(run_id)
+    else:
+        scores_path = config.SCORES_DIR / "accuracy.csv"
+        metrics_path = config.METRICS_DIR / "inference_metrics.json"
+        scores = pd.read_csv(scores_path) if scores_path.exists() else pd.DataFrame()
+        metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
     timings = _load_timings(include_single=include_single, include_multi=include_multi)
-    metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
 
     charts_saved = 0
 

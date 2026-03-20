@@ -50,6 +50,7 @@ MODEL_QUANT: str = ""
 MODEL_NAME: str = ""
 MODEL_DISPLAY: str = ""
 MODEL_SLUG: str = ""
+RUN_ID: int | None = None
 
 # ---------------------------------------------------------------------------
 # Paths  (results are organized per model)

@@ -1,13 +1,12 @@
 """Orchestrator: generate → evaluate → collect metrics → visualize."""
 
 import argparse
-import csv
 import sys
 import time
 
 import requests
 
-from . import config
+from . import config, db
 from . import generate_responses
 from . import generate_multi_turn
 from . import evaluate_responses
@@ -44,6 +43,12 @@ def main():
         action="store_true",
         help="Run only multi-turn categories (skip single-turn)",
     )
+    parser.add_argument(
+        "--notes",
+        type=str,
+        default=None,
+        help="Freeform annotation for this run",
+    )
     args = parser.parse_args()
     if args.skip_multi_turn and args.only_multi_turn:
         parser.error("--skip-multi-turn and --only-multi-turn are mutually exclusive")
@@ -53,10 +58,15 @@ def main():
     do_multi = not args.skip_multi_turn
     n_steps = (2 if do_single else 0) + (2 if do_multi else 0) + 3  # server + metrics + viz
 
+    # Create a new run in the database
+    run_id = db.create_run(model_key=args.model, notes=args.notes)
+    config.RUN_ID = run_id
+
     print("=" * 60)
     print("BFCL Benchmark Pipeline")
     print(f"Model : {config.MODEL_DISPLAY}")
     print(f"Server: {config.SERVER_URL}")
+    print(f"Run ID: {run_id}")
     if not do_single:
         print("Single-turn: SKIPPED")
     if not do_multi:
@@ -78,7 +88,6 @@ def main():
     t0 = time.time()
 
     # Generate single-turn responses
-    st_csv = None
     if do_single:
         step += 1
         print(f"\n[{step}/{n_steps}] Generating single-turn responses")
@@ -94,34 +103,13 @@ def main():
     if do_single:
         step += 1
         print(f"\n[{step}/{n_steps}] Evaluating single-turn responses")
-        st_csv = evaluate_responses.run()
+        evaluate_responses.run()
 
-    # Evaluate multi-turn responses & combine accuracy.csv
-    multi_turn_rows: list[dict] = []
+    # Evaluate multi-turn responses (scores saved directly to DB by each evaluator)
     if do_multi:
         step += 1
         print(f"\n[{step}/{n_steps}] Evaluating multi-turn responses")
-        multi_turn_rows = evaluate_multi_turn.run()
-
-    # Append multi-turn rows to accuracy.csv if present
-    if multi_turn_rows and st_csv:
-        with open(st_csv, "a", newline="") as f:
-            writer = csv.DictWriter(
-                f, fieldnames=["category", "correct", "total", "accuracy"]
-            )
-            writer.writerows(multi_turn_rows)
-        print(f"[evaluate] Multi-turn scores appended to {st_csv.name}")
-    elif multi_turn_rows and not st_csv:
-        # Only multi-turn was run — write a standalone accuracy.csv
-        config.SCORES_DIR.mkdir(parents=True, exist_ok=True)
-        st_csv = config.SCORES_DIR / "accuracy.csv"
-        with open(st_csv, "w", newline="") as f:
-            writer = csv.DictWriter(
-                f, fieldnames=["category", "correct", "total", "accuracy"]
-            )
-            writer.writeheader()
-            writer.writerows(multi_turn_rows)
-        print(f"[evaluate] Multi-turn scores saved to {st_csv.name}")
+        evaluate_multi_turn.run()
 
     # Collect metrics
     step += 1
@@ -133,9 +121,13 @@ def main():
     print(f"\n[{step}/{n_steps}] Generating charts")
     visualize.run(include_single=do_single, include_multi=do_multi)
 
+    # Finish the run
+    db.finish_run(run_id)
+
     elapsed = time.time() - t0
     print(f"\nDone in {elapsed / 60:.1f} minutes.")
-    print(f"Results in: {config.RESULTS_DIR}")
+    print(f"Results in DB (run_id={run_id})")
+    print(f"Figures in: {config.FIGURES_DIR}")
 
 
 if __name__ == "__main__":

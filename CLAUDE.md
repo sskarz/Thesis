@@ -16,20 +16,22 @@ Thesis/
 ├── llama.cpp/                         # Git-ignored; built locally
 │   └── build/bin/llama-server         # The server binary
 ├── benchmark/
-│   ├── config.py                      # Model registry, server URL, paths
-│   ├── generate_responses.py          # Send BFCL tests → save responses + timings
-│   ├── generate_multi_turn.py         # Multi-turn tool execution loop
+│   ├── config.py                      # Model registry, server URL, paths, RUN_ID
+│   ├── db.py                          # SQLite data-access layer (8 tables, all CRUD)
+│   ├── generate_responses.py          # Send BFCL tests → save responses + timings to DB
+│   ├── generate_multi_turn.py         # Multi-turn tool execution loop → DB
 │   ├── coerce_types.py                # Schema-aware arg type coercion (fixes Llama string serialization)
 │   ├── parse_functiongemma.py         # Custom output parser for FunctionGemma
-│   ├── evaluate_responses.py          # Score responses using BFCL AST checker
-│   ├── evaluate_multi_turn.py         # Score multi-turn using execution checker
-│   ├── collect_metrics.py             # Throughput, TTFT, memory measurement
-│   ├── visualize.py                   # Per-model thesis-quality charts
-│   ├── run_all.py                     # Orchestrator (all steps in sequence)
+│   ├── evaluate_responses.py          # Score responses using BFCL AST checker → DB
+│   ├── evaluate_multi_turn.py         # Score multi-turn using execution checker → DB
+│   ├── collect_metrics.py             # Throughput, TTFT, memory measurement → DB
+│   ├── visualize.py                   # Per-model thesis-quality charts (reads from DB)
+│   ├── compare.py                     # Cross-model comparison charts (reads from DB)
+│   ├── run_all.py                     # Orchestrator (creates run, all steps, finishes run)
+│   ├── migrate_to_db.py              # One-time import of flat-file results into DB
 │   └── results/
-│       ├── Qwen2.5-3B-Instruct-Q4_K_M/    # Per-model results
-│       ├── Llama-3.2-3B-Instruct-Q4_K_M/
-│       ├── FunctionGemma-270M-IT/
+│       ├── benchmark.db               # SQLite database (all runs, git-ignored)
+│       ├── Qwen2.5-3B-Instruct-Q4_K_M/    # Per-model figures only
 │       └── comparison/
 │           ├── index.html             # Interactive comparison dashboard (Chart.js)
 │           └── *.png / *.pdf          # Static comparison charts
@@ -104,6 +106,24 @@ BENCHMARK_LIVE=1 uv run pytest -q -m live
 
 ```bash
 uv run python -m benchmark.run_all --model qwen2.5-3b
+uv run python -m benchmark.run_all --model qwen2.5-3b --notes "RTX 4090 baseline"
+```
+
+### Migrate existing flat-file results to DB
+
+```bash
+uv run python -m benchmark.migrate_to_db
+```
+
+### Query the database
+
+```python
+from benchmark import db
+db.list_runs()                          # all runs
+db.get_latest_run("qwen2.5-3b")        # most recent finished run
+db.get_scores(run_id)                   # accuracy by category
+db.get_inference_metrics(run_id)        # throughput, TTFT, memory
+db.get_all_model_results()              # latest run per model (for comparison)
 ```
 
 ### Server flag reference
@@ -153,6 +173,16 @@ cd /home/sanskar/Documents/Github/Thesis/llama.cpp
 | multi_turn_miss_param | BFCL_v4_multi_turn_miss_param.json | 200 |
 | multi_turn_long_context | BFCL_v4_multi_turn_long_context.json | 200 |
 
+## Storage Architecture
+
+All benchmark results are stored in a SQLite database at `benchmark/results/benchmark.db`. Each pipeline execution creates a new **run** with auto-detected metadata (GPU, CPU, RAM, llama.cpp version, bfcl version). Multiple runs of the same model coexist — no data is ever overwritten.
+
+**Tables:** `runs`, `responses`, `single_turn_timings`, `multi_turn_timings`, `scores`, `eval_errors`, `inference_metrics`, `metrics_per_request`. All linked by `run_id` foreign key.
+
+**Data flow:** `run_all.py` creates a run → sets `config.RUN_ID` → all modules write to DB via `db.py` → `run_all.py` finishes the run. Visualization and comparison modules read from DB using `config.RUN_ID` or `db.get_latest_run()`.
+
+**Backward compatibility:** All readers (visualize, compare, evaluators) fall back to flat files when `config.RUN_ID` is None, so existing flat-file results still work. Run `uv run python -m benchmark.migrate_to_db` to import them into the DB.
+
 ## Known Issues / Gotchas
 
 1. **`-fa` flag change:** The `-fa` (flash attention) flag now requires an explicit value. Use `-fa on`, not bare `-fa`. This is a recent llama.cpp change.
@@ -162,3 +192,4 @@ cd /home/sanskar/Documents/Github/Thesis/llama.cpp
 5. **HTTPS support for `-hf` flag:** On Linux, llama.cpp must be built with `-DLLAMA_OPENSSL=ON` (requires `libssl-dev`) to use the `-hf` flag for downloading models.
 6. **Context window:** Use `-c 32768` with `-np 4` (8192 per slot) to accommodate multi-turn long_context entries and enable parallel request processing. The RTX 4090 has ample VRAM for this.
 7. **Llama argument type serialization:** Llama 3.2 wraps all tool-call arguments as JSON strings (e.g., `"5"` instead of `5`). The `coerce_types.py` module post-processes arguments using the BFCL function schema to fix this. A tool-calling system prompt is also injected by `generate_responses.py` when tools are present. Both are applied to all models uniformly (no-op for Qwen which produces correct types natively).
+8. **Database file is git-ignored:** `benchmark/results/benchmark.db` lives under the `benchmark/results/*` gitignore pattern. After cloning on a new machine, run `uv run python -m benchmark.migrate_to_db` to re-import any existing flat-file results.

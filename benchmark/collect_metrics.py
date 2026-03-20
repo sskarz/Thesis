@@ -1,6 +1,5 @@
 """Dedicated metrics collection: warmup, controlled requests, memory."""
 
-import csv
 import json
 import random
 import subprocess
@@ -10,7 +9,7 @@ import psutil
 import requests
 from tqdm import tqdm
 
-from . import config
+from . import config, db
 from . import generate_multi_turn
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
 
@@ -221,9 +220,8 @@ def try_power_draw() -> float | None:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run(include_single: bool = True, include_multi: bool = False) -> Path:
-    """Run controlled metrics collection. Returns path to metrics JSON."""
-    config.METRICS_DIR.mkdir(parents=True, exist_ok=True)
+def run(include_single: bool = True, include_multi: bool = False) -> dict:
+    """Run controlled metrics collection. Returns summary dict."""
 
     pid = find_llama_server_pid()
     if pid:
@@ -326,24 +324,12 @@ def run(include_single: bool = True, include_multi: bool = False) -> Path:
         "power_watts": power_w,
     }
 
-    # Save JSON summary
-    json_path = config.METRICS_DIR / "inference_metrics.json"
-    with open(json_path, "w") as f:
-        json.dump(summary, f, indent=2)
-    print(f"[metrics] Summary saved to {json_path.name}")
-
-    # Save per-request CSV
-    csv_path = config.METRICS_DIR / "inference_metrics.csv"
-    fields = [
-        "id", "category",
-        "prompt_n", "prompt_ms", "prompt_per_second",
-        "predicted_n", "predicted_ms", "predicted_per_second",
-    ]
-    with open(csv_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(timing_rows)
-    print(f"[metrics] Per-request data saved to {csv_path.name}")
+    # Save to DB
+    run_id = config.RUN_ID
+    if run_id:
+        db.insert_inference_metrics(run_id, summary)
+        db.insert_metrics_per_request(run_id, timing_rows)
+    print(f"[metrics] Summary and per-request data saved to DB")
 
     # Print summary
     mem = summary["memory"]
@@ -354,7 +340,7 @@ def run(include_single: bool = True, include_multi: bool = False) -> Path:
     else:
         print("[metrics] Power draw: unavailable (needs sudo)")
 
-    return json_path
+    return summary
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 """Multi-turn generation: model ↔ tool execution ↔ model loop for BFCL v4."""
 
 import asyncio
-import csv
 import json
 from pathlib import Path
 
@@ -9,7 +8,7 @@ import aiohttp
 import requests
 from tqdm import tqdm
 
-from . import config
+from . import config, db
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
 
 # Mapping from class name → func-doc JSON filename
@@ -510,18 +509,9 @@ async def _generate_for_category_async(
 # Main entry point
 # ---------------------------------------------------------------------------
 
-TIMING_FIELDS = [
-    "id", "category", "turns", "api_calls",
-    "total_prompt_n", "total_prompt_ms",
-    "total_predicted_n", "total_predicted_ms",
-    "first_prompt_ms", "flags",
-]
-
-
-async def _run_async() -> Path:
+async def _run_async() -> None:
     """Async implementation of run()."""
-    config.RESPONSES_DIR.mkdir(parents=True, exist_ok=True)
-
+    run_id = config.RUN_ID
     semaphore = asyncio.Semaphore(config.PARALLEL_SLOTS)
     all_timings: list[dict] = []
 
@@ -533,25 +523,16 @@ async def _run_async() -> Path:
             )
             all_timings.extend(timings)
 
-            out_file = config.RESPONSES_DIR / f"{category}_responses.jsonl"
-            with open(out_file, "w") as f:
-                for r in results:
-                    f.write(json.dumps(r) + "\n")
-            print(f"  → {len(results)} entries saved to {out_file.name}")
+            db.insert_responses(run_id, category, "multi", results)
+            print(f"  → {len(results)} entries saved to DB")
 
-    timings_csv = config.RESPONSES_DIR / "multi_turn_timings.csv"
-    with open(timings_csv, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=TIMING_FIELDS)
-        writer.writeheader()
-        writer.writerows(all_timings)
-    print(f"[multi-turn generate] Timings saved to {timings_csv.name}")
-
-    return timings_csv
+    db.insert_multi_turn_timings(run_id, all_timings)
+    print(f"[multi-turn generate] {len(all_timings)} timings saved to DB")
 
 
-def run() -> Path:
-    """Generate multi-turn responses for all categories. Returns timings CSV path."""
-    return asyncio.run(_run_async())
+def run() -> None:
+    """Generate multi-turn responses for all categories."""
+    asyncio.run(_run_async())
 
 
 if __name__ == "__main__":

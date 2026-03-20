@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from benchmark import db
 from benchmark import evaluate_multi_turn
 from benchmark import evaluate_responses
 
@@ -50,15 +51,15 @@ def test_evaluate_responses_category_counts_valid_and_invalid_entries(
     assert result["errors"] == [{"id": "bad", "error": []}]
 
 
-def test_save_errors_writes_jsonl_rows():
-    evaluate_multi_turn._save_errors(
-        "multi_turn_base",
-        [{"id": "mt-1", "error": "boom"}],
-    )
+def test_eval_errors_saved_to_db(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    run_id = db.create_run("qwen2.5-3b")
+    db.insert_eval_errors(run_id, "multi_turn_base", [{"id": "mt-1", "error": "boom"}])
 
-    out_file = evaluate_multi_turn.config.SCORES_DIR / "multi_turn_base_eval_errors.jsonl"
-    assert out_file.exists()
-    assert out_file.read_text().strip() == '{"id": "mt-1", "error": "boom"}'
+    errors = db.get_eval_errors(run_id, "multi_turn_base")
+    assert len(errors) == 1
+    assert errors[0]["entry_id"] == "mt-1"
+    assert errors[0]["error"] == "boom"
 
 
 def test_evaluate_multi_turn_category_records_checker_failures(

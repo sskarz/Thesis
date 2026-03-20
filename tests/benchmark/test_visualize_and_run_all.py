@@ -3,6 +3,7 @@ import sys
 
 import pandas as pd
 
+from benchmark import db
 from benchmark import run_all
 from benchmark import visualize
 
@@ -87,6 +88,8 @@ def test_visualize_run_creates_charts_for_multi_turn_only():
 
 
 def test_run_all_only_multi_turn_wires_correct_stages(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+
     calls = []
 
     def record(name):
@@ -95,9 +98,7 @@ def test_run_all_only_multi_turn_wires_correct_stages(monkeypatch):
             if name == "evaluate_multi_turn.run":
                 return [{"category": "multi_turn_base", "correct": 1, "total": 1, "accuracy": 1.0}]
             if name == "evaluate_responses.run":
-                csv_path = run_all.config.SCORES_DIR / "accuracy.csv"
-                csv_path.write_text("category,correct,total,accuracy\nsimple,1,1,1.0\n")
-                return csv_path
+                return [{"category": "simple", "correct": 1, "total": 1, "accuracy": 1.0}]
             return None
 
         return inner
@@ -119,6 +120,8 @@ def test_run_all_only_multi_turn_wires_correct_stages(monkeypatch):
     assert called_names[:2] == ["generate_multi_turn.run", "evaluate_multi_turn.run"]
     assert ("collect_metrics.run", (), {"include_single": False, "include_multi": True}) in calls
     assert ("visualize.run", (), {"include_single": False, "include_multi": True}) in calls
-    accuracy = run_all.config.SCORES_DIR / "accuracy.csv"
-    assert accuracy.exists()
-    assert "multi_turn_base" in accuracy.read_text()
+    # Verify run was created and finished in DB
+    run_id = run_all.config.RUN_ID
+    assert run_id is not None
+    run = db.get_run(run_id)
+    assert run["finished_at"] is not None

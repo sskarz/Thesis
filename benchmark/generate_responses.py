@@ -2,14 +2,13 @@
 
 import asyncio
 import copy
-import csv
 import json
 from pathlib import Path
 
 import aiohttp
 from tqdm import tqdm
 
-from . import config
+from . import config, db
 from .coerce_types import coerce_tool_calls
 
 
@@ -286,10 +285,9 @@ def generate_for_category(
 # Main entry point
 # ---------------------------------------------------------------------------
 
-async def _run_async() -> Path:
+async def _run_async() -> None:
     """Async implementation of run()."""
-    config.RESPONSES_DIR.mkdir(parents=True, exist_ok=True)
-
+    run_id = config.RUN_ID
     semaphore = asyncio.Semaphore(config.PARALLEL_SLOTS)
     all_timings: list[dict] = []
 
@@ -301,25 +299,16 @@ async def _run_async() -> Path:
             )
             all_timings.extend(timings)
 
-            out_file = config.RESPONSES_DIR / f"{category}_responses.jsonl"
-            with open(out_file, "w") as f:
-                for r in results:
-                    f.write(json.dumps(r) + "\n")
-            print(f"  → {len(results)} responses saved to {out_file.name}")
+            db.insert_responses(run_id, category, "single", results)
+            print(f"  → {len(results)} responses saved to DB")
 
-    timings_csv = config.RESPONSES_DIR / "all_timings.csv"
-    with open(timings_csv, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=TIMING_FIELDS)
-        writer.writeheader()
-        writer.writerows(all_timings)
-    print(f"[generate] Timings saved to {timings_csv.name}")
-
-    return timings_csv
+    db.insert_single_turn_timings(run_id, all_timings)
+    print(f"[generate] {len(all_timings)} timings saved to DB")
 
 
-def run() -> Path:
-    """Generate responses for all categories. Returns path to timings CSV."""
-    return asyncio.run(_run_async())
+def run() -> None:
+    """Generate responses for all categories."""
+    asyncio.run(_run_async())
 
 
 if __name__ == "__main__":
