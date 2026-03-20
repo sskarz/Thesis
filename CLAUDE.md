@@ -28,13 +28,19 @@ Thesis/
 │   ├── visualize.py                   # Per-model thesis-quality charts (reads from DB)
 │   ├── compare.py                     # Cross-model comparison charts (reads from DB)
 │   ├── run_all.py                     # Orchestrator (creates run, all steps, finishes run)
+│   ├── api.py                        # FastAPI backend wrapping db.py (uvicorn :8000)
 │   ├── migrate_to_db.py              # One-time import of flat-file results into DB
 │   └── results/
-│       ├── benchmark.db               # SQLite database (all runs, git-ignored)
-│       ├── Qwen2.5-3B-Instruct-Q4_K_M/    # Per-model figures only
-│       └── comparison/
-│           ├── index.html             # Interactive comparison dashboard (Chart.js)
-│           └── *.png / *.pdf          # Static comparison charts
+│       └── benchmark.db               # SQLite database (all runs, git-ignored)
+├── frontend/                          # React + Vite dashboard (git-ignored: node_modules, dist)
+│   ├── src/
+│   │   ├── api/                       # API client, types, SWR hooks
+│   │   ├── components/                # Reusable UI components
+│   │   ├── pages/                     # Route pages (Comparison, ModelDetail, Runs, RunDetail)
+│   │   ├── hooks/                     # Custom React hooks
+│   │   └── lib/                       # Colors, formatters, Chart.js setup
+│   ├── index.html
+│   └── vite.config.ts                 # Proxies /api to :8000
 └── tests/
     ├── conftest.py                    # Shared fixtures
     ├── helpers.py                     # Test utilities
@@ -102,17 +108,23 @@ uv run pytest -q
 BENCHMARK_LIVE=1 uv run pytest -q -m live
 ```
 
+### Start the frontend dashboard
+
+```bash
+# Terminal 1: API backend
+uv run uvicorn benchmark.api:app --reload --port 8000
+
+# Terminal 2: Vite dev server
+cd frontend && npm run dev
+```
+
+Open `http://localhost:5173` for the interactive dashboard.
+
 ### Run the benchmark
 
 ```bash
 uv run python -m benchmark.run_all --model qwen2.5-3b
 uv run python -m benchmark.run_all --model qwen2.5-3b --notes "RTX 4090 baseline"
-```
-
-### Migrate existing flat-file results to DB
-
-```bash
-uv run python -m benchmark.migrate_to_db
 ```
 
 ### Query the database
@@ -181,7 +193,7 @@ All benchmark results are stored in a SQLite database at `benchmark/results/benc
 
 **Data flow:** `run_all.py` creates a run → sets `config.RUN_ID` → all modules write to DB via `db.py` → `run_all.py` finishes the run. Visualization and comparison modules read from DB using `config.RUN_ID` or `db.get_latest_run()`.
 
-**Backward compatibility:** All readers (visualize, compare, evaluators) fall back to flat files when `config.RUN_ID` is None, so existing flat-file results still work. Run `uv run python -m benchmark.migrate_to_db` to import them into the DB.
+**Frontend:** The React dashboard at `frontend/` reads from the API (`benchmark/api.py`) which wraps `db.py`. Run both the API server and Vite dev server for development.
 
 ## Known Issues / Gotchas
 
@@ -192,4 +204,4 @@ All benchmark results are stored in a SQLite database at `benchmark/results/benc
 5. **HTTPS support for `-hf` flag:** On Linux, llama.cpp must be built with `-DLLAMA_OPENSSL=ON` (requires `libssl-dev`) to use the `-hf` flag for downloading models.
 6. **Context window:** Use `-c 32768` with `-np 4` (8192 per slot) to accommodate multi-turn long_context entries and enable parallel request processing. The RTX 4090 has ample VRAM for this.
 7. **Llama argument type serialization:** Llama 3.2 wraps all tool-call arguments as JSON strings (e.g., `"5"` instead of `5`). The `coerce_types.py` module post-processes arguments using the BFCL function schema to fix this. A tool-calling system prompt is also injected by `generate_responses.py` when tools are present. Both are applied to all models uniformly (no-op for Qwen which produces correct types natively).
-8. **Database file is git-ignored:** `benchmark/results/benchmark.db` lives under the `benchmark/results/*` gitignore pattern. After cloning on a new machine, run `uv run python -m benchmark.migrate_to_db` to re-import any existing flat-file results.
+8. **Database file is git-ignored:** `benchmark/results/benchmark.db` is under the `benchmark/results/` gitignore pattern. After cloning on a new machine, run benchmarks to populate the DB.
