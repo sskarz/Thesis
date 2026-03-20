@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import json
+import re
 from pathlib import Path
 
 import aiohttp
@@ -70,7 +71,10 @@ def bfcl_to_openai_tools(bfcl_functions: list[dict]) -> list[dict]:
     return tools
 
 
-def build_payload(entry: dict) -> dict:
+PARALLEL_CATEGORIES = {"parallel", "parallel_multiple"}
+
+
+def build_payload(entry: dict, category: str = "") -> dict:
     """Convert a single-turn BFCL test entry to an API request payload."""
     messages = list(entry["question"][0])
     bfcl_functions = entry.get("function", [])
@@ -89,8 +93,46 @@ def build_payload(entry: dict) -> dict:
     }
     if tools:
         payload["tools"] = tools
-        payload["tool_choice"] = "auto"
+        if category in PARALLEL_CATEGORIES:
+            # Bypass llama-server's grammar constraining for parallel
+            # categories — its PEG grammar stops generation after the first
+            # </tool_call> tag.  Tools still appear in the Jinja-templated
+            # prompt; we parse <tool_call> blocks from content ourselves.
+            payload["tool_choice"] = "none"
+        else:
+            payload["tool_choice"] = "auto"
     return payload
+
+
+def parse_tool_call_content(content: str) -> list[dict] | None:
+    """Parse ``<tool_call>`` blocks from raw content into BFCL format.
+
+    Returns a list of ``{name: {args}}`` dicts, or ``None`` if no
+    ``<tool_call>`` blocks are found.
+    """
+    blocks = re.findall(
+        r"<tool_call>\s*(.*?)\s*</tool_call>", content, re.DOTALL
+    )
+    if not blocks:
+        return None
+
+    results: list[dict] = []
+    for block in blocks:
+        try:
+            obj = json.loads(block)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        name = obj.get("name", "")
+        args = obj.get("arguments", {})
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+        if name:
+            results.append({name: args})
+
+    return results if results else None
 
 
 def parse_tool_calls(
@@ -119,6 +161,13 @@ def parse_tool_calls(
             result = coerce_tool_calls(result, func_defs)
         return result
     content = message.get("content", "")
+    # Try <tool_call> XML blocks (produced when grammar constraining is
+    # bypassed via tool_choice="none")
+    parsed = parse_tool_call_content(content)
+    if parsed is not None:
+        if func_defs:
+            parsed = coerce_tool_calls(parsed, func_defs)
+        return parsed
     from .parse_functiongemma import parse_functiongemma_content
     parsed = parse_functiongemma_content(content)
     if parsed is not None:
@@ -147,7 +196,7 @@ async def _generate_one(
     pbar: tqdm,
 ) -> tuple[dict, dict]:
     """Send one request with concurrency bounded by *semaphore*."""
-    payload = build_payload(entry)
+    payload = build_payload(entry, category=category)
     func_defs = entry.get("function", [])
 
     async with semaphore:
@@ -238,7 +287,7 @@ def generate_for_category(
     import requests as req_lib
 
     for entry in tqdm(entries, desc=f"  {category}", unit="req"):
-        payload = build_payload(entry)
+        payload = build_payload(entry, category=category)
         func_defs = entry.get("function", [])
 
         try:
