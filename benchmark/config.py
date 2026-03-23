@@ -25,12 +25,26 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Llama-3.2-3B-Instruct (Q4_K_M)",
         "slug": "Llama-3.2-3B-Instruct-Q4_K_M",
     },
+    "qwen3-4b": {
+        "hf_repo": "bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF",
+        "quant": "Q4_K_M",
+        "api_name": "qwen3-4b",
+        "display": "Qwen3-4B-Instruct-2507 (Q4_K_M)",
+        "slug": "Qwen3-4B-Instruct-2507-Q4_K_M",
+    },
     "qwen3.5-4b": {
         "hf_repo": "bartowski/Qwen_Qwen3.5-4B-GGUF",
         "quant": "Q4_K_M",
         "api_name": "qwen3.5-4b",
         "display": "Qwen3.5-4B-Instruct (Q4_K_M)",
         "slug": "Qwen3.5-4B-Instruct-Q4_K_M",
+    },
+    "qwen3.5-27b": {
+        "hf_repo": "bartowski/Qwen_Qwen3.5-27B-GGUF",
+        "quant": "Q4_K_M",
+        "api_name": "qwen3.5-27b",
+        "display": "Qwen3.5-27B-Instruct (Q4_K_M)",
+        "slug": "Qwen3.5-27B-Instruct-Q4_K_M",
     },
     "functiongemma-270m": {
         "hf_repo": "ggml-org/functiongemma-270m-it-GGUF",
