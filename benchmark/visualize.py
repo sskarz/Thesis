@@ -90,6 +90,8 @@ def _load_timings(
             rows = db.get_single_turn_timings(run_id)
             if rows:
                 df = pd.DataFrame(rows)
+                # Drop the DB row 'id' before renaming to avoid duplicates
+                df = df.drop(columns=["id"])
                 df = df.rename(columns={"entry_id": "id"})
                 frames.append(df[["id", "category", "prompt_n", "prompt_ms",
                                   "prompt_per_second", "predicted_n",
@@ -98,6 +100,8 @@ def _load_timings(
             rows = db.get_multi_turn_timings(run_id)
             if rows:
                 df = pd.DataFrame(rows)
+                # Drop the DB row 'id' before renaming to avoid duplicates
+                df = df.drop(columns=["id"])
                 df = df.rename(columns={"entry_id": "id"})
                 frames.append(_normalize_multi_turn_timings(df))
     else:

@@ -104,8 +104,33 @@ def build_payload(entry: dict, category: str = "") -> dict:
     return payload
 
 
+def _parse_xml_function_block(block: str) -> dict | None:
+    """Parse a Qwen3.5-style ``<function=name><parameter=k>v</parameter>...`` block."""
+    func_match = re.match(r"<function=([^>]+)>(.*)", block, re.DOTALL)
+    if not func_match:
+        return None
+    name = func_match.group(1).strip()
+    body = func_match.group(2)
+    args: dict = {}
+    for pm in re.finditer(
+        r"<parameter=([^>]+)>\s*(.*?)\s*</parameter>", body, re.DOTALL
+    ):
+        key = pm.group(1).strip()
+        val = pm.group(2).strip()
+        # Try to parse as JSON value (number, bool, list, etc.)
+        try:
+            args[key] = json.loads(val)
+        except (json.JSONDecodeError, ValueError):
+            args[key] = val
+    return {name: args}
+
+
 def parse_tool_call_content(content: str) -> list[dict] | None:
     """Parse ``<tool_call>`` blocks from raw content into BFCL format.
+
+    Handles two formats:
+    1. JSON inside tags: ``<tool_call>{"name": ..., "arguments": ...}</tool_call>``
+    2. Qwen3.5 XML: ``<tool_call><function=name><parameter=k>v</parameter>...</function></tool_call>``
 
     Returns a list of ``{name: {args}}`` dicts, or ``None`` if no
     ``<tool_call>`` blocks are found.
@@ -118,19 +143,25 @@ def parse_tool_call_content(content: str) -> list[dict] | None:
 
     results: list[dict] = []
     for block in blocks:
+        # Try JSON format first
         try:
             obj = json.loads(block)
+            name = obj.get("name", "")
+            args = obj.get("arguments", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+            if name:
+                results.append({name: args})
+                continue
         except (json.JSONDecodeError, TypeError):
-            continue
-        name = obj.get("name", "")
-        args = obj.get("arguments", {})
-        if isinstance(args, str):
-            try:
-                args = json.loads(args)
-            except (json.JSONDecodeError, TypeError):
-                args = {}
-        if name:
-            results.append({name: args})
+            pass
+        # Try Qwen3.5 XML format
+        parsed = _parse_xml_function_block(block)
+        if parsed:
+            results.append(parsed)
 
     return results if results else None
 

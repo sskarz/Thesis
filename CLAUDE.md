@@ -152,6 +152,18 @@ db.get_all_model_results()              # latest run per model (for comparison)
 | `-cb` | Continuous batching — lets new requests fill freed slots immediately |
 | `-ub 1024` | Larger micro-batch for faster prompt processing (default 512) |
 
+### Start Qwen3-4B server
+
+```bash
+cd /home/sanskar/Documents/Github/Thesis/llama.cpp
+./build/bin/llama-server --jinja -fa on \
+  -hf bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF:Q4_K_M \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 \
+  -np 8 -cb -ub 1024
+```
+
+**Note:** Qwen3 models have a built-in thinking mode that produces `reasoning_content` alongside `content`. Tool calling still works correctly (proper `tool_calls` field). The thinking tokens consume extra generation tokens and time. To disable thinking, prepend `/no_think` to the system prompt.
+
 ### Start FunctionGemma server
 
 ```bash
