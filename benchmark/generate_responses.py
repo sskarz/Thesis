@@ -128,18 +128,20 @@ def _parse_xml_function_block(block: str) -> dict | None:
 def parse_tool_call_content(content: str) -> list[dict] | None:
     """Parse ``<tool_call>`` blocks from raw content into BFCL format.
 
-    Handles two formats:
+    Handles three formats:
     1. JSON inside tags: ``<tool_call>{"name": ..., "arguments": ...}</tool_call>``
     2. Qwen3.5 XML: ``<tool_call><function=name><parameter=k>v</parameter>...</function></tool_call>``
+    3. Gemma native: ``<|tool_call>call:name{key:<|"|>val<|"|>}<tool_call|>``
 
     Returns a list of ``{name: {args}}`` dicts, or ``None`` if no
-    ``<tool_call>`` blocks are found.
+    recognised tool-call markup is found.
     """
     blocks = re.findall(
         r"<tool_call>\s*(.*?)\s*</tool_call>", content, re.DOTALL
     )
     if not blocks:
-        return None
+        from .parse_gemma_tool_calls import parse_gemma_tool_call_content
+        return parse_gemma_tool_call_content(content)
 
     results: list[dict] = []
     for block in blocks:

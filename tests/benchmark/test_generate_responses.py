@@ -128,6 +128,27 @@ def test_parse_tool_calls_handles_openai_and_functiongemma_payloads():
         {"math.factorial": {"number": 10}},
     ]
 
+    # Gemma native markup in content (tool_choice="none", no tool_calls field)
+    gemma_response = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": (
+                        '<|tool_call>call:spotify.play'
+                        '{artist:<|"|>Taylor Swift<|"|>,duration:20}<tool_call|>'
+                        '<|tool_call>call:spotify.play'
+                        '{artist:<|"|>Maroon 5<|"|>,duration:15}<tool_call|>'
+                    ),
+                }
+            }
+        ]
+    }
+    assert generate_responses.parse_tool_calls(gemma_response) == [
+        {"spotify.play": {"artist": "Taylor Swift", "duration": 20}},
+        {"spotify.play": {"artist": "Maroon 5", "duration": 15}},
+    ]
+
 
 def test_build_payload_includes_tools_only_when_functions_exist():
     payload_with_tools = generate_responses.build_payload(
