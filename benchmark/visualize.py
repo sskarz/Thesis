@@ -282,7 +282,7 @@ def chart_dashboard(scores, timings, metrics) -> plt.Figure:
     gen_speeds = timings["predicted_per_second"][timings["predicted_per_second"] > 0]
     bp = ax2.boxplot(
         [prompt_speeds, gen_speeds],
-        labels=["Prompt", "Generation"],
+        tick_labels=["Prompt", "Generation"],
         patch_artist=True,
     )
     colors = sns.color_palette("colorblind", 2)
