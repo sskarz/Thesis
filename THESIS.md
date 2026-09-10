@@ -30,7 +30,7 @@ Edge devices (NVIDIA Jetson Orin Nano Super: 8 GB, smartphones: 6–8 GB) constr
 
 ### Benchmark: BFCL v4
 
-All models are evaluated on the Berkeley Function Calling Leaderboard (BFCL) v3, which provides standardized test cases across 7 categories totaling 1,390 test cases:
+All models are evaluated on the Berkeley Function Calling Leaderboard (BFCL) v4. Single-turn evaluation uses 7 AST-scored categories totaling 1,390 test cases:
 
 | Category | Test Cases | Description |
 |----------|-----------|-------------|
@@ -42,11 +42,21 @@ All models are evaluated on the Berkeley Function Calling Leaderboard (BFCL) v3,
 | Java | 100 | Function calling with Java-style type signatures |
 | JavaScript | 50 | Function calling with JavaScript-style type signatures |
 
+Multi-turn categories (800 test cases) evaluate sequential, stateful tool use. Scoring uses BFCL's **execution checker** rather than AST matching: the model enters an agent loop, tools are executed against a live backend, and the resulting state is compared to a reference trajectory.
+
+| Category | Test Cases | Description |
+|----------|-----------|-------------|
+| Multi-turn base | 200 | Full tool set available; consecutive turns with execution feedback |
+| Multi-turn miss_func | 200 | Some required functions are withheld until a later turn |
+| Multi-turn miss_param | 200 | Required parameters are omitted from the user query |
+| Multi-turn long_context | 200 | Large function-doc / history load; stress-tests context limits |
+
 ### Evaluation method
 
-- **AST checker**: BFCL's Abstract Syntax Tree checker compares model output against reference answers, allowing equivalent but differently-ordered arguments to match.
+- **AST checker** (single-turn): BFCL's Abstract Syntax Tree checker compares model output against reference answers, allowing equivalent but differently-ordered arguments to match.
+- **Execution checker** (multi-turn): BFCL executes the model's tool calls against a live backend and compares instance state to the ground-truth trajectory.
 - **Deterministic output**: All models run with `--temp 0.0` to ensure reproducible results.
-- **No reasoning mode**: All models run without thinking/reasoning, even if the model supports it (e.g., Qwen3.5). This isolates raw tool-calling capability from chain-of-thought augmentation.
+- **No reasoning mode** (single-turn baselines): Single-turn runs disable thinking/reasoning even if the model supports it (e.g., Qwen3.5), isolating raw tool-calling capability from chain-of-thought augmentation. The Gemma-4-E2B-it multi-turn baseline (Run 4) left reasoning on.
 
 ### Infrastructure
 
@@ -74,6 +84,8 @@ While llama-server b8111 successfully parses this into standard `tool_calls` via
 | Qwen3.5-4B-Instruct | Qwen 3.5 | 4B | Q4_K_M | ~2.8 GB | `bartowski/Qwen_Qwen3.5-4B-GGUF` |
 | FunctionGemma-270M-IT | Gemma 3 (specialist) | 270M | bf16 | ~512 MB | `ggml-org/functiongemma-270m-it-GGUF` |
 
+Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on the **multi-turn categories only** (Run 4, `--only-multi-turn`). Single-turn scores for this model are not reported here.
+
 ### Quantization notes
 
 The three generalist models (Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B) are all served at Q4_K_M quantization — a 4-bit mixed quantization scheme that balances model size against accuracy loss.
@@ -88,7 +100,7 @@ The comparison remains controlled because the variable under study is **model ar
 
 ## Accuracy Results
 
-All results on BFCL v4, evaluated with the AST checker. **Bold** indicates best-in-class per category.
+Single-turn results on BFCL v4, evaluated with the AST checker. **Bold** indicates best-in-class per category. These tables do not include Gemma-4-E2B-it (multi-turn only).
 
 | Category | Qwen2.5-3B (Q4_K_M) | Llama-3.2-3B (Q4_K_M) | Qwen3.5-4B (Q4_K_M) | FunctionGemma-270M (bf16) |
 |----------|---------------------|----------------------|---------------------|--------------------------|
@@ -110,6 +122,29 @@ All results on BFCL v4, evaluated with the AST checker. **Bold** indicates best-
 | Qwen3.5-4B | 817/990 (82.53%) |
 | Llama-3.2-3B | 365/990 (36.87%) |
 | FunctionGemma-270M | 395/990 (39.90%) |
+
+## Multi-Turn Accuracy Results
+
+### Gemma-4-E2B-it baseline (Run 4, 2026-09-10)
+
+This is a multi-turn-only baseline: `--only-multi-turn`, 800 execution-evaluated cases, no single-turn categories. Serving was MacBook Pro M4 Pro, llama.cpp Metal, Q4_K_M, reasoning on, `-np 8` / `PARALLEL_SLOTS=8`.
+
+| Category | Score | Accuracy | Flagged |
+|----------|-------|----------|---------|
+| `multi_turn_base` | 54/200 | 27.0% | 2 |
+| `multi_turn_miss_func` | 16/200 | 8.0% | 5 |
+| `multi_turn_miss_param` | 39/200 | 19.5% | 2 |
+| `multi_turn_long_context` | 22/200 | 11.0% | 72 (mostly `context_overflow`) |
+
+**`multi_turn_base` (27.0%) is the primary optimization target going forward.** `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
+
+Wall-clock generation throughput was ~24–37 s/entry at 8-way parallel, versus ~4–5 min/entry on the prior sequential path.
+
+No other model's multi-turn scores are reported yet.
+
+#### Failure modes on `multi_turn_base`
+
+Among failures on the base slice, the dominant modes were approximately **64% state mismatch**, **23% empty/under-calling**, and **12% execution subsequence miss**. By environment, VehicleControl, FileSystem+Twitter, and Ticket+Travel were the weakest; TradingBot was relatively strong (~65%).
 
 ## Inference Performance
 
@@ -259,6 +294,7 @@ FunctionGemma-270M is a purpose-built tool-calling model fine-tuned from Gemma 3
 
 ## Remaining Work
 
+- **Multi-turn optimization**: Gemma-4-E2B-it scores 27.0% on `multi_turn_base` (Run 4). That slice is the primary target for subsequent optimizations; `miss_func` / `miss_param` / `long_context` remain secondary stress tests.
 - **NVIDIA Jetson Orin Nano Super migration**: Repeat all benchmarks on CUDA with 8 GB shared memory to measure real edge-device performance.
 - **RAG augmentation for large tool sets**: The `multiple` category only presents 2–4 tools per test case, so RAG-based tool filtering provides no benefit. However, real-world agentic applications may expose 50–100+ tools. Test whether retrieval-augmented generation (embedding-based tool retrieval to pre-filter the tool set before prompting) improves accuracy and reduces prompt length for large tool registries.
 - **Additional models and quantizations**: Expand the model matrix (e.g., Phi-3.5-mini, Gemma-2-2B) and test alternative quantization levels (Q5_K_M, Q8_0) to map the accuracy-size Pareto frontier.
