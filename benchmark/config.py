@@ -46,6 +46,13 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Qwen3.5-27B-Instruct (Q4_K_M)",
         "slug": "Qwen3.5-27B-Instruct-Q4_K_M",
     },
+    "gemma4-e2b": {
+        "hf_repo": "bartowski/google_gemma-4-E2B-it-GGUF",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b",
+        "display": "Gemma-4-E2B-it (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-Q4_K_M",
+    },
     "functiongemma-270m": {
         "hf_repo": "ggml-org/functiongemma-270m-it-GGUF",
         "quant": "",
