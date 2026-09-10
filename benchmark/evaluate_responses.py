@@ -119,12 +119,17 @@ def evaluate_category(category: str, category_info: dict) -> dict:
         total += 1
         result_str = resp["result"]
 
-        # Parse model output
+        # Parse model output.  Raw Gemma markup (saved when generation-time
+        # parsing missed it) is recovered here so already-stored rows still
+        # score instead of counting as 0%.
         try:
             model_output = json.loads(result_str)
         except (json.JSONDecodeError, TypeError):
-            errors.append({"id": entry_id, "error": "Could not parse result as JSON"})
-            continue
+            from .parse_gemma_tool_calls import parse_gemma_tool_call_content
+            model_output = parse_gemma_tool_call_content(result_str)
+            if model_output is None:
+                errors.append({"id": entry_id, "error": "Could not parse result as JSON"})
+                continue
 
         if not isinstance(model_output, list):
             errors.append({"id": entry_id, "error": "Result is not a list"})
