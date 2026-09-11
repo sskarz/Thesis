@@ -146,6 +146,12 @@ CREATE TABLE IF NOT EXISTS metrics_per_request (
     predicted_ms         REAL NOT NULL DEFAULT 0,
     predicted_per_second REAL NOT NULL DEFAULT 0
 );
+
+-- Idempotent multi-turn checkpoint/resume: one row per run/entry/category.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_responses_run_entry_cat_mode
+    ON responses(run_id, entry_id, category, mode);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_multi_turn_timings_run_entry_cat
+    ON multi_turn_timings(run_id, entry_id, category);
 """
 
 # ---------------------------------------------------------------------------
@@ -296,6 +302,25 @@ def get_latest_run(model_key: str) -> dict | None:
     return dict(row) if row else None
 
 
+def get_unfinished_runs(model_key: str | None = None) -> list[dict]:
+    """List unfinished runs (finished_at IS NULL), newest first."""
+    conn = get_connection()
+    if model_key:
+        rows = conn.execute(
+            """SELECT * FROM runs
+               WHERE model_key = ? AND finished_at IS NULL
+               ORDER BY id DESC""",
+            (model_key,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """SELECT * FROM runs
+               WHERE finished_at IS NULL
+               ORDER BY id DESC"""
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 # ---------------------------------------------------------------------------
 # Responses
 # ---------------------------------------------------------------------------
@@ -343,6 +368,81 @@ def get_responses(
         query += " AND mode = ?"
         params.append(mode)
     return [dict(r) for r in conn.execute(query, params).fetchall()]
+
+
+def get_response_entry_ids(
+    run_id: int,
+    category: str,
+    mode: str | None = None,
+) -> set[str]:
+    """Return entry_ids already stored for a run/category (optionally mode)."""
+    conn = get_connection()
+    query = "SELECT entry_id FROM responses WHERE run_id = ? AND category = ?"
+    params: list = [run_id, category]
+    if mode:
+        query += " AND mode = ?"
+        params.append(mode)
+    return {row["entry_id"] for row in conn.execute(query, params).fetchall()}
+
+
+def insert_multi_turn_entry(
+    run_id: int,
+    category: str,
+    result_row: dict,
+    timing_row: dict,
+) -> None:
+    """Atomically upsert one completed multi-turn response + timing row.
+
+    Used as a per-entry checkpoint so a killed process does not lose
+    finished entries. ``ON CONFLICT`` keeps resume idempotent if the same
+    entry is flushed twice.
+    """
+    conn = get_connection()
+    result = result_row["result"]
+    result_json = result if isinstance(result, str) else json.dumps(result)
+    flags = result_row.get("flags", "")
+    try:
+        conn.execute(
+            """INSERT INTO responses (run_id, entry_id, category, mode, result, flags)
+               VALUES (?, ?, ?, 'multi', ?, ?)
+               ON CONFLICT(run_id, entry_id, category, mode) DO UPDATE SET
+                 result = excluded.result,
+                 flags = excluded.flags""",
+            (run_id, result_row["id"], category, result_json, flags),
+        )
+        conn.execute(
+            """INSERT INTO multi_turn_timings
+               (run_id, entry_id, category, turns, api_calls,
+                total_prompt_n, total_prompt_ms, total_predicted_n, total_predicted_ms,
+                first_prompt_ms, flags)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(run_id, entry_id, category) DO UPDATE SET
+                 turns = excluded.turns,
+                 api_calls = excluded.api_calls,
+                 total_prompt_n = excluded.total_prompt_n,
+                 total_prompt_ms = excluded.total_prompt_ms,
+                 total_predicted_n = excluded.total_predicted_n,
+                 total_predicted_ms = excluded.total_predicted_ms,
+                 first_prompt_ms = excluded.first_prompt_ms,
+                 flags = excluded.flags""",
+            (
+                run_id,
+                timing_row["id"],
+                timing_row.get("category", category),
+                timing_row.get("turns", 0),
+                timing_row.get("api_calls", 0),
+                timing_row.get("total_prompt_n", 0),
+                timing_row.get("total_prompt_ms", 0),
+                timing_row.get("total_predicted_n", 0),
+                timing_row.get("total_predicted_ms", 0),
+                timing_row.get("first_prompt_ms", 0),
+                timing_row.get("flags", flags),
+            ),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 
 # ---------------------------------------------------------------------------

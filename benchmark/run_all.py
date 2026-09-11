@@ -10,6 +10,7 @@ Function-calling modes (``--fc-mode``):
 """
 
 import argparse
+import re
 import sys
 import time
 
@@ -34,6 +35,9 @@ def check_server() -> bool:
         return False
 
 
+_FC_MODE_IN_NOTES = re.compile(r"\bfc_mode=([a-z0-9_.-]+)")
+
+
 def _notes_with_run_meta(args: argparse.Namespace) -> str | None:
     extra: list[str] = []
     if args.fc_mode != config.FC_NFC:
@@ -44,6 +48,57 @@ def _notes_with_run_meta(args: argparse.Namespace) -> str | None:
         return args.notes
     tag = " ".join(extra)
     return f"{args.notes}; {tag}" if args.notes else tag
+
+
+def fc_mode_from_notes(notes: str | None) -> str:
+    """Parse ``fc_mode=...`` from run notes. Missing tag means NFC."""
+    if not notes:
+        return config.FC_NFC
+    match = _FC_MODE_IN_NOTES.search(notes)
+    if match and match.group(1) in config.FC_MODES:
+        return match.group(1)
+    return config.FC_NFC
+
+
+def resolve_pipeline_run(
+    model_key: str,
+    fc_mode: str,
+    notes: str | None,
+    resume: bool = False,
+    resume_run_id: int | None = None,
+) -> tuple[int, bool]:
+    """Create a new run or reuse an unfinished one.
+
+    Resume continues the same ``runs`` row so already-checkpointed
+    ``responses`` / ``multi_turn_timings`` stay attached. Returns
+    ``(run_id, resumed)``.
+    """
+    if resume_run_id is not None:
+        run = db.get_run(resume_run_id)
+        if run is None:
+            raise ValueError(f"No run with id={resume_run_id}")
+        if run["model_key"] != model_key:
+            raise ValueError(
+                f"Run {resume_run_id} is model_key={run['model_key']!r}, "
+                f"not {model_key!r}"
+            )
+        existing_mode = fc_mode_from_notes(run["notes"])
+        if existing_mode != fc_mode:
+            raise ValueError(
+                f"Run {resume_run_id} is fc_mode={existing_mode}, not {fc_mode}"
+            )
+        return resume_run_id, True
+
+    if resume:
+        for run in db.get_unfinished_runs(model_key):
+            if fc_mode_from_notes(run["notes"]) == fc_mode:
+                return run["id"], True
+        raise ValueError(
+            f"No unfinished run for model {model_key!r} with fc_mode={fc_mode}. "
+            "Omit --resume to start a new run, or pass --resume-run-id."
+        )
+
+    return db.create_run(model_key=model_key, notes=notes), False
 
 
 def main():
@@ -94,6 +149,24 @@ def main():
         default=None,
         help="Freeform annotation for this run",
     )
+    resume_group = parser.add_mutually_exclusive_group()
+    resume_group.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "Continue the latest unfinished run for this model with the same "
+            "--fc-mode. Multi-turn generation skips entry IDs already in "
+            "responses. Kill the process and rerun with the same flags plus "
+            "--resume."
+        ),
+    )
+    resume_group.add_argument(
+        "--resume-run-id",
+        type=int,
+        metavar="ID",
+        default=None,
+        help="Continue a specific runs.id (must match --model and --fc-mode).",
+    )
     args = parser.parse_args()
     if args.skip_multi_turn and args.only_multi_turn:
         parser.error("--skip-multi-turn and --only-multi-turn are mutually exclusive")
@@ -112,15 +185,23 @@ def main():
 
     notes = _notes_with_run_meta(args)
 
-    # Create a new run in the database
-    run_id = db.create_run(model_key=args.model, notes=notes)
+    try:
+        run_id, resumed = resolve_pipeline_run(
+            model_key=args.model,
+            fc_mode=args.fc_mode,
+            notes=notes,
+            resume=args.resume,
+            resume_run_id=args.resume_run_id,
+        )
+    except ValueError as e:
+        parser.error(str(e))
     config.RUN_ID = run_id
 
     print("=" * 60)
     print("BFCL Benchmark Pipeline")
     print(f"Model : {config.MODEL_DISPLAY}")
     print(f"Server: {config.SERVER_URL}")
-    print(f"Run ID: {run_id}")
+    print(f"{'Resuming run ID' if resumed else 'Run ID'}: {run_id}")
     print(
         f"FC mode: {args.fc_mode}"
         + (

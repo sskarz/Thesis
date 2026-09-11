@@ -595,6 +595,45 @@ async def _generate_entry_async(
 
 
 # ---------------------------------------------------------------------------
+# Checkpoint / resume (same runs + responses schema)
+# ---------------------------------------------------------------------------
+
+def pending_multi_turn_entries(
+    entries: list[dict],
+    done_ids: set[str],
+) -> list[dict]:
+    """Return entries whose ids are not already saved for this run/category."""
+    return [e for e in entries if e["id"] not in done_ids]
+
+
+def _done_entry_ids(run_id: int | None, category: str) -> set[str]:
+    if run_id is None:
+        return set()
+    return db.get_response_entry_ids(run_id, category, mode="multi")
+
+
+def _checkpoint_entry(
+    run_id: int | None,
+    category: str,
+    result_row: dict,
+    timing: dict,
+) -> None:
+    """Flush one completed entry to SQLite. No-op when run_id is unset."""
+    if run_id is None:
+        return
+    db.insert_multi_turn_entry(run_id, category, result_row, timing)
+
+
+def _log_resume_skip(category: str, n_total: int, n_pending: int) -> None:
+    n_skip = n_total - n_pending
+    if n_skip:
+        print(
+            f"  resume: skipping {n_skip} saved {category} entries, "
+            f"{n_pending} remaining"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Per-category driver
 # ---------------------------------------------------------------------------
 
@@ -602,16 +641,23 @@ def generate_for_category(
     category: str,
     category_info: dict,
     fc_mode: str | None = None,
+    run_id: int | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Generate multi-turn responses for all entries in one category (sync)."""
     data_file = config.BFCL_DATA_DIR / category_info["file"]
     entries = load_jsonl(data_file)
     fc_mode = _resolve_fc_mode(fc_mode)
+    if run_id is None:
+        run_id = config.RUN_ID
+
+    done_ids = _done_entry_ids(run_id, category)
+    pending = pending_multi_turn_entries(entries, done_ids)
+    _log_resume_skip(category, len(entries), len(pending))
 
     results: list[dict] = []
     timings: list[dict] = []
 
-    for entry in tqdm(entries, desc=f"  {category}", unit="entry"):
+    for entry in tqdm(pending, desc=f"  {category}", unit="entry"):
         involved_classes = entry.get("involved_classes", [])
         all_tools = _load_func_docs(involved_classes)
 
@@ -619,14 +665,34 @@ def generate_for_category(
             entry, category, all_tools, fc_mode=fc_mode
         )
 
-        results.append({
+        result_row = {
             "id": entry["id"],
             "result": turn_results,
             "flags": timing.get("flags", ""),
-        })
+        }
+        _checkpoint_entry(run_id, category, result_row, timing)
+        results.append(result_row)
         timings.append(timing)
 
     return results, timings
+
+
+async def _generate_and_checkpoint(
+    session: aiohttp.ClientSession,
+    semaphore: asyncio.Semaphore,
+    entry: dict,
+    category: str,
+    all_tools: list[dict],
+    pbar: tqdm,
+    fc_mode: str | None,
+    run_id: int | None,
+) -> tuple[dict, dict]:
+    """Run one entry, then persist it before the caller waits on gather()."""
+    result_row, timing = await _generate_entry_async(
+        session, semaphore, entry, category, all_tools, pbar, fc_mode=fc_mode
+    )
+    _checkpoint_entry(run_id, category, result_row, timing)
+    return result_row, timing
 
 
 async def _generate_for_category_async(
@@ -635,21 +701,38 @@ async def _generate_for_category_async(
     category: str,
     category_info: dict,
     fc_mode: str | None = None,
+    run_id: int | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Generate multi-turn responses for all entries concurrently."""
     data_file = config.BFCL_DATA_DIR / category_info["file"]
     entries = load_jsonl(data_file)
     fc_mode = _resolve_fc_mode(fc_mode)
+    if run_id is None:
+        run_id = config.RUN_ID
 
-    pbar = tqdm(total=len(entries), desc=f"  {category}", unit="entry")
+    done_ids = _done_entry_ids(run_id, category)
+    pending = pending_multi_turn_entries(entries, done_ids)
+    _log_resume_skip(category, len(entries), len(pending))
+
+    if not pending:
+        return [], []
+
+    pbar = tqdm(total=len(pending), desc=f"  {category}", unit="entry")
 
     tasks = []
-    for entry in entries:
+    for entry in pending:
         involved_classes = entry.get("involved_classes", [])
         all_tools = _load_func_docs(involved_classes)
         tasks.append(
-            _generate_entry_async(
-                session, semaphore, entry, category, all_tools, pbar, fc_mode=fc_mode
+            _generate_and_checkpoint(
+                session,
+                semaphore,
+                entry,
+                category,
+                all_tools,
+                pbar,
+                fc_mode,
+                run_id,
             )
         )
 
@@ -676,21 +759,36 @@ async def _run_async(
     cats = categories or config.resolve_multi_turn_categories(None)
     fc_mode = _resolve_fc_mode(fc_mode)
 
-    print(f"[multi-turn generate] fc-mode={fc_mode}  categories={list(cats)}")
+    print(
+        f"[multi-turn generate] fc-mode={fc_mode}  categories={list(cats)}"
+        f"  run_id={run_id}"
+    )
+    if run_id is None:
+        print(
+            "[multi-turn generate] WARNING: RUN_ID is unset; completed entries "
+            "will not be checkpointed. Pass --run-id or use "
+            "benchmark.run_all --resume."
+        )
 
     async with aiohttp.ClientSession() as session:
         for category, info in cats.items():
             print(f"[multi-turn generate] Category: {category}")
             results, timings = await _generate_for_category_async(
-                session, semaphore, category, info, fc_mode=fc_mode
+                session,
+                semaphore,
+                category,
+                info,
+                fc_mode=fc_mode,
+                run_id=run_id,
             )
             all_timings.extend(timings)
+            dest = "DB" if run_id is not None else "memory (not persisted)"
+            print(f"  → {len(results)} new entries checkpointed to {dest}")
 
-            db.insert_responses(run_id, category, "multi", results)
-            print(f"  → {len(results)} entries saved to DB")
-
-    db.insert_multi_turn_timings(run_id, all_timings)
-    print(f"[multi-turn generate] {len(all_timings)} timings saved to DB")
+    print(
+        f"[multi-turn generate] {len(all_timings)} new timings "
+        f"{'saved to DB' if run_id is not None else 'not persisted'}"
+    )
 
 
 def run(
@@ -728,12 +826,25 @@ def _parse_cli() -> argparse.Namespace:
             "Default: all."
         ),
     )
+    parser.add_argument(
+        "--run-id",
+        type=int,
+        default=None,
+        metavar="ID",
+        help=(
+            "Existing runs.id to checkpoint into and resume from. "
+            "Skips entry IDs already in responses for each category. "
+            "Prefer benchmark.run_all --resume when running the full pipeline."
+        ),
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_cli()
     config.set_fc_mode(args.fc_mode)
+    if args.run_id is not None:
+        config.RUN_ID = args.run_id
     run(
         categories=config.resolve_multi_turn_categories(args.categories),
         fc_mode=args.fc_mode,
