@@ -49,6 +49,7 @@ def sample_requests(
     n: int,
     include_single: bool = True,
     include_multi: bool = False,
+    multi_categories: dict[str, dict] | None = None,
 ) -> list[dict]:
     """Sample *n* test entries across all categories, reproducibly."""
     rng = random.Random(RANDOM_SEED)
@@ -63,7 +64,8 @@ def sample_requests(
                 category_entries.append(entry)
             category_pools.append(category_entries)
     if include_multi:
-        for cat, info in config.MULTI_TURN_CATEGORIES.items():
+        mt_cats = multi_categories or config.MULTI_TURN_CATEGORIES
+        for cat, info in mt_cats.items():
             data_file = config.BFCL_DATA_DIR / info["file"]
             category_entries = []
             for entry in load_jsonl(data_file):
@@ -220,7 +222,11 @@ def try_power_draw() -> float | None:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run(include_single: bool = True, include_multi: bool = False) -> dict:
+def run(
+    include_single: bool = True,
+    include_multi: bool = False,
+    multi_categories: dict[str, dict] | None = None,
+) -> dict:
     """Run controlled metrics collection. Returns summary dict."""
 
     pid = find_llama_server_pid()
@@ -238,6 +244,7 @@ def run(include_single: bool = True, include_multi: bool = False) -> dict:
         WARMUP_REQUESTS + BENCHMARK_REQUESTS,
         include_single=include_single,
         include_multi=include_multi,
+        multi_categories=multi_categories,
     )
     if not entries:
         raise ValueError("No benchmark categories selected for metrics collection.")

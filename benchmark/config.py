@@ -146,6 +146,57 @@ MULTI_TURN_FUNC_DOC_DIR = BFCL_DATA_DIR / "multi_turn_func_doc"
 MULTI_TURN_MAX_STEPS = 20
 
 # ---------------------------------------------------------------------------
+# Function-calling mode
+# nfc  = native OpenAI tools / tool_calls (llama-server --jinja)
+# iffc = Instruction-Followed Function Calling (arXiv:2608.22472 Appendix B)
+#        JSON-in-text; do not send tools/tool_choice
+# ---------------------------------------------------------------------------
+FC_NFC = "nfc"
+FC_IFFC = "iffc"
+FC_MODES = (FC_NFC, FC_IFFC)
+FC_MODE: str = FC_NFC
+
+
+def set_fc_mode(mode: str) -> None:
+    """Set the process-wide function-calling mode (``nfc`` or ``iffc``)."""
+    global FC_MODE
+    if mode not in FC_MODES:
+        raise ValueError(
+            f"Unknown fc-mode {mode!r}. Choose from: {', '.join(FC_MODES)}"
+        )
+    FC_MODE = mode
+
+
+def resolve_multi_turn_categories(
+    names: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, dict]:
+    """Return a subset of ``MULTI_TURN_CATEGORIES``, or all if *names* is empty.
+
+    Individual tokens may be comma-separated (e.g. ``multi_turn_base``).
+    """
+    if not names:
+        return dict(MULTI_TURN_CATEGORIES)
+
+    expanded: list[str] = []
+    for name in names:
+        expanded.extend(part.strip() for part in name.split(",") if part.strip())
+
+    unknown = [n for n in expanded if n not in MULTI_TURN_CATEGORIES]
+    if unknown:
+        raise ValueError(
+            f"Unknown multi-turn categor(y/ies): {', '.join(unknown)}. "
+            f"Choose from: {', '.join(MULTI_TURN_CATEGORIES)}"
+        )
+
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for n in expanded:
+        if n not in seen:
+            seen.add(n)
+            ordered.append(n)
+    return {n: MULTI_TURN_CATEGORIES[n] for n in ordered}
+
+# ---------------------------------------------------------------------------
 # Concurrency (must match llama-server -np flag)
 # ---------------------------------------------------------------------------
 PARALLEL_SLOTS = 8
