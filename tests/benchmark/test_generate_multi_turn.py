@@ -147,3 +147,211 @@ def test_generate_for_entry_restores_missing_functions_and_collects_timings(
         "first_prompt_ms": 50.0,
         "flags": "",
     }
+
+
+def _timings(prompt_n=10, prompt_ms=50, predicted_n=5, predicted_ms=25):
+    return {
+        "prompt_n": prompt_n,
+        "prompt_ms": prompt_ms,
+        "predicted_n": predicted_n,
+        "predicted_ms": predicted_ms,
+    }
+
+
+def test_generate_for_entry_iffc_parses_json_and_feeds_user_results(monkeypatch):
+    payloads: list[dict] = []
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '[{"function_name": "cd", "parameters": {"folder": "docs"}}]'
+                            )
+                        }
+                    }
+                ],
+                "timings": _timings(),
+            },
+            {
+                "choices": [{"message": {"content": "[]"}, "finish_reason": "stop"}],
+                "timings": _timings(15, 30, 2, 10),
+            },
+        ]
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    executed = []
+
+    def fake_execute(**kwargs):
+        executed.append(kwargs)
+        return ["tool-result"], None
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        fake_execute,
+    )
+
+    entry = {
+        "id": "iffc-1",
+        "initial_config": {"cwd": "/tmp"},
+        "involved_classes": ["fs"],
+        "question": [[{"role": "user", "content": "Open docs"}]],
+    }
+    all_tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "cd",
+                "description": "change directory",
+                "parameters": {"type": "object", "properties": {"folder": {"type": "string"}}},
+            },
+        }
+    ]
+
+    turn_results, timing = generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_base",
+        all_tools,
+        fc_mode="iffc",
+    )
+
+    assert turn_results == [[["cd(folder='docs')"]]]
+    assert "tools" not in payloads[0]
+    assert "tool_choice" not in payloads[0]
+    assert payloads[0]["messages"][0]["role"] == "system"
+    assert "expert in function calling" in payloads[0]["messages"][0]["content"]
+    assert "cd" in payloads[0]["messages"][0]["content"]
+
+    followup = payloads[1]["messages"]
+    assert followup[-2]["role"] == "assistant"
+    assert followup[-1]["role"] == "user"
+    assert "tool-result" in followup[-1]["content"]
+    assert not any(m.get("role") == "tool" for m in followup)
+    assert executed[0]["func_call_list"] == ["cd(folder='docs')"]
+    assert timing["id"] == "iffc-1"
+    assert timing["api_calls"] == 2
+    assert timing["flags"] == ""
+
+
+def test_generate_for_entry_iffc_retries_then_ends_on_unparseable(monkeypatch):
+    payloads: list[dict] = []
+    responses = iter(
+        [
+            {
+                "choices": [{"message": {"content": "Sure, I can help."}}],
+                "timings": _timings(),
+            },
+            {
+                "choices": [{"message": {"content": "Still not JSON."}}],
+                "timings": _timings(8, 20, 3, 12),
+            },
+        ]
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("should not execute")),
+    )
+
+    entry = {
+        "id": "iffc-retry",
+        "initial_config": {},
+        "involved_classes": [],
+        "question": [[{"role": "user", "content": "hi"}]],
+    }
+
+    turn_results, timing = generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_base",
+        [{"type": "function", "function": {"name": "ls"}}],
+        fc_mode="iffc",
+    )
+
+    assert turn_results == [[]]
+    assert "json" in payloads[1]["messages"][-1]["content"].lower()
+    assert "iffc_unparseable:turn_0" in timing["flags"]
+    assert timing["api_calls"] == 2
+
+
+def test_build_chat_payload_nfc_keeps_tools_iffc_omits_them():
+    history = [{"role": "user", "content": "hi"}]
+    tools = [{"type": "function", "function": {"name": "ls"}}]
+    nfc = generate_multi_turn._build_chat_payload(history, tools, "nfc")
+    iffc = generate_multi_turn._build_chat_payload(history, tools, "iffc")
+    assert nfc["tools"] == tools
+    assert nfc["tool_choice"] == "auto"
+    assert "tools" not in iffc
+    assert "tool_choice" not in iffc
+
+
+def test_generate_for_entry_iffc_refreshes_system_prompt_when_tools_restored(
+    monkeypatch,
+):
+    payloads: list[dict] = []
+    responses = iter(
+        [
+            {
+                "choices": [{"message": {"content": "[]"}}],
+                "timings": _timings(),
+            },
+            {
+                "choices": [{"message": {"content": "[]"}}],
+                "timings": _timings(8, 20, 3, 12),
+            },
+        ]
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        lambda **kwargs: ([], None),
+    )
+
+    entry = {
+        "id": "iffc-restore",
+        "initial_config": {},
+        "involved_classes": ["fs"],
+        "missed_function": {"1": ["restored_tool"]},
+        "question": [
+            [{"role": "user", "content": "Open docs"}],
+            [],
+        ],
+    }
+    all_tools = [
+        {"type": "function", "function": {"name": "initial_tool"}},
+        {"type": "function", "function": {"name": "restored_tool"}},
+    ]
+
+    generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_miss_func",
+        all_tools,
+        fc_mode="iffc",
+    )
+
+    assert "tools" not in payloads[0]
+    first_sys = payloads[0]["messages"][0]["content"]
+    assert "initial_tool" in first_sys
+    assert "restored_tool" not in first_sys
+    restored_sys = payloads[1]["messages"][0]["content"]
+    assert "initial_tool" in restored_sys
+    assert "restored_tool" in restored_sys
+

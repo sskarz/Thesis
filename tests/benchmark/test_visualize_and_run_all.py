@@ -118,10 +118,68 @@ def test_run_all_only_multi_turn_wires_correct_stages(monkeypatch):
     assert "generate_responses.run" not in called_names
     assert "evaluate_responses.run" not in called_names
     assert called_names[:2] == ["generate_multi_turn.run", "evaluate_multi_turn.run"]
-    assert ("collect_metrics.run", (), {"include_single": False, "include_multi": True}) in calls
+
+    mt_gen = next(c for c in calls if c[0] == "generate_multi_turn.run")
+    assert mt_gen[2]["fc_mode"] == "nfc"
+    assert list(mt_gen[2]["categories"]) == list(run_all.config.MULTI_TURN_CATEGORIES)
+
+    metrics = next(c for c in calls if c[0] == "collect_metrics.run")
+    assert metrics[2]["include_single"] is False
+    assert metrics[2]["include_multi"] is True
     assert ("visualize.run", (), {"include_single": False, "include_multi": True}) in calls
     # Verify run was created and finished in DB
     run_id = run_all.config.RUN_ID
     assert run_id is not None
     run = db.get_run(run_id)
     assert run["finished_at"] is not None
+
+
+def test_run_all_iffc_base_only_wires_flags(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+
+    calls = []
+
+    def record(name):
+        def inner(*args, **kwargs):
+            calls.append((name, args, kwargs))
+            return None
+
+        return inner
+
+    monkeypatch.setattr(run_all, "check_server", lambda: True)
+    monkeypatch.setattr(run_all.generate_responses, "run", record("generate_responses.run"))
+    monkeypatch.setattr(run_all.generate_multi_turn, "run", record("generate_multi_turn.run"))
+    monkeypatch.setattr(run_all.evaluate_responses, "run", record("evaluate_responses.run"))
+    monkeypatch.setattr(run_all.evaluate_multi_turn, "run", record("evaluate_multi_turn.run"))
+    monkeypatch.setattr(run_all.collect_metrics, "run", record("collect_metrics.run"))
+    monkeypatch.setattr(run_all.visualize, "run", record("visualize.run"))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark.run_all",
+            "--only-multi-turn",
+            "--categories",
+            "multi_turn_base",
+            "--fc-mode",
+            "iffc",
+        ],
+    )
+
+    run_all.main()
+
+    mt_gen = next(c for c in calls if c[0] == "generate_multi_turn.run")
+    assert mt_gen[2]["fc_mode"] == "iffc"
+    assert list(mt_gen[2]["categories"]) == ["multi_turn_base"]
+
+    mt_eval = next(c for c in calls if c[0] == "evaluate_multi_turn.run")
+    assert list(mt_eval[2]["categories"]) == ["multi_turn_base"]
+
+    metrics = next(c for c in calls if c[0] == "collect_metrics.run")
+    assert list(metrics[2]["multi_categories"]) == ["multi_turn_base"]
+    assert "generate_responses.run" not in [c[0] for c in calls]
+
+    run = db.get_run(run_all.config.RUN_ID)
+    assert "fc_mode=iffc" in (run["notes"] or "")
+    assert "multi_turn_base" in (run["notes"] or "")
+
