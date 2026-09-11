@@ -310,8 +310,76 @@ def test_insert_and_get_metrics_per_request(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Convenience: get_all_model_results
+# Unfinished runs / checkpoint helpers
 # ---------------------------------------------------------------------------
+
+
+def test_get_unfinished_runs_newest_first(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    first = db.create_run("qwen2.5-3b", notes="fc_mode=cd")
+    second = db.create_run("qwen2.5-3b", notes="fc_mode=iffc")
+    db.create_run("llama-3.2-3b")
+    db.finish_run(first)
+
+    qwen = db.get_unfinished_runs("qwen2.5-3b")
+    assert [r["id"] for r in qwen] == [second]
+    assert all(r["finished_at"] is None for r in db.get_unfinished_runs())
+
+
+def test_get_response_entry_ids_filters_by_category_and_mode(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    run_id = db.create_run("qwen2.5-3b")
+    db.insert_responses(
+        run_id, "multi_turn_base", "multi", [{"id": "mt-1", "result": [[[]]]}]
+    )
+    db.insert_responses(
+        run_id, "multi_turn_base", "multi", [{"id": "mt-2", "result": [[[]]]}]
+    )
+    db.insert_responses(
+        run_id, "simple", "single", [{"id": "s-1", "result": "ok"}]
+    )
+
+    assert db.get_response_entry_ids(run_id, "multi_turn_base", mode="multi") == {
+        "mt-1",
+        "mt-2",
+    }
+    assert db.get_response_entry_ids(run_id, "simple", mode="single") == {"s-1"}
+    assert db.get_response_entry_ids(run_id, "multi_turn_miss_func") == set()
+
+
+def test_insert_multi_turn_entry_upserts_response_and_timing(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    run_id = db.create_run("qwen2.5-3b")
+    result_row = {"id": "mt-0", "result": [[["cd(folder='docs')"]]], "flags": ""}
+    timing = {
+        "id": "mt-0",
+        "category": "multi_turn_base",
+        "turns": 2,
+        "api_calls": 3,
+        "total_prompt_n": 10,
+        "total_prompt_ms": 1.5,
+        "total_predicted_n": 4,
+        "total_predicted_ms": 2.5,
+        "first_prompt_ms": 0.5,
+        "flags": "",
+    }
+    db.insert_multi_turn_entry(run_id, "multi_turn_base", result_row, timing)
+
+    result_row["result"] = [[["ls()"]]]
+    result_row["flags"] = "retried"
+    timing["api_calls"] = 4
+    timing["flags"] = "retried"
+    db.insert_multi_turn_entry(run_id, "multi_turn_base", result_row, timing)
+
+    responses = db.get_responses(run_id, category="multi_turn_base", mode="multi")
+    assert len(responses) == 1
+    assert json.loads(responses[0]["result"]) == [[["ls()"]]]
+    assert responses[0]["flags"] == "retried"
+
+    timings = db.get_multi_turn_timings(run_id)
+    assert len(timings) == 1
+    assert timings[0]["api_calls"] == 4
+    assert timings[0]["flags"] == "retried"
 
 
 def test_get_all_model_results(monkeypatch):

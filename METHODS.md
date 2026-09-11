@@ -601,12 +601,31 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%.
 
+### Pause / resume (kill overnight, continue the same run)
+
+Multi-turn generation (NFC / IFFC / CD) checkpoints **each completed entry** into `benchmark/results/benchmark.db`: `responses` and `multi_turn_timings` for the current `run_id`. Killing the process (Ctrl-C, machine sleep, overnight shutdown) does **not** discard finished entries. In-flight entries (still only in RAM) are regenerated.
+
+This continues the **same** `runs` row (`finished_at` stays NULL until the pipeline finishes). Do not start a new run and copy results.
+
+```bash
+# First launch (creates run_id N)
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode cd \
+  --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
+
+# Kill the process whenever. Rerun the same flags plus --resume:
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode cd --resume
+```
+
+`--resume` selects the latest unfinished run for that `--model` whose notes record the same `--fc-mode`. Pin a row with `--resume-run-id N`. On each category, entry IDs already present in `responses` for that run/category are skipped. Generation-only: `python -m benchmark.generate_multi_turn --fc-mode cd --run-id N`.
+
 ### Implementation notes
 
 - Module: `benchmark/cd.py`. Smoke: `uv run python -m benchmark.smoke_cd`.
 - Hermetic tests prove the name enum / per-tool schema **reject** unknown names, extra wrapper keys, and missing required args. Live `--live` only checks structure against a real server.
 - Two-pass **doubles API calls** on steps that invoke a tool (name + args). End-of-turn `[]` is a single dispatch request.
-- NFC and IFFC code paths are unchanged.
+- NFC and IFFC use the same multi-turn loop; only the completion request differs (see above). Checkpoint/resume is shared across NFC/IFFC/CD.
 
 ### Sources
 

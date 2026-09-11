@@ -115,6 +115,8 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
 ```
 
+Long multi-turn jobs (especially `--fc-mode cd`) checkpoint each finished entry into `benchmark/results/benchmark.db`. Kill the process anytime; rerun the **same** `--model` / `--fc-mode` / `--categories` with `--resume` to continue that unfinished run (skips entry IDs already in `responses`). Pin a run with `--resume-run-id N`. See METHODS.md.
+
 Offline IFFC parser + mock chat-completions smoke (no llama-server):
 
 ```bash
