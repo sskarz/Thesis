@@ -1,4 +1,11 @@
-"""Orchestrator: generate → evaluate → collect metrics → visualize."""
+"""Orchestrator: generate → evaluate → collect metrics → visualize.
+
+Function-calling modes (``--fc-mode``):
+
+- ``nfc`` (default): native OpenAI ``tools`` / ``tool_calls``
+- ``iffc``: Instruction-Followed Function Calling (arXiv:2608.22472 Appendix B)
+  JSON-in-text; used by multi-turn generation only
+"""
 
 import argparse
 import sys
@@ -25,6 +32,18 @@ def check_server() -> bool:
         return False
 
 
+def _notes_with_run_meta(args: argparse.Namespace) -> str | None:
+    extra: list[str] = []
+    if args.fc_mode != config.FC_NFC:
+        extra.append(f"fc_mode={args.fc_mode}")
+    if args.categories:
+        extra.append(f"categories={','.join(args.categories)}")
+    if not extra:
+        return args.notes
+    tag = " ".join(extra)
+    return f"{args.notes}; {tag}" if args.notes else tag
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run the BFCL benchmark pipeline.")
     parser.add_argument(
@@ -44,6 +63,28 @@ def main():
         help="Run only multi-turn categories (skip single-turn)",
     )
     parser.add_argument(
+        "--fc-mode",
+        choices=config.FC_MODES,
+        default=config.FC_NFC,
+        help=(
+            "Function-calling mode for multi-turn. "
+            "nfc = native OpenAI tools/tool_calls (default); "
+            "iffc = Instruction-Followed Function Calling "
+            "(arXiv:2608.22472 Appendix B JSON-in-text)."
+        ),
+    )
+    parser.add_argument(
+        "--categories",
+        nargs="+",
+        metavar="CATEGORY",
+        default=None,
+        help=(
+            "Subset of multi-turn categories to run "
+            f"(choices: {', '.join(config.MULTI_TURN_CATEGORIES)}). "
+            "Example: --categories multi_turn_base"
+        ),
+    )
+    parser.add_argument(
         "--notes",
         type=str,
         default=None,
@@ -52,14 +93,23 @@ def main():
     args = parser.parse_args()
     if args.skip_multi_turn and args.only_multi_turn:
         parser.error("--skip-multi-turn and --only-multi-turn are mutually exclusive")
+    if args.categories and args.skip_multi_turn:
+        parser.error("--categories applies to multi-turn; cannot combine with --skip-multi-turn")
+    try:
+        selected_mt = config.resolve_multi_turn_categories(args.categories)
+    except ValueError as e:
+        parser.error(str(e))
     config.select_model(args.model)
+    config.set_fc_mode(args.fc_mode)
 
     do_single = not args.only_multi_turn
     do_multi = not args.skip_multi_turn
     n_steps = (2 if do_single else 0) + (2 if do_multi else 0) + 3  # server + metrics + viz
 
+    notes = _notes_with_run_meta(args)
+
     # Create a new run in the database
-    run_id = db.create_run(model_key=args.model, notes=args.notes)
+    run_id = db.create_run(model_key=args.model, notes=notes)
     config.RUN_ID = run_id
 
     print("=" * 60)
@@ -67,10 +117,20 @@ def main():
     print(f"Model : {config.MODEL_DISPLAY}")
     print(f"Server: {config.SERVER_URL}")
     print(f"Run ID: {run_id}")
+    print(
+        f"FC mode: {args.fc_mode}"
+        + (
+            " (IFFC = arXiv:2608.22472 Appendix B JSON-in-text)"
+            if args.fc_mode == config.FC_IFFC
+            else " (NFC = native tools)"
+        )
+    )
     if not do_single:
         print("Single-turn: SKIPPED")
     if not do_multi:
         print("Multi-turn: SKIPPED")
+    elif args.categories:
+        print(f"Multi-turn categories: {', '.join(selected_mt)}")
     print("=" * 60)
 
     step = 0
@@ -97,7 +157,7 @@ def main():
     if do_multi:
         step += 1
         print(f"\n[{step}/{n_steps}] Generating multi-turn responses")
-        generate_multi_turn.run()
+        generate_multi_turn.run(categories=selected_mt, fc_mode=args.fc_mode)
 
     # Evaluate single-turn responses
     if do_single:
@@ -109,12 +169,16 @@ def main():
     if do_multi:
         step += 1
         print(f"\n[{step}/{n_steps}] Evaluating multi-turn responses")
-        evaluate_multi_turn.run()
+        evaluate_multi_turn.run(categories=selected_mt)
 
     # Collect metrics
     step += 1
     print(f"\n[{step}/{n_steps}] Collecting metrics")
-    collect_metrics.run(include_single=do_single, include_multi=do_multi)
+    collect_metrics.run(
+        include_single=do_single,
+        include_multi=do_multi,
+        multi_categories=selected_mt if do_multi else None,
+    )
 
     # Visualize
     step += 1
