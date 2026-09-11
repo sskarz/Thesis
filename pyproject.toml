@@ -23,7 +23,8 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "experiments/vfs-shell/tests"]
+pythonpath = ["experiments/vfs-shell"]
 markers = [
     "live: requires a running local llama-server and explicit opt-in",
     "slow: longer-running artifact or pipeline coverage",
