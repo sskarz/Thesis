@@ -20,6 +20,7 @@ Each method in this section operates at inference time without modifying model w
 - [10. DSPy Automatic Prompt Optimization](#10-dspy-automatic-prompt-optimization)
 - [11. Parallel Function Calling via SimpleTool](#11-parallel-function-calling-via-simpletool)
 - [Key Finding: llama.cpp Already Uses Grammar-Constrained Decoding](#key-finding-llamacpp-already-uses-grammar-constrained-decoding)
+- [Experiment: TagDispatch-style CD (`--fc-mode cd`)](#experiment-tagdispatch-style-cd---fc-mode-cd)
 - [Prioritized Recommendations](#prioritized-recommendations)
 - [References](#references)
 
@@ -108,9 +109,9 @@ llama.cpp optionally supports LLGuidance (`-DLLAMA_LLGUIDANCE=ON`), a Rust-based
 ### Applicability
 
 - **BFCL categories:** All, but especially `parallel` and `parallel_multiple` (0% across all models) where a GBNF grammar enforcing an array-of-tool-calls structure could unlock scores
-- **Implementation:** Use the `grammar` or `response_format` parameter in the llama-server API; or test LLGuidance for stricter type enforcement
-- **Complexity:** Medium (must coordinate with existing `tools` parameter and chat template)
-- **Limitation:** Guarantees syntactic validity only, not semantic correctness. The model could produce perfectly formatted JSON with wrong function names or argument values.
+- **Implementation:** The multi-turn CD ablation is `--fc-mode cd` (TagDispatch-style two-pass on stock llama-server; see [Experiment: TagDispatch-style CD](#experiment-tagdispatch-style-cd---fc-mode-cd)). Do **not** treat NFC `tools`/`tool_choice` GBNF as that experiment. `grammar` and `json_schema` are the llama-server fields used; LLGuidance (`-DLLAMA_LLGUIDANCE=ON`) is optional and not required.
+- **Complexity:** Medium (must keep CD payloads free of `tools` so native tools GBNF never activates)
+- **Limitation:** Guarantees syntactic validity only, not semantic correctness. The model could produce perfectly formatted JSON with wrong function names or argument values — except that CD pass 1 *does* reject unknown names at the grammar level.
 
 ### Sources
 
@@ -507,10 +508,110 @@ This changes the thesis narrative from "grammar-constrained decoding could help"
 3. **Build with LLGuidance** for stricter JSON Schema enforcement
 4. **Check server logs** to verify grammar activation during benchmark runs
 5. **Error analysis:** Determine whether parallel failures are format failures (model attempts multi-call but mangles it) or semantic failures (model doesn't understand it should call multiple functions)
+6. **Run `--fc-mode cd`** (TagDispatch-style two-pass; see below) on Gemma `multi_turn_base` vs NFC 27.0% / IFFC 30.5% — this is a separate condition from native `tools` GBNF
 
 ### Source
 
 Local source code analysis: `llama.cpp/common/chat.cpp`, `llama.cpp/common/json-schema-to-grammar.cpp`, `llama.cpp/grammars/README.md`
+
+---
+
+## Experiment: TagDispatch-style CD (`--fc-mode cd`)
+
+This is the **constrained-decoding ablation** for the BFCL multi-turn harness. It is **not** NFC, and it does **not** treat llama-server native `tools` GBNF as the CD condition.
+
+### Why NFC tools-GBNF is not the CD experiment
+
+NFC (`--fc-mode nfc`) sends `tools` + `tool_choice=auto`. llama-server `--jinja` may compile a **lazy** tools grammar from the chat template (trigger tokens, then argument GBNF). That path is already the baseline (Gemma-4-E2B-it Q4_K_M `multi_turn_base` Run 4: 54/200 = 27.0%). It also has a known **parallel truncation** bug on some templates (grammar satisfied after the first `</tool_call>`), which is why single-turn `parallel` / `parallel_multiple` bypass grammar with `tool_choice=none`.
+
+Rebranding that native grammar as “CD” would not be a new independent variable.
+
+### What `--fc-mode cd` actually does
+
+CD approximates XGrammar-2 **TagDispatch** (Dong et al., arXiv:2601.04426) on **stock llama-server**, without XGrammar and without rebuilding with LLGuidance.
+
+XGrammar-2 TagDispatch is an intra-request engine primitive: decoding starts in a *dispatching* mode; emitting tag \(t_i\) switches to sub-grammar \(G_i\); after \(G_i\) completes, control returns to dispatching. llama.cpp cannot do that in one sampler (no XGrammar; optional LLGuidance is a different library and is **OFF** unless you pass `-DLLAMA_LLGUIDANCE=ON`).
+
+The harness therefore uses a **two-pass approximation** of the same control flow:
+
+| Pass | Role (TagDispatch analogue) | llama-server constraint | Output |
+|------|------------------------------|-------------------------|--------|
+| 1. Dispatch | Select tags from the live tool list, or stop | `grammar` GBNF: `[]` or `[{"function_name": <enum>}, ...]` | Names only (`additionalProperties: false`) |
+| 2. Dispatched | Constrain arguments to the *selected* tool(s) | `json_schema` (server compiles to GBNF via `json-schema-to-grammar`) | IFFC-shaped `[{function_name, parameters}, ...]` |
+
+The persistent multi-turn transcript stays IFFC-shaped (JSON list in assistant text; user-role execution results). **Only the completion requests** carry `grammar` / `json_schema`. Requests **never** include `tools` / `tool_choice`, so native tools GBNF is not applied.
+
+A static tagged-union `oneOf` over *all* tools (`build_tagged_union_schema`) is the EBNF encoding XGrammar-2 calls cumbersome; it is implemented for tests/docs but **not** used at runtime. Two-pass keeps the pass-2 grammar as small as the selected tool.
+
+### llama-server API (what we actually send)
+
+Investigated against current llama-server OpenAI-compatible `POST /v1/chat/completions`:
+
+| Field | Effect | Used by CD? |
+|-------|--------|-------------|
+| `tools` / `tool_choice` | Chat-template tools GBNF (NFC) | **No** |
+| `grammar` | Sampling-level GBNF (template-independent) | Pass 1 |
+| `json_schema` | Converted to GBNF; **takes precedence** if both `grammar` and `json_schema` are set | Pass 2 |
+| `response_format: {type: json_schema}` | OpenAI-shaped wrapper; some templates historically ignored it | Not required (Gemma-4 handlers already understand `json_schema`) |
+
+Pass 1 sends **only** `grammar` so `json_schema` cannot override the name enum. Pass 2 sends **only** `json_schema` so llama.cpp’s converter handles property permutation / nested BFCL parameter schemas.
+
+### Honesty vs full XGrammar-2
+
+| XGrammar-2 | This harness (`cd`) |
+|-----------|---------------------|
+| Intra-request tag-triggered grammar switch | **Two HTTP requests** (dispatch, then args) |
+| Cross-Grammar Cache / Earley mask cache / JIT | Not available on llama-server GBNF |
+| Ships in MLC / vLLM / SGLang | Not used (stock llama-server) |
+| Strict structural tags in one decode | Approximation: name GBNF, then per-tool JSON Schema |
+
+Do **not** report this as “we ran XGrammar-2”. Score tables in `THESIS.md` stay unchanged until a Gemma `multi_turn_base` CD run is scored.
+
+### LLGuidance (optional; not required)
+
+llama.cpp can be rebuilt with Microsoft’s LLGuidance backend:
+
+```bash
+# macOS (Apple Silicon) — requires a Rust toolchain
+cmake -B build -DGGML_METAL=ON -DLLAMA_LLGUIDANCE=ON
+cmake --build build --config Release -j$(sysctl -n hw.ncpu)
+
+# Linux CUDA (not the CD default machine)
+# cmake -B build -DGGML_CUDA=ON -DLLAMA_OPENSSL=ON -DLLAMA_LLGUIDANCE=ON
+```
+
+The current Mac Metal build is assumed **without** this flag. CD does not need it.
+
+### How to run (Gemma-4-E2B-it, `multi_turn_base`)
+
+Same server command as NFC / IFFC (no extra llama-server flags):
+
+```bash
+./llama.cpp/build/bin/llama-server --jinja -fa on \
+  -hf bartowski/google_gemma-4-E2B-it-GGUF:Q4_K_M \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 \
+  -np 4 -cb -ub 1024
+
+uv run python -m benchmark.smoke_cd   # hermetic; add --live if the server is up
+
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode cd \
+  --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
+```
+
+Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%.
+
+### Implementation notes
+
+- Module: `benchmark/cd.py`. Smoke: `uv run python -m benchmark.smoke_cd`.
+- Hermetic tests prove the name enum / per-tool schema **reject** unknown names, extra wrapper keys, and missing required args. Live `--live` only checks structure against a real server.
+- Two-pass **doubles API calls** on steps that invoke a tool (name + args). End-of-turn `[]` is a single dispatch request.
+- NFC and IFFC code paths are unchanged.
+
+### Sources
+
+- Dong, Y., et al. "XGrammar-2: Efficient Dynamic Structured Generation Engine for Agentic LLMs." arXiv:2601.04426, 2026. https://arxiv.org/abs/2601.04426
+- llama.cpp server `json_schema` / `grammar` fields: `tools/server/server-schema.cpp`
 
 ---
 

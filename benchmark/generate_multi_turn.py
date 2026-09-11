@@ -5,6 +5,10 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
 - ``nfc`` (default): native OpenAI ``tools`` / ``tool_calls`` via llama-server --jinja
 - ``iffc``: Instruction-Followed Function Calling (arXiv:2608.22472 Appendix B) —
   JSON-in-text; do not send ``tools``/``tool_choice``
+- ``cd``: TagDispatch-style two-pass constrained decoding (arXiv:2601.04426
+  approximation). Never sends ``tools``/``tool_choice``. Pass 1 constrains the
+  tool *name* with a GBNF grammar; pass 2 constrains arguments with
+  ``json_schema``. Not llama-server native tools GBNF; not full XGrammar-2.
 """
 
 import argparse
@@ -15,6 +19,7 @@ import aiohttp
 import requests
 from tqdm import tqdm
 
+from . import cd as cd_mode
 from . import config, db
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
 from .iffc import (
@@ -104,18 +109,22 @@ def _resolve_fc_mode(fc_mode: str | None) -> str:
     return mode
 
 
+def _is_json_text_mode(fc_mode: str) -> bool:
+    return fc_mode in config.FC_JSON_TEXT_MODES
+
+
 def _build_chat_payload(
     chat_history: list[dict],
     active_tools: list[dict],
     fc_mode: str,
 ) -> dict:
-    """Build a chat-completions payload. IFFC never sends tools/tool_choice."""
+    """Build a chat-completions payload. IFFC/CD never send tools/tool_choice."""
     payload: dict = {
         "model": config.MODEL_NAME,
         "messages": chat_history,
         "temperature": 0.0,
     }
-    if fc_mode == config.FC_IFFC:
+    if _is_json_text_mode(fc_mode):
         return payload
     if active_tools:
         payload["tools"] = active_tools
@@ -128,8 +137,47 @@ def _prepare_step_messages(
     active_tools: list[dict],
     fc_mode: str,
 ) -> None:
-    if fc_mode == config.FC_IFFC:
+    if _is_json_text_mode(fc_mode):
+        # Persistent transcript is IFFC-shaped for both IFFC and CD.
+        # CD applies grammar/json_schema on a working copy inside complete_step.
         ensure_iffc_system_message(chat_history, active_tools)
+
+
+def _post_chat_sync(payload: dict) -> dict:
+    resp = requests.post(
+        f"{config.SERVER_URL}/v1/chat/completions",
+        json=payload,
+        timeout=180,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _complete_chat_sync(
+    chat_history: list[dict],
+    active_tools: list[dict],
+    fc_mode: str,
+) -> tuple[dict, int]:
+    """One model step. CD may issue two constrained requests."""
+    if fc_mode == config.FC_CD:
+        return cd_mode.complete_step(
+            chat_history,
+            active_tools,
+            post=_post_chat_sync,
+            model=config.MODEL_NAME,
+        )
+    payload = _build_chat_payload(chat_history, active_tools, fc_mode)
+    return _post_chat_sync(payload), 1
+
+
+async def _post_chat_async(session: aiohttp.ClientSession, payload: dict) -> dict:
+    async with session.post(
+        f"{config.SERVER_URL}/v1/chat/completions",
+        json=payload,
+        timeout=aiohttp.ClientTimeout(total=180),
+    ) as resp:
+        resp.raise_for_status()
+        return await resp.json()
 
 
 def _decide_assistant_step(
@@ -143,7 +191,7 @@ def _decide_assistant_step(
     Returns ``(action, func_strings, tool_calls_raw, parse_retries_left, flag)``
     where *action* is ``execute``, ``end_turn``, or ``retry``.
     """
-    if fc_mode == config.FC_IFFC:
+    if _is_json_text_mode(fc_mode):
         content = assistant_text(message)
         parsed = try_parse_iffc_response(content)
         if parsed:
@@ -155,7 +203,9 @@ def _decide_assistant_step(
             chat_history.append({"role": "user", "content": IFFC_RETRY_USER_MESSAGE})
             return "retry", None, None, parse_retries_left - 1, None
         chat_history.append({"role": "assistant", "content": content})
-        flag = None if parsed is not None else "iffc_unparseable"
+        flag = None if parsed is not None else (
+            "cd_unparseable" if fc_mode == config.FC_CD else "iffc_unparseable"
+        )
         return "end_turn", None, None, parse_retries_left, flag
 
     tool_calls_raw = message.get("tool_calls")
@@ -176,7 +226,7 @@ def _append_execution_feedback(
     tool_calls_raw: list | None,
     exec_results: list,
 ) -> None:
-    if fc_mode == config.FC_IFFC:
+    if _is_json_text_mode(fc_mode):
         chat_history.append({
             "role": "user",
             "content": format_iffc_execution_user_message(func_strings, exec_results),
@@ -272,17 +322,12 @@ def generate_for_entry(
         parse_retries_left = IFFC_PARSE_RETRIES
         for _step in range(config.MULTI_TURN_MAX_STEPS):
             _prepare_step_messages(chat_history, active_tools, fc_mode)
-            payload = _build_chat_payload(chat_history, active_tools, fc_mode)
 
             try:
-                resp = requests.post(
-                    f"{config.SERVER_URL}/v1/chat/completions",
-                    json=payload,
-                    timeout=180,
+                data, n_calls = _complete_chat_sync(
+                    chat_history, active_tools, fc_mode
                 )
-                resp.raise_for_status()
-                data = resp.json()
-                api_calls += 1
+                api_calls += n_calls
             except requests.exceptions.HTTPError as e:
                 status = e.response.status_code if e.response is not None else None
                 if status == 400:
@@ -301,7 +346,7 @@ def generate_for_entry(
             total_prompt_ms += t.get("prompt_ms", 0)
             total_predicted_n += t.get("predicted_n", 0)
             total_predicted_ms += t.get("predicted_ms", 0)
-            if api_calls == 1:
+            if api_calls == n_calls:
                 first_prompt_ms = t.get("prompt_ms", 0)
 
             if not data.get("choices"):
@@ -441,36 +486,43 @@ async def _generate_entry_async(
         parse_retries_left = IFFC_PARSE_RETRIES
         for _step in range(config.MULTI_TURN_MAX_STEPS):
             _prepare_step_messages(chat_history, active_tools, fc_mode)
-            payload = _build_chat_payload(chat_history, active_tools, fc_mode)
 
-            # Acquire semaphore only for the API call (not tool execution)
-            async with semaphore:
-                try:
-                    async with session.post(
-                        f"{config.SERVER_URL}/v1/chat/completions",
-                        json=payload,
-                        timeout=aiohttp.ClientTimeout(total=180),
-                    ) as resp:
-                        resp.raise_for_status()
-                        data = await resp.json()
-                    api_calls += 1
-                except aiohttp.ClientResponseError as e:
-                    if e.status == 400:
-                        flags.append(f"context_overflow:turn_{turn_idx}")
-                    else:
-                        flags.append(f"http_error_{e.status}:turn_{turn_idx}")
-                    step_results.append([f"ERROR: {e}"])
-                    break
-                except Exception as e:
-                    step_results.append([f"ERROR: {e}"])
-                    break
+            async def _gated_post(payload: dict) -> dict:
+                async with semaphore:
+                    return await _post_chat_async(session, payload)
+
+            try:
+                if fc_mode == config.FC_CD:
+                    data, n_calls = await cd_mode.complete_step_async(
+                        chat_history,
+                        active_tools,
+                        post=_gated_post,
+                        model=config.MODEL_NAME,
+                    )
+                else:
+                    payload = _build_chat_payload(
+                        chat_history, active_tools, fc_mode
+                    )
+                    data = await _gated_post(payload)
+                    n_calls = 1
+                api_calls += n_calls
+            except aiohttp.ClientResponseError as e:
+                if e.status == 400:
+                    flags.append(f"context_overflow:turn_{turn_idx}")
+                else:
+                    flags.append(f"http_error_{e.status}:turn_{turn_idx}")
+                step_results.append([f"ERROR: {e}"])
+                break
+            except Exception as e:
+                step_results.append([f"ERROR: {e}"])
+                break
 
             t = data.get("timings", {})
             total_prompt_n += t.get("prompt_n", 0)
             total_prompt_ms += t.get("prompt_ms", 0)
             total_predicted_n += t.get("predicted_n", 0)
             total_predicted_ms += t.get("predicted_ms", 0)
-            if api_calls == 1:
+            if api_calls == n_calls:
                 first_prompt_ms = t.get("prompt_ms", 0)
 
             if not data.get("choices"):
@@ -651,7 +703,7 @@ def run(
 
 def _parse_cli() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate BFCL multi-turn responses (NFC or IFFC)."
+        description="Generate BFCL multi-turn responses (NFC, IFFC, or CD)."
     )
     parser.add_argument(
         "--fc-mode",
@@ -660,7 +712,9 @@ def _parse_cli() -> argparse.Namespace:
         help=(
             "nfc = native OpenAI tools/tool_calls (default). "
             "iffc = Instruction-Followed Function Calling "
-            "(arXiv:2608.22472 Appendix B JSON-in-text)."
+            "(arXiv:2608.22472 Appendix B JSON-in-text). "
+            "cd = TagDispatch-style two-pass constrained decoding "
+            "(not native tools GBNF; not full XGrammar-2)."
         ),
     )
     parser.add_argument(
