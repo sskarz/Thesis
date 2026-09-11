@@ -97,14 +97,15 @@ def evaluate_category(category: str, category_info: dict) -> dict:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run() -> list[dict]:
-    """Evaluate all multi-turn categories. Returns list of accuracy rows."""
+def run(categories: dict[str, dict] | None = None) -> list[dict]:
+    """Evaluate selected multi-turn categories. Returns list of accuracy rows."""
     _ensure_model_registered()
     run_id = config.RUN_ID
+    cats = categories or config.resolve_multi_turn_categories(None)
 
     rows: list[dict] = []
 
-    for category, info in config.MULTI_TURN_CATEGORIES.items():
+    for category, info in cats.items():
         print(f"[multi-turn evaluate] Category: {category}")
         result = evaluate_category(category, info)
         n_errors = len(result.get("errors", []))

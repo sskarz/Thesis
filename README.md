@@ -95,6 +95,23 @@ The live smoke layer:
 uv run python -m benchmark.run_all
 ```
 
+Multi-turn function-calling mode and category filter:
+
+- `--fc-mode nfc` (default): native OpenAI `tools` / `tool_calls` via llama-server `--jinja`
+- `--fc-mode iffc`: Instruction-Followed Function Calling ([arXiv:2608.22472](https://arxiv.org/abs/2608.22472) Appendix B) — JSON list in assistant text; the API request does **not** include `tools`/`tool_choice`
+- `--categories multi_turn_base`: run only that multi-turn split (skip miss_func / miss_param / long_context)
+
+```bash
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc
+```
+
+Offline IFFC parser + mock chat-completions smoke (no llama-server):
+
+```bash
+uv run python -m benchmark.smoke_iffc
+```
+
 The pipeline runs five steps in sequence:
 
 1. **Server check** — verifies llama-server is reachable

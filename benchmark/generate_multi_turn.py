@@ -1,8 +1,15 @@
-"""Multi-turn generation: model ↔ tool execution ↔ model loop for BFCL v4."""
+"""Multi-turn generation: model ↔ tool execution ↔ model loop for BFCL v4.
 
+Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
+
+- ``nfc`` (default): native OpenAI ``tools`` / ``tool_calls`` via llama-server --jinja
+- ``iffc``: Instruction-Followed Function Calling (arXiv:2608.22472 Appendix B) —
+  JSON-in-text; do not send ``tools``/``tool_choice``
+"""
+
+import argparse
 import asyncio
 import json
-from pathlib import Path
 
 import aiohttp
 import requests
@@ -10,6 +17,15 @@ from tqdm import tqdm
 
 from . import config, db
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
+from .iffc import (
+    IFFC_PARSE_RETRIES,
+    IFFC_RETRY_USER_MESSAGE,
+    assistant_text,
+    ensure_iffc_system_message,
+    format_iffc_execution_user_message,
+    iffc_calls_to_func_strings,
+    try_parse_iffc_response,
+)
 
 # Mapping from class name → func-doc JSON filename
 from bfcl_eval.constants.executable_backend_config import MULTI_TURN_FUNC_DOC_FILE_MAPPING
@@ -79,6 +95,101 @@ def _build_miss_func_sets(entry: dict) -> tuple[set[str], dict[int, list[str]]]:
     return withheld, restore_map
 
 
+def _resolve_fc_mode(fc_mode: str | None) -> str:
+    mode = fc_mode or config.FC_MODE
+    if mode not in config.FC_MODES:
+        raise ValueError(
+            f"Unknown fc-mode {mode!r}. Choose from: {', '.join(config.FC_MODES)}"
+        )
+    return mode
+
+
+def _build_chat_payload(
+    chat_history: list[dict],
+    active_tools: list[dict],
+    fc_mode: str,
+) -> dict:
+    """Build a chat-completions payload. IFFC never sends tools/tool_choice."""
+    payload: dict = {
+        "model": config.MODEL_NAME,
+        "messages": chat_history,
+        "temperature": 0.0,
+    }
+    if fc_mode == config.FC_IFFC:
+        return payload
+    if active_tools:
+        payload["tools"] = active_tools
+        payload["tool_choice"] = "auto"
+    return payload
+
+
+def _prepare_step_messages(
+    chat_history: list[dict],
+    active_tools: list[dict],
+    fc_mode: str,
+) -> None:
+    if fc_mode == config.FC_IFFC:
+        ensure_iffc_system_message(chat_history, active_tools)
+
+
+def _decide_assistant_step(
+    message: dict,
+    chat_history: list[dict],
+    fc_mode: str,
+    parse_retries_left: int,
+) -> tuple[str, list[str] | None, list | None, int, str | None]:
+    """Interpret an assistant message.
+
+    Returns ``(action, func_strings, tool_calls_raw, parse_retries_left, flag)``
+    where *action* is ``execute``, ``end_turn``, or ``retry``.
+    """
+    if fc_mode == config.FC_IFFC:
+        content = assistant_text(message)
+        parsed = try_parse_iffc_response(content)
+        if parsed:
+            func_strings = iffc_calls_to_func_strings(parsed)
+            chat_history.append({"role": "assistant", "content": content})
+            return "execute", func_strings, None, IFFC_PARSE_RETRIES, None
+        if parsed is None and parse_retries_left > 0:
+            chat_history.append({"role": "assistant", "content": content})
+            chat_history.append({"role": "user", "content": IFFC_RETRY_USER_MESSAGE})
+            return "retry", None, None, parse_retries_left - 1, None
+        chat_history.append({"role": "assistant", "content": content})
+        flag = None if parsed is not None else "iffc_unparseable"
+        return "end_turn", None, None, parse_retries_left, flag
+
+    tool_calls_raw = message.get("tool_calls")
+    if tool_calls_raw:
+        func_strings = _tool_calls_to_func_strings(tool_calls_raw)
+        chat_history.append(message)
+        return "execute", func_strings, tool_calls_raw, parse_retries_left, None
+
+    content = message.get("content", "")
+    chat_history.append({"role": "assistant", "content": content})
+    return "end_turn", None, None, parse_retries_left, None
+
+
+def _append_execution_feedback(
+    chat_history: list[dict],
+    fc_mode: str,
+    func_strings: list[str],
+    tool_calls_raw: list | None,
+    exec_results: list,
+) -> None:
+    if fc_mode == config.FC_IFFC:
+        chat_history.append({
+            "role": "user",
+            "content": format_iffc_execution_user_message(func_strings, exec_results),
+        })
+        return
+    for tc, exec_result in zip(tool_calls_raw or [], exec_results):
+        chat_history.append({
+            "role": "tool",
+            "tool_call_id": tc["id"],
+            "content": str(exec_result),
+        })
+
+
 # ---------------------------------------------------------------------------
 # Core generation loop (sync — used by collect_metrics and tests)
 # ---------------------------------------------------------------------------
@@ -88,6 +199,7 @@ def generate_for_entry(
     category: str,
     all_tools: list[dict],
     execution_model_name: str | None = None,
+    fc_mode: str | None = None,
 ) -> tuple[list[list[list[str]]], dict]:
     """Run the multi-turn inference loop for a single test entry (sync).
 
@@ -129,6 +241,7 @@ def generate_for_entry(
     first_prompt_ms: float = 0.0
 
     exec_model_name = execution_model_name or f"{config.MODEL_NAME}_gen"
+    fc_mode = _resolve_fc_mode(fc_mode)
 
     for turn_idx, turn_messages in enumerate(questions):
         # miss_func: if this turn's question is [], add back withheld functions
@@ -156,15 +269,10 @@ def generate_for_entry(
 
         # Inner step loop: model calls tools until it gives a text response
         step_results: list[list[str]] = []
+        parse_retries_left = IFFC_PARSE_RETRIES
         for _step in range(config.MULTI_TURN_MAX_STEPS):
-            payload = {
-                "model": config.MODEL_NAME,
-                "messages": chat_history,
-                "temperature": 0.0,
-            }
-            if active_tools:
-                payload["tools"] = active_tools
-                payload["tool_choice"] = "auto"
+            _prepare_step_messages(chat_history, active_tools, fc_mode)
+            payload = _build_chat_payload(chat_history, active_tools, fc_mode)
 
             try:
                 resp = requests.post(
@@ -202,44 +310,37 @@ def generate_for_entry(
 
             choice = data["choices"][0]
             message = choice["message"]
-            finish_reason = choice.get("finish_reason", "")
 
-            tool_calls_raw = message.get("tool_calls")
-
-            if tool_calls_raw:
-                # Model wants to call tools
-                func_strings = _tool_calls_to_func_strings(tool_calls_raw)
-                step_results.append(func_strings)
-
-                # Add assistant message with tool_calls to history
-                chat_history.append(message)
-
-                # Execute function calls via bfcl_eval
-                try:
-                    exec_results, _ = execute_multi_turn_func_call(
-                        func_call_list=func_strings,
-                        initial_config=initial_config,
-                        involved_classes=involved_classes,
-                        model_name=exec_model_name,
-                        test_entry_id=entry_id,
-                        long_context=(category == "multi_turn_long_context"),
-                        is_evaL_run=False,  # sic: upstream parameter name
-                    )
-                except Exception as e:
-                    exec_results = [str(e)] * len(func_strings)
-
-                # Feed tool results back to model
-                for tc, exec_result in zip(tool_calls_raw, exec_results):
-                    chat_history.append({
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": str(exec_result),
-                    })
-            else:
-                # Text response — turn is done
-                content = message.get("content", "")
-                chat_history.append({"role": "assistant", "content": content})
+            action, func_strings, tool_calls_raw, parse_retries_left, flag = (
+                _decide_assistant_step(
+                    message, chat_history, fc_mode, parse_retries_left
+                )
+            )
+            if flag:
+                flags.append(f"{flag}:turn_{turn_idx}")
+            if action == "retry":
+                continue
+            if action == "end_turn":
                 break
+
+            step_results.append(func_strings)
+
+            try:
+                exec_results, _ = execute_multi_turn_func_call(
+                    func_call_list=func_strings,
+                    initial_config=initial_config,
+                    involved_classes=involved_classes,
+                    model_name=exec_model_name,
+                    test_entry_id=entry_id,
+                    long_context=(category == "multi_turn_long_context"),
+                    is_evaL_run=False,  # sic: upstream parameter name
+                )
+            except Exception as e:
+                exec_results = [str(e)] * len(func_strings)
+
+            _append_execution_feedback(
+                chat_history, fc_mode, func_strings, tool_calls_raw, exec_results
+            )
         else:
             # Loop completed without break — model never gave a text response
             flags.append(f"hit_step_limit:turn_{turn_idx}")
@@ -276,6 +377,7 @@ async def _generate_entry_async(
     category: str,
     all_tools: list[dict],
     pbar: tqdm,
+    fc_mode: str | None = None,
 ) -> tuple[dict, dict]:
     """Run one multi-turn entry asynchronously.
 
@@ -286,6 +388,7 @@ async def _generate_entry_async(
     initial_config = entry.get("initial_config", {})
     involved_classes = entry.get("involved_classes", [])
     questions = entry["question"]
+    fc_mode = _resolve_fc_mode(fc_mode)
 
     is_miss_func = category == "multi_turn_miss_func"
     withheld_names: set[str] = set()
@@ -335,15 +438,10 @@ async def _generate_entry_async(
                 continue
 
         step_results: list[list[str]] = []
+        parse_retries_left = IFFC_PARSE_RETRIES
         for _step in range(config.MULTI_TURN_MAX_STEPS):
-            payload = {
-                "model": config.MODEL_NAME,
-                "messages": chat_history,
-                "temperature": 0.0,
-            }
-            if active_tools:
-                payload["tools"] = active_tools
-                payload["tool_choice"] = "auto"
+            _prepare_step_messages(chat_history, active_tools, fc_mode)
+            payload = _build_chat_payload(chat_history, active_tools, fc_mode)
 
             # Acquire semaphore only for the API call (not tool execution)
             async with semaphore:
@@ -382,41 +480,41 @@ async def _generate_entry_async(
             choice = data["choices"][0]
             message = choice["message"]
 
-            tool_calls_raw = message.get("tool_calls")
-
-            if tool_calls_raw:
-                func_strings = _tool_calls_to_func_strings(tool_calls_raw)
-                step_results.append(func_strings)
-                chat_history.append(message)
-
-                # Tool execution is CPU-bound — run in thread to avoid blocking
-                loop = asyncio.get_running_loop()
-                try:
-                    exec_results, _ = await loop.run_in_executor(
-                        None,
-                        lambda: execute_multi_turn_func_call(
-                            func_call_list=func_strings,
-                            initial_config=initial_config,
-                            involved_classes=involved_classes,
-                            model_name=exec_model_name,
-                            test_entry_id=entry_id,
-                            long_context=(category == "multi_turn_long_context"),
-                            is_evaL_run=False,
-                        ),
-                    )
-                except Exception as e:
-                    exec_results = [str(e)] * len(func_strings)
-
-                for tc, exec_result in zip(tool_calls_raw, exec_results):
-                    chat_history.append({
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": str(exec_result),
-                    })
-            else:
-                content = message.get("content", "")
-                chat_history.append({"role": "assistant", "content": content})
+            action, func_strings, tool_calls_raw, parse_retries_left, flag = (
+                _decide_assistant_step(
+                    message, chat_history, fc_mode, parse_retries_left
+                )
+            )
+            if flag:
+                flags.append(f"{flag}:turn_{turn_idx}")
+            if action == "retry":
+                continue
+            if action == "end_turn":
                 break
+
+            step_results.append(func_strings)
+
+            # Tool execution is CPU-bound — run in thread to avoid blocking
+            loop = asyncio.get_running_loop()
+            try:
+                exec_results, _ = await loop.run_in_executor(
+                    None,
+                    lambda fs=func_strings: execute_multi_turn_func_call(
+                        func_call_list=fs,
+                        initial_config=initial_config,
+                        involved_classes=involved_classes,
+                        model_name=exec_model_name,
+                        test_entry_id=entry_id,
+                        long_context=(category == "multi_turn_long_context"),
+                        is_evaL_run=False,
+                    ),
+                )
+            except Exception as e:
+                exec_results = [str(e)] * len(func_strings)
+
+            _append_execution_feedback(
+                chat_history, fc_mode, func_strings, tool_calls_raw, exec_results
+            )
         else:
             flags.append(f"hit_step_limit:turn_{turn_idx}")
 
@@ -451,10 +549,12 @@ async def _generate_entry_async(
 def generate_for_category(
     category: str,
     category_info: dict,
+    fc_mode: str | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Generate multi-turn responses for all entries in one category (sync)."""
     data_file = config.BFCL_DATA_DIR / category_info["file"]
     entries = load_jsonl(data_file)
+    fc_mode = _resolve_fc_mode(fc_mode)
 
     results: list[dict] = []
     timings: list[dict] = []
@@ -463,7 +563,9 @@ def generate_for_category(
         involved_classes = entry.get("involved_classes", [])
         all_tools = _load_func_docs(involved_classes)
 
-        turn_results, timing = generate_for_entry(entry, category, all_tools)
+        turn_results, timing = generate_for_entry(
+            entry, category, all_tools, fc_mode=fc_mode
+        )
 
         results.append({
             "id": entry["id"],
@@ -480,10 +582,12 @@ async def _generate_for_category_async(
     semaphore: asyncio.Semaphore,
     category: str,
     category_info: dict,
+    fc_mode: str | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Generate multi-turn responses for all entries concurrently."""
     data_file = config.BFCL_DATA_DIR / category_info["file"]
     entries = load_jsonl(data_file)
+    fc_mode = _resolve_fc_mode(fc_mode)
 
     pbar = tqdm(total=len(entries), desc=f"  {category}", unit="entry")
 
@@ -493,7 +597,7 @@ async def _generate_for_category_async(
         all_tools = _load_func_docs(involved_classes)
         tasks.append(
             _generate_entry_async(
-                session, semaphore, entry, category, all_tools, pbar
+                session, semaphore, entry, category, all_tools, pbar, fc_mode=fc_mode
             )
         )
 
@@ -509,17 +613,24 @@ async def _generate_for_category_async(
 # Main entry point
 # ---------------------------------------------------------------------------
 
-async def _run_async() -> None:
+async def _run_async(
+    categories: dict[str, dict] | None = None,
+    fc_mode: str | None = None,
+) -> None:
     """Async implementation of run()."""
     run_id = config.RUN_ID
     semaphore = asyncio.Semaphore(config.PARALLEL_SLOTS)
     all_timings: list[dict] = []
+    cats = categories or config.resolve_multi_turn_categories(None)
+    fc_mode = _resolve_fc_mode(fc_mode)
+
+    print(f"[multi-turn generate] fc-mode={fc_mode}  categories={list(cats)}")
 
     async with aiohttp.ClientSession() as session:
-        for category, info in config.MULTI_TURN_CATEGORIES.items():
+        for category, info in cats.items():
             print(f"[multi-turn generate] Category: {category}")
             results, timings = await _generate_for_category_async(
-                session, semaphore, category, info
+                session, semaphore, category, info, fc_mode=fc_mode
             )
             all_timings.extend(timings)
 
@@ -530,10 +641,46 @@ async def _run_async() -> None:
     print(f"[multi-turn generate] {len(all_timings)} timings saved to DB")
 
 
-def run() -> None:
-    """Generate multi-turn responses for all categories."""
-    asyncio.run(_run_async())
+def run(
+    categories: dict[str, dict] | None = None,
+    fc_mode: str | None = None,
+) -> None:
+    """Generate multi-turn responses for selected categories."""
+    asyncio.run(_run_async(categories=categories, fc_mode=fc_mode))
+
+
+def _parse_cli() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate BFCL multi-turn responses (NFC or IFFC)."
+    )
+    parser.add_argument(
+        "--fc-mode",
+        choices=config.FC_MODES,
+        default=config.FC_NFC,
+        help=(
+            "nfc = native OpenAI tools/tool_calls (default). "
+            "iffc = Instruction-Followed Function Calling "
+            "(arXiv:2608.22472 Appendix B JSON-in-text)."
+        ),
+    )
+    parser.add_argument(
+        "--categories",
+        nargs="+",
+        metavar="CATEGORY",
+        default=None,
+        help=(
+            "Subset of multi-turn categories to run "
+            f"(choices: {', '.join(config.MULTI_TURN_CATEGORIES)}). "
+            "Default: all."
+        ),
+    )
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    run()
+    args = _parse_cli()
+    config.set_fc_mode(args.fc_mode)
+    run(
+        categories=config.resolve_multi_turn_categories(args.categories),
+        fc_mode=args.fc_mode,
+    )
