@@ -1,5 +1,23 @@
-from vfs_shell.bfcl_fs import MappingError, to_bfcl_func_string
+from vfs_shell.bfcl_fs import MappingError, from_bfcl_func_string, to_bfcl_func_string
 from vfs_shell.parser import parse_command
+
+
+# Canonical GFS dialect cases: shell → BFCL → shell must match.
+ROUND_TRIP_CASES = [
+    ("pwd", "pwd()"),
+    ("ls -a", "ls(a=True)"),
+    ("cd notes", "cd(folder='notes')"),
+    ("mkdir archive", "mkdir(dir_name='archive')"),
+    ("cat todo.txt", "cat(file_name='todo.txt')"),
+    ("mv todo.txt archive", "mv(source='todo.txt', destination='archive')"),
+    ("cp a.txt b.txt", "cp(source='a.txt', destination='b.txt')"),
+    ("rm spam.txt", "rm(file_name='spam.txt')"),
+    ("grep ERROR app.log", "grep(file_name='app.log', pattern='ERROR')"),
+    ("wc -w readme.txt", "wc(file_name='readme.txt', mode='w')"),
+    ("find . -name test", "find(path='.', name='test')"),
+    ("echo buy milk", "echo(content='buy milk')"),
+    ("echo buy milk > todo.txt", "echo(content='buy milk', file_name='todo.txt')"),
+]
 
 
 def _map(text: str) -> str:
@@ -12,21 +30,33 @@ def _map(text: str) -> str:
 
 
 def test_maps_core_gfs_calls():
-    assert _map("pwd") == "pwd()"
-    assert _map("ls -a") == "ls(a=True)"
-    assert _map("cd notes") == "cd(folder='notes')"
-    assert _map("mkdir archive") == "mkdir(dir_name='archive')"
-    assert _map("cat todo.txt") == "cat(file_name='todo.txt')"
-    assert _map("mv todo.txt archive") == "mv(source='todo.txt', destination='archive')"
-    assert _map("cp a.txt b.txt") == "cp(source='a.txt', destination='b.txt')"
-    assert _map("rm spam.txt") == "rm(file_name='spam.txt')"
-    assert _map("grep ERROR app.log") == "grep(file_name='app.log', pattern='ERROR')"
-    assert _map("wc -w readme.txt") == "wc(file_name='readme.txt', mode='w')"
-    assert _map("find . -name test") == "find(path='.', name='test')"
-    assert _map("echo buy milk") == "echo(content='buy milk')"
-    assert _map("echo buy milk > todo.txt") == (
-        "echo(content='buy milk', file_name='todo.txt')"
-    )
+    for shell, expected in ROUND_TRIP_CASES:
+        assert _map(shell) == expected
+
+
+def test_round_trip_shell_bfcl_shell():
+    for shell, expected_bfcl in ROUND_TRIP_CASES:
+        bfcl = _map(shell)
+        assert bfcl == expected_bfcl
+        assert from_bfcl_func_string(bfcl) == shell
+
+
+def test_reverse_maps_remaining_gfs_dialect():
+    extras = [
+        "ls",
+        "touch notes.txt",
+        "sort log.txt",
+        "tail -n 20 log.txt",
+        "diff a.txt b.txt",
+        "rmdir archive",
+        "du",
+        "du -h",
+        "wc -l readme.txt",
+        "find .",
+        "cd ..",
+    ]
+    for shell in extras:
+        assert from_bfcl_func_string(_map(shell)) == shell
 
 
 def test_refuses_gfs_incompatible_paths_and_flags():
@@ -47,3 +77,4 @@ def test_refuses_gfs_incompatible_paths_and_flags():
             assert needle.lower() in str(exc).lower()
         else:
             raise AssertionError(f"expected MappingError for {text!r}")
+

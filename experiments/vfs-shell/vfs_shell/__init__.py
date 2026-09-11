@@ -1,7 +1,7 @@
 """Constrained VFS / shell-as-action harness (not the BFCL pipeline)."""
 
 from .backend import HarborAdapter, memory_backend, tempdir_backend
-from .bfcl_fs import MappingError, to_bfcl_func_string
+from .bfcl_fs import MappingError, from_bfcl_func_string, to_bfcl_func_string
 from .dialect import ALLOWED_COMMANDS, SYSTEM_PROMPT
 from .loop import run_episode
 from .models import LlamaServerModel, ScriptedModel
@@ -14,6 +14,7 @@ __all__ = [
     "SYSTEM_PROMPT",
     "HarborAdapter",
     "MappingError",
+    "from_bfcl_func_string",
     "to_bfcl_func_string",
     "LlamaServerModel",
     "ScriptedModel",

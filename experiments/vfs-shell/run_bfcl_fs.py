@@ -182,6 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         result_rows.append({
             "id": entry["id"],
             "result": turn_results,
+            "shell_emissions": timing.get("shell_emissions", []),
             "flags": timing.get("flags", ""),
         })
         n_calls = sum(len(step) for turn in turn_results for step in turn)
