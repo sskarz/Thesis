@@ -84,7 +84,7 @@ While llama-server b8111 successfully parses this into standard `tool_calls` via
 | Qwen3.5-4B-Instruct | Qwen 3.5 | 4B | Q4_K_M | ~2.8 GB | `bartowski/Qwen_Qwen3.5-4B-GGUF` |
 | FunctionGemma-270M-IT | Gemma 3 (specialist) | 270M | bf16 | ~512 MB | `ggml-org/functiongemma-270m-it-GGUF` |
 
-Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on **multi-turn categories only**: Run 4 NFC (`--only-multi-turn`, all four slices) and Run 5 IFFC (`--categories multi_turn_base --fc-mode iffc`). Single-turn scores for this model are not reported here.
+Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on **multi-turn categories only**: Run 4 NFC (`--only-multi-turn`, all four slices) and Run 5 IFFC (`--categories multi_turn_base --fc-mode iffc`). A shell-dialect format ablation ([PR #5](https://github.com/sskarz/Thesis/pull/5) harness) was run on the 13-entry `fs-only` GorillaFileSystem subset of `multi_turn_base`; that slice is **not** a full-200 score. Single-turn scores for this model are not reported here.
 
 ### Quantization notes
 
@@ -136,7 +136,7 @@ This is a multi-turn-only baseline: `--only-multi-turn`, 800 execution-evaluated
 | `multi_turn_miss_param` | 39/200 | 19.5% | 2 |
 | `multi_turn_long_context` | 22/200 | 11.0% | 72 (mostly `context_overflow`) |
 
-**`multi_turn_base` remains the primary optimization target.** Run 4 NFC scored 27.0% on that slice; Run 5 IFFC is reported below. `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
+**`multi_turn_base` (full 200) remains the primary optimization target.** Run 4 NFC scored 27.0% on that slice; Run 5 IFFC is reported below. The BFCL-FS shell eval is a 13-entry FS-only ablation, not a substitute for those 200-entry scores. `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
 
 Wall-clock generation throughput was ~24–37 s/entry at 8-way parallel, versus ~4–5 min/entry on the prior sequential path.
 
@@ -188,6 +188,36 @@ The paper ([*Small Reasoning Models are Instruction Followers in Function Callin
 4. **What did improve.** Empty-turn / under-calling error rows dropped sharply (118 → 41); state mismatches also fell (136 → 60). Net +7 entries. Regressions exist (15 entries NFC-pass → IFFC-fail), often later-turn empty lists after early success. `missing_gt_exec` was unchanged (≈38).
 
 IFFC reduced under-calling; it did not convert this into a single-turn-style accuracy jump. The remaining bottleneck is sequential state tracking, not JSON vs native tools.
+
+A third format channel — allowlisted shell text mapped onto GorillaFileSystem — is reported below. It is a **13-entry `fs-only` ablation**, not a replacement for the 200-entry `multi_turn_base` scores above.
+
+### Gemma-4-E2B-it BFCL-FS shell dialect (fs-only live eval)
+
+Harness: `experiments/vfs-shell/run_bfcl_fs.py` ([PR #5](https://github.com/sskarz/Thesis/pull/5)). The model emits allowlisted Unix-like text; the harness maps it to GorillaFileSystem func-strings (`cd notes` → `cd(folder='notes')`) and scores with the existing `execute_multi_turn_func_call` / `multi_turn_checker` path. No `tools` array is sent (the dialect lives in the system prompt). This does **not** change NFC or IFFC defaults.
+
+Serving: Gemma-4-E2B-it Q4_K_M, llama.cpp Metal, `-np 1` / 32k context (lean restart after Jetsam). Same model family as Run 4 / Run 5.
+
+Slice: `fs-only` = `involved_classes == ["GorillaFileSystem"]` → **n=13** on `multi_turn_base`. This is a format ablation on the FS subset only. **Do not compare 13-entry accuracy to the full 200.**
+
+Shell result: **1/13 = 7.7%** (only `multi_turn_base_12` passed). Artifact: `experiments/vfs-shell/results/shell_fs_only.jsonl`.
+
+#### NFC vs IFFC vs shell on the same 13 FS-only IDs
+
+Controls from `benchmark.db` (Run 4 NFC, Run 5 IFFC traces scored on these IDs), **not** the full 200:
+
+| Mode | Run | Score | Accuracy | Pass IDs |
+|------|-----|-------|----------|----------|
+| NFC (native `tools` / `tool_calls`) | 4 | 3/13 | 23.1% | `multi_turn_base_3`, `_12`, `_29` |
+| IFFC (Appendix B JSON-in-text) | 5 | 1/13 | 7.7% | `multi_turn_base_12` |
+| Shell (allowlisted Unix-like text) | — | 1/13 | 7.7% | `multi_turn_base_12` |
+
+Full `multi_turn_base` is unchanged: NFC **54/200 = 27.0%**, IFFC **61/200 = 30.5%**. Those remain the primary thesis numbers. The 13-ID table is an apples-to-apples format comparison on GorillaFileSystem-only entries.
+
+Ops: one Jetsam/memory kill mid-batch ~11:05pm ET after 2/13; lean auto-restart then clean finish ~11:17pm ET.
+
+#### Interpretation
+
+The shell dialect did **not** beat NFC on FS-only (1/13 vs 3/13). It tied IFFC on this slice (both 1/13, shared pass `multi_turn_base_12`). Residual failures are state / empty-turn, not format-only — the same bottleneck as the full `multi_turn_base` NFC/IFFC comparison. The primary thesis metric remains full `multi_turn_base`; this is a format ablation on the FS subset only.
 
 No other model's multi-turn scores are reported yet.
 
@@ -339,7 +369,7 @@ FunctionGemma-270M is a purpose-built tool-calling model fine-tuned from Gemma 3
 
 ## Remaining Work
 
-- **Multi-turn optimization**: Gemma-4-E2B-it NFC is 27.0% on `multi_turn_base` (Run 4); IFFC on the same model is 30.5% (Run 5, +3.5 pp). Residual errors are mostly agentic state mismatch and under-calling, not format parsing. Next queued experiment: BFCL-FS / VFS shell→GorillaFileSystem on the FS slice ([PR #5](https://github.com/sskarz/Thesis/pull/5)), after IFFC. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is deferred. `miss_func` / `miss_param` / `long_context` remain secondary stress tests.
+- **Multi-turn optimization**: Gemma-4-E2B-it NFC is 27.0% on `multi_turn_base` (Run 4); IFFC on the same model is 30.5% (Run 5, +3.5 pp). Residual errors are mostly agentic state mismatch and under-calling, not format parsing. BFCL-FS / VFS shell→GorillaFileSystem **fs-only live eval is done** ([PR #5](https://github.com/sskarz/Thesis/pull/5) harness): shell **1/13 = 7.7%** vs NFC **3/13 = 23.1%** vs IFFC **1/13 = 7.7%** on the same 13 GorillaFileSystem-only IDs (not the full 200). Shell did not beat NFC on this slice; tied IFFC. `any-fs` (~50, mixed backends) is not run yet. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is deferred. `miss_func` / `miss_param` / `long_context` remain secondary stress tests.
 - **NVIDIA Jetson Orin Nano Super migration**: Repeat all benchmarks on CUDA with 8 GB shared memory to measure real edge-device performance.
 - **RAG augmentation for large tool sets**: The `multiple` category only presents 2–4 tools per test case, so RAG-based tool filtering provides no benefit. However, real-world agentic applications may expose 50–100+ tools. Test whether retrieval-augmented generation (embedding-based tool retrieval to pre-filter the tool set before prompting) improves accuracy and reduces prompt length for large tool registries.
 - **Additional models and quantizations**: Expand the model matrix (e.g., Phi-3.5-mini, Gemma-2-2B) and test alternative quantization levels (Q5_K_M, Q8_0) to map the accuracy-size Pareto frontier.
