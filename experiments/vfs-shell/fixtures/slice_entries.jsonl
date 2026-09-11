@@ -1,0 +1,2 @@
+{"id": "fs_toy_0", "involved_classes": ["GorillaFileSystem"], "question": [[{"role": "user", "content": "List files"}]], "initial_config": {}}
+{"id": "fs_mixed_0", "involved_classes": ["TwitterAPI", "GorillaFileSystem"], "question": [[{"role": "user", "content": "Tweet then ls"}]], "initial_config": {}}
