@@ -5,6 +5,8 @@ Function-calling modes (``--fc-mode``):
 - ``nfc`` (default): native OpenAI ``tools`` / ``tool_calls``
 - ``iffc``: Instruction-Followed Function Calling (arXiv:2608.22472 Appendix B)
   JSON-in-text; used by multi-turn generation only
+- ``cd``: TagDispatch-style two-pass constrained decoding (arXiv:2601.04426
+  approximation on stock llama-server). Not native tools GBNF.
 """
 
 import argparse
@@ -70,7 +72,9 @@ def main():
             "Function-calling mode for multi-turn. "
             "nfc = native OpenAI tools/tool_calls (default); "
             "iffc = Instruction-Followed Function Calling "
-            "(arXiv:2608.22472 Appendix B JSON-in-text)."
+            "(arXiv:2608.22472 Appendix B JSON-in-text); "
+            "cd = TagDispatch-style two-pass constrained decoding "
+            "(name GBNF + per-tool json_schema; not native tools GBNF)."
         ),
     )
     parser.add_argument(
@@ -122,6 +126,8 @@ def main():
         + (
             " (IFFC = arXiv:2608.22472 Appendix B JSON-in-text)"
             if args.fc_mode == config.FC_IFFC
+            else " (CD = TagDispatch-style two-pass; not native tools GBNF)"
+            if args.fc_mode == config.FC_CD
             else " (NFC = native tools)"
         )
     )

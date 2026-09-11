@@ -99,6 +99,7 @@ Multi-turn function-calling mode and category filter:
 
 - `--fc-mode nfc` (default): native OpenAI `tools` / `tool_calls` via llama-server `--jinja`
 - `--fc-mode iffc`: Instruction-Followed Function Calling ([arXiv:2608.22472](https://arxiv.org/abs/2608.22472) Appendix B) — JSON list in assistant text; the API request does **not** include `tools`/`tool_choice`
+- `--fc-mode cd`: TagDispatch-style two-pass constrained decoding ([arXiv:2601.04426](https://arxiv.org/abs/2601.04426) approximation on stock llama-server). **Not** native `tools` GBNF. Pass 1: GBNF over live tool names; pass 2: `json_schema` for the selected tool’s arguments. See METHODS.md.
 - `--categories multi_turn_base`: run only that multi-turn split (skip miss_func / miss_param / long_context)
 
 ```bash
@@ -106,10 +107,24 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --categories multi_turn_base --fc-mode iffc
 ```
 
+Gemma CD vs the scored NFC 27.0% / IFFC 30.5% `multi_turn_base` baselines (do not update THESIS.md tables until this run is scored):
+
+```bash
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode cd \
+  --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
+```
+
 Offline IFFC parser + mock chat-completions smoke (no llama-server):
 
 ```bash
 uv run python -m benchmark.smoke_iffc
+```
+
+Offline CD constraint + two-pass mock loop (no llama-server):
+
+```bash
+uv run python -m benchmark.smoke_cd
 ```
 
 The pipeline runs five steps in sequence:
