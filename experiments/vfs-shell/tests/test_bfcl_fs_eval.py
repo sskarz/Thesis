@@ -5,6 +5,7 @@ import pytest
 from vfs_shell.bfcl_fs import to_bfcl_func_string
 from vfs_shell.bfcl_fs_eval import (
     flatten_recorded_emissions,
+    format_gfs_observation,
     generate_shell_for_entry,
     interpret_shell_step,
     load_jsonl,
@@ -82,11 +83,32 @@ def test_recorded_loop_shape_with_mock_execute():
         ],
     }
     model = ScriptedModel(flatten_recorded_emissions([["ls -a"]]))
-    turns, _timing = generate_shell_for_entry(
-        entry, "multi_turn_base", model.generate, fake_execute
+    seen: list[str] = []
+
+    def generate(messages):
+        if messages:
+            seen.append(messages[-1].get("content") or "")
+        return model.generate(messages)
+
+    turns, timing = generate_shell_for_entry(
+        entry, "multi_turn_base", generate, fake_execute
     )
     assert turns == [[["ls(a=True)"]]]
     assert executed == [["ls(a=True)"]]
+    assert timing["shell_emissions"] == [[["ls -a"]]]
+    assert any("ls -a ->" in c for c in seen)
+    assert not any("ls(a=True)" in c for c in seen)
+
+
+def test_observation_uses_shell_not_bfcl_form():
+    obs = format_gfs_observation(["ls(a=True)"], ["file.txt\nnotes"])
+    assert "- ls -a ->" in obs
+    assert "ls(a=True)" not in obs
+    obs = format_gfs_observation(
+        ["echo(content='buy milk', file_name='todo.txt')"],
+        ["ok"],
+    )
+    assert "- echo buy milk > todo.txt ->" in obs
 
 
 def test_real_fs_slice_counts():
@@ -118,13 +140,15 @@ def test_recorded_oracle_passes_checker_on_one_fs_entry():
     entry = entries["multi_turn_base_1"]
     rec = load_jsonl_map(FIXTURES / "recorded_multi_turn_base_1.jsonl")[entry["id"]]
     model = ScriptedModel(flatten_recorded_emissions(rec["emissions"]))
-    turn_results, _ = generate_shell_for_entry(
+    turn_results, timing = generate_shell_for_entry(
         entry,
         "multi_turn_base",
         model.generate,
         bfcl_execute,
         exec_model_name="shell_fs_oracle_test",
     )
+    assert timing["shell_emissions"][0] == [["ls -a"]]
+    assert timing["shell_emissions"][1] == [["cd workspace"], ["mv log.txt archive"]]
     summary = score_shell_results(
         category="multi_turn_base",
         test_entries={entry["id"]: entry},

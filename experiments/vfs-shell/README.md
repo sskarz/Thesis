@@ -11,6 +11,11 @@ is **not** the IFFC/NFC structured-output track. The thesis **primary metric
 stays BFCL v4 `multi_turn_base`**; the dialect is a different *interface* to
 FS-shaped tools.
 
+Live `run_bfcl_fs.py` uses BFCL **GorillaFileSystem**
+(`execute_multi_turn_func_call` / `multi_turn_checker`). The toy in-memory
+`MemoryStore` VFS (and temp-dir store) is only for hermetic `run.py` toys and
+unit tests — it is not the live eval environment.
+
 Design (includes benchmark ranking): [`docs/vfs-shell-action-space.md`](../../docs/vfs-shell-action-space.md)
 
 ## What “success” means (this spike)
@@ -75,7 +80,7 @@ experiments/vfs-shell/
   vfs_shell/
     dialect.py           allowlist + toy / GFS system prompts
     parser.py            text → ToolCall (deny pipes / $())
-    bfcl_fs.py           ToolCall → GorillaFileSystem func-string
+    bfcl_fs.py           ToolCall ↔ GorillaFileSystem func-string
     bfcl_fs_eval.py      multi-turn shell loop + multi_turn_checker
     slice.py             fs-only / any-fs filters
     vfs.py               MemoryStore + TempDirStore
@@ -90,7 +95,9 @@ experiments/vfs-shell/
 ## BFCL-FS eval harness (shell → GorillaFileSystem)
 
 Format ablation on the **FS slice** of `multi_turn_base`. Does **not** change
-NFC or IFFC (`benchmark.run_all --fc-mode nfc|iffc`).
+NFC or IFFC (`benchmark.run_all --fc-mode nfc|iffc`). The model emits Unix-like
+text; observations and JSONL `shell_emissions` keep that shell form. The
+`result` field is still BFCL func-strings for `multi_turn_checker`.
 
 | Slice | Filter | Size on v4 `multi_turn_base` |
 |-------|--------|------------------------------|
