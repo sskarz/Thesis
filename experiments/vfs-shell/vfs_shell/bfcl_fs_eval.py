@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
-from .bfcl_fs import MappingError, to_bfcl_func_string
+from .bfcl_fs import MappingError, func_string_to_shell, to_bfcl_func_string
 from .dialect import GFS_SYSTEM_PROMPT, gfs_repair_message
 from .parser import parse_command
 from .types import ParseError, ToolCall
@@ -92,16 +92,19 @@ def generate_shell_for_entry(
         chat[0]["content"] += extra
 
     turn_results: list[list[list[str]]] = []
+    turn_shells: list[list[list[str]]] = []
     flags: list[str] = []
 
     for turn_idx, turn_messages in enumerate(questions):
         if not turn_messages:
             turn_results.append([])
+            turn_shells.append([])
             continue
         for msg in turn_messages:
             chat.append({"role": msg["role"], "content": msg.get("content") or ""})
 
         step_results: list[list[str]] = []
+        shell_steps: list[list[str]] = []
         repairs = 0
         for _step in range(max_steps):
             text = generate_fn(chat)
@@ -119,6 +122,7 @@ def generate_shell_for_entry(
                 continue
             assert func_strings is not None
             step_results.append(func_strings)
+            shell_steps.append([_raw_shell_line(text)])
             try:
                 exec_results = execute_fn(
                     func_strings, entry, category, exec_model_name
@@ -130,12 +134,14 @@ def generate_shell_for_entry(
         else:
             flags.append(f"hit_step_limit:turn_{turn_idx}")
         turn_results.append(step_results)
+        turn_shells.append(shell_steps)
 
     timing = {
         "id": entry_id,
         "category": category,
         "turns": len(questions),
         "flags": json.dumps(flags) if flags else "",
+        "shell_emissions": turn_shells,
     }
     return turn_results, timing
 
@@ -152,10 +158,19 @@ def involved_note(entry: dict) -> str:
     )
 
 
+def _raw_shell_line(text: str) -> str:
+    """Extract the allowlisted command line the assistant emitted."""
+    parsed = parse_command(flatten_assistant_text(text))
+    if isinstance(parsed, ToolCall) and parsed.raw:
+        return parsed.raw
+    return flatten_assistant_text(text)
+
+
 def format_gfs_observation(func_strings: list[str], exec_results: list[Any]) -> str:
     lines = ["Command result:"]
     for call, result in zip(func_strings, exec_results):
-        lines.append(f"- {call} -> {result}")
+        shown = func_string_to_shell(call)
+        lines.append(f"- {shown} -> {result}")
     lines.append("")
     lines.append("Emit the next command, or done if this user request is finished.")
     return "\n".join(lines)
