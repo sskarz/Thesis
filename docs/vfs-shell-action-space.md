@@ -250,12 +250,13 @@ optionally InterCode), not on Terminal-Bench.
 
 1. **Keep the toy harness.** Frozen dialect + parser + VFS loop; scripted
    oracles stay the unit-test proof.
-2. **BFCL-FS-shell (primary).** Filter `multi_turn_base` (and later miss_* /
-   long_context) to entries whose `involved_classes` include
-   `GorillaFileSystem`. Model emits dialect text (no `tools` array, or
-   tools unused). `parse_command` → `to_bfcl_func_string` → existing
-   `execute_multi_turn_func_call` / `multi_turn_checker`. Compare against
-   the JSON-tool baseline **on the same entries**.
+2. **BFCL-FS-shell (primary; landed).** CLI:
+   `experiments/vfs-shell/run_bfcl_fs.py --slice fs-only|any-fs`.
+   Filter `multi_turn_base` to `GorillaFileSystem`. Model emits dialect
+   text (no `tools` array). `parse_command` → `to_bfcl_func_string` →
+   existing `execute_multi_turn_func_call` / `multi_turn_checker`.
+   Compare against NFC/IFFC **on the same `--dry-run` IDs**. Mac commands
+   are in `experiments/vfs-shell/README.md`.
 3. Respect GFS constraints in the mapper: cwd-local names, `cd` one folder
    level, `echo` to an existing file (`touch` first), no `mkdir -p`.
    Unmappable dialect features → parse/mapping error observation, not a

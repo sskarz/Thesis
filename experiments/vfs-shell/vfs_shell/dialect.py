@@ -21,6 +21,12 @@ ALLOWED_COMMANDS: frozenset[str] = frozenset(
         "echo",
         "wc",
         "find",
+        "touch",
+        "sort",
+        "diff",
+        "tail",
+        "du",
+        "rmdir",
         "done",
     }
 )
@@ -39,12 +45,19 @@ ALLOWED_FLAGS: dict[str, frozenset[str]] = {
     "echo": frozenset({"n"}),
     "wc": frozenset({"l", "w", "c"}),
     "find": frozenset(),
+    "touch": frozenset(),
+    "sort": frozenset(),
+    "diff": frozenset(),
+    "tail": frozenset(),
+    "du": frozenset({"h"}),
+    "rmdir": frozenset(),
     "done": frozenset(),
 }
 
-# find-style options that take a value: -name PATTERN, -type f|d
+# Options that take a value: find -name PATTERN, tail -n N
 VALUED_OPTIONS: dict[str, frozenset[str]] = {
     "find": frozenset({"name", "type"}),
+    "tail": frozenset({"n"}),
 }
 
 DONE_ALIASES: frozenset[str] = frozenset({"done", "finish", "submit"})
@@ -79,6 +92,39 @@ Rules:
 
 """ + COMMAND_HELP
 
+# Prompt for BFCL GorillaFileSystem (cwd-local names, no mkdir -p).
+GFS_SYSTEM_PROMPT = """You operate a simple in-memory file system by emitting Unix-like commands.
+
+Rules:
+- Emit exactly ONE command per step. No JSON, no tool_calls, no markdown fences.
+- No pipes, no &&, no ;, no $() or backticks.
+- Names are local to the current directory unless noted. cd moves one folder level at a time (., .., /, or a child name).
+- mkdir has no -p. echo > file only works if the file already exists (touch first).
+- After each command you will see its result. Then emit the next command, or `done` when this user request is finished.
+
+Commands:
+  pwd
+  ls [-a]
+  cd <folder>
+  mkdir <dir_name>
+  rmdir <dir_name>
+  touch <file_name>
+  echo <text>
+  echo <text> > <file_name>
+  cat <file_name>
+  grep <pattern> <file_name>
+  find [path] [-name substring]
+  wc [-l|-w|-c] <file_name>
+  sort <file_name>
+  tail -n <N> <file_name>
+  diff <file1> <file2>
+  mv <src> <dst>
+  cp <src> <dst>
+  rm <file_name>
+  du [-h]
+  done
+"""
+
 
 def repair_message(error: str) -> str:
     allowed = " ".join(sorted(ALLOWED_COMMANDS))
@@ -87,4 +133,13 @@ def repair_message(error: str) -> str:
         f"Allowed commands: {allowed}\n"
         "Emit exactly one command, for example: mkdir -p /notes\n"
         "Do not use pipes, &&, or JSON."
+    )
+
+
+def gfs_repair_message(error: str) -> str:
+    return (
+        f"PARSE/MAP ERROR: {error}\n"
+        "Emit exactly one GorillaFileSystem command, for example: ls -a\n"
+        "cwd-local names only. No mkdir -p, no pipes, no JSON. "
+        "When this user request is done, emit: done"
     )
