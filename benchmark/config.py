@@ -147,18 +147,25 @@ MULTI_TURN_MAX_STEPS = 20
 
 # ---------------------------------------------------------------------------
 # Function-calling mode
-# nfc  = native OpenAI tools / tool_calls (llama-server --jinja)
+# nfc  = native OpenAI tools / tool_calls (llama-server --jinja; may apply
+#        lazy tools GBNF — this is NOT the CD experiment)
 # iffc = Instruction-Followed Function Calling (arXiv:2608.22472 Appendix B)
 #        JSON-in-text; do not send tools/tool_choice
+# cd   = TagDispatch-style two-pass constrained decoding (arXiv:2601.04426
+#        approximation on stock llama-server). Never sends tools/tool_choice.
+#        Pass 1: GBNF grammar over live tool names. Pass 2: json_schema for
+#        the selected tool's arguments. Not XGrammar-2; LLGuidance not required.
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
-FC_MODES = (FC_NFC, FC_IFFC)
+FC_CD = "cd"
+FC_MODES = (FC_NFC, FC_IFFC, FC_CD)
+FC_JSON_TEXT_MODES = (FC_IFFC, FC_CD)
 FC_MODE: str = FC_NFC
 
 
 def set_fc_mode(mode: str) -> None:
-    """Set the process-wide function-calling mode (``nfc`` or ``iffc``)."""
+    """Set the process-wide function-calling mode (``nfc``, ``iffc``, or ``cd``)."""
     global FC_MODE
     if mode not in FC_MODES:
         raise ValueError(

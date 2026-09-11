@@ -20,6 +20,10 @@ Thesis/
 │   ├── db.py                          # SQLite data-access layer (8 tables, all CRUD)
 │   ├── generate_responses.py          # Send BFCL tests → save responses + timings to DB
 │   ├── generate_multi_turn.py         # Multi-turn tool execution loop → DB
+│   ├── iffc.py                        # IFFC Appendix B prompt + JSON-in-text parser
+│   ├── cd.py                          # TagDispatch-style CD (name GBNF + per-tool json_schema)
+│   ├── smoke_iffc.py                  # Offline IFFC smoke (parser + mock loop)
+│   ├── smoke_cd.py                    # Offline CD smoke (constraint checks + mock two-pass)
 │   ├── coerce_types.py                # Schema-aware arg type coercion (fixes Llama string serialization)
 │   ├── parse_functiongemma.py         # Custom output parser for FunctionGemma
 │   ├── evaluate_responses.py          # Score responses using BFCL AST checker → DB

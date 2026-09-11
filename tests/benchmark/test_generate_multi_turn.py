@@ -286,15 +286,113 @@ def test_generate_for_entry_iffc_retries_then_ends_on_unparseable(monkeypatch):
     assert timing["api_calls"] == 2
 
 
-def test_build_chat_payload_nfc_keeps_tools_iffc_omits_them():
+def test_build_chat_payload_nfc_keeps_tools_iffc_and_cd_omit_them():
     history = [{"role": "user", "content": "hi"}]
     tools = [{"type": "function", "function": {"name": "ls"}}]
     nfc = generate_multi_turn._build_chat_payload(history, tools, "nfc")
     iffc = generate_multi_turn._build_chat_payload(history, tools, "iffc")
+    cd = generate_multi_turn._build_chat_payload(history, tools, "cd")
     assert nfc["tools"] == tools
     assert nfc["tool_choice"] == "auto"
     assert "tools" not in iffc
     assert "tool_choice" not in iffc
+    assert "tools" not in cd
+    assert "tool_choice" not in cd
+
+
+def test_generate_for_entry_cd_two_pass_no_native_tools(monkeypatch):
+    payloads: list[dict] = []
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {"message": {"content": '[{"function_name": "cd"}]'}}
+                ],
+                "timings": _timings(),
+            },
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '[{"function_name": "cd",'
+                                ' "parameters": {"folder": "docs"}}]'
+                            )
+                        }
+                    }
+                ],
+                "timings": _timings(8, 20, 3, 12),
+            },
+            {
+                "choices": [{"message": {"content": "[]"}}],
+                "timings": _timings(15, 30, 2, 10),
+            },
+        ]
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    executed = []
+
+    def fake_execute(**kwargs):
+        executed.append(kwargs)
+        return ["tool-result"], None
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        fake_execute,
+    )
+
+    entry = {
+        "id": "cd-1",
+        "initial_config": {"cwd": "/tmp"},
+        "involved_classes": ["fs"],
+        "question": [[{"role": "user", "content": "Open docs"}]],
+    }
+    all_tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "cd",
+                "description": "change directory",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"folder": {"type": "string"}},
+                    "required": ["folder"],
+                },
+            },
+        },
+        {"type": "function", "function": {"name": "ls"}},
+    ]
+
+    turn_results, timing = generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_base",
+        all_tools,
+        fc_mode="cd",
+    )
+
+    assert turn_results == [[["cd(folder='docs')"]]]
+    assert len(payloads) == 3
+    assert "tools" not in payloads[0] and "tool_choice" not in payloads[0]
+    assert payloads[0]["grammar"]
+    assert "json_schema" not in payloads[0]
+    assert "tools" not in payloads[1] and "tool_choice" not in payloads[1]
+    assert payloads[1]["json_schema"]["minItems"] == 1
+    assert "tools" not in payloads[2]
+    assert payloads[2]["grammar"]
+    followup = payloads[2]["messages"]
+    assert followup[-1]["role"] == "user"
+    assert "tool-result" in followup[-1]["content"]
+    assert not any(m.get("role") == "tool" for m in followup)
+    assert executed[0]["func_call_list"] == ["cd(folder='docs')"]
+    assert timing["id"] == "cd-1"
+    assert timing["api_calls"] == 3
+    assert timing["flags"] == ""
 
 
 def test_generate_for_entry_iffc_refreshes_system_prompt_when_tools_restored(
