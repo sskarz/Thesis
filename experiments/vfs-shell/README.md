@@ -2,8 +2,9 @@
 
 Miniature harness for **consecutive command calling**: the model emits
 allowlisted Unix-like text (`ls`, `cat`, `grep`, …); a parser maps that onto
-a virtual filesystem (today) or BFCL GorillaFileSystem tools (next). Toy-task
-success is **final state**, not AST match.
+a toy VFS (scripted tasks) or BFCL GorillaFileSystem tools
+(`run_bfcl_fs.py`). Toy-task success is **final state**; BFCL-FS uses the
+existing `multi_turn_checker`.
 
 This is a parallel spike. It does **not** change `benchmark/` defaults, and it
 is **not** the IFFC/NFC structured-output track. The thesis **primary metric
@@ -62,7 +63,8 @@ uv run python experiments/vfs-shell/run.py --all --model llama-server
 # or: LLAMA_SERVER_URL=http://127.0.0.1:8080 uv run python experiments/vfs-shell/run.py --all --model llama-server
 ```
 
-Live SLM runs are **not** part of this spike’s success criteria.
+Toy-task live SLM runs are optional. The BFCL-FS harness below is the eval
+entrypoint for Gemma-4-E2B-it.
 
 ## Layout
 
@@ -71,33 +73,103 @@ experiments/vfs-shell/
   README.md              this file
   run.py                 CLI entry (adds this dir to sys.path)
   vfs_shell/
-    dialect.py           allowlist + system prompt
+    dialect.py           allowlist + toy / GFS system prompts
     parser.py            text → ToolCall (deny pipes / $())
-    bfcl_fs.py           ToolCall → GorillaFileSystem func-string (next eval)
+    bfcl_fs.py           ToolCall → GorillaFileSystem func-string
+    bfcl_fs_eval.py      multi-turn shell loop + multi_turn_checker
+    slice.py             fs-only / any-fs filters
     vfs.py               MemoryStore + TempDirStore
-    backend.py           executor + HarborAdapter stretch seam
-    loop.py              multi-turn observe → next command
+    backend.py           toy VFS executor + Harbor stretch seam
+    loop.py              toy multi-turn observe → next command
     models.py            ScriptedModel + LlamaServerModel
     tasks.py             three outcome-scored toy tasks
+  run_bfcl_fs.py         FS-slice CLI (does not touch NFC/IFFC)
+  fixtures/              recorded oracle + slice fixtures
 ```
 
-## Next steps (ranked; do not boil the ocean)
+## BFCL-FS eval harness (shell → GorillaFileSystem)
 
-1. **Keep this toy harness** as the unit-test proof of parse → execute → observe.
-2. **Primary: BFCL-FS-shell.** Filter `multi_turn_base` to GorillaFileSystem
-   entries. Emit dialect text → `to_bfcl_func_string` → existing
-   `execute_multi_turn_func_call` / `multi_turn_checker`. Compare to the
-   JSON-tool baseline on the **same** entries. Mapper sketch:
-   `vfs_shell/bfcl_fs.py` (cwd-local GFS constraints; `mkdir -p` refuses).
-3. **Optional: InterCode-Bash** as an external interactive-bash / FS-delta check.
-4. **Optional: AgentBench OS** if a second Docker OS setting is useful.
-5. **Stretch only: Terminal-Bench / Harbor.** SE/CLI-heavy; farther from
-   “edge SLM tool calling for agentic apps.” Do not add `harbor` to
-   `pyproject.toml` unless that appendix is scheduled.
-6. **Later (no training in this PR): SFT** an SLM to emit the allowlisted
-   dialect, then map commands → GFS tools. Hypothesis: bash/code pretraining
-   reduces JSON-schema format burden on consecutive FS tool use. See design
-   doc §10.
+Format ablation on the **FS slice** of `multi_turn_base`. Does **not** change
+NFC or IFFC (`benchmark.run_all --fc-mode nfc|iffc`).
 
-Do not route this through `benchmark/run_all.py` until an opt-in flag
-(default off) exists.
+| Slice | Filter | Size on v4 `multi_turn_base` |
+|-------|--------|------------------------------|
+| `fs-only` | `involved_classes == ["GorillaFileSystem"]` | 13 |
+| `any-fs` | `"GorillaFileSystem" in involved_classes` | 50 (includes mixed Twitter/Math/…) |
+
+`any-fs` mixed backends still only expose FS commands; non-FS user turns will
+not be solvable in this ablation. Prefer `fs-only` for the fair NFC/IFFC
+comparison on the same IDs.
+
+### Dry-run / hermetic (no llama-server)
+
+```bash
+# List IDs (uses installed bfcl-eval data)
+uv run python experiments/vfs-shell/run_bfcl_fs.py --slice fs-only --dry-run
+uv run python experiments/vfs-shell/run_bfcl_fs.py --slice any-fs --dry-run
+
+# Recorded oracle on the first fs-only entry + multi_turn_checker
+uv run python experiments/vfs-shell/run_bfcl_fs.py \
+  --slice fs-only --limit 1 \
+  --recorded experiments/vfs-shell/fixtures/recorded_multi_turn_base_1.jsonl
+
+# Full hermetic suite (mapper + toys + FS eval)
+uv run pytest experiments/vfs-shell/tests -q
+```
+
+### Live Mac eval (Gemma-4-E2B-it on :8080)
+
+Same server Sanskar already uses for NFC Run 4 / IFFC Run 5. Do **not** pass
+`tools` — this harness never sends them.
+
+If the server is not up:
+
+```bash
+cd llama.cpp
+./build/bin/llama-server --jinja -fa on \
+  -hf bartowski/google_gemma-4-E2B-it-GGUF:Q4_K_M \
+  --host 0.0.0.0 --port 8080 \
+  -ngl 99 -c 65536 --temp 0.0 \
+  -np 4 -cb -ub 1024
+```
+
+Then, from the repo root (leave that server running):
+
+```bash
+# FS-only (~13) — primary fair slice
+uv run python experiments/vfs-shell/run_bfcl_fs.py \
+  --model gemma4-e2b \
+  --slice fs-only \
+  --server-url http://localhost:8080 \
+  --out experiments/vfs-shell/results/shell_fs_only.jsonl
+
+# any-FS (~50)
+uv run python experiments/vfs-shell/run_bfcl_fs.py \
+  --model gemma4-e2b \
+  --slice any-fs \
+  --server-url http://localhost:8080 \
+  --out experiments/vfs-shell/results/shell_any_fs.jsonl
+```
+
+### Compare to NFC / IFFC controls (do not re-run unless you want a refresh)
+
+Controls stay on `benchmark.run_all` and the default `--fc-mode nfc`:
+
+```bash
+# NFC control (Run 4: 54/200 = 27% on full multi_turn_base)
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode nfc
+
+# IFFC control (Run 5: 61/200 = 30.5% on full multi_turn_base)
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc
+```
+
+Shell-FS prints `correct/total` **on the slice only**. Do not compare 13- or
+50-entry accuracy to the full 200. For an apples-to-apples number, score NFC
+and IFFC traces on the IDs from `--dry-run`.
+
+## Next steps (out of this PR)
+
+InterCode / AgentBench / Terminal-Bench are not this harness. SFT on VFS
+commands is later work (design doc §10).

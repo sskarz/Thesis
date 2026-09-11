@@ -74,6 +74,7 @@ def to_bfcl_func_string(call: ToolCall) -> str:
         kwargs: dict[str, object] = {}
         if "a" in call.flags:
             kwargs["a"] = True
+        # -l / -1 are display flags; GFS ls() has no equivalent.
         if call.positional:
             raise MappingError("GFS ls() lists the current directory only (no path arg)")
         return fmt("ls", **kwargs)
@@ -112,8 +113,53 @@ def to_bfcl_func_string(call: ToolCall) -> str:
         )
 
     if call.name == "grep":
+        if "r" in call.flags:
+            raise MappingError("GFS grep is a single cwd-local file (no -r)")
         pattern, path = call.positional[0], call.positional[1]
         return fmt("grep", file_name=_local_name(path), pattern=pattern)
+
+    if call.name == "touch":
+        if len(call.positional) != 1:
+            raise MappingError("GFS touch takes one file_name")
+        return fmt("touch", file_name=_local_name(call.positional[0]))
+
+    if call.name == "sort":
+        if len(call.positional) != 1:
+            raise MappingError("GFS sort takes one file_name")
+        return fmt("sort", file_name=_local_name(call.positional[0]))
+
+    if call.name == "rmdir":
+        if len(call.positional) != 1:
+            raise MappingError("GFS rmdir takes one dir_name")
+        return fmt("rmdir", dir_name=_local_name(call.positional[0]))
+
+    if call.name == "diff":
+        if len(call.positional) != 2:
+            raise MappingError("GFS diff takes two file names")
+        return fmt(
+            "diff",
+            file_name1=_local_name(call.positional[0]),
+            file_name2=_local_name(call.positional[1]),
+        )
+
+    if call.name == "tail":
+        if len(call.positional) != 1:
+            raise MappingError("GFS tail takes one file_name")
+        kwargs: dict[str, object] = {
+            "file_name": _local_name(call.positional[0]),
+        }
+        for key, value in call.options:
+            if key == "n":
+                kwargs["lines"] = int(value) if str(value).isdigit() else value
+        return fmt("tail", **kwargs)
+
+    if call.name == "du":
+        if call.positional:
+            raise MappingError("GFS du() has no path argument")
+        kwargs = {}
+        if "h" in call.flags:
+            kwargs["human_readable"] = True
+        return fmt("du", **kwargs)
 
     if call.name == "wc":
         path = call.positional[0]

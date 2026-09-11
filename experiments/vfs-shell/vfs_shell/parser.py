@@ -262,4 +262,12 @@ def _validate_argv(
         for key, value in options:
             if key == "type" and value not in {"f", "d"}:
                 return "find -type must be f or d"
+    if verb in {"touch", "sort", "rmdir"} and len(positional) != 1:
+        return f"{verb} requires one name"
+    if verb == "diff" and len(positional) != 2:
+        return "diff requires two file names"
+    if verb == "tail" and len(positional) != 1:
+        return "tail requires a file name"
+    if verb == "du" and positional:
+        return "du takes no path (current directory only)"
     return None

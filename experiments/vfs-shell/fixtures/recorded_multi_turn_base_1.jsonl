@@ -1,0 +1,1 @@
+{"id": "multi_turn_base_1", "emissions": [["ls -a"], ["cd workspace", "mv log.txt archive"], ["cd archive", "grep Error log.txt"], ["tail -n 20 log.txt"]]}
