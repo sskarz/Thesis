@@ -1,7 +1,10 @@
 # Virtual filesystem / shell-as-action space
 
-A parallel experiment for consecutive tool calling. It is **not** the BFCL /
-IFFC / NFC track: nothing here is wired into `benchmark/` defaults.
+A parallel experiment for consecutive tool calling. It does **not** change
+`benchmark/` defaults and is **not** the IFFC/NFC structured-output track.
+The thesis **primary metric remains BFCL v4 `multi_turn_base`**; this spike
+asks whether a **terminal/VFS command dialect** is a better *interface* to
+those same FS tools.
 
 **Scaffold:** [`experiments/vfs-shell/`](../experiments/vfs-shell/)  
 **Run / scoring:** [`experiments/vfs-shell/README.md`](../experiments/vfs-shell/README.md)
@@ -12,11 +15,11 @@ Small models (<5B, quantized, Apple Silicon / edge) are often asked to emit
 JSON tool calls (`{"name": ..., "arguments": ...}`) whose syntax they were not
 primarily trained on. A competing interface is **familiar terminal text**:
 `ls`, `cat`, `grep`, `cd`, … — a small, parseable command dialect that a
-harness maps onto backend operations.
+harness maps onto backend operations / named tools.
 
 The question for the thesis is **multi-turn correctness** (did the *sequence*
-of actions leave the environment in the right state?), not “can we build a
-software-engineering agent.”
+of actions leave the environment in the right state and invoke the right
+tools?), not “can we build a software-engineering or sysadmin agent.”
 
 ## 2. How Hivemind-style command intercept works
 
@@ -54,49 +57,42 @@ measurements):
 
 The thesis-relevant pattern is therefore:
 
-**natural command text → constrained parser → structured backend call**
+**natural command text → constrained parser → structured backend call / tool**
 
 rather than **JSON schema → grammar-constrained `tool_calls`**.
 
 This scaffold copies that *shape* (allowlist + VFS + deny-by-default) at toy
 scale. It does not reimplement Hivemind, Deeplake, or agent-memory.
 
-## 3. Why Terminal-Bench fits this idea better than BFCL
+Applied to BFCL: the model would emit `cd notes` instead of
+`{"name": "cd", "arguments": "{\"folder\": \"notes\"}"}`; the mapper produces
+the GorillaFileSystem call `cd(folder='notes')` that
+`execute_multi_turn_func_call` already knows how to run.
 
-| | **BFCL v4 multi-turn** (existing pipeline) | **Terminal-Bench** (this experiment’s target) |
-|---|---|---|
-| Action the model emits | OpenAI-style JSON / XML `tool_calls` | Terminal commands in a container |
-| Checker | AST match to a reference call (single-turn); execution of *named* Python APIs (multi-turn) | **Outcome tests** on the final environment |
-| Environment | Simulated function backends (`GorillaFileSystem`, etc.) | Docker / Harbor sandbox; real CLI |
-| What “wrong format, right intent” scores | Usually **fail** (parse / AST) | Can still **pass** if the files/state are correct |
-| Natural interface for `ls`/`grep`/`mv` | Indirect (JSON args to `cd(folder=…)`) | Direct |
+## 3. Which benchmarks fit this thesis (ranked)
 
-BFCL is the right benchmark for the **IFFC / NFC / structured-output**
-question (does the model emit a valid function call under a schema?). That
-work stays on the other branch and in `benchmark/`.
+Thesis target: **optimize consecutive / multi-turn tool calling for SLMs
+<5B in agentic apps.** Current primary reported metric:
+**BFCL v4 `multi_turn_base`** (execution checker on stateful backends,
+including GorillaFileSystem). The action-space experiment should stay
+close to that claim — FS-shaped tools, not SWE/sysadmin.
 
-It is the *wrong* primary benchmark for a **shell dialect as the action
-space**, because:
+| Rank | Setting | Why it fits | Why it does not |
+|------|---------|-------------|-----------------|
+| **1 — primary next** | **BFCL multi-turn GorillaFileSystem** (subset of `multi_turn_base` / miss_* / long_context that `involved_classes` includes `GorillaFileSystem`) | Tools already *are* `ls`, `cd`, `cat`, `mv`, `cp`, `mkdir`, `pwd`, `grep`, `find`, `echo`, `wc`, `rm`. Multi-turn scoring is **execution + final FS state** (plus required ground-truth steps), not single-turn AST. A shell dialect → BFCL func-string mapper is the closest test of “same thesis metric, different interface.” Existing `benchmark/generate_multi_turn.py` / `evaluate_multi_turn.py` stay the eval backend. | GFS is cwd-local and one-folder-at-a-time (`cd` rejects nested paths; `cat`/`mv` dest take a name, not a path). The dialect is a bit richer (`mkdir -p`, redirects). Mapper must be explicit about those gaps — not pretend POSIX. Other `multi_turn_base` backends (Twitter, Travel, Vehicle, …) are **not** a natural shell dialect. |
+| **2** | **InterCode-Bash** (Yang et al., 2023, [arXiv:2306.14898](https://arxiv.org/abs/2306.14898)) | Native interactive multi-turn bash; reward from stdout **and** filesystem delta; Docker; closer to “command as action” than JSON tools. | Broader bash than our allowlist; not the thesis’s existing metric; extra harness. Use if we want an external FS-command check after BFCL-FS-shell. |
+| **3** | **AgentBench OS** (Liu et al., 2023, [arXiv:2308.03688](https://arxiv.org/abs/2308.03688)) | Ubuntu Docker, multi-turn bash, success rate on deterministic OS questions / operation sequences. | Same “real OS” distance as InterCode; farther from BFCL tool-calling claim; easy to slide into sysadmin. Optional corroboration only. |
+| **4 — stretch / external** | **Terminal-Bench** ([tbench.ai](https://www.tbench.ai), Harbor, [arXiv:2601.11868](https://arxiv.org/abs/2601.11868)) | Outcome tests on final container state; Terminus-style one-action-per-turn. | SE/CLI-heavy (compile, debug, servers). Farther from “edge SLM tool calling for agentic apps.” **Not** the default or best bench for this thesis. |
 
-1. BFCL multi-turn still expects *function-call objects*, not `mkdir -p /notes`.
-2. AST checking scores *form*, not “did consecutive actions compose.”
-3. Teaching an SLM two action languages (JSON tools *and* bash) to evaluate
-   a bash-shaped idea confounds the measurement.
+**Recommendation:** implement **BFCL-FS-shell** next (mapper + FS-subset of
+`multi_turn_base`). Treat **InterCode-Bash** as the first *external* FS
+check if the mapper result is interesting. Do **not** plan a Terminal-Bench
+leaderboard run unless the thesis later needs a stretch “real CLI” appendix.
 
-**Terminal-Bench** ([tbench.ai](https://www.tbench.ai), Harbor,
-[arXiv:2601.11868](https://arxiv.org/abs/2601.11868)) is built for this
-shape: English instruction → agent loop in a container → **tests inspect the
-final container state, not the command trace**. Terminus-2 is Harbor’s
-reference agent (interactive tmux / shell, not a JSON tool catalog). A
-*thin subset* of easy file-system tasks is enough to measure consecutive
-calling; a full leaderboard run is explicitly out of scope for this spike.
-
-**Related (not the scaffold’s runtime):**
-
-- **InterCode-Bash** (Yang et al., 2023) — interactive bash, execution
-  feedback, Docker; reward from stdout *and* filesystem delta.
-- **AgentBench OS** (Liu et al., 2023) — Ubuntu Docker, success rate on
-  deterministic OS questions / operation sequences.
+IFFC/NFC (JSON/XML `tool_calls`, GBNF) remains the right track for
+*format* on the same BFCL metric — that work stays on the other branch.
+This experiment only changes the **surface language** the SLM emits for
+FS-like tools.
 
 ## 4. Mapping: constrained dialect → tool / exec API
 
@@ -110,47 +106,56 @@ One command per turn, POSIX-like argv, **no** pipes, `&&`, `;`, or
 
 Optional shell-like **stdout redirect** (`>` / `>>`) is parsed as part of
 the dialect (Hivemind intercepts redirects on VFS paths too) and mapped to a
-`write` backend op. That keeps “grep matches into a file” expressible
-without pipes.
+`write` backend op — or, on the BFCL path, to `echo(content=…, file_name=…)`
+when the redirect target is a **local name**.
 
 ### Parser → structured call
 
 ```
-"grep -n ERROR /logs/app.log > /logs/errors.txt"
+"grep ERROR app.log"
         │  shlex + allowlist + deny unsafe tokens
         ▼
-ToolCall(
-  name="grep",
-  flags={"n"},
-  positional=("ERROR", "/logs/app.log"),
-  redirect=Redirect(op=">", path="/logs/errors.txt"),
-)
+ToolCall(name="grep", positional=("ERROR", "app.log"))
+        │  BFCL-FS mapper (next experiment, sketched in vfs_shell/bfcl_fs.py)
+        ▼
+"grep(file_name='app.log', pattern='ERROR')"
+        │  existing execute_multi_turn_func_call
+        ▼
+GorillaFileSystem.grep(...)  → observation → next turn
 ```
 
 Unknown verbs, pipes, and command substitution return a **parse error
 observation** (nothing executes). The loop can feed that back — a cheap
 repair signal for SLMs.
 
-### Backend
+### Backend (this spike vs next)
 
-`ToolCall` is the stable interface. Two stores implement it today:
+`ToolCall` is the stable interface.
+
+**Today (toy harness, keep as-is):**
 
 - **Memory VFS** — in-process tree; default for tests.
 - **Temp-dir VFS** — same ops on a real `tempfile` tree (no `/bin/sh`).
 
-A **Harbor / Terminus adapter** is a documented seam: `ToolCall` → argv
-list → `environment.exec(argv)` (no `shell=True`). The toy tasks never
-require that path.
+**Next (not wired into `benchmark/run_all.py` in this PR):**
+
+- **`to_bfcl_func_string`** — dialect → GorillaFileSystem call string
+  (`cd notes` → `cd(folder='notes')`). Documented overlap and refusals
+  live in `experiments/vfs-shell/vfs_shell/bfcl_fs.py`.
+- **InterCode / AgentBench adapters** — later; same `ToolCall`, different
+  exec sandbox.
+- **HarborAdapter** — stretch only (Terminal-Bench). `ToolCall` → argv →
+  `environment.exec` with no `shell=True`. Not a thesis milestone.
 
 ### Loop
 
 ```
 instruction → model emits command text
            → parse (or repair observation)
-           → execute → stdout/stderr
+           → execute (toy VFS *or* mapped BFCL tool)
            → append to transcript
            → repeat until `done` or max turns
-           → score = programmatic checks on final state
+           → score = FS state / BFCL multi_turn_checker
 ```
 
 This is consecutive tool calling: each command may depend on the previous
@@ -158,21 +163,26 @@ observation (`grep` then `mv` the file that matched).
 
 ## 5. How to score multi-turn correctness
 
-**Do not** AST-match the command string against a gold script.
-
-Score **state / outcome**, in the Terminal-Bench sense:
+**Toy harness (this PR):** do **not** AST-match the command string against a
+gold script. Score **state / outcome** on the VFS:
 
 - files exist / do not exist at expected paths
 - file contents contain required substrings
-- directories were created; cwd is whatever the task asked for
+- directories were created
 
-The harness still *records* the parsed `ToolCall` trace so we can later
-report auxiliary metrics (parse-success rate, turns-to-success, repair
-count) without making them the pass/fail criterion.
+The harness still *records* the parsed `ToolCall` trace for diagnostics
+(parse-success rate, turns-to-success, repair count).
 
 A scripted “model” that emits the oracle command list must pass; a scripted
-model that skips a step must fail. That is the miniature proof the loop
-measures composition, not parser self-consistency.
+model that skips a step must fail.
+
+**BFCL-FS-shell (recommended next):** reuse `multi_turn_checker` on the
+mapped func-call traces. BFCL multi-turn already combines **final instance
+state** with required ground-truth tool steps (exploratory `pwd`/`ls` need
+not match). That keeps the thesis metric comparable to the JSON-tool
+baseline on the same entries — only the model’s *emission format* changes.
+
+Do not invent a new leaderboard number in this spike.
 
 ## 6. Fit for SLMs <5B on Apple Silicon / edge
 
@@ -183,17 +193,18 @@ later Jetson Orin Nano Super):
   model than arbitrary JSON schemas with nested objects. SLMs already saw
   Unix commands in pretraining; they saw fewer well-formed `tool_calls`.
 - **Parseability.** `shlex` + allowlist fails loud. JSON that is 90%
-  correct often fails the BFCL AST checker with no recoverable structure.
+  correct often fails a schema/AST parse with no recoverable structure.
 - **Repair loops.** A one-line `PARSE ERROR: pipes are not allowed` is a
   cheaper retry than regenerating a full JSON blob under a grammar.
-- **No extra grammar compiler.** The existing llama.cpp GBNF path is
-  valuable for IFFC; this track can stay at `temperature=0` text completion
+- **No extra grammar compiler required** for the command track (IFFC can
+  keep GBNF). This track can stay at `temperature=0` text completion
   against an OpenAI-compatible `llama-server` (stub in the scaffold).
 - **Context.** Command + short stdout is compact versus dumping tool JSON
   schemas every turn — relevant at 4k–8k context on edge.
 
-This is a **hypothesis**, not a result. The spike only proves the harness.
-Live <5B numbers belong in a later Harbor / llama-server run.
+This is a **hypothesis**, not a result. The spike only proves the harness
+and the mapper sketch. Live <5B numbers belong on BFCL-FS-shell (and
+optionally InterCode), not on Terminal-Bench.
 
 ## 7. Explicit non-goals
 
@@ -204,12 +215,15 @@ Live <5B numbers belong in a later Harbor / llama-server run.
 - **Not “unconstrained shell as silver bullet.”** Pipes, `python -c`,
   `curl`, and `find -exec` are denied. If the model needs composition, it
   uses extra turns (consecutive calling), not a hidden bash.
-- **Not rewriting IFFC / NFC.** JSON/XML tool-call parsers, GBNF, and BFCL
-  AST evaluation stay in `benchmark/`. This experiment must not change
-  those defaults.
-- **Not a Terminal-Bench leaderboard submission.** No Harbor dependency, no
-  Docker task pack, no reported TB2 score.
+- **Not rewriting IFFC / NFC.** JSON/XML tool-call parsers, GBNF, and the
+  default BFCL generation path stay in `benchmark/`.
+- **Not a Terminal-Bench (or Harbor) milestone.** No Harbor dependency, no
+  Docker task pack, no reported TB score. Stretch only.
+- **Not sysadmin / full Ubuntu agentics.** AgentBench OS is rank 3, not a
+  product goal.
 - **Not Hivemind memory / skills.** No SQL VFS, no session capture.
+- **Not training in this PR.** Fine-tune / SFT on VFS commands is
+  **§10 later work**.
 
 ## 8. Prior art (brief, no new numbers)
 
@@ -223,29 +237,64 @@ Live <5B numbers belong in a later Harbor / llama-server run.
   constrain and structure the interface; do not hand the model `/bin/bash`.
 - **Hivemind** ([activeloopai/hivemind](https://github.com/activeloopai/hivemind)) —
   allowlisted bash → compiler → virtual FS. Mechanism we mimic at toy scale.
-- **Terminal-Bench / Harbor / Terminus** ([tbench.ai](https://www.tbench.ai),
-  [harbor-framework](https://github.com/laude-institute/harbor)) —
-  outcome-verified CLI tasks; the intended next eval, not this PR’s runtime.
+- **BFCL v3/v4 multi-turn** ([Gorilla blog](https://gorilla.cs.berkeley.edu/blogs/13_bfcl_v3_multi_turn.html)) —
+  GorillaFileSystem plus other stateful APIs; execution checker; the
+  thesis’s existing metric.
 - **InterCode-Bash** (Yang et al., 2023, [arXiv:2306.14898](https://arxiv.org/abs/2306.14898));
   **AgentBench OS** (Liu et al., 2023, [arXiv:2308.03688](https://arxiv.org/abs/2308.03688)) —
-  earlier interactive OS/bash success-rate settings.
+  interactive OS/bash success-rate settings (ranks 2–3 above).
+- **Terminal-Bench / Harbor / Terminus** — outcome-verified CLI tasks;
+  stretch / external only (rank 4).
 
-## 9. Path to a Terminus-style eval (without boiling the ocean)
+## 9. Recommended next steps (do not boil the ocean)
 
-1. Keep this dialect + parser frozen; treat `ToolCall` as the agent’s only
-   action type.
-2. Implement `HarborAdapter.execute` as argv → `BaseEnvironment.exec`
-   (already sketched in `vfs_shell/backend.py`).
-3. Pick **3–5 easy file-system tasks** from Terminal-Bench / Harbor examples
-   (create/move/grep/count), not the full 2.0 hard split.
-4. Wrap the existing `run_episode` loop as a Harbor `BaseAgent` that emits
-   one allowlisted command per turn (Terminus-style *single tool*, but with
-   our parser in front so unconstrained bash never hits the container).
-5. Score with the task’s own tests (final state). Report parse-success and
-   turns as diagnostics only.
+1. **Keep the toy harness.** Frozen dialect + parser + VFS loop; scripted
+   oracles stay the unit-test proof.
+2. **BFCL-FS-shell (primary).** Filter `multi_turn_base` (and later miss_* /
+   long_context) to entries whose `involved_classes` include
+   `GorillaFileSystem`. Model emits dialect text (no `tools` array, or
+   tools unused). `parse_command` → `to_bfcl_func_string` → existing
+   `execute_multi_turn_func_call` / `multi_turn_checker`. Compare against
+   the JSON-tool baseline **on the same entries**.
+3. Respect GFS constraints in the mapper: cwd-local names, `cd` one folder
+   level, `echo` to an existing file (`touch` first), no `mkdir -p`.
+   Unmappable dialect features → parse/mapping error observation, not a
+   silent POSIX pretend.
+4. **InterCode-Bash (optional second).** Same dialect, execution reward /
+   FS delta, if a check outside BFCL is needed.
+5. **AgentBench OS / Terminal-Bench.** Only if the committee wants an
+   external CLI appendix. Do not add `harbor` or `terminal-bench` to
+   `pyproject.toml` until that is actually scheduled.
 6. Point `LlamaServerModel` at local `llama-server` (`--jinja`, `--temp 0.0`)
    for Qwen2.5-3B / Qwen3-4B / FunctionGemma — same models as the BFCL
-   pipeline, different action space.
+   pipeline, FS-shell action space.
 
-Stop there until those few tasks produce a real SLM number. Do not import
-Harbor into `pyproject.toml` until that run is actually scheduled.
+Do not route this through `benchmark/run_all.py` until the mapper is an
+opt-in flag (e.g. `--action-space shell`) that defaults **off**.
+
+## 10. Later experiment (do not implement now): SFT on VFS commands
+
+**Hypothesis.** Pretraining already contains large amounts of bash and
+code. Fine-tuning an SLM to emit the *allowlisted* shell dialect against a
+VFS (Hivemind-style), then mapping commands → GorillaFileSystem / toy-VFS
+ops at eval time, should reduce **format burden** relative to JSON tool
+schemas for multi-turn FS tool use — especially consecutive `ls`/`cd`/`mv`
+chains.
+
+**Not in this PR:** no datasets, no QLoRA, no training loop.
+
+**Sketch for a later methods chapter:**
+
+1. Collect trajectories: toy-harness oracles, BFCL-FS episodes translated
+   from gold `cd(folder=…)` traces into dialect text, optional InterCode
+   successes filtered to the allowlist.
+2. SFT (QLoRA on Qwen2.5-3B / Qwen3-4B, same hardware story as METHODS §18)
+   with target = command line(s), not JSON `tool_calls`.
+3. Eval with the mapper on the **same** BFCL-FS subset so the metric stays
+   `multi_turn_base` (FS slice). Ablate: JSON-tool SFT vs shell-dialect SFT
+   vs prompt-only dialect.
+4. Report accuracy, parse-error rate, turns-to-success, tokens — not a
+   Terminal-Bench score.
+
+Until that run exists, treat §6 as a hypothesis and §9 step 2 as the
+inference-only comparison.

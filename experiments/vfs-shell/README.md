@@ -2,14 +2,17 @@
 
 Miniature harness for **consecutive command calling**: the model emits
 allowlisted Unix-like text (`ls`, `cat`, `grep`, …); a parser maps that onto
-a virtual filesystem; success is **final state**, not AST match.
+a virtual filesystem (today) or BFCL GorillaFileSystem tools (next). Toy-task
+success is **final state**, not AST match.
 
-This is a parallel spike. It does **not** touch the BFCL pipeline in
-`benchmark/`, and it is **not** the IFFC/NFC structured-output track.
+This is a parallel spike. It does **not** change `benchmark/` defaults, and it
+is **not** the IFFC/NFC structured-output track. The thesis **primary metric
+stays BFCL v4 `multi_turn_base`**; the dialect is a different *interface* to
+FS-shaped tools.
 
-Design: [`docs/vfs-shell-action-space.md`](../../docs/vfs-shell-action-space.md)
+Design (includes benchmark ranking): [`docs/vfs-shell-action-space.md`](../../docs/vfs-shell-action-space.md)
 
-## What “success” means
+## What “success” means (this spike)
 
 A toy task **passes** when programmatic checks on the VFS all hold after the
 episode (files in the right place, required substrings present, sources
@@ -70,24 +73,31 @@ experiments/vfs-shell/
   vfs_shell/
     dialect.py           allowlist + system prompt
     parser.py            text → ToolCall (deny pipes / $())
+    bfcl_fs.py           ToolCall → GorillaFileSystem func-string (next eval)
     vfs.py               MemoryStore + TempDirStore
-    backend.py           executor + HarborAdapter seam
+    backend.py           executor + HarborAdapter stretch seam
     loop.py              multi-turn observe → next command
     models.py            ScriptedModel + LlamaServerModel
     tasks.py             three outcome-scored toy tasks
 ```
 
-## Next steps toward Terminal-Bench (do not boil the ocean)
+## Next steps (ranked; do not boil the ocean)
 
-1. Keep the dialect frozen. `ToolCall` / `to_argv()` is the agent action.
-2. Fill in `HarborAdapter.execute`: `to_argv(call)` → Harbor
-   `BaseEnvironment.exec` with **no** `shell=True`. Redirects are a second
-   write, not a bash operator inside the container.
-3. Wrap `run_episode` as a Harbor `BaseAgent` (Terminus-style single action
-   per turn, with this parser in front so unconstrained bash never runs).
-4. Run **3–5 easy filesystem tasks** from Harbor examples / Terminal-Bench,
-   not the full hard split. Use each task’s own tests as the score.
-5. Only then point `LlamaServerModel` at Qwen2.5-3B / Qwen3-4B.
+1. **Keep this toy harness** as the unit-test proof of parse → execute → observe.
+2. **Primary: BFCL-FS-shell.** Filter `multi_turn_base` to GorillaFileSystem
+   entries. Emit dialect text → `to_bfcl_func_string` → existing
+   `execute_multi_turn_func_call` / `multi_turn_checker`. Compare to the
+   JSON-tool baseline on the **same** entries. Mapper sketch:
+   `vfs_shell/bfcl_fs.py` (cwd-local GFS constraints; `mkdir -p` refuses).
+3. **Optional: InterCode-Bash** as an external interactive-bash / FS-delta check.
+4. **Optional: AgentBench OS** if a second Docker OS setting is useful.
+5. **Stretch only: Terminal-Bench / Harbor.** SE/CLI-heavy; farther from
+   “edge SLM tool calling for agentic apps.” Do not add `harbor` to
+   `pyproject.toml` unless that appendix is scheduled.
+6. **Later (no training in this PR): SFT** an SLM to emit the allowlisted
+   dialect, then map commands → GFS tools. Hypothesis: bash/code pretraining
+   reduces JSON-schema format burden on consecutive FS tool use. See design
+   doc §10.
 
-Do not add `harbor` or `terminal-bench` to `pyproject.toml` until that eval
-is actually scheduled. Do not route this through `benchmark/run_all.py`.
+Do not route this through `benchmark/run_all.py` until an opt-in flag
+(default off) exists.

@@ -279,25 +279,18 @@ def tempdir_backend(
 
 
 class HarborAdapter:
-    """Seam for Terminal-Bench / Harbor Terminus-style evaluation.
+    """Stretch seam for Terminal-Bench / Harbor (not a thesis milestone).
 
-    Not implemented in this spike (no Harbor / Docker dependency).
-
-    Intended mapping:
-
-        call = parse_command(model_text)
-        argv = to_argv(call)          # never shell=True
-        result = await env.exec(argv) # Harbor BaseEnvironment
-        # if call.redirect: write result.stdout to that path via a second exec
-        return Observation(...)
-
-    See docs/vfs-shell-action-space.md §9.
+    Primary next eval is BFCL GorillaFileSystem via ``bfcl_fs.to_bfcl_func_string``.
+    This adapter exists only if an optional CLI appendix is scheduled later.
+    See docs/vfs-shell-action-space.md §3 (rank 4) and §9.
     """
 
     def execute(self, call: ToolCall) -> Observation:
         raise NotImplementedError(
-            "HarborAdapter is a documented seam, not a runtime. "
+            "HarborAdapter is a stretch seam, not the primary path. "
             f"Would exec argv={to_argv(call)!r} inside a Harbor sandbox. "
+            "Prefer bfcl_fs.to_bfcl_func_string for BFCL-FS-shell. "
             "See docs/vfs-shell-action-space.md."
         )
 

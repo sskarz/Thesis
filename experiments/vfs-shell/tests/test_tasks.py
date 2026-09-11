@@ -66,7 +66,7 @@ def test_harbor_adapter_is_documented_seam():
     try:
         adapter.execute(call)
     except NotImplementedError as exc:
-        assert "Harbor" in str(exc)
+        assert "Harbor" in str(exc) or "stretch" in str(exc).lower()
     else:
         raise AssertionError("HarborAdapter.execute should stay unimplemented")
 
