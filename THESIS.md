@@ -56,7 +56,7 @@ Multi-turn categories (800 test cases) evaluate sequential, stateful tool use. S
 - **AST checker** (single-turn): BFCL's Abstract Syntax Tree checker compares model output against reference answers, allowing equivalent but differently-ordered arguments to match.
 - **Execution checker** (multi-turn): BFCL executes the model's tool calls against a live backend and compares instance state to the ground-truth trajectory.
 - **Deterministic output**: All models run with `--temp 0.0` to ensure reproducible results.
-- **No reasoning mode** (single-turn baselines): Single-turn runs disable thinking/reasoning even if the model supports it (e.g., Qwen3.5), isolating raw tool-calling capability from chain-of-thought augmentation. The Gemma-4-E2B-it multi-turn baseline (Run 4) left reasoning on.
+- **No reasoning mode** (single-turn baselines): Single-turn runs disable thinking/reasoning even if the model supports it (e.g., Qwen3.5), isolating raw tool-calling capability from chain-of-thought augmentation. The Gemma-4-E2B-it multi-turn runs (Run 4 NFC, Run 5 IFFC) left reasoning on.
 
 ### Infrastructure
 
@@ -84,7 +84,7 @@ While llama-server b8111 successfully parses this into standard `tool_calls` via
 | Qwen3.5-4B-Instruct | Qwen 3.5 | 4B | Q4_K_M | ~2.8 GB | `bartowski/Qwen_Qwen3.5-4B-GGUF` |
 | FunctionGemma-270M-IT | Gemma 3 (specialist) | 270M | bf16 | ~512 MB | `ggml-org/functiongemma-270m-it-GGUF` |
 
-Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on the **multi-turn categories only** (Run 4, `--only-multi-turn`). Single-turn scores for this model are not reported here.
+Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on **multi-turn categories only**: Run 4 NFC (`--only-multi-turn`, all four slices) and Run 5 IFFC (`--categories multi_turn_base --fc-mode iffc`). Single-turn scores for this model are not reported here.
 
 ### Quantization notes
 
@@ -136,15 +136,60 @@ This is a multi-turn-only baseline: `--only-multi-turn`, 800 execution-evaluated
 | `multi_turn_miss_param` | 39/200 | 19.5% | 2 |
 | `multi_turn_long_context` | 22/200 | 11.0% | 72 (mostly `context_overflow`) |
 
-**`multi_turn_base` (27.0%) is the primary optimization target going forward.** `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
+**`multi_turn_base` remains the primary optimization target.** Run 4 NFC scored 27.0% on that slice; Run 5 IFFC is reported below. `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
 
 Wall-clock generation throughput was ~24–37 s/entry at 8-way parallel, versus ~4–5 min/entry on the prior sequential path.
-
-No other model's multi-turn scores are reported yet.
 
 #### Failure modes on `multi_turn_base`
 
 Among failures on the base slice, the dominant modes were approximately **64% state mismatch**, **23% empty/under-calling**, and **12% execution subsequence miss**. By environment, VehicleControl, FileSystem+Twitter, and Ticket+Travel were the weakest; TradingBot was relatively strong (~65%).
+
+Eval-error rows (counts of error rows, not unique entries): `empty_turn` ≈ 118, `state_mismatch` ≈ 136, `missing_gt_exec` ≈ 38.
+
+### Gemma-4-E2B-it IFFC (Run 5)
+
+Run 5 evaluates Instruction-Followed Function Calling (IFFC; [arXiv:2608.22472](https://arxiv.org/abs/2608.22472) Appendix B) on the same model and hardware as Run 4, on `multi_turn_base` only. Serving: Mac M4 Pro, llama.cpp Metal, Gemma-4-E2B-it Q4_K_M, reasoning on, `-np 4` / `PARALLEL_SLOTS=4` (~16k ctx/slot). Run notes: `fc_mode=iffc`. Generation wall-clock ~2h17.
+
+IFFC omits native `tools` / `tool_choice`; the model emits a JSON list in assistant text. Truncations = 0; no `context_overflow`. JSON-in-text held (no fallback to native tool_calls). Stored trajectories are BFCL func-strings (`mkdir(...)`, `mv(...)`), not raw OpenAI `tool_calls`.
+
+#### NFC vs IFFC on `multi_turn_base`
+
+| Mode | Run | Score | Accuracy | Δ vs NFC |
+|------|-----|-------|----------|----------|
+| NFC (native `tools` / `tool_calls`) | 4 | 54/200 | 27.0% | — |
+| IFFC (Appendix B JSON-in-text) | 5 | 61/200 | 30.5% | +3.5 pp / +7 entries |
+
+Pairwise over the same 200 entries: both fail = 124, IFFC rescues vs NFC = 22, IFFC regresses (NFC-pass → IFFC-fail) = 15.
+
+Eval-error rows (counts of error rows, not unique entries):
+
+| Bucket | Run 4 NFC | Run 5 IFFC |
+|--------|-----------|------------|
+| `empty_turn` | ≈118 | ≈41 |
+| `state_mismatch` | ≈136 | ≈60 |
+| `missing_gt_exec` | ≈38 | ≈38 |
+
+Top Run 5 fail strings (by error-row count): VehicleControlAPI state 22, missing GT exec turn 0 21, empty turn 1 19, GorillaFileSystem state 18, empty turn 2 10, TravelAPI state 10.
+
+#### Was the eval fair?
+
+The harness matches arXiv:2608.22472 Appendix B system prompt (verbatim, including the curly apostrophe in "doesn’t"). IFFC omits `tools` / `tool_choice`; parses a JSON list of `{function_name, parameters}`; maps those dicts to BFCL func-strings; and feeds tool results back as **user** messages. Scoring uses the same BFCL `multi_turn_checker` as NFC. The run is **not misconfigured**. Residual failures are mostly agentic state mismatch and under-calling, not format parsing.
+
+#### Why not paper-scale gains?
+
+The paper ([*Small Reasoning Models are Instruction Followers in Function Calling*](https://arxiv.org/abs/2608.22472), arXiv:2608.22472) reports large IFFC lifts on some models. The +3.5 pp here is modest for four reasons:
+
+1. **Different task.** Paper tables are BFCL V3 Live / Non-Live *single-turn* categories (`simple` / `multiple` / `parallel` / `parallel_multiple`). The primary metric here is BFCL v4 **`multi_turn_base`** (stateful consecutive tool use). Multi-turn agentic failures (state mismatch, empty turns) dominate; once NFC already produces valid calls, the format channel is not the main bottleneck.
+
+2. **Partial IFFC.** The paper's full IFFC is Algorithm 1 dual-model decoupling: a dedicated small reasoning model (SRM) for function calling plus a separate QA LLM, with context isolation. This run implements Appendix B JSON-in-text on the *same* Gemma for the whole multi-turn loop — closest to their instruction-followed FC / PFC-style SRM path, **without** QA/SRM decoupling. Dual-model IFFC is deferred.
+
+3. **Paper deltas vary with NFC strength.** Large jumps often occur where NFC is weak (e.g. Phi-4 Mini Live NFC ~30% → IFFC 44.3%; Non-Live NFC 9.5% → 77.4%). On already-strong NFC, gains are smaller (Qwen-3 4B Think Live avg NFC 81.5 → IFFC 86.7, ≈ +5 pp). The +3.5 pp on `multi_turn_base` sits in that modest band.
+
+4. **What did improve.** Empty-turn / under-calling error rows dropped sharply (118 → 41); state mismatches also fell (136 → 60). Net +7 entries. Regressions exist (15 entries NFC-pass → IFFC-fail), often later-turn empty lists after early success. `missing_gt_exec` was unchanged (≈38).
+
+IFFC reduced under-calling; it did not convert this into a single-turn-style accuracy jump. The remaining bottleneck is sequential state tracking, not JSON vs native tools.
+
+No other model's multi-turn scores are reported yet.
 
 ## Inference Performance
 
@@ -294,7 +339,7 @@ FunctionGemma-270M is a purpose-built tool-calling model fine-tuned from Gemma 3
 
 ## Remaining Work
 
-- **Multi-turn optimization**: Gemma-4-E2B-it scores 27.0% on `multi_turn_base` (Run 4). That slice is the primary target for subsequent optimizations; `miss_func` / `miss_param` / `long_context` remain secondary stress tests.
+- **Multi-turn optimization**: Gemma-4-E2B-it NFC is 27.0% on `multi_turn_base` (Run 4); IFFC on the same model is 30.5% (Run 5, +3.5 pp). Residual errors are mostly agentic state mismatch and under-calling, not format parsing. Next queued experiment: BFCL-FS / VFS shell→GorillaFileSystem on the FS slice ([PR #5](https://github.com/sskarz/Thesis/pull/5)), after IFFC. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is deferred. `miss_func` / `miss_param` / `long_context` remain secondary stress tests.
 - **NVIDIA Jetson Orin Nano Super migration**: Repeat all benchmarks on CUDA with 8 GB shared memory to measure real edge-device performance.
 - **RAG augmentation for large tool sets**: The `multiple` category only presents 2–4 tools per test case, so RAG-based tool filtering provides no benefit. However, real-world agentic applications may expose 50–100+ tools. Test whether retrieval-augmented generation (embedding-based tool retrieval to pre-filter the tool set before prompting) improves accuracy and reduces prompt length for large tool registries.
 - **Additional models and quantizations**: Expand the model matrix (e.g., Phi-3.5-mini, Gemma-2-2B) and test alternative quantization levels (Q5_K_M, Q8_0) to map the accuracy-size Pareto frontier.
