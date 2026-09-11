@@ -227,3 +227,116 @@ def test_run_all_cd_base_only_wires_flags(monkeypatch):
     assert "fc_mode=cd" in (run["notes"] or "")
     assert "multi_turn_base" in (run["notes"] or "")
 
+
+def test_fc_mode_from_notes():
+    assert run_all.fc_mode_from_notes(None) == "nfc"
+    assert run_all.fc_mode_from_notes("RTX 4090 baseline") == "nfc"
+    assert run_all.fc_mode_from_notes("fc_mode=cd categories=multi_turn_base") == "cd"
+    assert run_all.fc_mode_from_notes("TagDispatch; fc_mode=iffc") == "iffc"
+
+
+def test_resolve_pipeline_run_resume_matches_fc_mode(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    nfc = db.create_run("qwen2.5-3b", notes="baseline")
+    cd = db.create_run("qwen2.5-3b", notes="fc_mode=cd categories=multi_turn_base")
+    db.create_run("llama-3.2-3b", notes="fc_mode=cd")
+
+    run_id, resumed = run_all.resolve_pipeline_run(
+        model_key="qwen2.5-3b",
+        fc_mode="cd",
+        notes="ignored",
+        resume=True,
+    )
+    assert resumed is True
+    assert run_id == cd
+
+    nfc_id, nfc_resumed = run_all.resolve_pipeline_run(
+        model_key="qwen2.5-3b",
+        fc_mode="nfc",
+        notes=None,
+        resume=True,
+    )
+    assert nfc_resumed is True
+    assert nfc_id == nfc
+
+
+def test_resolve_pipeline_run_resume_run_id_and_errors(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    run_id = db.create_run("qwen2.5-3b", notes="fc_mode=cd")
+
+    got, resumed = run_all.resolve_pipeline_run(
+        model_key="qwen2.5-3b",
+        fc_mode="cd",
+        notes=None,
+        resume_run_id=run_id,
+    )
+    assert resumed is True
+    assert got == run_id
+
+    try:
+        run_all.resolve_pipeline_run(
+            model_key="llama-3.2-3b",
+            fc_mode="cd",
+            notes=None,
+            resume_run_id=run_id,
+        )
+        raise AssertionError("expected model mismatch")
+    except ValueError as exc:
+        assert "model_key" in str(exc)
+
+    try:
+        run_all.resolve_pipeline_run(
+            model_key="qwen2.5-3b",
+            fc_mode="iffc",
+            notes=None,
+            resume_run_id=run_id,
+        )
+        raise AssertionError("expected fc_mode mismatch")
+    except ValueError as exc:
+        assert "fc_mode=cd" in str(exc)
+
+    db.finish_run(run_id)
+    try:
+        run_all.resolve_pipeline_run(
+            model_key="qwen2.5-3b",
+            fc_mode="cd",
+            notes=None,
+            resume=True,
+        )
+        raise AssertionError("expected no unfinished run")
+    except ValueError as exc:
+        assert "No unfinished run" in str(exc)
+
+
+def test_run_all_resume_reuses_unfinished_run(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    existing = db.create_run("qwen2.5-3b", notes="fc_mode=cd categories=multi_turn_base")
+
+    monkeypatch.setattr(run_all, "check_server", lambda: True)
+    monkeypatch.setattr(run_all.generate_responses, "run", lambda *a, **k: None)
+    monkeypatch.setattr(run_all.generate_multi_turn, "run", lambda *a, **k: None)
+    monkeypatch.setattr(run_all.evaluate_responses, "run", lambda *a, **k: None)
+    monkeypatch.setattr(run_all.evaluate_multi_turn, "run", lambda *a, **k: None)
+    monkeypatch.setattr(run_all.collect_metrics, "run", lambda *a, **k: None)
+    monkeypatch.setattr(run_all.visualize, "run", lambda *a, **k: None)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark.run_all",
+            "--only-multi-turn",
+            "--categories",
+            "multi_turn_base",
+            "--fc-mode",
+            "cd",
+            "--resume",
+        ],
+    )
+
+    run_all.main()
+
+    assert run_all.config.RUN_ID == existing
+    run = db.get_run(existing)
+    assert run["finished_at"] is not None
+    assert len(db.list_runs("qwen2.5-3b")) == 1
+

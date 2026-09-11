@@ -1,7 +1,9 @@
 import copy
 import json
+import asyncio
 
-from benchmark import generate_multi_turn
+from benchmark import db, generate_multi_turn
+from tests.helpers import write_jsonl
 
 
 class _FakeResponse:
@@ -452,4 +454,187 @@ def test_generate_for_entry_iffc_refreshes_system_prompt_when_tools_restored(
     restored_sys = payloads[1]["messages"][0]["content"]
     assert "initial_tool" in restored_sys
     assert "restored_tool" in restored_sys
+
+
+def _mt_entry(entry_id: str) -> dict:
+    return {
+        "id": entry_id,
+        "initial_config": {},
+        "involved_classes": [],
+        "question": [[{"role": "user", "content": "hi"}]],
+    }
+
+
+def _mt_timing(entry_id: str, category: str = "multi_turn_base") -> dict:
+    return {
+        "id": entry_id,
+        "category": category,
+        "turns": 1,
+        "api_calls": 1,
+        "total_prompt_n": 1,
+        "total_prompt_ms": 1.0,
+        "total_predicted_n": 1,
+        "total_predicted_ms": 1.0,
+        "first_prompt_ms": 1.0,
+        "flags": "",
+    }
+
+
+def test_pending_multi_turn_entries_skips_saved_ids():
+    entries = [_mt_entry("a"), _mt_entry("b"), _mt_entry("c")]
+    pending = generate_multi_turn.pending_multi_turn_entries(entries, {"b"})
+    assert [e["id"] for e in pending] == ["a", "c"]
+
+
+def test_generate_for_category_skips_saved_and_checkpoints(
+    monkeypatch, bfcl_fixture_dirs
+):
+    data_dir, _ = bfcl_fixture_dirs
+    write_jsonl(
+        data_dir / "BFCL_v4_multi_turn_base.json",
+        [_mt_entry("mt-saved"), _mt_entry("mt-new")],
+    )
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    run_id = db.create_run("qwen2.5-3b")
+    db.insert_multi_turn_entry(
+        run_id,
+        "multi_turn_base",
+        {"id": "mt-saved", "result": [[["old()"]]], "flags": ""},
+        _mt_timing("mt-saved"),
+    )
+
+    generated: list[str] = []
+
+    def fake_generate_for_entry(entry, category, all_tools, execution_model_name=None, fc_mode=None):
+        generated.append(entry["id"])
+        return [[["new()"]]], _mt_timing(entry["id"], category)
+
+    monkeypatch.setattr(generate_multi_turn, "generate_for_entry", fake_generate_for_entry)
+    monkeypatch.setattr(generate_multi_turn, "_load_func_docs", lambda classes: [])
+
+    results, timings = generate_multi_turn.generate_for_category(
+        "multi_turn_base",
+        {"file": "BFCL_v4_multi_turn_base.json"},
+        fc_mode="cd",
+        run_id=run_id,
+    )
+
+    assert generated == ["mt-new"]
+    assert [r["id"] for r in results] == ["mt-new"]
+    assert [t["id"] for t in timings] == ["mt-new"]
+
+    saved_ids = db.get_response_entry_ids(run_id, "multi_turn_base", mode="multi")
+    assert saved_ids == {"mt-saved", "mt-new"}
+    rows = {r["entry_id"]: r for r in db.get_responses(run_id, category="multi_turn_base")}
+    assert json.loads(rows["mt-saved"]["result"]) == [[["old()"]]]
+    assert json.loads(rows["mt-new"]["result"]) == [[["new()"]]]
+    assert len(db.get_multi_turn_timings(run_id)) == 2
+
+
+def test_async_category_checkpoints_before_later_failure(
+    monkeypatch, bfcl_fixture_dirs
+):
+    """Completed entries must land in SQLite even if gather() then fails."""
+    data_dir, _ = bfcl_fixture_dirs
+    write_jsonl(
+        data_dir / "BFCL_v4_multi_turn_base.json",
+        [_mt_entry("mt-ok"), _mt_entry("mt-fail")],
+    )
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    run_id = db.create_run("qwen2.5-3b", notes="fc_mode=cd")
+    generated: list[str] = []
+
+    async def fake_generate_entry_async(
+        session, semaphore, entry, category, all_tools, pbar, fc_mode=None
+    ):
+        generated.append(entry["id"])
+        if entry["id"] == "mt-fail":
+            await asyncio.sleep(0.05)
+            raise RuntimeError("simulated kill")
+        await asyncio.sleep(0.01)
+        pbar.update(1)
+        return (
+            {"id": entry["id"], "result": [[["ok()"]]], "flags": ""},
+            _mt_timing(entry["id"], category),
+        )
+
+    monkeypatch.setattr(
+        generate_multi_turn, "_generate_entry_async", fake_generate_entry_async
+    )
+    monkeypatch.setattr(generate_multi_turn, "_load_func_docs", lambda classes: [])
+
+    async def run_category():
+        sem = asyncio.Semaphore(4)
+        return await generate_multi_turn._generate_for_category_async(
+            session=None,
+            semaphore=sem,
+            category="multi_turn_base",
+            category_info={"file": "BFCL_v4_multi_turn_base.json"},
+            fc_mode="cd",
+            run_id=run_id,
+        )
+
+    try:
+        asyncio.run(run_category())
+        raise AssertionError("expected simulated kill")
+    except RuntimeError as exc:
+        assert "simulated kill" in str(exc)
+
+    assert "mt-ok" in generated
+    saved = db.get_response_entry_ids(run_id, "multi_turn_base", mode="multi")
+    assert saved == {"mt-ok"}
+    timings = db.get_multi_turn_timings(run_id)
+    assert [t["entry_id"] for t in timings] == ["mt-ok"]
+
+
+def test_async_category_skips_already_done(monkeypatch, bfcl_fixture_dirs):
+    data_dir, _ = bfcl_fixture_dirs
+    write_jsonl(
+        data_dir / "BFCL_v4_multi_turn_base.json",
+        [_mt_entry("mt-done"), _mt_entry("mt-todo")],
+    )
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    run_id = db.create_run("qwen2.5-3b", notes="fc_mode=iffc")
+    db.insert_multi_turn_entry(
+        run_id,
+        "multi_turn_base",
+        {"id": "mt-done", "result": [[["saved()"]]], "flags": ""},
+        _mt_timing("mt-done"),
+    )
+    generated: list[str] = []
+
+    async def fake_generate_entry_async(
+        session, semaphore, entry, category, all_tools, pbar, fc_mode=None
+    ):
+        generated.append(entry["id"])
+        pbar.update(1)
+        return (
+            {"id": entry["id"], "result": [[["fresh()"]]], "flags": ""},
+            _mt_timing(entry["id"], category),
+        )
+
+    monkeypatch.setattr(
+        generate_multi_turn, "_generate_entry_async", fake_generate_entry_async
+    )
+    monkeypatch.setattr(generate_multi_turn, "_load_func_docs", lambda classes: [])
+
+    async def run_category():
+        sem = asyncio.Semaphore(4)
+        return await generate_multi_turn._generate_for_category_async(
+            session=None,
+            semaphore=sem,
+            category="multi_turn_base",
+            category_info={"file": "BFCL_v4_multi_turn_base.json"},
+            fc_mode="iffc",
+            run_id=run_id,
+        )
+
+    results, timings = asyncio.run(run_category())
+    assert generated == ["mt-todo"]
+    assert [r["id"] for r in results] == ["mt-todo"]
+    assert [t["id"] for t in timings] == ["mt-todo"]
+    assert db.get_response_entry_ids(run_id, "multi_turn_base", mode="multi") == {
+        "mt-done",
+        "mt-todo",
+    }
 
