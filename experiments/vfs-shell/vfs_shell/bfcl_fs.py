@@ -1,4 +1,7 @@
-"""Map allowlisted shell ToolCalls → BFCL GorillaFileSystem func-call strings.
+"""Map allowlisted shell ToolCalls ↔ BFCL GorillaFileSystem func-call strings.
+
+``to_bfcl_func_string`` is the execute/score path.
+``from_bfcl_func_string`` is the inverse for human/model-facing shell text.
 
 Primary next-eval seam for this experiment (not a Terminal-Bench path).
 Does **not** import ``benchmark/`` or ``bfcl_eval``; strings match what
@@ -23,6 +26,9 @@ instead of pretending POSIX.
 
 from __future__ import annotations
 
+import ast
+import re
+import shlex
 from pathlib import PurePosixPath
 
 from .types import ToolCall
@@ -196,3 +202,147 @@ def to_bfcl_func_string(call: ToolCall) -> str:
         return fmt("echo", content=content)
 
     raise MappingError(f"no GorillaFileSystem mapping for {call.name!r}")
+
+
+_SIMPLE_TOKEN = re.compile(r"^[A-Za-z0-9_./+-]+$")
+_ECHO_RAW_OK = re.compile(r"^[^'\"\\$`;&|<>()\n]+$")
+
+
+def _shell_token(value: object) -> str:
+    text = str(value)
+    if text == "":
+        return "''"
+    if _SIMPLE_TOKEN.fullmatch(text):
+        return text
+    return shlex.quote(text)
+
+
+def _echo_payload(content: str) -> str:
+    if content == "":
+        return ""
+    if _ECHO_RAW_OK.fullmatch(content) and content == content.strip():
+        return content
+    return shlex.quote(content)
+
+
+def parse_bfcl_func_string(func_str: str) -> tuple[str, dict[str, object]]:
+    """Parse ``ls(a=True)`` into ``('ls', {'a': True})``."""
+    text = (func_str or "").strip()
+    try:
+        tree = ast.parse(text, mode="eval")
+    except SyntaxError as exc:
+        raise MappingError(f"cannot parse BFCL func-string {func_str!r}") from exc
+    body = tree.body
+    if not isinstance(body, ast.Call) or not isinstance(body.func, ast.Name):
+        raise MappingError(f"not a GFS function call: {func_str!r}")
+    if body.args:
+        raise MappingError(
+            f"GFS calls are keyword-only; got positional args in {func_str!r}"
+        )
+    kwargs: dict[str, object] = {}
+    for kw in body.keywords:
+        if kw.arg is None:
+            raise MappingError(f"unexpected **kwargs in {func_str!r}")
+        try:
+            kwargs[kw.arg] = ast.literal_eval(kw.value)
+        except (ValueError, TypeError) as exc:
+            raise MappingError(
+                f"cannot eval arg {kw.arg!r} in {func_str!r}"
+            ) from exc
+    return body.func.id, kwargs
+
+
+def from_bfcl_func_string(func_str: str) -> str:
+    """Inverse of ``to_bfcl_func_string``: BFCL func-string → allowlisted shell.
+
+    Canonical GFS dialect only (cwd-local names, ``ls -a``, ``echo … > file``).
+    """
+    name, kwargs = parse_bfcl_func_string(func_str)
+
+    if name == "pwd":
+        return "pwd"
+
+    if name == "ls":
+        return "ls -a" if kwargs.get("a") else "ls"
+
+    if name == "cd":
+        folder = kwargs.get("folder", "/")
+        return f"cd {_shell_token(folder)}"
+
+    if name == "mkdir":
+        return f"mkdir {_shell_token(kwargs.get('dir_name', ''))}"
+
+    if name == "rmdir":
+        return f"rmdir {_shell_token(kwargs.get('dir_name', ''))}"
+
+    if name == "cat":
+        return f"cat {_shell_token(kwargs.get('file_name', ''))}"
+
+    if name == "rm":
+        return f"rm {_shell_token(kwargs.get('file_name', ''))}"
+
+    if name == "touch":
+        return f"touch {_shell_token(kwargs.get('file_name', ''))}"
+
+    if name == "sort":
+        return f"sort {_shell_token(kwargs.get('file_name', ''))}"
+
+    if name in {"mv", "cp"}:
+        return (
+            f"{name} {_shell_token(kwargs.get('source', ''))} "
+            f"{_shell_token(kwargs.get('destination', ''))}"
+        )
+
+    if name == "grep":
+        return (
+            f"grep {_shell_token(kwargs.get('pattern', ''))} "
+            f"{_shell_token(kwargs.get('file_name', ''))}"
+        )
+
+    if name == "diff":
+        return (
+            f"diff {_shell_token(kwargs.get('file_name1', ''))} "
+            f"{_shell_token(kwargs.get('file_name2', ''))}"
+        )
+
+    if name == "tail":
+        file_name = _shell_token(kwargs.get("file_name", ""))
+        if "lines" in kwargs:
+            return f"tail -n {_shell_token(kwargs['lines'])} {file_name}"
+        return f"tail {file_name}"
+
+    if name == "du":
+        return "du -h" if kwargs.get("human_readable") else "du"
+
+    if name == "wc":
+        mode = kwargs.get("mode", "l")
+        flag = {"l": "-l", "w": "-w", "c": "-c"}.get(str(mode), "-l")
+        return f"wc {flag} {_shell_token(kwargs.get('file_name', ''))}"
+
+    if name == "find":
+        path = kwargs.get("path", ".")
+        cmd = f"find {_shell_token(path)}"
+        if kwargs.get("name") is not None:
+            cmd += f" -name {_shell_token(kwargs['name'])}"
+        return cmd
+
+    if name == "echo":
+        content = kwargs.get("content", "")
+        if not isinstance(content, str):
+            content = str(content)
+        payload = _echo_payload(content)
+        file_name = kwargs.get("file_name")
+        if file_name is not None:
+            body = payload if payload else "''"
+            return f"echo {body} > {_shell_token(file_name)}"
+        return f"echo {payload}".rstrip() if payload else "echo"
+
+    raise MappingError(f"no shell mapping for GFS call {name!r}")
+
+
+def func_string_to_shell(func_str: str) -> str:
+    """Best-effort display form for observations; fall back to the BFCL string."""
+    try:
+        return from_bfcl_func_string(func_str)
+    except MappingError:
+        return func_str
