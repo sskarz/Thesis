@@ -199,7 +199,7 @@ def resolve_multi_turn_categories(
 # ---------------------------------------------------------------------------
 # Concurrency (must match llama-server -np flag)
 # ---------------------------------------------------------------------------
-PARALLEL_SLOTS = 8
+PARALLEL_SLOTS = 4  # IFFC multi-turn: system prompt alone ~6k tok; need ~16k/slot (65536/-np 4)
 
 # ---------------------------------------------------------------------------
 # BFCL → JSON-Schema type mapping
