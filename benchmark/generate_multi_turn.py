@@ -9,6 +9,9 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
   approximation). Never sends ``tools``/``tool_choice``. Pass 1 constrains the
   tool *name* with a GBNF grammar; pass 2 constrains arguments with
   ``json_schema``. Not llama-server native tools GBNF; not full XGrammar-2.
+- ``gst``: Guided-Structured Templates (arXiv:2509.18076) on the NFC channel.
+  Still sends ``tools``/``tool_choice``; injects a 7-step curriculum. Native
+  ``tool_calls`` are executed; ``[GST]`` text is ignored by the checker.
 """
 
 import argparse
@@ -21,6 +24,7 @@ from tqdm import tqdm
 
 from . import cd as cd_mode
 from . import config, db
+from . import gst as gst_mode
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
 from .iffc import (
     IFFC_PARSE_RETRIES,
@@ -118,7 +122,10 @@ def _build_chat_payload(
     active_tools: list[dict],
     fc_mode: str,
 ) -> dict:
-    """Build a chat-completions payload. IFFC/CD never send tools/tool_choice."""
+    """Build a chat-completions payload. IFFC/CD never send tools/tool_choice.
+
+    GST uses the NFC tools channel (``tools`` + ``tool_choice=auto``).
+    """
     payload: dict = {
         "model": config.MODEL_NAME,
         "messages": chat_history,
@@ -141,6 +148,9 @@ def _prepare_step_messages(
         # Persistent transcript is IFFC-shaped for both IFFC and CD.
         # CD applies grammar/json_schema on a working copy inside complete_step.
         ensure_iffc_system_message(chat_history, active_tools)
+        return
+    if fc_mode == config.FC_GST:
+        gst_mode.ensure_gst_system_message(chat_history)
 
 
 def _post_chat_sync(payload: dict) -> dict:
@@ -801,7 +811,7 @@ def run(
 
 def _parse_cli() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate BFCL multi-turn responses (NFC, IFFC, or CD)."
+        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, or GST)."
     )
     parser.add_argument(
         "--fc-mode",
@@ -812,7 +822,9 @@ def _parse_cli() -> argparse.Namespace:
             "iffc = Instruction-Followed Function Calling "
             "(arXiv:2608.22472 Appendix B JSON-in-text). "
             "cd = TagDispatch-style two-pass constrained decoding "
-            "(not native tools GBNF; not full XGrammar-2)."
+            "(not native tools GBNF; not full XGrammar-2). "
+            "gst = Guided-Structured Templates on the NFC tools channel "
+            "(arXiv:2509.18076; prompt-only, not GBNF)."
         ),
     )
     parser.add_argument(
