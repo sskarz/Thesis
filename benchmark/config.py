@@ -155,17 +155,22 @@ MULTI_TURN_MAX_STEPS = 20
 #        approximation on stock llama-server). Never sends tools/tool_choice.
 #        Pass 1: GBNF grammar over live tool names. Pass 2: json_schema for
 #        the selected tool's arguments. Not XGrammar-2; LLGuidance not required.
+# gst  = Guided-Structured Templates (arXiv:2509.18076). Prompt-only overlay
+#        on the NFC channel: still sends tools/tool_choice; model writes a
+#        short [GST]...[/GST] scaffold in content before native tool_calls.
+#        Not GBNF / XGrammar. GST text is ignored by the checker.
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
 FC_CD = "cd"
-FC_MODES = (FC_NFC, FC_IFFC, FC_CD)
+FC_GST = "gst"
+FC_MODES = (FC_NFC, FC_IFFC, FC_CD, FC_GST)
 FC_JSON_TEXT_MODES = (FC_IFFC, FC_CD)
 FC_MODE: str = FC_NFC
 
 
 def set_fc_mode(mode: str) -> None:
-    """Set the process-wide function-calling mode (``nfc``, ``iffc``, or ``cd``)."""
+    """Set the process-wide function-calling mode (``nfc``, ``iffc``, ``cd``, or ``gst``)."""
     global FC_MODE
     if mode not in FC_MODES:
         raise ValueError(

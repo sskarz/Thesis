@@ -21,6 +21,7 @@ Each method in this section operates at inference time without modifying model w
 - [11. Parallel Function Calling via SimpleTool](#11-parallel-function-calling-via-simpletool)
 - [Key Finding: llama.cpp Already Uses Grammar-Constrained Decoding](#key-finding-llamacpp-already-uses-grammar-constrained-decoding)
 - [Experiment: TagDispatch-style CD (`--fc-mode cd`)](#experiment-tagdispatch-style-cd---fc-mode-cd)
+- [Experiment: Guided-Structured Templates (`--fc-mode gst`)](#experiment-guided-structured-templates---fc-mode-gst)
 - [Prioritized Recommendations](#prioritized-recommendations)
 - [References](#references)
 
@@ -61,10 +62,10 @@ Template-based prompting achieves +3–12% relative improvement over baselines w
 
 ### Applicability
 
-- **BFCL categories:** `multiple`, `irrelevance`, `parallel` (reasoning about which tools and how many)
-- **Implementation:** Replace the current `TOOL_CALLING_SYSTEM_PROMPT` in `generate_responses.py` with a structured template; pure prompt-side change
+- **BFCL categories:** `multi_turn_base` first (Gemma-4-E2B-it vs scored NFC/IFFC/CD); also relevant to `multiple`, `irrelevance`, `parallel`
+- **Implementation:** Multi-turn ablation is `--fc-mode gst` (GST reasoning on the NFC `tools`/`tool_choice` channel; see [Experiment: Guided-Structured Templates](#experiment-guided-structured-templates---fc-mode-gst)). Prompt-only; **not** GBNF/XGrammar. Do **not** treat this as CD.
 - **Complexity:** Low
-- **Limitation:** Increases prompt token count; template must fit within the 8192-token context window alongside tool definitions
+- **Limitation:** Increases generated tokens (terse 7-step block each step). Template must stay small; this harness does **not** dump function schemas into the GST system prompt (those stay on native `tools`).
 
 ### Source
 
@@ -634,6 +635,96 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 ---
 
+## Experiment: Guided-Structured Templates (`--fc-mode gst`)
+
+This is the **prompt-only GST ablation** for the BFCL multi-turn harness (He et al., arXiv:2509.18076). It is **not** IFFC JSON-in-text and **not** TagDispatch/CD GBNF.
+
+No scored GST result is claimed in this section. Comparison targets already scored on Gemma-4-E2B-it Q4_K_M `multi_turn_base`: NFC Run 4 **54/200 = 27.0%**, IFFC Run 5 **61/200 = 30.5%**, TagDispatch-style CD Run 8 **21/200 = 10.5%**. Do **not** write GST numbers into `THESIS.md` until a GST run is scored.
+
+### Contrast vs NFC / IFFC / CD
+
+| Mode | Channel | Constraint | What the model writes |
+|------|---------|------------|------------------------|
+| NFC | `tools` + `tool_choice=auto` | llama-server lazy tools GBNF (baseline) | Native `tool_calls` |
+| IFFC | no `tools` / `tool_choice` | none (prompt) | JSON list in assistant text |
+| CD | no `tools` / `tool_choice` | pass-1 name GBNF, pass-2 `json_schema` | IFFC-shaped JSON, two HTTP passes |
+| **GST** | **same as NFC** (`tools` + `tool_choice=auto`) | **none extra** (prompt overlay) | `[GST]…[/GST]` (steps 1–7) in **content**, then native `tool_calls` |
+
+GST keeps NFC scoring plumbing: BFCL execution uses `tool_calls` converted to func-strings. GST text is parsed only for smoke/tests and **stripped/ignored** for the checker. A draft inside the GST block is not executed.
+
+No llama.cpp rebuild. No `grammar` / `json_schema` fields.
+
+### Paper Detail template (encoded)
+
+He et al. Appendix A.2 **Detail** (the prompting template), with multi-turn step-7 ABSTAIN:
+
+1. Identify which function(s) best fit the user query from descriptions
+2. Pick that function/set to fulfill the request
+3. Examine selected function documentation
+4. Analyze parameters (types, required vs optional)
+5. Extract values from query (type conversions if needed)
+6. Draft the function call(s)
+7. Revalidate against docs + user request (or abstain / note missing params)
+
+The paper is single-turn. This harness adds three multi-turn rules **outside** extra PE:
+
+- Steps must use the full transcript (prior tool observations / env feedback), not only the latest user utterance.
+- Step 7 may **ABSTAIN** (no `tool_calls`) when no further call is appropriate or required params are missing.
+- GST output is **terse**: one short bullet per step.
+
+### Max guidance (context)
+
+| Piece | Bound | Why |
+|-------|-------|-----|
+| System curriculum | one system message, curriculum only | Tool schemas stay on native `tools` (unlike IFFC, which dumps JSON schemas into the system prompt ~6k tok) |
+| Model `[GST]` block | **max 8 lines**, one bullet per step | Limit multi-turn blow-up; later turns still see prior GST in the transcript |
+| Extra PE | none beyond the template + the three multi-turn rules above | Paper: template is the intervention, not free-form CoT |
+
+Do not paste function docs into `[GST]`. If a live run still overflows (`context_overflow` flags), shrink further or add context compression — that is a **separate** method.
+
+### How to run (Gemma-4-E2B-it, `multi_turn_base`)
+
+Same server command as NFC / IFFC / CD (no extra llama-server flags):
+
+```bash
+./llama.cpp/build/bin/llama-server --jinja -fa on \
+  -hf bartowski/google_gemma-4-E2B-it-GGUF:Q4_K_M \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 \
+  -np 4 -cb -ub 1024
+
+uv run python -m benchmark.smoke_gst   # hermetic; add --live if the server is up
+
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode gst \
+  --notes "GST+NFC vs NFC 27% / IFFC 30.5% / CD 10.5%"
+```
+
+### Pause / resume
+
+Checkpoint/resume is the same as NFC / IFFC / CD (PR #12): each finished entry lands in `responses` / `multi_turn_timings` for the current `run_id`.
+
+```bash
+# Kill anytime. Continue the unfinished gst run:
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode gst --resume
+```
+
+`--resume` selects the latest unfinished run for that `--model` whose notes record `fc_mode=gst`. Pin a row with `--resume-run-id N`. Generation-only: `python -m benchmark.generate_multi_turn --fc-mode gst --run-id N`.
+
+### Implementation notes
+
+- Module: `benchmark/gst.py`. Smoke: `uv run python -m benchmark.smoke_gst`.
+- `_prepare_step_messages` injects the GST system prompt when `fc_mode=gst`; NFC/IFFC/CD paths are unchanged.
+- `_build_chat_payload` still attaches `tools` / `tool_choice=auto` (GST is **not** in `FC_JSON_TEXT_MODES`).
+- Missing `[GST]` tags do not fail the entry: `tool_calls` still execute. GST-only content (no `tool_calls`) ends the turn (ABSTAIN).
+- Single-turn `generate_responses.py` is not switched by `--fc-mode gst`; use `--only-multi-turn` for this ablation.
+
+### Sources
+
+- He, Y., Dang, H., et al. "Improving Large Language Models Function Calling and Interpretability via Guided-Structured Templates." arXiv:2509.18076, 2025. https://arxiv.org/abs/2509.18076 (Appendix A.2 Detail template)
+
+---
+
 ## Prioritized Recommendations
 
 Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B on llama.cpp with BFCL v4):
@@ -641,7 +732,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | Priority | Technique | Target Problem | Expected Impact | Effort |
 |----------|-----------|----------------|-----------------|--------|
 | 1 | **`tool_choice=required` + `parallel_tool_calls`** | Parallel calling (0%) | Potentially unlocks parallel | Low |
-| 2 | **Guided-Structured Templates** | multiple, irrelevance accuracy | +3–12% on BFCL | Low |
+| 2 | **Guided-Structured Templates (`--fc-mode gst`)** | Gemma `multi_turn_base` vs NFC/IFFC/CD | Prompt-only; score pending | Low (harness shipped) |
 | 3 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
 | 4 | **Best-of-N majority voting** | All categories | +5–15% with N=5 | Medium |
 | 5 | **Context compression** | Multi-turn overflow and accuracy | -30–50% tokens, +accuracy | Medium |
