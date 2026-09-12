@@ -288,14 +288,17 @@ def test_generate_for_entry_iffc_retries_then_ends_on_unparseable(monkeypatch):
     assert timing["api_calls"] == 2
 
 
-def test_build_chat_payload_nfc_keeps_tools_iffc_and_cd_omit_them():
+def test_build_chat_payload_nfc_and_gst_keep_tools_iffc_and_cd_omit_them():
     history = [{"role": "user", "content": "hi"}]
     tools = [{"type": "function", "function": {"name": "ls"}}]
     nfc = generate_multi_turn._build_chat_payload(history, tools, "nfc")
+    gst = generate_multi_turn._build_chat_payload(history, tools, "gst")
     iffc = generate_multi_turn._build_chat_payload(history, tools, "iffc")
     cd = generate_multi_turn._build_chat_payload(history, tools, "cd")
     assert nfc["tools"] == tools
     assert nfc["tool_choice"] == "auto"
+    assert gst["tools"] == tools
+    assert gst["tool_choice"] == "auto"
     assert "tools" not in iffc
     assert "tool_choice" not in iffc
     assert "tools" not in cd
@@ -454,6 +457,214 @@ def test_generate_for_entry_iffc_refreshes_system_prompt_when_tools_restored(
     restored_sys = payloads[1]["messages"][0]["content"]
     assert "initial_tool" in restored_sys
     assert "restored_tool" in restored_sys
+
+
+def test_generate_for_entry_gst_sends_nfc_tools_and_curriculum(monkeypatch):
+    from benchmark.gst import GST_STEPS, has_gst_scaffold, strip_gst_block
+
+    payloads: list[dict] = []
+    gst_block = (
+        "[GST]\n"
+        "1. get_weather fits\n2. pick it\n3. docs\n4. city required\n"
+        "5. SF\n6. draft wrong_tool()\n7. CALL\n"
+        "[/GST]"
+    )
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": gst_block,
+                            "tool_calls": [
+                                {
+                                    "id": "call-1",
+                                    "function": {
+                                        "name": "get_weather",
+                                        "arguments": json.dumps({"city": "SF"}),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "timings": _timings(),
+            },
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": (
+                                "[GST]\n1. done\n2. none\n3. n/a\n4. n/a\n"
+                                "5. 72 F\n6. none\n7. ABSTAIN\n[/GST]"
+                            ),
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "timings": _timings(15, 30, 2, 10),
+            },
+        ]
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    executed = []
+
+    def fake_execute(**kwargs):
+        executed.append(kwargs)
+        return ["72 F"], None
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        fake_execute,
+    )
+
+    entry = {
+        "id": "gst-1",
+        "initial_config": {},
+        "involved_classes": ["fs"],
+        "question": [[{"role": "user", "content": "Weather in SF?"}]],
+    }
+    all_tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get the weather for a city",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"city": {"type": "string"}},
+                    "required": ["city"],
+                },
+            },
+        }
+    ]
+
+    turn_results, timing = generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_base",
+        all_tools,
+        fc_mode="gst",
+    )
+
+    # Checker uses tool_calls, not the GST draft (wrong_tool in step 6).
+    assert turn_results == [[["get_weather(city='SF')"]]]
+    assert executed[0]["func_call_list"] == ["get_weather(city='SF')"]
+    assert "tools" in payloads[0]
+    assert payloads[0]["tool_choice"] == "auto"
+    assert "grammar" not in payloads[0]
+    assert "json_schema" not in payloads[0]
+    sys_msg = payloads[0]["messages"][0]
+    assert sys_msg["role"] == "system"
+    for step in GST_STEPS:
+        assert step in sys_msg["content"]
+    assert "[GST]" in sys_msg["content"]
+
+    followup = payloads[1]["messages"]
+    assert any(m.get("role") == "tool" for m in followup)
+    assistant = next(m for m in followup if m.get("tool_calls"))
+    assert has_gst_scaffold(assistant["content"])
+    assert strip_gst_block(assistant["content"]) == ""
+    assert timing["id"] == "gst-1"
+    assert timing["api_calls"] == 2
+    assert timing["flags"] == ""
+
+
+def test_generate_for_entry_gst_abstain_without_tool_calls(monkeypatch):
+    payloads: list[dict] = []
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                "[GST]\n1. none fit\n2. none\n3. n/a\n4. n/a\n"
+                                "5. query has no city\n6. none\n7. ABSTAIN\n[/GST]"
+                            )
+                        }
+                    }
+                ],
+                "timings": _timings(),
+            }
+        ]
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("should not execute")),
+    )
+
+    entry = {
+        "id": "gst-abstain",
+        "initial_config": {},
+        "involved_classes": [],
+        "question": [[{"role": "user", "content": "hello"}]],
+    }
+    turn_results, timing = generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_base",
+        [{"type": "function", "function": {"name": "get_weather"}}],
+        fc_mode="gst",
+    )
+
+    assert turn_results == [[]]
+    assert payloads[0]["tools"]
+    assert payloads[0]["messages"][0]["role"] == "system"
+    assert timing["api_calls"] == 1
+    assert timing["flags"] == ""
+
+
+def test_generate_for_entry_nfc_does_not_inject_gst(monkeypatch):
+    payloads: list[dict] = []
+    responses = iter(
+        [
+            {
+                "choices": [{"message": {"content": "done"}}],
+                "timings": _timings(),
+            }
+        ]
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        lambda **kwargs: ([], None),
+    )
+
+    entry = {
+        "id": "nfc-no-gst",
+        "initial_config": {},
+        "involved_classes": [],
+        "question": [[{"role": "user", "content": "hi"}]],
+    }
+    generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_base",
+        [{"type": "function", "function": {"name": "ls"}}],
+        fc_mode="nfc",
+    )
+    roles = [m["role"] for m in payloads[0]["messages"]]
+    assert roles == ["user"]
+    assert "[GST]" not in json.dumps(payloads[0]["messages"])
 
 
 def _mt_entry(entry_id: str) -> dict:

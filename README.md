@@ -100,6 +100,7 @@ Multi-turn function-calling mode and category filter:
 - `--fc-mode nfc` (default): native OpenAI `tools` / `tool_calls` via llama-server `--jinja`
 - `--fc-mode iffc`: Instruction-Followed Function Calling ([arXiv:2608.22472](https://arxiv.org/abs/2608.22472) Appendix B) — JSON list in assistant text; the API request does **not** include `tools`/`tool_choice`
 - `--fc-mode cd`: TagDispatch-style two-pass constrained decoding ([arXiv:2601.04426](https://arxiv.org/abs/2601.04426) approximation on stock llama-server). **Not** native `tools` GBNF. Pass 1: GBNF over live tool names; pass 2: `json_schema` for the selected tool’s arguments. See METHODS.md.
+- `--fc-mode gst`: Guided-Structured Templates ([arXiv:2509.18076](https://arxiv.org/abs/2509.18076)) on the NFC channel — 7-step `[GST]` scaffold in content, native `tool_calls` still executed. Prompt-only; not GBNF. See METHODS.md.
 - `--categories multi_turn_base`: run only that multi-turn split (skip miss_func / miss_param / long_context)
 
 ```bash
@@ -117,6 +118,16 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 Long multi-turn jobs (especially `--fc-mode cd`) checkpoint each finished entry into `benchmark/results/benchmark.db`. Kill the process anytime; rerun the **same** `--model` / `--fc-mode` / `--categories` with `--resume` to continue that unfinished run (skips entry IDs already in `responses`). Pin a run with `--resume-run-id N`. See METHODS.md.
 
+Gemma GST vs the scored NFC 27.0% / IFFC 30.5% / CD 10.5% `multi_turn_base` baselines (harness only — do not update THESIS.md tables until this run is scored):
+
+```bash
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode gst \
+  --notes "GST+NFC vs NFC 27% / IFFC 30.5% / CD 10.5%"
+```
+
+Optional `--resume` if an unfinished gst run exists.
+
 Offline IFFC parser + mock chat-completions smoke (no llama-server):
 
 ```bash
@@ -127,6 +138,12 @@ Offline CD constraint + two-pass mock loop (no llama-server):
 
 ```bash
 uv run python -m benchmark.smoke_cd
+```
+
+Offline GST curriculum + mock NFC-channel loop (no llama-server):
+
+```bash
+uv run python -m benchmark.smoke_gst
 ```
 
 The pipeline runs five steps in sequence:
