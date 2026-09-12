@@ -84,7 +84,7 @@ While llama-server b8111 successfully parses this into standard `tool_calls` via
 | Qwen3.5-4B-Instruct | Qwen 3.5 | 4B | Q4_K_M | ~2.8 GB | `bartowski/Qwen_Qwen3.5-4B-GGUF` |
 | FunctionGemma-270M-IT | Gemma 3 (specialist) | 270M | bf16 | ~512 MB | `ggml-org/functiongemma-270m-it-GGUF` |
 
-Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on **multi-turn categories only**: Run 4 NFC (`--only-multi-turn`, all four slices) and Run 5 IFFC (`--categories multi_turn_base --fc-mode iffc`). A shell-dialect format ablation ([PR #5](https://github.com/sskarz/Thesis/pull/5) harness; v2 after [PR #9](https://github.com/sskarz/Thesis/pull/9)) was run on the 13-entry `fs-only` GorillaFileSystem subset of `multi_turn_base`; that slice is **not** a full-200 score (v1 1/13, v2 0/13). Single-turn scores for this model are not reported here.
+Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on **multi-turn categories only**: Run 4 NFC (`--only-multi-turn`, all four slices), Run 5 IFFC (`--categories multi_turn_base --fc-mode iffc`), and Run 8 TagDispatch-style CD (`--categories multi_turn_base --fc-mode cd`; **21/200 = 10.5%**, a scored negative vs NFC/IFFC). A shell-dialect format ablation ([PR #5](https://github.com/sskarz/Thesis/pull/5) harness; v2 after [PR #9](https://github.com/sskarz/Thesis/pull/9)) was run on the 13-entry `fs-only` GorillaFileSystem subset of `multi_turn_base`; that slice is **not** a full-200 score (v1 1/13, v2 0/13). Single-turn scores for this model are not reported here.
 
 ### Quantization notes
 
@@ -125,6 +125,18 @@ Single-turn results on BFCL v4, evaluated with the AST checker. **Bold** indicat
 
 ## Multi-Turn Accuracy Results
 
+### NFC vs IFFC vs CD on `multi_turn_base`
+
+Primary metric: BFCL v4 `multi_turn_base` (200 execution-evaluated cases) on Gemma-4-E2B-it Q4_K_M, Mac Metal llama-server. CD is `--fc-mode cd`: a TagDispatch-style **two-pass approximation** on stock llama-server (pass 1: name GBNF enum; pass 2: `json_schema` for selected tools; never sends `tools` / `tool_choice`). **This is not XGrammar-2.**
+
+| Mode | Run | Score | Accuracy | Δ vs NFC |
+|------|-----|-------|----------|----------|
+| NFC (native `tools` / `tool_calls`) | 4 | 54/200 | 27.0% | — |
+| IFFC (Appendix B JSON-in-text) | 5 | 61/200 | 30.5% | +3.5 pp / +7 entries |
+| CD (TagDispatch-style two-pass; **not** XGrammar-2) | 8 | 21/200 | 10.5% | −16.5 pp / −33 entries |
+
+Run 8 CD is a **scored negative** vs both controls (10.5% < 27.0% / 30.5%; 179 errors). Details below. The 13-entry BFCL-FS shell ablation is a separate slice and is **not** in this table.
+
 ### Gemma-4-E2B-it baseline (Run 4, 2026-09-10)
 
 This is a multi-turn-only baseline: `--only-multi-turn`, 800 execution-evaluated cases, no single-turn categories. Serving was MacBook Pro M4 Pro, llama.cpp Metal, Q4_K_M, reasoning on, `-np 8` / `PARALLEL_SLOTS=8`.
@@ -136,7 +148,7 @@ This is a multi-turn-only baseline: `--only-multi-turn`, 800 execution-evaluated
 | `multi_turn_miss_param` | 39/200 | 19.5% | 2 |
 | `multi_turn_long_context` | 22/200 | 11.0% | 72 (mostly `context_overflow`) |
 
-**`multi_turn_base` (full 200) remains the primary optimization target.** Run 4 NFC scored 27.0% on that slice; Run 5 IFFC is reported below. The BFCL-FS shell eval is a 13-entry FS-only ablation, not a substitute for those 200-entry scores. `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
+**`multi_turn_base` (full 200) remains the primary optimization target.** Run 4 NFC scored 27.0% on that slice; Run 5 IFFC (+3.5 pp) and Run 8 CD (scored negative, 10.5%) are reported below. The BFCL-FS shell eval is a 13-entry FS-only ablation, not a substitute for those 200-entry scores. `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
 
 Wall-clock generation throughput was ~24–37 s/entry at 8-way parallel, versus ~4–5 min/entry on the prior sequential path.
 
@@ -189,7 +201,47 @@ The paper ([*Small Reasoning Models are Instruction Followers in Function Callin
 
 IFFC reduced under-calling; it did not convert this into a single-turn-style accuracy jump. The remaining bottleneck is sequential state tracking, not JSON vs native tools.
 
-A third format channel — allowlisted shell text mapped onto GorillaFileSystem — is reported below. It is a **13-entry `fs-only` ablation** (two live evals, v1 and v2), not a replacement for the 200-entry `multi_turn_base` scores above.
+A TagDispatch-style constrained-decoding ablation (`--fc-mode cd`) on the same 200-entry `multi_turn_base` is reported next; it is a **scored negative**. A separate format channel — allowlisted shell text mapped onto GorillaFileSystem — is a **13-entry `fs-only` ablation** (two live evals, v1 and v2), not a replacement for the 200-entry scores.
+
+### Gemma-4-E2B-it TagDispatch-style CD (Run 8) — scored negative
+
+Run 8 evaluates `--fc-mode cd` on `multi_turn_base` only: a TagDispatch-style **two-pass approximation** of constrained decoding on **stock llama-server** (Dong et al., XGrammar-2 TagDispatch, [arXiv:2601.04426](https://arxiv.org/abs/2601.04426)). **Do not call this XGrammar-2.** XGrammar-2 TagDispatch switches sub-grammars inside one decode; llama.cpp cannot do that, so the harness uses two HTTP completions:
+
+1. **Pass 1 (dispatch):** GBNF enum over live tool names (or stop with `[]`).
+2. **Pass 2 (dispatched):** `json_schema` for the selected tool(s) arguments, compiled to GBNF by llama-server.
+
+Requests **never** send `tools` / `tool_choice` (native tools GBNF is not this experiment). The persistent multi-turn transcript stays IFFC-shaped (JSON list in assistant text; user-role execution results). Scoring uses the same BFCL `multi_turn_checker` as NFC / IFFC.
+
+Config: Gemma-4-E2B-it Q4_K_M, Mac Metal llama-server, `-np 4 -c 65536`, `run_id=8`. Overnight resume with per-entry checkpoints. Wall ~115 min (approx 10:46 PM → 12:41 AM ET). Optional figures: `benchmark/results/Gemma-4-E2B-it-Q4_K_M/figures/`.
+
+Result: **21/200 = 10.5%** (179 errors).
+
+#### NFC vs IFFC vs CD on `multi_turn_base`
+
+Same category, same model family, same hardware class as the controls:
+
+| Mode | Run | Score | Accuracy | Δ vs NFC |
+|------|-----|-------|----------|----------|
+| NFC (native `tools` / `tool_calls`) | 4 | 54/200 | 27.0% | — |
+| IFFC (Appendix B JSON-in-text) | 5 | 61/200 | 30.5% | +3.5 pp / +7 entries |
+| CD (TagDispatch-style two-pass; **not** XGrammar-2) | 8 | 21/200 | 10.5% | −16.5 pp / −33 entries |
+
+CD is **−20.0 pp / −40 entries** vs IFFC (10.5% < 30.5%). This condition is **measured and negative**, not a pending overnight.
+
+Top Run 8 fail strings (error-row counts, not unique entries):
+
+| Fail string | Error rows |
+|-------------|------------|
+| missing GT execution turn 0 | 46 |
+| VehicleControlAPI state mismatch | 29 |
+| GorillaFileSystem | 20 |
+| TravelAPI | 19 |
+| TradingBot | 15 |
+| empty turn 0 | 10 |
+
+#### Interpretation
+
+Two-pass CD on stock llama-server **hurt** `multi_turn_base` relative to both NFC and IFFC. Dominant errors remain agentic (missing ground-truth execution on turn 0, environment state mismatch), not a result that can be attributed to full XGrammar-2. This run does **not** test intra-request tag-triggered grammar switching, Cross-Grammar Cache, or an LLGuidance/`-DLLAMA_LLGUIDANCE=ON` rebuild. Do not treat two-pass `--fc-mode cd` as the D1 default given 10.5% < 27.0% / 30.5%.
 
 ### Gemma-4-E2B-it BFCL-FS shell dialect (fs-only live eval)
 
@@ -226,7 +278,7 @@ Controls from `benchmark.db` (Run 4 NFC, Run 5 IFFC traces scored on these IDs) 
 | Shell v1 (prior live eval) | — | 1/13 | 7.7% | `multi_turn_base_12` |
 | Shell v2 (this run) | — | 0/13 | 0.0% | — |
 
-Full `multi_turn_base` is unchanged: NFC **54/200 = 27.0%**, IFFC **61/200 = 30.5%**. Those remain the primary thesis numbers. The 13-ID table is an apples-to-apples format comparison on GorillaFileSystem-only entries.
+Full `multi_turn_base` (200 entries): NFC **54/200 = 27.0%**, IFFC **61/200 = 30.5%**, CD **21/200 = 10.5%** (Run 8, scored negative). Those remain the primary thesis numbers. The 13-ID table is an apples-to-apples format comparison on GorillaFileSystem-only entries.
 
 #### Interpretation
 
@@ -382,7 +434,7 @@ FunctionGemma-270M is a purpose-built tool-calling model fine-tuned from Gemma 3
 
 ## Remaining Work
 
-- **Multi-turn optimization**: Gemma-4-E2B-it NFC is 27.0% on `multi_turn_base` (Run 4); IFFC on the same model is 30.5% (Run 5, +3.5 pp). Residual errors are mostly agentic state mismatch and under-calling, not format parsing. BFCL-FS / VFS shell→GorillaFileSystem fs-only is a **negative ablation** (v1 **1/13 = 7.7%**, v2 **0/13 = 0.0%** vs NFC **3/13 = 23.1%** vs IFFC **1/13 = 7.7%** on the same 13 GorillaFileSystem-only IDs; not the full 200). Do **not** pursue shell-as-action as D1 default. The toy VFS harness stays for non-BFCL / future SFT only. Next methodology candidates: constrained decoding, Best-of-N, MLX SFT — not more shell→GFS BFCL chasing. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is deferred. `miss_func` / `miss_param` / `long_context` remain secondary stress tests.
+- **Multi-turn optimization**: Gemma-4-E2B-it on `multi_turn_base`: NFC Run 4 **54/200 = 27.0%**; IFFC Run 5 **61/200 = 30.5%** (+3.5 pp); TagDispatch-style CD Run 8 **21/200 = 10.5%** (179 errors). CD is **measured and negative** vs NFC/IFFC (10.5% < 27.0% / 30.5%), not a pending overnight. Honesty: `--fc-mode cd` is a two-pass approximation on stock llama-server (pass 1 name GBNF, pass 2 `json_schema`; never `tools`/`tool_choice`) — **not** full XGrammar-2. Do **not** pursue this CD condition as D1 default. Residual NFC/IFFC errors are mostly agentic state mismatch and under-calling, not format parsing. BFCL-FS / VFS shell→GorillaFileSystem fs-only is a **negative ablation** (v1 **1/13 = 7.7%**, v2 **0/13 = 0.0%** vs NFC **3/13 = 23.1%** vs IFFC **1/13 = 7.7%** on the same 13 GorillaFileSystem-only IDs; not the full 200). Do **not** pursue shell-as-action as D1 default. The toy VFS harness stays for non-BFCL / future SFT only. Next methodology candidates: Best-of-N, MLX SFT — not more shell→GFS BFCL chasing and not an unscored CD overnight. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is deferred. `miss_func` / `miss_param` / `long_context` remain secondary stress tests.
 - **NVIDIA Jetson Orin Nano Super migration**: Repeat all benchmarks on CUDA with 8 GB shared memory to measure real edge-device performance.
 - **RAG augmentation for large tool sets**: The `multiple` category only presents 2–4 tools per test case, so RAG-based tool filtering provides no benefit. However, real-world agentic applications may expose 50–100+ tools. Test whether retrieval-augmented generation (embedding-based tool retrieval to pre-filter the tool set before prompting) improves accuracy and reduces prompt length for large tool registries.
 - **Additional models and quantizations**: Expand the model matrix (e.g., Phi-3.5-mini, Gemma-2-2B) and test alternative quantization levels (Q5_K_M, Q8_0) to map the accuracy-size Pareto frontier.
