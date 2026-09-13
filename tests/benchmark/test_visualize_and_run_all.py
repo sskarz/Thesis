@@ -274,12 +274,59 @@ def test_run_all_gst_base_only_wires_flags(monkeypatch):
     assert "multi_turn_base" in (run["notes"] or "")
 
 
+def test_run_all_iffc_state_base_only_wires_flags(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+
+    calls = []
+
+    def record(name):
+        def inner(*args, **kwargs):
+            calls.append((name, args, kwargs))
+            return None
+
+        return inner
+
+    monkeypatch.setattr(run_all, "check_server", lambda: True)
+    monkeypatch.setattr(run_all.generate_responses, "run", record("generate_responses.run"))
+    monkeypatch.setattr(run_all.generate_multi_turn, "run", record("generate_multi_turn.run"))
+    monkeypatch.setattr(run_all.evaluate_responses, "run", record("evaluate_responses.run"))
+    monkeypatch.setattr(run_all.evaluate_multi_turn, "run", record("evaluate_multi_turn.run"))
+    monkeypatch.setattr(run_all.collect_metrics, "run", record("collect_metrics.run"))
+    monkeypatch.setattr(run_all.visualize, "run", record("visualize.run"))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark.run_all",
+            "--only-multi-turn",
+            "--categories",
+            "multi_turn_base",
+            "--fc-mode",
+            "iffc-state",
+            "--notes",
+            "IFFC+STATE vs NFC 27% / IFFC 30.5% / GST 30.5% / CD 10.5%",
+        ],
+    )
+
+    run_all.main()
+
+    mt_gen = next(c for c in calls if c[0] == "generate_multi_turn.run")
+    assert mt_gen[2]["fc_mode"] == "iffc-state"
+    assert list(mt_gen[2]["categories"]) == ["multi_turn_base"]
+    assert "generate_responses.run" not in [c[0] for c in calls]
+
+    run = db.get_run(run_all.config.RUN_ID)
+    assert "fc_mode=iffc-state" in (run["notes"] or "")
+    assert "multi_turn_base" in (run["notes"] or "")
+
+
 def test_fc_mode_from_notes():
     assert run_all.fc_mode_from_notes(None) == "nfc"
     assert run_all.fc_mode_from_notes("RTX 4090 baseline") == "nfc"
     assert run_all.fc_mode_from_notes("fc_mode=cd categories=multi_turn_base") == "cd"
     assert run_all.fc_mode_from_notes("TagDispatch; fc_mode=iffc") == "iffc"
     assert run_all.fc_mode_from_notes("GST+NFC; fc_mode=gst") == "gst"
+    assert run_all.fc_mode_from_notes("IFFC+STATE; fc_mode=iffc-state") == "iffc-state"
 
 
 def test_resolve_pipeline_run_resume_matches_fc_mode(monkeypatch):
