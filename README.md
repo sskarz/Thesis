@@ -118,7 +118,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 Long multi-turn jobs (especially `--fc-mode cd`) checkpoint each finished entry into `benchmark/results/benchmark.db`. Kill the process anytime; rerun the **same** `--model` / `--fc-mode` / `--categories` with `--resume` to continue that unfinished run (skips entry IDs already in `responses`). Pin a run with `--resume-run-id N`. See METHODS.md.
 
-Gemma GST vs the scored NFC 27.0% / IFFC 30.5% / CD 10.5% `multi_turn_base` baselines (harness only — do not update THESIS.md tables until this run is scored):
+Gemma GST vs the scored NFC 27.0% / IFFC 30.5% / CD 10.5% `multi_turn_base` baselines (Run 9 scored **61/200 = 30.5%**, ties IFFC; see `THESIS.md`):
 
 ```bash
 uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
