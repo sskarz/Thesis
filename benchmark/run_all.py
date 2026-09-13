@@ -9,6 +9,8 @@ Function-calling modes (``--fc-mode``):
   approximation on stock llama-server). Not native tools GBNF.
 - ``gst``: Guided-Structured Templates (arXiv:2509.18076) on the NFC channel;
   used by multi-turn generation only. Prompt-only; not GBNF.
+- ``iffc-state``: IFFC JSON-in-text plus a harness-written STATE snapshot from
+  actual tool execution results (METHODS §5). Not GST; not CD/GBNF.
 """
 
 import argparse
@@ -133,7 +135,9 @@ def main():
             "cd = TagDispatch-style two-pass constrained decoding "
             "(name GBNF + per-tool json_schema; not native tools GBNF); "
             "gst = Guided-Structured Templates on NFC tools "
-            "(arXiv:2509.18076; prompt-only, not GBNF)."
+            "(arXiv:2509.18076; prompt-only, not GBNF); "
+            "iffc-state = IFFC JSON-in-text + harness-written STATE "
+            "(not GST; not CD/GBNF)."
         ),
     )
     parser.add_argument(
@@ -213,8 +217,10 @@ def main():
             if args.fc_mode == config.FC_IFFC
             else " (CD = TagDispatch-style two-pass; not native tools GBNF)"
             if args.fc_mode == config.FC_CD
-            else " (GST = Guided-Structured Templates on NFC tools; arXiv:2509.18076)"
+            else             " (GST = Guided-Structured Templates on NFC tools; arXiv:2509.18076)"
             if args.fc_mode == config.FC_GST
+            else " (IFFC+STATE = IFFC JSON-in-text + harness-written STATE snapshot)"
+            if args.fc_mode == config.FC_IFFC_STATE
             else " (NFC = native tools)"
         )
     )

@@ -159,18 +159,22 @@ MULTI_TURN_MAX_STEPS = 20
 #        on the NFC channel: still sends tools/tool_choice; model writes a
 #        short [GST]...[/GST] scaffold in content before native tool_calls.
 #        Not GBNF / XGrammar. GST text is ignored by the checker.
+# iffc-state = IFFC JSON-in-text plus a harness-written [STATE] snapshot
+#        from actual tool execution results (METHODS §5 working memory).
+#        Not GST, not LLM summarization, not CD/GBNF, not shell→GFS.
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
 FC_CD = "cd"
 FC_GST = "gst"
-FC_MODES = (FC_NFC, FC_IFFC, FC_CD, FC_GST)
-FC_JSON_TEXT_MODES = (FC_IFFC, FC_CD)
+FC_IFFC_STATE = "iffc-state"
+FC_MODES = (FC_NFC, FC_IFFC, FC_CD, FC_GST, FC_IFFC_STATE)
+FC_JSON_TEXT_MODES = (FC_IFFC, FC_CD, FC_IFFC_STATE)
 FC_MODE: str = FC_NFC
 
 
 def set_fc_mode(mode: str) -> None:
-    """Set the process-wide function-calling mode (``nfc``, ``iffc``, ``cd``, or ``gst``)."""
+    """Set the process-wide function-calling mode (``nfc``, ``iffc``, ``cd``, ``gst``, or ``iffc-state``)."""
     global FC_MODE
     if mode not in FC_MODES:
         raise ValueError(

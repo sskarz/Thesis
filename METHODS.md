@@ -22,6 +22,7 @@ Each method in this section operates at inference time without modifying model w
 - [Key Finding: llama.cpp Already Uses Grammar-Constrained Decoding](#key-finding-llamacpp-already-uses-grammar-constrained-decoding)
 - [Experiment: TagDispatch-style CD (`--fc-mode cd`)](#experiment-tagdispatch-style-cd---fc-mode-cd)
 - [Experiment: Guided-Structured Templates (`--fc-mode gst`)](#experiment-guided-structured-templates---fc-mode-gst)
+- [Experiment: IFFC + harness STATE (`--fc-mode iffc-state`)](#experiment-iffc--harness-state---fc-mode-iffc-state)
 - [Prioritized Recommendations](#prioritized-recommendations)
 - [References](#references)
 
@@ -256,9 +257,9 @@ The most recent ~10% of the context window is preserved verbatim as active worki
 ### Applicability
 
 - **BFCL categories:** `multi_turn_base`, `multi_turn_miss_func`, `multi_turn_miss_param`, `multi_turn_long_context`. The current `generate_multi_turn.py` appends every tool call and result to `chat_history` indefinitely. By turn 4–5 with multiple tool calls per turn, this can exceed 8192 tokens (triggering the `context_overflow` flag).
-- **Implementation:** After each turn, summarize tool results from turns older than N-2 into a condensed state summary message. Keep the last 2 turns verbatim. A simpler alternative is a sliding window that retains only the system prompt, tool definitions, and the most recent K turns.
+- **Implementation:** The multi-turn ablation is `--fc-mode iffc-state` (IFFC JSON-in-text plus a harness-written STATE snapshot from actual tool execution results; see [Experiment: IFFC + harness STATE](#experiment-iffc--harness-state---fc-mode-iffc-state)). Keep the last 2 turns verbatim; older raw dumps are dropped in favor of the compact STATE block. **Not** LLM summarization, **not** GST, **not** CD/GBNF.
 - **Complexity:** Medium (sliding window: Low)
-- **Caveat:** Summarization itself requires an LLM call. For SLMs, the summarization quality may be poor. A simpler structured state tracker (explicit key-value record of tool results) avoids this.
+- **Caveat:** Summarization itself requires an LLM call. For SLMs, the summarization quality may be poor. A simpler structured state tracker (explicit key-value record of tool results) avoids this — that is what `--fc-mode iffc-state` implements.
 
 ### Sources
 
@@ -728,6 +729,90 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 ---
 
+## Experiment: IFFC + harness STATE (`--fc-mode iffc-state`)
+
+This is the **IFFC + verified working-memory** ablation for the BFCL multi-turn harness (METHODS §5 / PLAN #6). It is **not** GST (no 7-step curriculum; not on the NFC `tools` channel), **not** TagDispatch/CD GBNF, **not** LLM summarization, and **not** shell→GFS.
+
+No scored `iffc-state` result is claimed in this section. Comparison targets already scored on Gemma-4-E2B-it Q4_K_M `multi_turn_base`: NFC Run 4 **54/200 = 27.0%**, IFFC Run 5 **61/200 = 30.5%**, TagDispatch-style CD Run 8 **21/200 = 10.5%**, GST Run 9 **61/200 = 30.5%** (tied IFFC via a different 61-row set; GST cut empty turns 59→31 but raised state mismatch 68→79). Do **not** write `iffc-state` numbers into `THESIS.md` until this run is scored. Target: beat IFFC 61/200.
+
+### Contrast vs NFC / IFFC / GST / CD
+
+| Mode | Channel | Constraint | What the model writes | Extra context |
+|------|---------|------------|------------------------|---------------|
+| NFC | `tools` + `tool_choice=auto` | llama-server lazy tools GBNF (baseline) | Native `tool_calls` | none |
+| IFFC | no `tools` / `tool_choice` | none (prompt) | JSON list in assistant text | none |
+| CD | no `tools` / `tool_choice` | pass-1 name GBNF, pass-2 `json_schema` | IFFC-shaped JSON, two HTTP passes | none |
+| GST | **same as NFC** | **none extra** (prompt overlay) | `[GST]…[/GST]` then native `tool_calls` | model-written plan (unverified) |
+| **iffc-state** | **same as IFFC** | **none extra** | IFFC JSON list in assistant text | harness-written `[STATE]` from **executed** tool results |
+
+`iffc-state` keeps IFFC scoring plumbing: JSON-in-text parse → BFCL func-strings → `multi_turn_checker`. STATE is injected in **user** messages after execution; it is not parsed as a tool call.
+
+Lesson from GST: extra model-written planning on NFC did not fix env state. This mode injects a **verified** compact snapshot instead.
+
+No llama.cpp rebuild. No `grammar` / `json_schema` fields. No native `tools`.
+
+### What the harness writes
+
+After each executed tool result, `StateTracker` updates from the **real** `execute_multi_turn_func_call` observations (plus the func-string that was executed), then appends a short block to the IFFC user-role feedback:
+
+```
+[STATE]
+cwd: /docs
+files: notes.txt, todo.md
+listing: notes.txt, todo.md
+fields: engineOn=True; fuelLevel=12.5
+last: cd(folder=docs)->cwd=docs; ls()->[notes.txt, todo.md]
+[/STATE]
+```
+
+Fields are whatever BFCL backends already return (GFS `current_working_directory` / `current_directory_content`; Vehicle/Travel/Twitter dict keys that actually changed). No second LLM, no new executable backend.
+
+History policy: keep the last **2** user/assistant+tool turns verbatim; drop older `Function execution results` dumps. The accumulated STATE on the latest observation replaces those dumps.
+
+### How to run (Gemma-4-E2B-it, `multi_turn_base`)
+
+Same server command as NFC / IFFC / GST / CD (no extra llama-server flags):
+
+```bash
+./llama.cpp/build/bin/llama-server --jinja -fa on \
+  -hf bartowski/google_gemma-4-E2B-it-GGUF:Q4_K_M \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 \
+  -np 4 -cb -ub 1024
+
+uv run python -m benchmark.smoke_iffc_state   # hermetic; add --live if the server is up
+
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc-state \
+  --notes "IFFC+STATE vs NFC 27% / IFFC 30.5% / GST 30.5% / CD 10.5%"
+```
+
+### Pause / resume
+
+Checkpoint/resume is the same as NFC / IFFC / CD / GST (PR #12): each finished entry lands in `responses` / `multi_turn_timings` for the current `run_id`.
+
+```bash
+# Kill anytime. Continue the unfinished iffc-state run:
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc-state --resume
+```
+
+`--resume` selects the latest unfinished run for that `--model` whose notes record `fc_mode=iffc-state`. Pin a row with `--resume-run-id N`. Generation-only: `python -m benchmark.generate_multi_turn --fc-mode iffc-state --run-id N`.
+
+### Implementation notes
+
+- Module: `benchmark/iffc_state.py`. Smoke: `uv run python -m benchmark.smoke_iffc_state`.
+- `_prepare_step_messages` injects Appendix B IFFC + a short STATE-trust addendum when `fc_mode=iffc-state`; NFC / IFFC / GST / CD paths are unchanged.
+- `_build_chat_payload` omits `tools` / `tool_choice` (`iffc-state` is in `FC_JSON_TEXT_MODES`, like IFFC/CD).
+- `_append_execution_feedback` updates STATE from execution results, attaches `[STATE]`, then compresses dumps older than the last two turns.
+- Single-turn `generate_responses.py` is not switched by `--fc-mode iffc-state`; use `--only-multi-turn` for this ablation.
+
+### Sources
+
+- Xu, Z., et al. "ACON: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025. https://arxiv.org/abs/2510.00615
+- Instruction-Followed Function Calling: arXiv:2608.22472 Appendix B (the IFFC channel this overlay sits on)
+
+---
+
 ## Prioritized Recommendations
 
 Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B on llama.cpp with BFCL v4):
@@ -736,9 +821,9 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 |----------|-----------|----------------|-----------------|--------|
 | 1 | **`tool_choice=required` + `parallel_tool_calls`** | Parallel calling (0%) | Potentially unlocks parallel | Low |
 | 2 | **Guided-Structured Templates (`--fc-mode gst`)** | Gemma `multi_turn_base` vs NFC/IFFC/CD | **Measured** Run 9: 61/200 = 30.5% (ties IFFC, does not beat it) | Done (prompt-only) |
-| 3 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
-| 4 | **Best-of-N majority voting** | All categories | +5–15% with N=5 | Medium |
-| 5 | **Context compression** | Multi-turn overflow and accuracy | -30–50% tokens, +accuracy | Medium |
+| 3 | **IFFC + harness STATE (`--fc-mode iffc-state`)** | Gemma `multi_turn_base` state mismatch vs IFFC 30.5% | Working memory overlay; score pending | Low (harness shipped) |
+| 4 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
+| 5 | **Best-of-N majority voting** | All categories | +5–15% with N=5 | Medium |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level | Medium |
 | 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale | Medium |
 | 8 | **Schema-based verification loop** | Argument errors across categories | +3–10% with retries | Medium |
