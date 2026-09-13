@@ -101,6 +101,7 @@ Multi-turn function-calling mode and category filter:
 - `--fc-mode iffc`: Instruction-Followed Function Calling ([arXiv:2608.22472](https://arxiv.org/abs/2608.22472) Appendix B) — JSON list in assistant text; the API request does **not** include `tools`/`tool_choice`
 - `--fc-mode cd`: TagDispatch-style two-pass constrained decoding ([arXiv:2601.04426](https://arxiv.org/abs/2601.04426) approximation on stock llama-server). **Not** native `tools` GBNF. Pass 1: GBNF over live tool names; pass 2: `json_schema` for the selected tool’s arguments. See METHODS.md.
 - `--fc-mode gst`: Guided-Structured Templates ([arXiv:2509.18076](https://arxiv.org/abs/2509.18076)) on the NFC channel — 7-step `[GST]` scaffold in content, native `tool_calls` still executed. Prompt-only; not GBNF. See METHODS.md.
+- `--fc-mode iffc-state`: IFFC JSON-in-text plus a harness-written `[STATE]` snapshot from **actual** tool execution results (METHODS §5 working memory). Same checker as IFFC. **Not** GST, **not** CD/GBNF, **not** LLM summarization. See METHODS.md.
 - `--categories multi_turn_base`: run only that multi-turn split (skip miss_func / miss_param / long_context)
 
 ```bash
@@ -128,6 +129,16 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 Optional `--resume` if an unfinished gst run exists.
 
+Gemma IFFC+STATE vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% `multi_turn_base` baselines (harness only — do not update THESIS.md tables until this run is scored):
+
+```bash
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc-state \
+  --notes "IFFC+STATE vs NFC 27% / IFFC 30.5% / GST 30.5% / CD 10.5%"
+```
+
+Optional `--resume` if an unfinished iffc-state run exists.
+
 Offline IFFC parser + mock chat-completions smoke (no llama-server):
 
 ```bash
@@ -144,6 +155,12 @@ Offline GST curriculum + mock NFC-channel loop (no llama-server):
 
 ```bash
 uv run python -m benchmark.smoke_gst
+```
+
+Offline IFFC+STATE tracker + mock IFFC loop (no llama-server):
+
+```bash
+uv run python -m benchmark.smoke_iffc_state
 ```
 
 The pipeline runs five steps in sequence:

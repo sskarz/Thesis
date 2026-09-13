@@ -12,6 +12,8 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
 - ``gst``: Guided-Structured Templates (arXiv:2509.18076) on the NFC channel.
   Still sends ``tools``/``tool_choice``; injects a 7-step curriculum. Native
   ``tool_calls`` are executed; ``[GST]`` text is ignored by the checker.
+- ``iffc-state``: IFFC JSON-in-text plus a harness-written ``[STATE]`` snapshot
+  from actual tool execution results. Same checker as IFFC. Not GST / CD / GBNF.
 """
 
 import argparse
@@ -25,6 +27,7 @@ from tqdm import tqdm
 from . import cd as cd_mode
 from . import config, db
 from . import gst as gst_mode
+from . import iffc_state as iffc_state_mode
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
 from .iffc import (
     IFFC_PARSE_RETRIES,
@@ -122,7 +125,7 @@ def _build_chat_payload(
     active_tools: list[dict],
     fc_mode: str,
 ) -> dict:
-    """Build a chat-completions payload. IFFC/CD never send tools/tool_choice.
+    """Build a chat-completions payload. IFFC/CD/iffc-state never send tools/tool_choice.
 
     GST uses the NFC tools channel (``tools`` + ``tool_choice=auto``).
     """
@@ -145,9 +148,13 @@ def _prepare_step_messages(
     fc_mode: str,
 ) -> None:
     if _is_json_text_mode(fc_mode):
-        # Persistent transcript is IFFC-shaped for both IFFC and CD.
+        # Persistent transcript is IFFC-shaped for IFFC, CD, and iffc-state.
         # CD applies grammar/json_schema on a working copy inside complete_step.
-        ensure_iffc_system_message(chat_history, active_tools)
+        # iffc-state keeps Appendix B + a short STATE-trust addendum.
+        if fc_mode == config.FC_IFFC_STATE:
+            iffc_state_mode.ensure_iffc_state_system_message(chat_history, active_tools)
+        else:
+            ensure_iffc_system_message(chat_history, active_tools)
         return
     if fc_mode == config.FC_GST:
         gst_mode.ensure_gst_system_message(chat_history)
@@ -235,12 +242,21 @@ def _append_execution_feedback(
     func_strings: list[str],
     tool_calls_raw: list | None,
     exec_results: list,
+    state_tracker: iffc_state_mode.StateTracker | None = None,
 ) -> None:
     if _is_json_text_mode(fc_mode):
+        if fc_mode == config.FC_IFFC_STATE and state_tracker is not None:
+            content = iffc_state_mode.record_and_format(
+                state_tracker, func_strings, exec_results
+            )
+        else:
+            content = format_iffc_execution_user_message(func_strings, exec_results)
         chat_history.append({
             "role": "user",
-            "content": format_iffc_execution_user_message(func_strings, exec_results),
+            "content": content,
         })
+        if fc_mode == config.FC_IFFC_STATE:
+            iffc_state_mode.compress_older_dumps(chat_history)
         return
     for tc, exec_result in zip(tool_calls_raw or [], exec_results):
         chat_history.append({
@@ -302,6 +318,9 @@ def generate_for_entry(
 
     exec_model_name = execution_model_name or f"{config.MODEL_NAME}_gen"
     fc_mode = _resolve_fc_mode(fc_mode)
+    state_tracker = (
+        iffc_state_mode.StateTracker() if fc_mode == config.FC_IFFC_STATE else None
+    )
 
     for turn_idx, turn_messages in enumerate(questions):
         # miss_func: if this turn's question is [], add back withheld functions
@@ -394,7 +413,12 @@ def generate_for_entry(
                 exec_results = [str(e)] * len(func_strings)
 
             _append_execution_feedback(
-                chat_history, fc_mode, func_strings, tool_calls_raw, exec_results
+                chat_history,
+                fc_mode,
+                func_strings,
+                tool_calls_raw,
+                exec_results,
+                state_tracker=state_tracker,
             )
         else:
             # Loop completed without break — model never gave a text response
@@ -471,6 +495,9 @@ async def _generate_entry_async(
     first_prompt_ms: float = 0.0
 
     exec_model_name = f"{config.MODEL_NAME}_gen"
+    state_tracker = (
+        iffc_state_mode.StateTracker() if fc_mode == config.FC_IFFC_STATE else None
+    )
 
     for turn_idx, turn_messages in enumerate(questions):
         if is_miss_func and not turn_messages:
@@ -575,7 +602,12 @@ async def _generate_entry_async(
                 exec_results = [str(e)] * len(func_strings)
 
             _append_execution_feedback(
-                chat_history, fc_mode, func_strings, tool_calls_raw, exec_results
+                chat_history,
+                fc_mode,
+                func_strings,
+                tool_calls_raw,
+                exec_results,
+                state_tracker=state_tracker,
             )
         else:
             flags.append(f"hit_step_limit:turn_{turn_idx}")
@@ -811,7 +843,7 @@ def run(
 
 def _parse_cli() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, or GST)."
+        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, GST, or IFFC+STATE)."
     )
     parser.add_argument(
         "--fc-mode",
@@ -824,7 +856,9 @@ def _parse_cli() -> argparse.Namespace:
             "cd = TagDispatch-style two-pass constrained decoding "
             "(not native tools GBNF; not full XGrammar-2). "
             "gst = Guided-Structured Templates on the NFC tools channel "
-            "(arXiv:2509.18076; prompt-only, not GBNF)."
+            "(arXiv:2509.18076; prompt-only, not GBNF). "
+            "iffc-state = IFFC JSON-in-text plus harness-written STATE "
+            "(not GST; not CD/GBNF)."
         ),
     )
     parser.add_argument(

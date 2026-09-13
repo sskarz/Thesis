@@ -235,6 +235,8 @@ def test_generate_for_entry_iffc_parses_json_and_feeds_user_results(monkeypatch)
     assert followup[-2]["role"] == "assistant"
     assert followup[-1]["role"] == "user"
     assert "tool-result" in followup[-1]["content"]
+    assert "[STATE]" not in followup[-1]["content"]
+    assert "[GST]" not in json.dumps(payloads)
     assert not any(m.get("role") == "tool" for m in followup)
     assert executed[0]["func_call_list"] == ["cd(folder='docs')"]
     assert timing["id"] == "iffc-1"
@@ -288,13 +290,14 @@ def test_generate_for_entry_iffc_retries_then_ends_on_unparseable(monkeypatch):
     assert timing["api_calls"] == 2
 
 
-def test_build_chat_payload_nfc_and_gst_keep_tools_iffc_and_cd_omit_them():
+def test_build_chat_payload_nfc_and_gst_keep_tools_iffc_cd_and_iffc_state_omit_them():
     history = [{"role": "user", "content": "hi"}]
     tools = [{"type": "function", "function": {"name": "ls"}}]
     nfc = generate_multi_turn._build_chat_payload(history, tools, "nfc")
     gst = generate_multi_turn._build_chat_payload(history, tools, "gst")
     iffc = generate_multi_turn._build_chat_payload(history, tools, "iffc")
     cd = generate_multi_turn._build_chat_payload(history, tools, "cd")
+    iffc_state = generate_multi_turn._build_chat_payload(history, tools, "iffc-state")
     assert nfc["tools"] == tools
     assert nfc["tool_choice"] == "auto"
     assert gst["tools"] == tools
@@ -303,6 +306,8 @@ def test_build_chat_payload_nfc_and_gst_keep_tools_iffc_and_cd_omit_them():
     assert "tool_choice" not in iffc
     assert "tools" not in cd
     assert "tool_choice" not in cd
+    assert "tools" not in iffc_state
+    assert "tool_choice" not in iffc_state
 
 
 def test_generate_for_entry_cd_two_pass_no_native_tools(monkeypatch):
@@ -459,6 +464,112 @@ def test_generate_for_entry_iffc_refreshes_system_prompt_when_tools_restored(
     assert "restored_tool" in restored_sys
 
 
+def test_generate_for_entry_iffc_state_injects_state_keeps_last_two_turns(
+    monkeypatch,
+):
+    payloads: list[dict] = []
+    replies = [
+        '[{"function_name": "cd", "parameters": {"folder": "docs"}}]',
+        "[]",
+        '[{"function_name": "echo", "parameters": {"content": "hi", "file_name": "a.txt"}}]',
+        "[]",
+        '[{"function_name": "pwd", "parameters": {}}]',
+        "[]",
+    ]
+    responses = iter(
+        {
+            "choices": [{"message": {"content": content}}],
+            "timings": _timings(),
+        }
+        for content in replies
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    def fake_execute(**kwargs):
+        results = []
+        for call in kwargs["func_call_list"]:
+            if call.startswith("cd"):
+                results.append({"current_working_directory": "docs"})
+            elif call.startswith("echo"):
+                results.append(None)
+            elif call.startswith("pwd"):
+                results.append({"current_working_directory": "/docs"})
+            else:
+                results.append("ok")
+        return results, None
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        fake_execute,
+    )
+
+    entry = {
+        "id": "iffc-state-1",
+        "initial_config": {},
+        "involved_classes": ["fs"],
+        "question": [
+            [{"role": "user", "content": "Go to docs"}],
+            [{"role": "user", "content": "Write a.txt"}],
+            [{"role": "user", "content": "Where am I?"}],
+        ],
+    }
+    all_tools = [
+        {"type": "function", "function": {"name": "cd"}},
+        {"type": "function", "function": {"name": "echo"}},
+        {"type": "function", "function": {"name": "pwd"}},
+    ]
+
+    turn_results, timing = generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_base",
+        all_tools,
+        fc_mode="iffc-state",
+    )
+
+    assert turn_results == [
+        [["cd(folder='docs')"]],
+        [["echo(content='hi', file_name='a.txt')"]],
+        [["pwd()"]],
+    ]
+    assert all("tools" not in p and "tool_choice" not in p for p in payloads)
+    sys0 = payloads[0]["messages"][0]["content"]
+    assert payloads[0]["messages"][0]["role"] == "system"
+    assert "expert in function calling" in sys0
+    assert "[STATE]" in sys0
+    assert "[GST]" not in sys0
+    assert "Curriculum:" not in sys0
+
+    follow_cd = payloads[1]["messages"]
+    dump = follow_cd[-1]["content"]
+    assert follow_cd[-1]["role"] == "user"
+    assert "Function execution results:" in dump
+    assert "[STATE]" in dump
+    assert "docs" in dump
+    assert not any(m.get("role") == "tool" for m in follow_cd)
+
+    last = payloads[-1]["messages"]
+    dumps = [
+        m["content"]
+        for m in last
+        if m.get("role") == "user" and "Function execution results:" in (m.get("content") or "")
+    ]
+    assert len(dumps) == 2
+    assert any("echo" in d for d in dumps)
+    assert any("pwd" in d for d in dumps)
+    assert not any("cd(folder='docs')" in d for d in dumps)
+    assert any(m.get("content") == "Go to docs" for m in last)
+    assert "[STATE]" in dumps[-1]
+    assert "/docs" in dumps[-1] or "cwd:" in dumps[-1]
+    assert timing["id"] == "iffc-state-1"
+    assert timing["api_calls"] == 6
+    assert timing["flags"] == ""
+
+
 def test_generate_for_entry_gst_sends_nfc_tools_and_curriculum(monkeypatch):
     from benchmark.gst import GST_STEPS, has_gst_scaffold, strip_gst_block
 
@@ -569,6 +680,7 @@ def test_generate_for_entry_gst_sends_nfc_tools_and_curriculum(monkeypatch):
 
     followup = payloads[1]["messages"]
     assert any(m.get("role") == "tool" for m in followup)
+    assert not any("[STATE]" in (m.get("content") or "") for m in followup)
     assistant = next(m for m in followup if m.get("tool_calls"))
     assert has_gst_scaffold(assistant["content"])
     assert strip_gst_block(assistant["content"]) == ""
@@ -665,6 +777,7 @@ def test_generate_for_entry_nfc_does_not_inject_gst(monkeypatch):
     roles = [m["role"] for m in payloads[0]["messages"]]
     assert roles == ["user"]
     assert "[GST]" not in json.dumps(payloads[0]["messages"])
+    assert "[STATE]" not in json.dumps(payloads[0]["messages"])
 
 
 def _mt_entry(entry_id: str) -> dict:
