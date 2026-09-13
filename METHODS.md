@@ -62,10 +62,10 @@ Template-based prompting achieves +3–12% relative improvement over baselines w
 
 ### Applicability
 
-- **BFCL categories:** `multi_turn_base` first (Gemma-4-E2B-it vs scored NFC/IFFC/CD); also relevant to `multiple`, `irrelevance`, `parallel`
+- **BFCL categories:** `multi_turn_base` first (Gemma-4-E2B-it GST+NFC Run 9 **61/200 = 30.5%**, ties IFFC; vs scored NFC 27.0% / IFFC 30.5% / CD 10.5%); also relevant to `multiple`, `irrelevance`, `parallel`
 - **Implementation:** Multi-turn ablation is `--fc-mode gst` (GST reasoning on the NFC `tools`/`tool_choice` channel; see [Experiment: Guided-Structured Templates](#experiment-guided-structured-templates---fc-mode-gst)). Prompt-only; **not** GBNF/XGrammar. Do **not** treat this as CD.
 - **Complexity:** Low
-- **Limitation:** Increases generated tokens (terse 7-step block each step). Template must stay small; this harness does **not** dump function schemas into the GST system prompt (those stay on native `tools`).
+- **Limitation:** Increases generated tokens (terse 7-step block each step). Template must stay small; this harness does **not** dump function schemas into the GST system prompt (those stay on native `tools`). On Gemma `multi_turn_base`, GST **ties IFFC and does not beat it** (see `THESIS.md`).
 
 ### Source
 
@@ -600,7 +600,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
 ```
 
-Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%.
+Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%.
 
 ### Pause / resume (kill overnight, continue the same run)
 
@@ -639,7 +639,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 This is the **prompt-only GST ablation** for the BFCL multi-turn harness (He et al., arXiv:2509.18076). It is **not** IFFC JSON-in-text and **not** TagDispatch/CD GBNF.
 
-No scored GST result is claimed in this section. Comparison targets already scored on Gemma-4-E2B-it Q4_K_M `multi_turn_base`: NFC Run 4 **54/200 = 27.0%**, IFFC Run 5 **61/200 = 30.5%**, TagDispatch-style CD Run 8 **21/200 = 10.5%**. Do **not** write GST numbers into `THESIS.md` until a GST run is scored.
+Scored on Gemma-4-E2B-it Q4_K_M `multi_turn_base` (Mac 48 GB, llama.cpp, `-np 4 -c 65536`): GST+NFC Run 9 **61/200 = 30.5%** (started `2026-09-13T02:09:19Z`, finished `2026-09-13T04:26:49Z`, ~137.5 min wall; 200/200 responses; 139 `eval_errors`). Ties IFFC Run 5 **61/200 = 30.5%**; +7 vs NFC Run 4 **54/200 = 27.0%**; +40 vs CD Run 8 **21/200 = 10.5%**. The 61=61 vs IFFC is a **swap** (19 GST-only, 19 IFFC-only), not the same 61 rows. Full tables and interpretation: `THESIS.md`. Do **not** treat GST as a lift over IFFC.
 
 ### Contrast vs NFC / IFFC / CD
 
@@ -699,6 +699,8 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "GST+NFC vs NFC 27% / IFFC 30.5% / CD 10.5%"
 ```
 
+Already scored (do not overwrite): GST+NFC Run 9 = 61/200 = 30.5% (ties IFFC). Details in `THESIS.md`.
+
 ### Pause / resume
 
 Checkpoint/resume is the same as NFC / IFFC / CD (PR #12): each finished entry lands in `responses` / `multi_turn_timings` for the current `run_id`.
@@ -718,6 +720,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 - `_build_chat_payload` still attaches `tools` / `tool_choice=auto` (GST is **not** in `FC_JSON_TEXT_MODES`).
 - Missing `[GST]` tags do not fail the entry: `tool_calls` still execute. GST-only content (no `tool_calls`) ends the turn (ABSTAIN).
 - Single-turn `generate_responses.py` is not switched by `--fc-mode gst`; use `--only-multi-turn` for this ablation.
+- Run 9 stored `flags` empty for all 200 rows (no GST-block compliance bit). `responses` store executed func-strings only, not raw `[GST]` text.
 
 ### Sources
 
@@ -732,7 +735,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | Priority | Technique | Target Problem | Expected Impact | Effort |
 |----------|-----------|----------------|-----------------|--------|
 | 1 | **`tool_choice=required` + `parallel_tool_calls`** | Parallel calling (0%) | Potentially unlocks parallel | Low |
-| 2 | **Guided-Structured Templates (`--fc-mode gst`)** | Gemma `multi_turn_base` vs NFC/IFFC/CD | Prompt-only; score pending | Low (harness shipped) |
+| 2 | **Guided-Structured Templates (`--fc-mode gst`)** | Gemma `multi_turn_base` vs NFC/IFFC/CD | **Measured** Run 9: 61/200 = 30.5% (ties IFFC, does not beat it) | Done (prompt-only) |
 | 3 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
 | 4 | **Best-of-N majority voting** | All categories | +5–15% with N=5 | Medium |
 | 5 | **Context compression** | Multi-turn overflow and accuracy | -30–50% tokens, +accuracy | Medium |
