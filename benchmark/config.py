@@ -162,25 +162,44 @@ MULTI_TURN_MAX_STEPS = 20
 # iffc-state = IFFC JSON-in-text plus a harness-written [STATE] snapshot
 #        from actual tool execution results (METHODS §5 working memory).
 #        Not GST, not LLM summarization, not CD/GBNF, not shell→GFS.
+# iffc-state-bon = Best-of-N majority voting overlay on IFFC+STATE
+#        (METHODS §4 / PLAN #2; Snell et al. arXiv:2408.03314). Sample N
+#        completions at temperature=0.7, vote on (function_name, arguments)
+#        per step, execute the winner once. Not NFC/GST/CD.
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
 FC_CD = "cd"
 FC_GST = "gst"
 FC_IFFC_STATE = "iffc-state"
-FC_MODES = (FC_NFC, FC_IFFC, FC_CD, FC_GST, FC_IFFC_STATE)
-FC_JSON_TEXT_MODES = (FC_IFFC, FC_CD, FC_IFFC_STATE)
+FC_IFFC_STATE_BON = "iffc-state-bon"
+FC_MODES = (FC_NFC, FC_IFFC, FC_CD, FC_GST, FC_IFFC_STATE, FC_IFFC_STATE_BON)
+FC_JSON_TEXT_MODES = (FC_IFFC, FC_CD, FC_IFFC_STATE, FC_IFFC_STATE_BON)
+FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON)
 FC_MODE: str = FC_NFC
+
+# Best-of-N (only used by --fc-mode iffc-state-bon)
+BON_N_DEFAULT = 5
+BON_N: int = BON_N_DEFAULT
+BON_TEMPERATURE = 0.7
 
 
 def set_fc_mode(mode: str) -> None:
-    """Set the process-wide function-calling mode (``nfc``, ``iffc``, ``cd``, ``gst``, or ``iffc-state``)."""
+    """Set the process-wide function-calling mode."""
     global FC_MODE
     if mode not in FC_MODES:
         raise ValueError(
             f"Unknown fc-mode {mode!r}. Choose from: {', '.join(FC_MODES)}"
         )
     FC_MODE = mode
+
+
+def set_bon_n(n: int) -> None:
+    """Set the Best-of-N sample count (``--bon-n``; default 5)."""
+    global BON_N
+    if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+        raise ValueError(f"bon-n must be an integer >= 1, got {n!r}")
+    BON_N = n
 
 
 def resolve_multi_turn_categories(

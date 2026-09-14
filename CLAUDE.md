@@ -24,10 +24,12 @@ Thesis/
 │   ├── cd.py                          # TagDispatch-style CD (name GBNF + per-tool json_schema)
 │   ├── gst.py                         # GST 7-step curriculum (arXiv:2509.18076) on NFC tools
 │   ├── iffc_state.py                  # IFFC+STATE overlay (harness-written working memory)
+│   ├── bon.py                         # Best-of-N majority vote overlay on IFFC+STATE
 │   ├── smoke_iffc.py                  # Offline IFFC smoke (parser + mock loop)
 │   ├── smoke_cd.py                    # Offline CD smoke (constraint checks + mock two-pass)
 │   ├── smoke_gst.py                   # Offline GST smoke (template in payload + mock NFC loop)
 │   ├── smoke_iffc_state.py            # Offline IFFC+STATE smoke (STATE + last-2-turns + mock IFFC)
+│   ├── smoke_bon.py                   # Offline BoN smoke (majority vote + mock IFFC+STATE loop)
 │   ├── coerce_types.py                # Schema-aware arg type coercion (fixes Llama string serialization)
 │   ├── parse_functiongemma.py         # Custom output parser for FunctionGemma
 │   ├── evaluate_responses.py          # Score responses using BFCL AST checker → DB
@@ -139,6 +141,9 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --categories multi_turn_base --fc-mode iffc-state \
   --notes "IFFC+STATE vs NFC 27% / IFFC 30.5% / GST 30.5% / CD 10.5%"
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc-state-bon \
+  --notes "BoN N=5 on IFFC+STATE vs 34% / IFFC 30.5% / GST 30.5% / NFC 27% / CD 10.5%"
 ```
 
 ### Query the database

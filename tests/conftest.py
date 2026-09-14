@@ -26,6 +26,7 @@ def isolated_config_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Pat
     monkeypatch.setattr(config, "MODEL_DISPLAY", "Test Model")
     monkeypatch.setattr(config, "MODEL_SLUG", "Test-Model")
     monkeypatch.setattr(config, "FC_MODE", config.FC_NFC)
+    monkeypatch.setattr(config, "BON_N", config.BON_N_DEFAULT)
     monkeypatch.setattr(config, "RESULTS_DIR", results_dir)
     monkeypatch.setattr(config, "MODEL_RESULTS_DIR", results_dir)
     monkeypatch.setattr(config, "RESPONSES_DIR", responses_dir)

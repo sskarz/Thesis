@@ -14,6 +14,8 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
   ``tool_calls`` are executed; ``[GST]`` text is ignored by the checker.
 - ``iffc-state``: IFFC JSON-in-text plus a harness-written ``[STATE]`` snapshot
   from actual tool execution results. Same checker as IFFC. Not GST / CD / GBNF.
+- ``iffc-state-bon``: Best-of-N majority vote overlay on IFFC+STATE (MV@N,
+  default N=5, temperature=0.7). Vote per step, execute the winner once.
 """
 
 import argparse
@@ -24,6 +26,7 @@ import aiohttp
 import requests
 from tqdm import tqdm
 
+from . import bon as bon_mode
 from . import cd as cd_mode
 from . import config, db
 from . import gst as gst_mode
@@ -125,14 +128,20 @@ def _build_chat_payload(
     active_tools: list[dict],
     fc_mode: str,
 ) -> dict:
-    """Build a chat-completions payload. IFFC/CD/iffc-state never send tools/tool_choice.
+    """Build a chat-completions payload. IFFC/CD/iffc-state/iffc-state-bon never send tools/tool_choice.
 
     GST uses the NFC tools channel (``tools`` + ``tool_choice=auto``).
+    BoN sampling uses temperature=0.7 via :mod:`benchmark.bon`; this helper
+    still emits 0.7 for ``iffc-state-bon`` so a stray single-sample path
+    would not silently go greedy.
     """
+    temperature = (
+        config.BON_TEMPERATURE if fc_mode == config.FC_IFFC_STATE_BON else 0.0
+    )
     payload: dict = {
         "model": config.MODEL_NAME,
         "messages": chat_history,
-        "temperature": 0.0,
+        "temperature": temperature,
     }
     if _is_json_text_mode(fc_mode):
         return payload
@@ -148,10 +157,11 @@ def _prepare_step_messages(
     fc_mode: str,
 ) -> None:
     if _is_json_text_mode(fc_mode):
-        # Persistent transcript is IFFC-shaped for IFFC, CD, and iffc-state.
-        # CD applies grammar/json_schema on a working copy inside complete_step.
-        # iffc-state keeps Appendix B + a short STATE-trust addendum.
-        if fc_mode == config.FC_IFFC_STATE:
+        # Persistent transcript is IFFC-shaped for IFFC, CD, iffc-state,
+        # and iffc-state-bon. CD applies grammar/json_schema on a working
+        # copy inside complete_step. iffc-state / iffc-state-bon keep
+        # Appendix B + a short STATE-trust addendum.
+        if fc_mode in config.FC_IFFC_STATE_MODES:
             iffc_state_mode.ensure_iffc_state_system_message(chat_history, active_tools)
         else:
             ensure_iffc_system_message(chat_history, active_tools)
@@ -175,13 +185,21 @@ def _complete_chat_sync(
     active_tools: list[dict],
     fc_mode: str,
 ) -> tuple[dict, int]:
-    """One model step. CD may issue two constrained requests."""
+    """One model step. CD may issue two constrained requests; BoN samples N."""
     if fc_mode == config.FC_CD:
         return cd_mode.complete_step(
             chat_history,
             active_tools,
             post=_post_chat_sync,
             model=config.MODEL_NAME,
+        )
+    if fc_mode == config.FC_IFFC_STATE_BON:
+        return bon_mode.complete_step(
+            chat_history,
+            active_tools,
+            post=_post_chat_sync,
+            model=config.MODEL_NAME,
+            n=config.BON_N,
         )
     payload = _build_chat_payload(chat_history, active_tools, fc_mode)
     return _post_chat_sync(payload), 1
@@ -245,7 +263,7 @@ def _append_execution_feedback(
     state_tracker: iffc_state_mode.StateTracker | None = None,
 ) -> None:
     if _is_json_text_mode(fc_mode):
-        if fc_mode == config.FC_IFFC_STATE and state_tracker is not None:
+        if fc_mode in config.FC_IFFC_STATE_MODES and state_tracker is not None:
             content = iffc_state_mode.record_and_format(
                 state_tracker, func_strings, exec_results
             )
@@ -255,7 +273,7 @@ def _append_execution_feedback(
             "role": "user",
             "content": content,
         })
-        if fc_mode == config.FC_IFFC_STATE:
+        if fc_mode in config.FC_IFFC_STATE_MODES:
             iffc_state_mode.compress_older_dumps(chat_history)
         return
     for tc, exec_result in zip(tool_calls_raw or [], exec_results):
@@ -319,7 +337,9 @@ def generate_for_entry(
     exec_model_name = execution_model_name or f"{config.MODEL_NAME}_gen"
     fc_mode = _resolve_fc_mode(fc_mode)
     state_tracker = (
-        iffc_state_mode.StateTracker() if fc_mode == config.FC_IFFC_STATE else None
+        iffc_state_mode.StateTracker()
+        if fc_mode in config.FC_IFFC_STATE_MODES
+        else None
     )
 
     for turn_idx, turn_messages in enumerate(questions):
@@ -496,7 +516,9 @@ async def _generate_entry_async(
 
     exec_model_name = f"{config.MODEL_NAME}_gen"
     state_tracker = (
-        iffc_state_mode.StateTracker() if fc_mode == config.FC_IFFC_STATE else None
+        iffc_state_mode.StateTracker()
+        if fc_mode in config.FC_IFFC_STATE_MODES
+        else None
     )
 
     for turn_idx, turn_messages in enumerate(questions):
@@ -535,6 +557,14 @@ async def _generate_entry_async(
                         active_tools,
                         post=_gated_post,
                         model=config.MODEL_NAME,
+                    )
+                elif fc_mode == config.FC_IFFC_STATE_BON:
+                    data, n_calls = await bon_mode.complete_step_async(
+                        chat_history,
+                        active_tools,
+                        post=_gated_post,
+                        model=config.MODEL_NAME,
+                        n=config.BON_N,
                     )
                 else:
                     payload = _build_chat_payload(
@@ -801,9 +831,12 @@ async def _run_async(
     cats = categories or config.resolve_multi_turn_categories(None)
     fc_mode = _resolve_fc_mode(fc_mode)
 
+    extra = ""
+    if fc_mode == config.FC_IFFC_STATE_BON:
+        extra = f"  bon_n={config.BON_N}  temp={config.BON_TEMPERATURE}"
     print(
         f"[multi-turn generate] fc-mode={fc_mode}  categories={list(cats)}"
-        f"  run_id={run_id}"
+        f"  run_id={run_id}{extra}"
     )
     if run_id is None:
         print(
@@ -843,7 +876,7 @@ def run(
 
 def _parse_cli() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, GST, or IFFC+STATE)."
+        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, GST, IFFC+STATE, or IFFC+STATE+BoN)."
     )
     parser.add_argument(
         "--fc-mode",
@@ -858,7 +891,19 @@ def _parse_cli() -> argparse.Namespace:
             "gst = Guided-Structured Templates on the NFC tools channel "
             "(arXiv:2509.18076; prompt-only, not GBNF). "
             "iffc-state = IFFC JSON-in-text plus harness-written STATE "
-            "(not GST; not CD/GBNF)."
+            "(not GST; not CD/GBNF). "
+            "iffc-state-bon = Best-of-N majority vote on IFFC+STATE "
+            "(default N=5, temperature=0.7; not NFC/GST/CD)."
+        ),
+    )
+    parser.add_argument(
+        "--bon-n",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Best-of-N sample count for --fc-mode iffc-state-bon "
+            f"(default: {config.BON_N_DEFAULT}). Ignored by other modes."
         ),
     )
     parser.add_argument(
@@ -889,6 +934,8 @@ def _parse_cli() -> argparse.Namespace:
 if __name__ == "__main__":
     args = _parse_cli()
     config.set_fc_mode(args.fc_mode)
+    if args.bon_n is not None:
+        config.set_bon_n(args.bon_n)
     if args.run_id is not None:
         config.RUN_ID = args.run_id
     run(
