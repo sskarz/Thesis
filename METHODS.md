@@ -23,6 +23,7 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: TagDispatch-style CD (`--fc-mode cd`)](#experiment-tagdispatch-style-cd---fc-mode-cd)
 - [Experiment: Guided-Structured Templates (`--fc-mode gst`)](#experiment-guided-structured-templates---fc-mode-gst)
 - [Experiment: IFFC + harness STATE (`--fc-mode iffc-state`)](#experiment-iffc--harness-state---fc-mode-iffc-state)
+- [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
 - [Prioritized Recommendations](#prioritized-recommendations)
 - [References](#references)
 
@@ -204,9 +205,9 @@ A large-scale study spanning 30B+ generated tokens across 8 open-source LLMs (7B
 ### Applicability
 
 - **BFCL categories:** All. Particularly attractive for models with fast inference (Qwen2.5-3B at 93.6 tok/s, FunctionGemma at 204 tok/s) where generating 5 candidates is still fast on an RTX 4090.
-- **Implementation:** Wrapper around `generate_for_category` that samples N times at `temperature=0.7`, parses all results, and selects by majority vote on `(function_name, arguments)` tuples. For multi-turn: vote at each turn independently.
+- **Implementation:** Multi-turn ablation is `--fc-mode iffc-state-bon` (MV@N overlay on **IFFC+STATE**, not NFC/GST/CD; see [Experiment: Best-of-N majority voting](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)). Samples N candidates at `temperature=0.7` (default N=5), majority-votes `(function_name, arguments)` **at each turn/step**, then executes the winner once and continues the IFFC+STATE agent loop. Latency ~N×.
 - **Complexity:** Medium
-- **Tradeoff:** Multiplies inference time by N. With FunctionGemma's 16ms TTFT, 5 samples take ~80ms. With Qwen3.5's 656ms TTFT, 5 samples take ~3.3 seconds.
+- **Tradeoff:** Multiplies inference time by N. With FunctionGemma's 16ms TTFT, 5 samples take ~80ms. With Qwen3.5's 656ms TTFT, 5 samples take ~3.3 seconds. On Gemma-4-E2B IFFC+STATE (~181 min for 200 `multi_turn_base` entries), expect roughly 5× wall-clock for default N=5.
 
 ### Sources
 
@@ -816,6 +817,92 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 ---
 
+## Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)
+
+This is the **test-time compute / MV@N** ablation for the BFCL multi-turn harness (METHODS §4 / PLAN #2; Snell et al., [arXiv:2408.03314](https://arxiv.org/abs/2408.03314)). It **rides on IFFC+STATE** so the 34.0% channel is not given back. It is **not** NFC, **not** GST, **not** TagDispatch/CD GBNF, and **not** a verifier / reward-model Best-of-N.
+
+**Unscored.** Do not invent a live `multi_turn_base` number. Compare a future run against IFFC+STATE Run 10 **68/200 = 34.0%** (IFFC/GST 30.5%, NFC 27.0%, CD 10.5%).
+
+### Contrast vs NFC / IFFC / GST / CD / iffc-state
+
+| Mode | Channel | Constraint | Sampling | Extra context |
+|------|---------|------------|----------|---------------|
+| NFC | `tools` + `tool_choice=auto` | llama-server lazy tools GBNF (baseline) | greedy `temperature=0.0` | none |
+| IFFC | no `tools` / `tool_choice` | none (prompt) | greedy `temperature=0.0` | none |
+| CD | no `tools` / `tool_choice` | pass-1 name GBNF, pass-2 `json_schema` | greedy `temperature=0.0` | none |
+| GST | **same as NFC** | **none extra** (prompt overlay) | greedy `temperature=0.0` | model-written plan (unverified) |
+| iffc-state | **same as IFFC** | **none extra** | greedy `temperature=0.0` | harness-written `[STATE]` |
+| **iffc-state-bon** | **same as IFFC+STATE** | **none extra** | **MV@N at `temperature=0.7`** (default N=5) | same `[STATE]` as iffc-state |
+
+Scoring is unchanged: IFFC JSON-in-text parse → BFCL func-strings → `multi_turn_checker`. Only the **executed winner** is stored in `responses.result`, like other modes.
+
+### What the harness does (per step)
+
+At each agent step, **before** `execute_multi_turn_func_call`:
+
+1. Sample N completions on the IFFC+STATE transcript at `temperature=0.7` (request payload overrides the server `--temp 0.0` default).
+2. Parse each with the IFFC JSON-in-text parser.
+3. Majority-vote on the step's `(function_name, arguments)` tuples (a parallel list of calls is one ballot).
+4. Execute the winner **once**, then update `[STATE]` and compress older dumps exactly as `iffc-state`.
+
+Losing samples are **not** written to `chat_history`.
+
+**Empty / unparseable:** parseable `[]` is **ABSTAIN** (a real ballot). Unparseable candidates are **excluded** from the vote. If every sample is unparseable, the first sample is kept so the existing IFFC retry path can fire.
+
+**Tie-break (deterministic):** highest count; if still tied, prefer any non-empty tool-call key over ABSTAIN; if still tied, first-seen key in sample order.
+
+Default **N=5**, configurable with `--bon-n`. **Latency ~N×** vs greedy IFFC+STATE (Run 10 ~181 min → budget an overnight for N=5).
+
+No llama.cpp rebuild. No `grammar` / `json_schema`. No native `tools`. NFC / IFFC / GST / CD / `iffc-state` paths are unchanged.
+
+### How to run (Gemma-4-E2B-it, `multi_turn_base`)
+
+Same server command as IFFC+STATE (no extra llama-server flags). Do **not** start this generate from the harness PR agent; it is for a later overnight run:
+
+```bash
+./llama.cpp/build/bin/llama-server --jinja -fa on \
+  -hf bartowski/google_gemma-4-E2B-it-GGUF:Q4_K_M \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 \
+  -np 4 -cb -ub 1024
+
+uv run python -m benchmark.smoke_bon   # hermetic; add --live if the server is up
+
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc-state-bon \
+  --notes "BoN N=5 on IFFC+STATE vs 34% / IFFC 30.5% / GST 30.5% / NFC 27% / CD 10.5%"
+```
+
+Optional `--bon-n N` (must be ≥ 1). Notes record `fc_mode=iffc-state-bon bon_n=N`.
+
+### Pause / resume
+
+Checkpoint/resume is the same as other multi-turn modes (PR #12): each finished entry lands in `responses` / `multi_turn_timings` for the current `run_id`.
+
+```bash
+# Kill anytime. Continue the unfinished iffc-state-bon run:
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc-state-bon --resume
+```
+
+`--resume` selects the latest unfinished run for that `--model` whose notes record `fc_mode=iffc-state-bon`. It restores `bon_n` from those notes (mismatch with `--bon-n` is an error). Pin a row with `--resume-run-id N`. Generation-only: `python -m benchmark.generate_multi_turn --fc-mode iffc-state-bon --run-id N`.
+
+### Implementation notes
+
+- Module: `benchmark/bon.py`. Smoke: `uv run python -m benchmark.smoke_bon`.
+- `_complete_chat_sync` / async path sample N times when `fc_mode=iffc-state-bon`, then vote; NFC / IFFC / GST / CD / `iffc-state` stay single-sample greedy.
+- `_prepare_step_messages` injects Appendix B IFFC + STATE-trust addendum (`FC_IFFC_STATE_MODES`); `_append_execution_feedback` updates STATE from the **executed winner** only.
+- `_build_chat_payload` omits `tools` / `tool_choice` (`iffc-state-bon` is in `FC_JSON_TEXT_MODES`).
+- Single-turn `generate_responses.py` is not switched by `--fc-mode iffc-state-bon`; use `--only-multi-turn` for this ablation.
+
+### Sources
+
+- Snell, C., et al. "Scaling LLM Test-Time Compute Optimally Can be More Effective than Scaling Parameters." arXiv:2408.03314, 2024. https://arxiv.org/abs/2408.03314
+- Wang, X., et al. "Self-Consistency Improves Chain of Thought Reasoning in Language Models." ICLR 2023, arXiv:2203.11171. https://arxiv.org/abs/2203.11171
+- Instruction-Followed Function Calling: arXiv:2608.22472 Appendix B (the IFFC channel)
+- IFFC+STATE: METHODS experiment `--fc-mode iffc-state` (the STATE overlay this vote sits on)
+
+---
+
 ## Prioritized Recommendations
 
 Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B on llama.cpp with BFCL v4):
@@ -826,7 +913,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 2 | **Guided-Structured Templates (`--fc-mode gst`)** | Gemma `multi_turn_base` vs NFC/IFFC/CD | **Measured** Run 9: 61/200 = 30.5% (ties IFFC, does not beat it) | Done (prompt-only) |
 | 3 | **IFFC + harness STATE (`--fc-mode iffc-state`)** | Gemma `multi_turn_base` vs IFFC/GST 30.5% | **Measured** Run 10: 68/200 = 34.0% (beats IFFC; first above 30.5%). Empty 41→31; state 60→64 (did not improve). Next leverage: FS/Vehicle fidelity or under-call, not more empty-only prompts. | Done (harness shipped) |
 | 4 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
-| 5 | **Best-of-N majority voting** | All categories | +5–15% with N=5 | Medium |
+| 5 | **Best-of-N majority voting (`--fc-mode iffc-state-bon`)** | Gemma `multi_turn_base` vs IFFC+STATE 34.0% | Harness shipped (MV@N=5 on IFFC+STATE, ~N× latency). **Unscored** — do not invent a live number. | Done (harness; live score pending) |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level | Medium |
 | 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale | Medium |
 | 8 | **Schema-based verification loop** | Argument errors across categories | +3–10% with retries | Medium |

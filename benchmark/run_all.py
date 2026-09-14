@@ -11,6 +11,8 @@ Function-calling modes (``--fc-mode``):
   used by multi-turn generation only. Prompt-only; not GBNF.
 - ``iffc-state``: IFFC JSON-in-text plus a harness-written STATE snapshot from
   actual tool execution results (METHODS §5). Not GST; not CD/GBNF.
+- ``iffc-state-bon``: Best-of-N majority vote overlay on IFFC+STATE
+  (METHODS §4; default N=5, temperature=0.7). Not NFC/GST/CD.
 """
 
 import argparse
@@ -40,12 +42,15 @@ def check_server() -> bool:
 
 
 _FC_MODE_IN_NOTES = re.compile(r"\bfc_mode=([a-z0-9_.-]+)")
+_BON_N_IN_NOTES = re.compile(r"\bbon_n=(\d+)")
 
 
 def _notes_with_run_meta(args: argparse.Namespace) -> str | None:
     extra: list[str] = []
     if args.fc_mode != config.FC_NFC:
         extra.append(f"fc_mode={args.fc_mode}")
+    if args.fc_mode == config.FC_IFFC_STATE_BON:
+        extra.append(f"bon_n={config.BON_N}")
     if args.categories:
         extra.append(f"categories={','.join(args.categories)}")
     if not extra:
@@ -62,6 +67,16 @@ def fc_mode_from_notes(notes: str | None) -> str:
     if match and match.group(1) in config.FC_MODES:
         return match.group(1)
     return config.FC_NFC
+
+
+def bon_n_from_notes(notes: str | None) -> int | None:
+    """Parse ``bon_n=...`` from run notes. Missing tag means unset."""
+    if not notes:
+        return None
+    match = _BON_N_IN_NOTES.search(notes)
+    if not match:
+        return None
+    return int(match.group(1))
 
 
 def resolve_pipeline_run(
@@ -137,7 +152,19 @@ def main():
             "gst = Guided-Structured Templates on NFC tools "
             "(arXiv:2509.18076; prompt-only, not GBNF); "
             "iffc-state = IFFC JSON-in-text + harness-written STATE "
-            "(not GST; not CD/GBNF)."
+            "(not GST; not CD/GBNF); "
+            "iffc-state-bon = Best-of-N majority vote on IFFC+STATE "
+            "(default N=5, temperature=0.7; not NFC/GST/CD)."
+        ),
+    )
+    parser.add_argument(
+        "--bon-n",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Best-of-N sample count for --fc-mode iffc-state-bon "
+            f"(default: {config.BON_N_DEFAULT}). Ignored by other modes."
         ),
     )
     parser.add_argument(
@@ -186,6 +213,11 @@ def main():
         parser.error(str(e))
     config.select_model(args.model)
     config.set_fc_mode(args.fc_mode)
+    if args.bon_n is not None:
+        try:
+            config.set_bon_n(args.bon_n)
+        except ValueError as e:
+            parser.error(str(e))
 
     do_single = not args.only_multi_turn
     do_multi = not args.skip_multi_turn
@@ -205,6 +237,15 @@ def main():
         parser.error(str(e))
     config.RUN_ID = run_id
 
+    if resumed and args.fc_mode == config.FC_IFFC_STATE_BON:
+        recorded_n = bon_n_from_notes(db.get_run(run_id)["notes"])
+        if recorded_n is not None:
+            if args.bon_n is not None and args.bon_n != recorded_n:
+                parser.error(
+                    f"Run {run_id} has bon_n={recorded_n}, not {args.bon_n}"
+                )
+            config.set_bon_n(recorded_n)
+
     print("=" * 60)
     print("BFCL Benchmark Pipeline")
     print(f"Model : {config.MODEL_DISPLAY}")
@@ -217,10 +258,15 @@ def main():
             if args.fc_mode == config.FC_IFFC
             else " (CD = TagDispatch-style two-pass; not native tools GBNF)"
             if args.fc_mode == config.FC_CD
-            else             " (GST = Guided-Structured Templates on NFC tools; arXiv:2509.18076)"
+            else " (GST = Guided-Structured Templates on NFC tools; arXiv:2509.18076)"
             if args.fc_mode == config.FC_GST
             else " (IFFC+STATE = IFFC JSON-in-text + harness-written STATE snapshot)"
             if args.fc_mode == config.FC_IFFC_STATE
+            else (
+                f" (IFFC+STATE+BoN = MV@N={config.BON_N} on IFFC+STATE; "
+                f"temp={config.BON_TEMPERATURE}; ~N× latency)"
+            )
+            if args.fc_mode == config.FC_IFFC_STATE_BON
             else " (NFC = native tools)"
         )
     )
