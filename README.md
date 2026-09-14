@@ -129,7 +129,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 Optional `--resume` if an unfinished gst run exists.
 
-Gemma IFFC+STATE vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% `multi_turn_base` baselines (harness only — do not update THESIS.md tables until this run is scored):
+Gemma IFFC+STATE vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% `multi_turn_base` baselines (Run 10 scored **68/200 = 34.0%**, first method above the 30.5% plateau; see `THESIS.md`):
 
 ```bash
 uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \

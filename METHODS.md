@@ -256,10 +256,10 @@ The most recent ~10% of the context window is preserved verbatim as active worki
 
 ### Applicability
 
-- **BFCL categories:** `multi_turn_base`, `multi_turn_miss_func`, `multi_turn_miss_param`, `multi_turn_long_context`. The current `generate_multi_turn.py` appends every tool call and result to `chat_history` indefinitely. By turn 4–5 with multiple tool calls per turn, this can exceed 8192 tokens (triggering the `context_overflow` flag).
+- **BFCL categories:** `multi_turn_base` first (Gemma-4-E2B-it IFFC+STATE Run 10 **68/200 = 34.0%**, first method above the IFFC/GST 30.5% plateau; vs NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5%); also `multi_turn_miss_func`, `multi_turn_miss_param`, `multi_turn_long_context`. The current `generate_multi_turn.py` appends every tool call and result to `chat_history` indefinitely. By turn 4–5 with multiple tool calls per turn, this can exceed 8192 tokens (triggering the `context_overflow` flag).
 - **Implementation:** The multi-turn ablation is `--fc-mode iffc-state` (IFFC JSON-in-text plus a harness-written STATE snapshot from actual tool execution results; see [Experiment: IFFC + harness STATE](#experiment-iffc--harness-state---fc-mode-iffc-state)). Keep the last 2 turns verbatim; older raw dumps are dropped in favor of the compact STATE block. **Not** LLM summarization, **not** GST, **not** CD/GBNF.
 - **Complexity:** Medium (sliding window: Low)
-- **Caveat:** Summarization itself requires an LLM call. For SLMs, the summarization quality may be poor. A simpler structured state tracker (explicit key-value record of tool results) avoids this — that is what `--fc-mode iffc-state` implements.
+- **Caveat:** Summarization itself requires an LLM call. For SLMs, the summarization quality may be poor. A simpler structured state tracker (explicit key-value record of tool results) avoids this — that is what `--fc-mode iffc-state` implements. On Gemma `multi_turn_base`, STATE **beat IFFC** but did **not** cut state mismatch (60→64); next leverage is FS/Vehicle fidelity or under-call, not more empty-only prompts (see `THESIS.md`).
 
 ### Sources
 
@@ -601,7 +601,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
 ```
 
-Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%.
+Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%.
 
 ### Pause / resume (kill overnight, continue the same run)
 
@@ -700,7 +700,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "GST+NFC vs NFC 27% / IFFC 30.5% / CD 10.5%"
 ```
 
-Already scored (do not overwrite): GST+NFC Run 9 = 61/200 = 30.5% (ties IFFC). Details in `THESIS.md`.
+Already scored (do not overwrite): GST+NFC Run 9 = 61/200 = 30.5% (ties IFFC); IFFC+STATE Run 10 = 68/200 = 34.0% (beats IFFC/GST). Details in `THESIS.md`.
 
 ### Pause / resume
 
@@ -733,7 +733,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 This is the **IFFC + verified working-memory** ablation for the BFCL multi-turn harness (METHODS §5 / PLAN #6). It is **not** GST (no 7-step curriculum; not on the NFC `tools` channel), **not** TagDispatch/CD GBNF, **not** LLM summarization, and **not** shell→GFS.
 
-No scored `iffc-state` result is claimed in this section. Comparison targets already scored on Gemma-4-E2B-it Q4_K_M `multi_turn_base`: NFC Run 4 **54/200 = 27.0%**, IFFC Run 5 **61/200 = 30.5%**, TagDispatch-style CD Run 8 **21/200 = 10.5%**, GST Run 9 **61/200 = 30.5%** (tied IFFC via a different 61-row set; GST cut empty turns 59→31 but raised state mismatch 68→79). Do **not** write `iffc-state` numbers into `THESIS.md` until this run is scored. Target: beat IFFC 61/200.
+Scored on Gemma-4-E2B-it Q4_K_M `multi_turn_base` (Mac M4 Pro 48 GB, llama.cpp, `-np 4 -c 65536`): IFFC+STATE Run 10 **68/200 = 34.0%** (started `2026-09-14T02:46:12Z`, finished `2026-09-14T05:47:17Z`, ~181.1 min wall; 200/200 responses; 132 `eval_errors`). Beats IFFC Run 5 **61/200 = 30.5%** and GST Run 9 **61/200 = 30.5%** by +7 entries / +3.5 pp — the first method above the 30.5% plateau. Vs NFC Run 4 **54/200 = 27.0%** (+14); vs CD Run 8 **21/200 = 10.5%** (+47). The +7 vs IFFC is a **swap** (20 STATE-only, 13 IFFC-only), not the same 61 rows plus seven. Empty 41→31 (tied GST’s empty cut); state mismatch 60→**64** (did not improve); under-call ≈38→37. Full tables and interpretation: `THESIS.md`. Do **not** treat this as perfect state tracking. Harness: [PR #16](https://github.com/sskarz/Thesis/pull/16).
 
 ### Contrast vs NFC / IFFC / GST / CD
 
@@ -747,7 +747,7 @@ No scored `iffc-state` result is claimed in this section. Comparison targets alr
 
 `iffc-state` keeps IFFC scoring plumbing: JSON-in-text parse → BFCL func-strings → `multi_turn_checker`. STATE is injected in **user** messages after execution; it is not parsed as a tool call.
 
-Lesson from GST: extra model-written planning on NFC did not fix env state. This mode injects a **verified** compact snapshot instead.
+Lesson from GST: extra model-written planning on NFC did not fix env state. This mode injects a **verified** compact snapshot instead. Run 10 confirms the empty-turn cut (41→31) but state mismatch did **not** fall (60→64) — the gain is not perfect state tracking.
 
 No llama.cpp rebuild. No `grammar` / `json_schema` fields. No native `tools`.
 
@@ -786,6 +786,8 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "IFFC+STATE vs NFC 27% / IFFC 30.5% / GST 30.5% / CD 10.5%"
 ```
 
+Already scored (do not overwrite): IFFC+STATE Run 10 = 68/200 = 34.0% (beats IFFC/GST; first method above 30.5%). Details in `THESIS.md`.
+
 ### Pause / resume
 
 Checkpoint/resume is the same as NFC / IFFC / CD / GST (PR #12): each finished entry lands in `responses` / `multi_turn_timings` for the current `run_id`.
@@ -805,6 +807,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 - `_build_chat_payload` omits `tools` / `tool_choice` (`iffc-state` is in `FC_JSON_TEXT_MODES`, like IFFC/CD).
 - `_append_execution_feedback` updates STATE from execution results, attaches `[STATE]`, then compresses dumps older than the last two turns.
 - Single-turn `generate_responses.py` is not switched by `--fc-mode iffc-state`; use `--only-multi-turn` for this ablation.
+- Run 10 stored 0/200 `responses.result` with a literal `[STATE]` string (STATE is harness conversation context, not stored in result blobs).
 
 ### Sources
 
@@ -821,7 +824,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 |----------|-----------|----------------|-----------------|--------|
 | 1 | **`tool_choice=required` + `parallel_tool_calls`** | Parallel calling (0%) | Potentially unlocks parallel | Low |
 | 2 | **Guided-Structured Templates (`--fc-mode gst`)** | Gemma `multi_turn_base` vs NFC/IFFC/CD | **Measured** Run 9: 61/200 = 30.5% (ties IFFC, does not beat it) | Done (prompt-only) |
-| 3 | **IFFC + harness STATE (`--fc-mode iffc-state`)** | Gemma `multi_turn_base` state mismatch vs IFFC 30.5% | Working memory overlay; score pending | Low (harness shipped) |
+| 3 | **IFFC + harness STATE (`--fc-mode iffc-state`)** | Gemma `multi_turn_base` vs IFFC/GST 30.5% | **Measured** Run 10: 68/200 = 34.0% (beats IFFC; first above 30.5%). Empty 41→31; state 60→64 (did not improve). Next leverage: FS/Vehicle fidelity or under-call, not more empty-only prompts. | Done (harness shipped) |
 | 4 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
 | 5 | **Best-of-N majority voting** | All categories | +5–15% with N=5 | Medium |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level | Medium |
