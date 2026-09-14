@@ -102,6 +102,7 @@ Multi-turn function-calling mode and category filter:
 - `--fc-mode cd`: TagDispatch-style two-pass constrained decoding ([arXiv:2601.04426](https://arxiv.org/abs/2601.04426) approximation on stock llama-server). **Not** native `tools` GBNF. Pass 1: GBNF over live tool names; pass 2: `json_schema` for the selected tool’s arguments. See METHODS.md.
 - `--fc-mode gst`: Guided-Structured Templates ([arXiv:2509.18076](https://arxiv.org/abs/2509.18076)) on the NFC channel — 7-step `[GST]` scaffold in content, native `tool_calls` still executed. Prompt-only; not GBNF. See METHODS.md.
 - `--fc-mode iffc-state`: IFFC JSON-in-text plus a harness-written `[STATE]` snapshot from **actual** tool execution results (METHODS §5 working memory). Same checker as IFFC. **Not** GST, **not** CD/GBNF, **not** LLM summarization. See METHODS.md.
+- `--fc-mode iffc-state-bon`: Best-of-N majority voting overlay on **IFFC+STATE** (METHODS §4; Snell et al. arXiv:2408.03314). Sample N=5 (configurable `--bon-n`) at `temperature=0.7`, vote per step, execute the winner once. **~N× latency.** **Not** NFC/GST/CD. See METHODS.md.
 - `--categories multi_turn_base`: run only that multi-turn split (skip miss_func / miss_param / long_context)
 
 ```bash
@@ -139,6 +140,17 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 Optional `--resume` if an unfinished iffc-state run exists.
 
+Gemma Best-of-N on IFFC+STATE vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% / IFFC+STATE 34.0% `multi_turn_base` baselines (**unscored**; ~N× latency, default N=5):
+
+```bash
+uv run python -m benchmark.smoke_bon
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc-state-bon \
+  --notes "BoN N=5 on IFFC+STATE vs 34% / IFFC 30.5% / GST 30.5% / NFC 27% / CD 10.5%"
+```
+
+Optional `--bon-n N` and `--resume` if an unfinished iffc-state-bon run exists.
+
 Offline IFFC parser + mock chat-completions smoke (no llama-server):
 
 ```bash
@@ -161,6 +173,12 @@ Offline IFFC+STATE tracker + mock IFFC loop (no llama-server):
 
 ```bash
 uv run python -m benchmark.smoke_iffc_state
+```
+
+Offline Best-of-N majority vote on IFFC+STATE (no llama-server):
+
+```bash
+uv run python -m benchmark.smoke_bon
 ```
 
 The pipeline runs five steps in sequence:
