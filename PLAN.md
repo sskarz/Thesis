@@ -30,9 +30,10 @@ These directly support the thesis claim of "optimization" and are required for t
 - **What:** Generate N=5 candidates at temp=0.7, majority-vote on `(function_name, args)` tuples
 - **Why:** Directly measures the accuracy vs. latency trade-off the thesis promises
 - **Target categories:** All
-- **Expected impact:** +5–15% accuracy, N× latency increase
+- **Measured (Gemma `multi_turn_base`):** Run 11 `--fc-mode iffc-state-bon` **73/200 = 36.5%** vs IFFC+STATE Run 10 68/200 = 34.0% (**+2.5 pp** at ~7× wall / ~8.8× decode). Modest lift, **not free**. Details in `THESIS.md`.
+- **Expected impact (pre-score):** +5–15% accuracy, N× latency increase
 - **Effort:** Medium
-- **Key trade-off story:** FunctionGemma at 204 tok/s makes N=5 cheap (~80ms); Qwen3.5 at 38 tok/s makes it expensive (~3.3s) — this *is* the trade-off narrative
+- **Key trade-off story:** FunctionGemma at 204 tok/s makes N=5 cheap (~80ms); Qwen3.5 at 38 tok/s makes it expensive (~3.3s); Gemma BoN N=5 measured ~21.3 h vs STATE ~3.0 h — this *is* the trade-off narrative
 - **Source:** Snell et al., "Scaling LLM Test-Time Compute," arXiv:2408.03314
 
 ### 3. xLAM-1b-fc-r as Benchmark Baseline (METHODS §15)

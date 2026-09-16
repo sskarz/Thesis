@@ -84,7 +84,7 @@ While llama-server b8111 successfully parses this into standard `tool_calls` via
 | Qwen3.5-4B-Instruct | Qwen 3.5 | 4B | Q4_K_M | ~2.8 GB | `bartowski/Qwen_Qwen3.5-4B-GGUF` |
 | FunctionGemma-270M-IT | Gemma 3 (specialist) | 270M | bf16 | ~512 MB | `ggml-org/functiongemma-270m-it-GGUF` |
 
-Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on **multi-turn categories only**: Run 4 NFC (`--only-multi-turn`, all four slices), Run 5 IFFC (`--categories multi_turn_base --fc-mode iffc`), Run 8 TagDispatch-style CD (`--categories multi_turn_base --fc-mode cd`; **21/200 = 10.5%**, a scored negative vs NFC/IFFC), Run 9 GST+NFC (`--categories multi_turn_base --fc-mode gst`; **61/200 = 30.5%**, ties IFFC, does not beat it), and Run 10 IFFC+STATE (`--categories multi_turn_base --fc-mode iffc-state`; **68/200 = 34.0%**, first method above the 30.5% plateau). A shell-dialect format ablation ([PR #5](https://github.com/sskarz/Thesis/pull/5) harness; v2 after [PR #9](https://github.com/sskarz/Thesis/pull/9)) was run on the 13-entry `fs-only` GorillaFileSystem subset of `multi_turn_base`; that slice is **not** a full-200 score (v1 1/13, v2 0/13). Single-turn scores for this model are not reported here.
+Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on **multi-turn categories only**: Run 4 NFC (`--only-multi-turn`, all four slices), Run 5 IFFC (`--categories multi_turn_base --fc-mode iffc`), Run 8 TagDispatch-style CD (`--categories multi_turn_base --fc-mode cd`; **21/200 = 10.5%**, a scored negative vs NFC/IFFC), Run 9 GST+NFC (`--categories multi_turn_base --fc-mode gst`; **61/200 = 30.5%**, ties IFFC, does not beat it), Run 10 IFFC+STATE (`--categories multi_turn_base --fc-mode iffc-state`; **68/200 = 34.0%**, first method above the 30.5% plateau), and Run 11 Best-of-N on IFFC+STATE (`--categories multi_turn_base --fc-mode iffc-state-bon`; **73/200 = 36.5%**, beats IFFC+STATE by +5 entries / +2.5 pp at ~7× wall). A shell-dialect format ablation ([PR #5](https://github.com/sskarz/Thesis/pull/5) harness; v2 after [PR #9](https://github.com/sskarz/Thesis/pull/9)) was run on the 13-entry `fs-only` GorillaFileSystem subset of `multi_turn_base`; that slice is **not** a full-200 score (v1 1/13, v2 0/13). Single-turn scores for this model are not reported here.
 
 ### Quantization notes
 
@@ -125,9 +125,9 @@ Single-turn results on BFCL v4, evaluated with the AST checker. **Bold** indicat
 
 ## Multi-Turn Accuracy Results
 
-### NFC vs IFFC vs CD vs GST vs IFFC+STATE on `multi_turn_base`
+### NFC vs IFFC vs CD vs GST vs IFFC+STATE vs BoN on `multi_turn_base`
 
-Primary metric: BFCL v4 `multi_turn_base` (200 execution-evaluated cases) on Gemma-4-E2B-it Q4_K_M, Mac Metal llama-server. CD is `--fc-mode cd`: a TagDispatch-style **two-pass approximation** on stock llama-server (pass 1: name GBNF enum; pass 2: `json_schema` for selected tools; never sends `tools` / `tool_choice`). **This is not XGrammar-2.** GST is `--fc-mode gst`: a **prompt-only overlay on NFC** (He et al. Detail template; still `tools` + `tool_choice=auto`). **This is not GBNF / XGrammar / IFFC.** IFFC+STATE is `--fc-mode iffc-state`: IFFC JSON-in-text plus a **harness-written `[STATE]`** snapshot from actual tool execution results. **This is not GST, not CD/GBNF, and not LLM summarization.**
+Primary metric: BFCL v4 `multi_turn_base` (200 execution-evaluated cases) on Gemma-4-E2B-it Q4_K_M, Mac Metal llama-server. CD is `--fc-mode cd`: a TagDispatch-style **two-pass approximation** on stock llama-server (pass 1: name GBNF enum; pass 2: `json_schema` for selected tools; never sends `tools` / `tool_choice`). **This is not XGrammar-2.** GST is `--fc-mode gst`: a **prompt-only overlay on NFC** (He et al. Detail template; still `tools` + `tool_choice=auto`). **This is not GBNF / XGrammar / IFFC.** IFFC+STATE is `--fc-mode iffc-state`: IFFC JSON-in-text plus a **harness-written `[STATE]`** snapshot from actual tool execution results. **This is not GST, not CD/GBNF, and not LLM summarization.** BoN is `--fc-mode iffc-state-bon`: **MV@N majority vote** (N=5, `temperature=0.7`) on the IFFC+STATE channel. **This is not NFC, not GST, not CD, and not a verifier / reward-model Best-of-N.**
 
 | Mode | Run | Score | Accuracy | Δ vs NFC |
 |------|-----|-------|----------|----------|
@@ -135,9 +135,10 @@ Primary metric: BFCL v4 `multi_turn_base` (200 execution-evaluated cases) on Gem
 | IFFC (Appendix B JSON-in-text) | 5 | 61/200 | 30.5% | +3.5 pp / +7 entries |
 | CD (TagDispatch-style two-pass; **not** XGrammar-2) | 8 | 21/200 | 10.5% | −16.5 pp / −33 entries |
 | GST+NFC (He Detail template on NFC; **not** GBNF) | 9 | 61/200 | 30.5% | +3.5 pp / +7 entries |
-| **IFFC+STATE** (IFFC JSON-in-text + harness `[STATE]`) | **10** | **68/200** | **34.0%** | **+7.0 pp / +14 entries** |
+| IFFC+STATE (IFFC JSON-in-text + harness `[STATE]`) | 10 | 68/200 | 34.0% | +7.0 pp / +14 entries |
+| **BoN N=5 on IFFC+STATE** (MV@N, `temp=0.7`) | **11** | **73/200** | **36.5%** | **+9.5 pp / +19 entries** |
 
-Run 8 CD is a **scored negative** vs both NFC and IFFC (10.5% < 27.0% / 30.5%; 179 errors). Run 9 GST+NFC **ties IFFC at 61/200 = 30.5%** — a count tie, not the same 61 entries. Run 10 IFFC+STATE is the **first method above that 30.5% plateau** (+7 entries / +3.5 pp vs IFFC and vs GST). Details below. The 13-entry BFCL-FS shell ablation is a separate slice and is **not** in this table.
+Run 8 CD is a **scored negative** vs both NFC and IFFC (10.5% < 27.0% / 30.5%; 179 errors). Run 9 GST+NFC **ties IFFC at 61/200 = 30.5%** — a count tie, not the same 61 entries. Run 10 IFFC+STATE is the **first method above that 30.5% plateau** (+7 entries / +3.5 pp vs IFFC and vs GST). Run 11 BoN **beats IFFC+STATE** (+5 entries / +2.5 pp) at ~7× wall / ~N× decode — a modest lift, **not free**. Details below. The 13-entry BFCL-FS shell ablation is a separate slice and is **not** in this table.
 
 ### Gemma-4-E2B-it baseline (Run 4, 2026-09-10)
 
@@ -150,7 +151,7 @@ This is a multi-turn-only baseline: `--only-multi-turn`, 800 execution-evaluated
 | `multi_turn_miss_param` | 39/200 | 19.5% | 2 |
 | `multi_turn_long_context` | 22/200 | 11.0% | 72 (mostly `context_overflow`) |
 
-**`multi_turn_base` (full 200) remains the primary optimization target.** Run 4 NFC scored 27.0% on that slice; Run 5 IFFC (+3.5 pp), Run 8 CD (scored negative, 10.5%), Run 9 GST+NFC (ties IFFC at 30.5%), and Run 10 IFFC+STATE (**68/200 = 34.0%**, first break past 30.5%) are reported below. The BFCL-FS shell eval is a 13-entry FS-only ablation, not a substitute for those 200-entry scores. `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
+**`multi_turn_base` (full 200) remains the primary optimization target.** Run 4 NFC scored 27.0% on that slice; Run 5 IFFC (+3.5 pp), Run 8 CD (scored negative, 10.5%), Run 9 GST+NFC (ties IFFC at 30.5%), Run 10 IFFC+STATE (**68/200 = 34.0%**, first break past 30.5%), and Run 11 BoN on IFFC+STATE (**73/200 = 36.5%**, +2.5 pp vs STATE at ~7× wall) are reported below. The BFCL-FS shell eval is a 13-entry FS-only ablation, not a substitute for those 200-entry scores. `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
 
 Wall-clock generation throughput was ~24–37 s/entry at 8-way parallel, versus ~4–5 min/entry on the prior sequential path.
 
@@ -203,7 +204,7 @@ The paper ([*Small Reasoning Models are Instruction Followers in Function Callin
 
 IFFC reduced under-calling; it did not convert this into a single-turn-style accuracy jump. The remaining bottleneck is sequential state tracking, not JSON vs native tools.
 
-A TagDispatch-style constrained-decoding ablation (`--fc-mode cd`) on the same 200-entry `multi_turn_base` is reported next; it is a **scored negative**. Guided-Structured Templates (`--fc-mode gst`, Run 9) follow; they **tie IFFC** and do not beat it. IFFC + harness STATE (`--fc-mode iffc-state`, Run 10) follows GST; it is the **first method above 30.5%**. A separate format channel — allowlisted shell text mapped onto GorillaFileSystem — is a **13-entry `fs-only` ablation** (two live evals, v1 and v2), not a replacement for the 200-entry scores.
+A TagDispatch-style constrained-decoding ablation (`--fc-mode cd`) on the same 200-entry `multi_turn_base` is reported next; it is a **scored negative**. Guided-Structured Templates (`--fc-mode gst`, Run 9) follow; they **tie IFFC** and do not beat it. IFFC + harness STATE (`--fc-mode iffc-state`, Run 10) follows GST; it is the **first method above 30.5%**. Best-of-N majority vote on IFFC+STATE (`--fc-mode iffc-state-bon`, Run 11) follows STATE; it **beats STATE at 73/200 = 36.5%** with a ~7× wall-clock cost. A separate format channel — allowlisted shell text mapped onto GorillaFileSystem — is a **13-entry `fs-only` ablation** (two live evals, v1 and v2), not a replacement for the 200-entry scores.
 
 ### Gemma-4-E2B-it TagDispatch-style CD (Run 8) — scored negative
 
@@ -314,7 +315,7 @@ GST `flags` are empty for all 200 rows — no stored GST-block compliance. `resp
 
 4. **The IFFC tie is a swap.** 19 entries GST-only vs 19 IFFC-only. IFFC changes the output channel (JSON-in-text, no native `tools`). GST only prepends pre-call prose on NFC.
 
-5. **Paper gap, not a failed measurement.** He et al. is mostly single-turn and different models. This test is a multi-turn edge SLM with native tools and an ignored scaffold. Tie / no-lift vs IFFC is a **result** if the harness is correct ([PR #14](https://github.com/sskarz/Thesis/pull/14)). Do **not** treat GST-on-NFC as the D1 default given 30.5% = IFFC and worse state-mismatch than IFFC. IFFC+STATE (Run 10) is reported next.
+5. **Paper gap, not a failed measurement.** He et al. is mostly single-turn and different models. This test is a multi-turn edge SLM with native tools and an ignored scaffold. Tie / no-lift vs IFFC is a **result** if the harness is correct ([PR #14](https://github.com/sskarz/Thesis/pull/14)). Do **not** treat GST-on-NFC as the D1 default given 30.5% = IFFC and worse state-mismatch than IFFC. IFFC+STATE (Run 10) is reported next; Best-of-N on that channel (Run 11) follows.
 
 ### Gemma-4-E2B-it IFFC+STATE (Run 10)
 
@@ -398,9 +399,94 @@ The following points are **interpretation**, not additional measurements.
 
 4. **First clear break of the IFFC=GST 30.5% tie.** That supports additive working memory on the IFFC channel where GST-on-NFC was not additive.
 
-5. **Remaining headroom is still agentic.** `state_mismatch` 64 + under-call 37. Next should target FS/Vehicle fidelity or under-call recovery, not another empty-only prompt trick. MLX SFT is the planned follow-on.
+5. **Remaining headroom is still agentic.** `state_mismatch` 64 + under-call 37. Next should target FS/Vehicle fidelity or under-call recovery, not another empty-only prompt trick. Best-of-N on this channel (Run 11) is reported next; MLX SFT remains the planned training-time follow-on.
 
 **Paper / method gap.** ACON (Xu et al., [arXiv:2510.00615](https://arxiv.org/abs/2510.00615)) compresses older turns with LLM summarization. This harness writes a structured key-value `[STATE]` from executed tool results — **not** an LLM summary, **not** GST, **not** CD/GBNF. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is still deferred. Do **not** treat `--fc-mode iffc-state` as solved state tracking given state mismatch 60→64 vs IFFC.
+
+### Gemma-4-E2B-it Best-of-N on IFFC+STATE (Run 11)
+
+Run 11 evaluates `--fc-mode iffc-state-bon` on `multi_turn_base` only: **MV@N majority vote** on the IFFC+STATE channel (Snell et al., [arXiv:2408.03314](https://arxiv.org/abs/2408.03314)). Requests omit `tools` / `tool_choice` (same as IFFC+STATE). At each agent step the harness samples N=5 candidates at `temperature=0.7`, majority-votes `(function_name, arguments)`, executes the **winner once**, then continues the IFFC+STATE loop (`[STATE]` from executed results; last 2 turns verbatim). Scoring uses the same BFCL `multi_turn_checker`. [PR #18](https://github.com/sskarz/Thesis/pull/18) (`6a82aaf`) added `--fc-mode iffc-state-bon`.
+
+**Not** NFC, **not** GST, **not** TagDispatch/CD GBNF, **not** a verifier / reward-model Best-of-N. The overlay rides on Run 10’s IFFC+STATE path so the 34.0% channel is not given back.
+
+Config: Gemma-4-E2B-it Q4_K_M, Mac M4 Pro 48 GB, llama.cpp Metal, `-np 4 -c 65536`, `run_id=11`, `fc_mode=iffc-state-bon`, `bon_n=5`, `temperature=0.7`. Started `2026-09-15T03:15:21Z`. **`finished_at` is NULL** in the DB at verify time: eval scored (1 `scores` row; 127 `eval_errors`), but `inference_metrics=0` and `metrics_per_request=0` — the pipeline metrics step may still be unfinished. Document that honestly; do not invent tok/s or TTFT. 200 responses, 200 `multi_turn_timings`. Notes: `BoN N=5 on IFFC+STATE overnight -np4 -c65536 vs 34% / IFFC 30.5% / GST 30.5% / NFC 27% / CD 10.5%; fc_mode=iffc-state-bon bon_n=5 categories=multi_turn_base`.
+
+Result: **73/200 = 36.5%** (beats IFFC+STATE Run 10 68/200 = 34.0% by **+5 entries / +2.5 pp**; +12 vs IFFC/GST 30.5%; +19 vs NFC; +52 vs CD). Errors 127 vs Run 10’s 132.
+
+#### NFC vs IFFC vs CD vs GST vs IFFC+STATE vs BoN on `multi_turn_base`
+
+Same category, same model family, same hardware class as the controls:
+
+| Mode | Run | Score | Accuracy | Δ vs NFC |
+|------|-----|-------|----------|----------|
+| NFC (native `tools` / `tool_calls`) | 4 | 54/200 | 27.0% | — |
+| IFFC (Appendix B JSON-in-text) | 5 | 61/200 | 30.5% | +3.5 pp / +7 entries |
+| CD (TagDispatch-style two-pass; **not** XGrammar-2) | 8 | 21/200 | 10.5% | −16.5 pp / −33 entries |
+| GST+NFC (He Detail template on NFC; **not** GBNF) | 9 | 61/200 | 30.5% | +3.5 pp / +7 entries |
+| IFFC+STATE (IFFC JSON-in-text + harness `[STATE]`) | 10 | 68/200 | 34.0% | +7.0 pp / +14 entries |
+| **BoN N=5 on IFFC+STATE** (MV@N, `temp=0.7`) | **11** | **73/200** | **36.5%** | **+9.5 pp / +19 entries** |
+
+BoN is **+2.5 pp / +5 entries vs IFFC+STATE**. BoN is **measured**. The lift is modest and **not free** (latency below).
+
+#### Overlap vs Run 10 (unique `entry_id`)
+
+Pairwise over the same 200 entries:
+
+| Pair | Both OK | First-only (gained) | Second-only (lost) | Both fail |
+|------|---------|---------------------|--------------------|-----------|
+| BoN vs IFFC+STATE | 56 | BoN-only 17 | STATE-only 12 | 115 |
+
+Gained under BoN (17): `multi_turn_base_5`, `_14`, `_29`, `_32`, `_33`, `_34`, `_42`, `_47`, `_52`, `_77`, `_108`, `_120`, `_123`, `_127`, `_131`, `_139`, `_151`.
+
+Lost under BoN (12): `multi_turn_base_3`, `_40`, `_48`, `_53`, `_81`, `_103`, `_117`, `_141`, `_163`, `_167`, `_169`, `_195`.
+
+Net +5 = 17 − 12. The lift is a **swap**, not pure dominance.
+
+#### Failure buckets (one error per failed entry)
+
+Thesis Bot taxonomy: one primary error per failed `entry_id`. Failed entries: NFC 146, IFFC 139, CD 179, GST 139, IFFC+STATE 132, BoN 127.
+
+| Bucket | Run 4 NFC | Run 5 IFFC | Run 8 CD | Run 9 GST | Run 10 IFFC+STATE | Run 11 BoN |
+|--------|-----------|------------|----------|-----------|-------------------|------------|
+| empty | 59 | 41 | 14 | 31 | 31 | **36** |
+| under-call / missing GT exec | 19 | 38 | 70 | 29 | 37 | **38** |
+| state mismatch | 68 | 60 | 95 | 79 | 64 | **53** |
+
+Trend vs IFFC+STATE: empty 31→**36** (rose); state 64→**53** (cut); under-call 37→38 (flat). BoN cut state mismatches but empty turns rose. The gain is **not** a free empty-turn cut.
+
+State mismatch by environment (Run 11, 53 entries): VehicleControl 22, GorillaFileSystem 13 (was 21 on Run 10), Travel 9, Twitter 3, Ticket 3, Message 2, TradingBot 1.
+
+Top error prefixes (Run 11): missing_exec ~38 rows; VehicleControl state 22; empty turn1 17; GFS state 13; empty turn2 9; Travel state 9; empty turn0 7.
+
+#### Latency / cost (N=5)
+
+From `multi_turn_timings` (200 entries). **No** `inference_metrics` / `metrics_per_request` rows at verify time (`finished_at` still NULL); do not invent tok/s or TTFT.
+
+| Metric | Run 10 IFFC+STATE | Run 11 BoN N=5 | Ratio |
+|--------|-------------------|----------------|-------|
+| avg `predicted_ms` / entry | ~150 s | ~1318 s | ~8.8× |
+| avg `prompt_ms` / entry | ~22 s | ~210 s | ~9.5× |
+| avg `api_calls` | 8.4 | 42.7 | ~5.1× |
+| avg turns | ~3.67 | ~3.67 | ~1× |
+| Wall (generate) | ~3.0 h (full pipeline ~181 min) | ~21.3 h | ~7× |
+
+Framing: modest **+2.5 pp** at **~7× wall / ~N× decode**. This is the edge cost/latency tradeoff the thesis promises. BoN is **not free**.
+
+#### Interpretation
+
+The following points are **interpretation**, not additional measurements.
+
+1. **Test-time compute on the IFFC+STATE channel.** MV@N=5 beat greedy STATE (+5 / +2.5 pp) without changing the output channel, the STATE overlay, or the checker.
+
+2. **State mismatch fell; empty turns rose.** 64→53 state errors (GFS 21→13; VehicleControl stayed 22). Empty 31→36. Majority vote helped env-diff consistency more than “call something this turn.”
+
+3. **The BoN lift is a swap.** 17 rescues / 12 regresses vs Run 10 (net +5). Document the trade, not pure dominance.
+
+4. **Cost is the story.** ~7× wall and ~8.8× decode for +2.5 pp is a real edge-device tradeoff, not a free accuracy bump. Do **not** treat N=5 as the default serving recipe.
+
+5. **Remaining headroom is still agentic.** State mismatch 53 (VehicleControl 22, GFS 13, Travel 9) plus under-call 38. Next leverage: FS/Vehicle fidelity or under-call recovery — or training-time methods (MLX SFT) — not another empty-only prompt trick and not unbounded N.
+
+**Paper / method gap.** Snell et al. ([arXiv:2408.03314](https://arxiv.org/abs/2408.03314)) frame test-time compute vs parameter scaling. This harness is **majority vote on tool-call tuples**, not tree search and not a learned verifier. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is still deferred. Do **not** treat `--fc-mode iffc-state-bon` as solved sequential calling given 127 remaining failures and ~7× wall.
 
 ### Gemma-4-E2B-it BFCL-FS shell dialect (fs-only live eval)
 
@@ -437,7 +523,7 @@ Controls from `benchmark.db` (Run 4 NFC, Run 5 IFFC traces scored on these IDs) 
 | Shell v1 (prior live eval) | — | 1/13 | 7.7% | `multi_turn_base_12` |
 | Shell v2 (this run) | — | 0/13 | 0.0% | — |
 
-Full `multi_turn_base` (200 entries): NFC **54/200 = 27.0%**, IFFC **61/200 = 30.5%**, CD **21/200 = 10.5%** (Run 8, scored negative), GST+NFC **61/200 = 30.5%** (Run 9, ties IFFC), IFFC+STATE **68/200 = 34.0%** (Run 10, first method above 30.5%). Those remain the primary thesis numbers. The 13-ID table is an apples-to-apples format comparison on GorillaFileSystem-only entries.
+Full `multi_turn_base` (200 entries): NFC **54/200 = 27.0%**, IFFC **61/200 = 30.5%**, CD **21/200 = 10.5%** (Run 8, scored negative), GST+NFC **61/200 = 30.5%** (Run 9, ties IFFC), IFFC+STATE **68/200 = 34.0%** (Run 10, first method above 30.5%), BoN N=5 on IFFC+STATE **73/200 = 36.5%** (Run 11, beats STATE by +2.5 pp at ~7× wall). Those remain the primary thesis numbers. The 13-ID table is an apples-to-apples format comparison on GorillaFileSystem-only entries.
 
 #### Interpretation
 
@@ -593,7 +679,7 @@ FunctionGemma-270M is a purpose-built tool-calling model fine-tuned from Gemma 3
 
 ## Remaining Work
 
-- **Multi-turn optimization**: Gemma-4-E2B-it on `multi_turn_base`: NFC Run 4 **54/200 = 27.0%**; IFFC Run 5 **61/200 = 30.5%** (+3.5 pp); TagDispatch-style CD Run 8 **21/200 = 10.5%** (179 errors); GST+NFC Run 9 **61/200 = 30.5%** (ties IFFC; +7 vs NFC); IFFC+STATE Run 10 **68/200 = 34.0%** (first method above the 30.5% plateau; +7 vs IFFC and vs GST). CD is **measured and negative**. Guided templates are **measured**: they **tie IFFC and do not beat it** — the 61=61 is a 19-row swap, not the same 61 entries. GST vs NFC: empty 59→31 but state mismatch 68→79. IFFC+STATE is **measured** and **beats** the IFFC/GST plateau: empty 41→31 (tied GST’s empty cut); state mismatch 60→**64** (did not improve); under-call ≈38→37. The +7 vs IFFC is a 20-rescue / 13-regress swap, not pure dominance. Honesty: `--fc-mode iffc-state` is IFFC JSON-in-text plus harness-written STATE from executed tool results — **not** GST, **not** CD/GBNF, **not** LLM summarization; `--fc-mode gst` is prompt-only on the NFC channel (not GBNF/IFFC); `--fc-mode cd` is a two-pass approximation on stock llama-server — **not** full XGrammar-2. Do **not** pursue this CD condition or another GST Detail overlay on NFC as D1 default. Residual errors are still agentic state mismatch (VehicleControl / GorillaFileSystem) and under-calling, not format parsing. Next leverage: FS/Vehicle state fidelity or under-call recovery, not another empty-only prompt trick. BFCL-FS / VFS shell→GorillaFileSystem fs-only is a **negative ablation** (v1 **1/13 = 7.7%**, v2 **0/13 = 0.0%** vs NFC **3/13 = 23.1%** vs IFFC **1/13 = 7.7%** on the same 13 GorillaFileSystem-only IDs; not the full 200). Do **not** pursue shell-as-action as D1 default. The toy VFS harness stays for non-BFCL / future SFT only. Next methodology candidates: MLX SFT, Best-of-N — not more shell→GFS BFCL chasing, not an unscored CD overnight, and not another GST-on-NFC curriculum. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is deferred. `miss_func` / `miss_param` / `long_context` remain secondary stress tests.
+- **Multi-turn optimization**: Gemma-4-E2B-it on `multi_turn_base`: NFC Run 4 **54/200 = 27.0%**; IFFC Run 5 **61/200 = 30.5%** (+3.5 pp); TagDispatch-style CD Run 8 **21/200 = 10.5%** (179 errors); GST+NFC Run 9 **61/200 = 30.5%** (ties IFFC; +7 vs NFC); IFFC+STATE Run 10 **68/200 = 34.0%** (first method above the 30.5% plateau; +7 vs IFFC and vs GST); BoN N=5 on IFFC+STATE Run 11 **73/200 = 36.5%** (beats STATE by +5 / +2.5 pp at ~7× wall). CD is **measured and negative**. Guided templates are **measured**: they **tie IFFC and do not beat it** — the 61=61 is a 19-row swap, not the same 61 entries. GST vs NFC: empty 59→31 but state mismatch 68→79. IFFC+STATE is **measured** and **beats** the IFFC/GST plateau: empty 41→31 (tied GST’s empty cut); state mismatch 60→**64** (did not improve); under-call ≈38→37. The +7 vs IFFC is a 20-rescue / 13-regress swap, not pure dominance. BoN is **measured** and **beats STATE**: empty 31→**36** (rose); state 64→**53** (cut); under-call 37→38 (flat). The +5 vs STATE is a 17-rescue / 12-regress swap. Wall generate ~21.3 h vs Run 10 ~3.0 h; avg `predicted_ms` ~1318 s vs ~150 s (~8.8×). Modest +2.5 pp is **not free**. Honesty: `--fc-mode iffc-state-bon` is MV@N on the IFFC+STATE channel — **not** NFC, **not** GST, **not** CD/GBNF, **not** a verifier/reward-model BoN; `--fc-mode iffc-state` is IFFC JSON-in-text plus harness-written STATE from executed tool results — **not** GST, **not** CD/GBNF, **not** LLM summarization; `--fc-mode gst` is prompt-only on the NFC channel (not GBNF/IFFC); `--fc-mode cd` is a two-pass approximation on stock llama-server — **not** full XGrammar-2. Do **not** pursue this CD condition, another GST Detail overlay on NFC, or unbounded N as D1 default. Residual errors are still agentic state mismatch (VehicleControl 22 / GorillaFileSystem 13 / Travel 9) and under-calling, not format parsing. Next leverage: FS/Vehicle state fidelity or under-call recovery — or training-time methods — not another empty-only prompt trick and not more test-time N without a cost budget. BFCL-FS / VFS shell→GorillaFileSystem fs-only is a **negative ablation** (v1 **1/13 = 7.7%**, v2 **0/13 = 0.0%** vs NFC **3/13 = 23.1%** vs IFFC **1/13 = 7.7%** on the same 13 GorillaFileSystem-only IDs; not the full 200). Do **not** pursue shell-as-action as D1 default. The toy VFS harness stays for non-BFCL / future SFT only. Next methodology candidate: MLX SFT — not more shell→GFS BFCL chasing, not an unscored CD overnight, not another GST-on-NFC curriculum, and not treating N=5 as free accuracy. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is deferred. `miss_func` / `miss_param` / `long_context` remain secondary stress tests. Run 11 `finished_at` was NULL at verify time (`inference_metrics=0`, `metrics_per_request=0`); eval scored.
 - **NVIDIA Jetson Orin Nano Super migration**: Repeat all benchmarks on CUDA with 8 GB shared memory to measure real edge-device performance.
 - **RAG augmentation for large tool sets**: The `multiple` category only presents 2–4 tools per test case, so RAG-based tool filtering provides no benefit. However, real-world agentic applications may expose 50–100+ tools. Test whether retrieval-augmented generation (embedding-based tool retrieval to pre-filter the tool set before prompting) improves accuracy and reduces prompt length for large tool registries.
 - **Additional models and quantizations**: Expand the model matrix (e.g., Phi-3.5-mini, Gemma-2-2B) and test alternative quantization levels (Q5_K_M, Q8_0) to map the accuracy-size Pareto frontier.
