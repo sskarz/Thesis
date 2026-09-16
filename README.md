@@ -140,7 +140,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 Optional `--resume` if an unfinished iffc-state run exists.
 
-Gemma Best-of-N on IFFC+STATE vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% / IFFC+STATE 34.0% `multi_turn_base` baselines (**unscored**; ~N× latency, default N=5):
+Gemma Best-of-N on IFFC+STATE vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% / IFFC+STATE 34.0% `multi_turn_base` baselines (Run 11 scored **73/200 = 36.5%**, beats STATE by +2.5 pp at ~7× wall; see `THESIS.md`):
 
 ```bash
 uv run python -m benchmark.smoke_bon
