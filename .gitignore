@@ -185,4 +185,8 @@ frontend/node_modules/
 frontend/dist/
 .claude
 benchmark/results/
+sft/data/
+sft/adapters/
+sft/fused/
+sft/models/
 uv.lock
