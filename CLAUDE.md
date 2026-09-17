@@ -42,6 +42,12 @@ Thesis/
 │   ├── migrate_to_db.py              # One-time import of flat-file results into DB
 │   └── results/
 │       └── benchmark.db               # SQLite database (all runs, git-ignored)
+├── sft/                               # MLX LoRA SFT v1 (IFFC mix; Apple Silicon)
+│   ├── download_datasets.py           # ToolACE + xLAM-60k → sft/data/raw/
+│   ├── format_iffc.py                 # IFFC chat JSONL (reuses benchmark.iffc)
+│   ├── split_data.py                  # Frozen train/val/corpus_test + MANIFEST.json
+│   ├── train_mlx.py / train_mlx.sh    # mlx_lm.lora wrapper (smoke vs full)
+│   └── README.md                      # Mac copy-paste commands
 ├── frontend/                          # React + Vite dashboard (git-ignored: node_modules, dist)
 │   ├── src/
 │   │   ├── api/                       # API client, types, SWR hooks
@@ -55,6 +61,7 @@ Thesis/
     ├── conftest.py                    # Shared fixtures
     ├── helpers.py                     # Test utilities
     ├── benchmark/                     # Unit tests for benchmark modules
+    ├── sft/                           # Unit tests for MLX SFT formatters/splits
     └── live/                          # Optional live smoke tests
 ```
 

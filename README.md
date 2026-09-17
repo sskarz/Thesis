@@ -89,6 +89,8 @@ The live smoke layer:
 2. Skips cleanly when `http://localhost:8080` is unavailable
 3. Checks that single-turn and multi-turn responses are structurally valid for the pipeline
 
+MLX LoRA SFT (Gemma-4-E2B, IFFC mix) is documented in [`sft/README.md`](sft/README.md). Unit tests: `uv run pytest -q tests/sft`. Do not run overnight training in CI.
+
 ### 5. Run the benchmark
 
 ```bash
@@ -294,6 +296,7 @@ Thesis/
 ├── llama-cpp-bfcl-setup-guide.md      # Full setup guide
 ├── llama.cpp/                         # Git-ignored; built locally
 │   └── build/bin/llama-server
+├── sft/                               # MLX LoRA SFT v1 (IFFC; see sft/README.md)
 └── benchmark/
     ├── __init__.py
     ├── config.py                      # Server URL, model registry, paths, BFCL categories
