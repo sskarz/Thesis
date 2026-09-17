@@ -44,15 +44,16 @@ These directly support the thesis claim of "optimization" and are required for t
 - **Effort:** Low (just add to config.py model registry, run benchmark)
 - **Source:** Zhang et al., "xLAM: Large Action Models," arXiv:2409.03215
 
-### 4. QLoRA Fine-Tuning of Qwen2.5-3B (METHODS §18)
+### 4. MLX LoRA SFT of Gemma-4-E2B (METHODS — Experiment: MLX SFT v1)
 
-- **What:** QLoRA fine-tune on xlam-function-calling-60k, merge adapter, convert to GGUF, run same benchmark
-- **Why:** Training-time counterpart to inference-time methods — enables the central comparison
-- **Target:** All categories, especially parallel (currently 0%)
-- **Expected impact:** +20–40pp overall; may unlock parallel calling
-- **Effort:** Medium-High
-- **Hardware:** RTX 4090 (24GB) is sufficient for QLoRA on 3B models
-- **Source:** Dettmers et al., "QLoRA," arXiv:2305.14314
+- **What:** Frozen IFFC-format mix (all ToolACE + 25k oversampled xLAM-60k; seed=42; ~90/5/5 train/val/corpus_test) → mlx-lm LoRA on Apple Silicon → fuse → GGUF. Thesis test remains BFCL v4 `multi_turn_base` (never in the mix).
+- **Why:** Training-time counterpart to inference-time IFFC / IFFC+STATE / BoN — same JSON-in-text channel, not native `tool_calls`
+- **Target:** Gemma-4-E2B-it `multi_turn_base` first (do not invent scores)
+- **Code:** `sft/` — see `sft/README.md` for Mac commands
+- **Skipped v1:** APIGen-MT-5k (NC), Glaive, Hermes (docs-only optional backup)
+- **Effort:** Medium-High (overnight train on Mac; not CI)
+- **Hardware:** Apple Silicon (mlx-lm). RTX 4090 QLoRA of Qwen remains a later optional path (METHODS §18)
+- **Source:** ToolACE arXiv:2409.00920; xLAM arXiv:2409.03215; mlx-lm LoRA docs
 
 ## Tier 2 — Should Do
 
@@ -118,5 +119,5 @@ This answers the central question from METHODS.md: **does fine-tuning or inferen
 4. Best-of-N majority voting wrapper
 5. Context compression for multi-turn
 6. Parallel calling grammar investigation
-7. QLoRA fine-tuning experiment
+7. MLX SFT v1 (data pipeline is in `sft/`; Mac LoRA train + BFCL `multi_turn_base` eval after fuse/GGUF)
 8. Jetson migration (if time permits)

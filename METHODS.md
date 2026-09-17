@@ -24,6 +24,7 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: Guided-Structured Templates (`--fc-mode gst`)](#experiment-guided-structured-templates---fc-mode-gst)
 - [Experiment: IFFC + harness STATE (`--fc-mode iffc-state`)](#experiment-iffc--harness-state---fc-mode-iffc-state)
 - [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
+- [Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)](#experiment-mlx-sft-v1-gemma-4-e2b-iffc-mix)
 - [Prioritized Recommendations](#prioritized-recommendations)
 - [References](#references)
 
@@ -905,6 +906,34 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 ---
 
+## Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)
+
+Training-time counterpart to the inference-time IFFC channel. **No BFCL scores yet** — this section records the frozen data recipe and how to train on a Mac, not a result.
+
+**Chat format:** the same JSON-in-text IFFC shape as `--fc-mode iffc` (`benchmark/iffc.py` Appendix B). Assistant turns are a JSON list of `{"function_name", "parameters"}` (or `[]`). Tool/observation turns are user-role execution messages. Native `tool_calls` are **not** mixed into this adapter dataset.
+
+**Mix (locked):**
+
+- **All** of [Team-ACE/ToolACE](https://huggingface.co/datasets/Team-ACE/ToolACE) (~11,300 multi-turn conversations)
+- Stratified **25,000** rows from [Salesforce/xlam-function-calling-60k](https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k), oversampling parallel / multi-answer rows (`n_tools_in_gold ≥ 2` taken first)
+
+**Skipped for v1:** APIGen-MT-5k (NC), Glaive, Hermes (Hermes remains an optional backup in docs only if a Hub source disappears).
+
+**Splits:** by conversation/example id, never by turn; `seed=42`; stratify on source, `is_multi_turn`, `n_tools_in_gold` (1 vs ≥2); ~90% / ~5% / ~5% → about Train 32.7k / Val 1.8k / Corpus-test 1.8k. **Thesis test is BFCL v4 `multi_turn_base` only** — BFCL prompts and past scored responses are never in train/val/corpus_test.
+
+**Base model:** Gemma-4-E2B-it (`google/gemma-4-e2b-it`), the instruct checkpoint behind `benchmark/config.py` `gemma4-e2b` / `bartowski/google_gemma-4-E2B-it-GGUF`. There is no mlx-lm id in the registry; convert on Apple Silicon with `mlx_lm.convert` (see `sft/README.md`). Do not LoRA-train the mlx-vlm `mlx-community/gemma-4-e2b-it-4bit` blob.
+
+**Code:** `sft/` (download → format → split → `mlx_lm.lora` with `--mask-prompt`, LoRA rank 16 default / 16–32 band). Conversations are unrolled so every assistant turn receives loss. Artifacts under `sft/data/` are gitignored. CI does not run overnight training.
+
+### Sources
+
+- Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920.
+- Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
+- mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
+- IFFC Appendix B: arXiv:2608.22472
+
+---
+
 ## Prioritized Recommendations
 
 Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B on llama.cpp with BFCL v4):
@@ -1538,7 +1567,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 
 | Priority | Technique | Target Problem | Expected Impact | Effort |
 |----------|-----------|----------------|-----------------|--------|
-| 1 | **QLoRA fine-tuning on xlam-function-calling-60k** | All categories | +20–40pp overall; unlocks parallel | Medium |
+| 1 | **MLX LoRA SFT v1 on Gemma-4-E2B (IFFC mix)** | Gemma `multi_turn_base` | Unscored; frozen ToolACE+25k xLAM recipe in `sft/` | Medium |
 | 2 | **Function masking augmentation (Hammer)** | Generalization, irrelevance | Robust to unseen APIs; +irrelevance | Medium |
 | 3 | **Add xLAM-1b-fc-r as benchmark baseline** | Comparison point | Shows fine-tuned vs. base SLM gap | Low |
 | 4 | **GRPO post-SFT with BFCL checker as reward** | All categories, esp. multi-turn | +5–15pp on top of SFT | High |
@@ -1552,13 +1581,13 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 For a complete training-time experiment within this thesis:
 
 ```
-Base model (e.g., Qwen2.5-3B-Instruct)
-    ↓ QLoRA fine-tuning on xlam-60k + Hammer function masking
-    ↓ Optional: GRPO refinement with BFCL AST checker as reward
-    ↓ Merge LoRA adapter into base model
-    ↓ Convert to GGUF (Q4_K_M)
-    ↓ Serve via llama-server, evaluate on BFCL v4
-    ↓ Compare against base model + inference-time methods from Part I
+Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
+    ↓ Format ToolACE (all) + xLAM-60k (25k, oversample parallel) as IFFC JSON-in-text
+    ↓ Frozen split seed=42 (~90/5/5 train/val/corpus_test); BFCL multi_turn_base held out
+    ↓ mlx-lm LoRA on Apple Silicon (--mask-prompt, rank 16–32)
+    ↓ Fuse adapter, convert to GGUF (Q4_K_M), serve via llama-server
+    ↓ Evaluate on BFCL v4 multi_turn_base vs NFC / IFFC / IFFC+STATE / BoN
+    ↓ Do not invent scores until that eval lands
 ```
 
 This pipeline answers the central thesis question: **does fine-tuning or inference-time optimization close the SLM-to-cloud-model gap more effectively for tool calling on edge devices?**
