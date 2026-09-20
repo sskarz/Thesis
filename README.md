@@ -89,7 +89,7 @@ The live smoke layer:
 2. Skips cleanly when `http://localhost:8080` is unavailable
 3. Checks that single-turn and multi-turn responses are structurally valid for the pipeline
 
-MLX LoRA SFT (Gemma-4-E2B, IFFC mix) is documented in [`sft/README.md`](sft/README.md). Unit tests: `uv run pytest -q tests/sft`. Do not run overnight training in CI. **Run 12 scored v1 as a negative: 1/200 = 0.5%**. **Run 13 scored the v2 filtered-[] mix as the same collapse: 1/200 = 0.5%** (filter insufficient — see `THESIS.md`).
+MLX LoRA SFT (Gemma-4-E2B, IFFC mix) is documented in [`sft/README.md`](sft/README.md). Unit tests: `uv run pytest -q tests/sft`. Do not run overnight training in CI. **Run 12 scored v1 as a negative: 1/200 = 0.5%**. **Run 13 scored the v2 filtered-[] mix as the same collapse: 1/200 = 0.5%** (filter insufficient — see `THESIS.md`). **Run 14** (`--iffc-strip-empty-assistant` on the same v2 GGUF) is a **DIAGNOSTIC** history-bookkeeping ablation: **4/200 = 2.0%** — did **not** rescue; **do not present 2% as a method win**.
 
 ### 5. Run the benchmark
 
@@ -105,7 +105,7 @@ Multi-turn function-calling mode and category filter:
 - `--fc-mode gst`: Guided-Structured Templates ([arXiv:2509.18076](https://arxiv.org/abs/2509.18076)) on the NFC channel — 7-step `[GST]` scaffold in content, native `tool_calls` still executed. Prompt-only; not GBNF. See METHODS.md.
 - `--fc-mode iffc-state`: IFFC JSON-in-text plus a harness-written `[STATE]` snapshot from **actual** tool execution results (METHODS §5 working memory). Same checker as IFFC. **Not** GST, **not** CD/GBNF, **not** LLM summarization. See METHODS.md.
 - `--fc-mode iffc-state-bon`: Best-of-N majority voting overlay on **IFFC+STATE** (METHODS §4; Snell et al. arXiv:2408.03314). Sample N=5 (configurable `--bon-n`) at `temperature=0.7`, vote per step, execute the winner once. **~N× latency.** **Not** NFC/GST/CD. See METHODS.md.
-- `--iffc-strip-empty-assistant`: **diagnostic-only** IFFC history bookkeeping — omit trailing assistant `[]` stop turns from `chat_history` before the next BFCL user turn (and right after the within-turn stop). Default **off** (Run 5–13 IFFC unchanged). **Not** a training method and **not** a claim that standard IFFC improved. Notes record `iffc_strip_empty_assistant=1`; figures nest under `iffc-strip-empty-assistant/`.
+- `--iffc-strip-empty-assistant`: **diagnostic-only** IFFC history bookkeeping — omit trailing assistant `[]` stop turns from `chat_history` before the next BFCL user turn (and right after the within-turn stop). Default **off** (Run 5–13 IFFC unchanged). **Not** a training method and **not** a claim that standard IFFC improved. Notes record `iffc_strip_empty_assistant=1`; figures nest under `iffc-strip-empty-assistant/`. **Run 14 already scored this on `gemma4-e2b-sft-iffc-v2`: 4/200 = 2.0%** — did **not** rescue the never-start collapse; **do not present 2% as a method win** (see `THESIS.md`).
 - `--categories multi_turn_base`: run only that multi-turn split (skip miss_func / miss_param / long_context)
 
 ```bash
@@ -156,7 +156,7 @@ Optional `--bon-n N` and `--resume` if an unfinished iffc-state-bon run exists.
 
 Gemma SFT-IFFC vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% / IFFC+STATE 34.0% / BoN 36.5% `multi_turn_base` baselines. Run 12 (`--model gemma4-e2b-sft-iffc`, LoRA best@1000) scored **1/200 = 0.5%**. Run 13 (`--model gemma4-e2b-sft-iffc-v2`, filtered-[] LoRA best@2000) scored **1/200 = 0.5%** — same collapse; the non-terminal-`[]` filter did **not** recover (see `THESIS.md`). Do **not** overwrite Run 12 or Run 13; do **not** BoN/STATE on these checkpoints; do **not** claim the `[]` filter fixed SFT.
 
-Diagnostic ablation (history bookkeeping only — **not** a new training method). Serve the existing v2 GGUF, then:
+**Run 14 already scored** the strip-trailing-`[]` history-bookkeeping diagnostic on the same v2 GGUF (`--fc-mode iffc --iffc-strip-empty-assistant`): **4/200 = 2.0%**. **DIAGNOSTIC — not a training method.** Did **not** rescue the never-start collapse. **Do not present 2% as a method win.** Do **not** overwrite Run 14. Figures: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/iffc-strip-empty-assistant/figures`.
 
 ```bash
 uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-turn \
@@ -295,7 +295,7 @@ uv run python -m benchmark.run_all --model llama-3.2-3b
 
 Results land in `benchmark/results/Llama-3.2-3B-Instruct-Q4_K_M/`.
 
-Mac-local SFT GGUF (not HuggingFace). Start llama-server with `-m`, then pass a distinct `--model` so scores do not overwrite base Gemma-4-E2B. Run 12 already scored the v1 checkpoint (**1/200 = 0.5%**, scored negative — do not overwrite). Run 13 already scored the v2 filtered-[] checkpoint (**1/200 = 0.5%**, same collapse — do not overwrite; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`):
+Mac-local SFT GGUF (not HuggingFace). Start llama-server with `-m`, then pass a distinct `--model` so scores do not overwrite base Gemma-4-E2B. Run 12 already scored the v1 checkpoint (**1/200 = 0.5%**, scored negative — do not overwrite). Run 13 already scored the v2 filtered-[] checkpoint (**1/200 = 0.5%**, same collapse — do not overwrite; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`). Run 14 already scored `--iffc-strip-empty-assistant` on that same v2 GGUF (**4/200 = 2.0%**, **DIAGNOSTIC** history bookkeeping — **not** a method win; do not overwrite; figures `.../iffc-strip-empty-assistant/figures`):
 
 ```bash
 ./llama.cpp/build/bin/llama-server --jinja -fa on \

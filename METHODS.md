@@ -603,7 +603,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
 ```
 
-Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%; BoN N=5 Run 11 = 73/200 = 36.5%; SFT-IFFC LoRA best@1000 Run 12 = 1/200 = 0.5% (scored negative); SFT-IFFC-v2 filtered-[] LoRA best@2000 Run 13 = 1/200 = 0.5% (same collapse; filter insufficient).
+Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%; BoN N=5 Run 11 = 73/200 = 36.5%; SFT-IFFC LoRA best@1000 Run 12 = 1/200 = 0.5% (scored negative); SFT-IFFC-v2 filtered-[] LoRA best@2000 Run 13 = 1/200 = 0.5% (same collapse; filter insufficient); SFT-IFFC-v2 + strip trailing `[]` Run 14 = 4/200 = 2.0% (**DIAGNOSTIC** history bookkeeping — **not** a method win).
 
 ### Pause / resume (kill overnight, continue the same run)
 
@@ -908,11 +908,13 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 ## Experiment: MLX SFT (Gemma-4-E2B, IFFC mix)
 
-Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both scored negative** on BFCL v4 `multi_turn_base`. Inference-time baselines unchanged: BoN 36.5% best; IFFC+STATE 34.0%; IFFC 30.5%. Full audit: `THESIS.md`.
+Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both scored negative** on BFCL v4 `multi_turn_base`. Run 14 is a **DIAGNOSTIC** history-bookkeeping ablation on the same v2 GGUF (`--iffc-strip-empty-assistant`): **4/200 = 2.0%** — did **not** rescue the never-start collapse. **Do not present 2% as a method win.** Inference-time baselines unchanged: BoN 36.5% best; IFFC+STATE 34.0%; IFFC 30.5%. Full audit: `THESIS.md`.
 
 **v1 (Run 12):** Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`.
 
 **v2 filtered mix (Run 13):** Mac `benchmark.db` `run_id=13`: **1/200 = 0.5%** — **same collapse** as Run 12. `model_display` Gemma-4-E2B-it SFT-IFFC-v2 filtered-[] (Q4_K_M); `model_key` `gemma4-e2b-sft-iffc-v2`; notes `SFT-IFFC-v2 filtered nonterminal-[] LoRA best@2000 val0.211; mlx-lm 0.32; Q4_K_M; fc_mode=iffc categories=multi_turn_base vs Run12 0.5% / BoN 36.5%`. Only win: `multi_turn_base_50` (correct-set overlap identical with Run 12). 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`; ~14 min wall. All flags empty — **zero** `iffc_unparseable`. [PR #24](https://github.com/sskarz/Thesis/pull/24) dropped 334 mid-trajectory empty-after-exec rows (non-terminal 334→0) and still kept 552 terminal empty-after-exec. The filter is **insufficient**. Figures: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`.
+
+**DIAGNOSTIC strip trailing `[]` (Run 14):** Mac `benchmark.db` `run_id=14`: **4/200 = 2.0%** (correct=4, accuracy=0.02) — **same model as Run 13** (`gemma4-e2b-sft-iffc-v2`), `--fc-mode iffc --iffc-strip-empty-assistant`. Notes: `iffc_strip_empty_assistant=1` + DIAGNOSTIC phrase. Wins: `multi_turn_base_50`, `_161`, `_192`, `_193` (shared with Run 13: only `_50`; +3 new). vs Run 13 1/200 = 0.5%; vs BoN 36.5%; vs IFFC 30.5%. 200 responses, 196 `eval_errors`, 200 `multi_turn_timings`; ~10 min wall. All flags empty — **zero** `iffc_unparseable`. Primary buckets: empty_turn **160**, state_mismatch **28**, under_call **8**. Empty-turn-0 error rows **153** (unchanged vs Run 13 `first_empty` idx 0); any-empty failed entries ~160. Stripping trailing assistant `[]` from `chat_history` does **NOT** rescue the SFT v2 never-start collapse. Root cause remains the data/harness recipe (post-tool `[]` conditioning / turn-0 refusal), not merely keeping those tokens in history. **Do not present 2% as a method win.** Label as DIAGNOSTIC / history bookkeeping ablation. Figures: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/iffc-strip-empty-assistant/figures`.
 
 **Chat format:** the same JSON-in-text IFFC shape as `--fc-mode iffc` (`benchmark/iffc.py` Appendix B). Assistant turns are a JSON list of `{"function_name", "parameters"}` (or `[]`). Tool/observation turns are user-role execution messages. Native `tool_calls` are **not** mixed into this adapter dataset.
 
@@ -931,7 +933,7 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **Code:** `sft/` (download → format → split → `mlx_lm.lora` with `--mask-prompt`, LoRA rank 16 default / 16–32 band). Conversations are unrolled so every assistant turn receives loss. Artifacts under `sft/data/` are gitignored. CI does not run overnight training.
 
-### Run 12 / Run 13 results (both scored negative)
+### Run 12 / Run 13 results (both scored negative); Run 14 DIAGNOSTIC (not a method win)
 
 | Method | Run | Score |
 |--------|-----|-------|
@@ -943,6 +945,7 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 | BoN N=5 | 11 | 73/200 = 36.5% |
 | **SFT-IFFC LoRA best@1000** | **12** | **1/200 = 0.5%** |
 | **SFT-IFFC-v2 filtered-[] LoRA best@2000** | **13** | **1/200 = 0.5%** |
+| SFT-IFFC-v2 + strip trailing `[]` (**DIAGNOSTIC**) | 14 | 4/200 = 2.0% |
 
 **Primary BFCL bucket per failed entry** (n=199; do not conflate with the audit):
 
@@ -963,15 +966,19 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 ### Root cause: ToolACE `[]` pathology, not parser
 
-Live single-step IFFC probe on the served GGUF emits valid `[{"function_name","parameters"}]` — format + chat template OK. Zero `iffc_unparseable` on all 200 Run 12 responses and all 200 Run 13 responses.
+Live single-step IFFC probe on the served GGUF emits valid `[{"function_name","parameters"}]` — format + chat template OK. Zero `iffc_unparseable` on all 200 Run 12 responses, all 200 Run 13 responses, and all 200 Run 14 responses.
 
 The mlx train split has **5520** assistant `[]` targets, **all from ToolACE** (32.5% of ToolACE assistant turns; xLAM 0%). After a `"Function execution results"` user message, **78.1%** of assistant targets are `[]` (2121 empty vs 596 continue). That teaches **stop-after-tools**. BFCL multi-turn needs continued calls on later user turns. Live probe: after stock→send, `"show messages sent"` → `[]`. Same entries IFFC wins (e.g. `multi_turn_base_101`) SFT gets turn0+turn1 right then `[]` on turn2 (`view_messages_sent` missing). Secondary: when it does call, some bad order (e.g. `mv` before `mkdir` on `multi_turn_base_0`) then empties.
 
 PR #24 dropped 334 of those mid-trajectory empty-after-exec rows (non-terminal 334→0) and kept 552 terminal empty-after-exec. Run 13 scored the same **1/200 = 0.5%**. The filter is **insufficient**.
 
+### DIAGNOSTIC: `--iffc-strip-empty-assistant` (Run 14)
+
+Harness-only history bookkeeping on the Run 13 GGUF: omit trailing assistant `[]` from `chat_history` before the next BFCL user turn. **Not** a training method; **not** a new `fc-mode`. Mac `run_id=14`: **4/200 = 2.0%**. Primary buckets empty_turn **160** / state_mismatch **28** / under_call **8**. Empty-turn-0 **153** unchanged vs Run 13. The never-start collapse remains. **Do not present 2% as a method win.** Full writeup: `THESIS.md` Run 14 subsection.
+
 ### Anti-recommendations
 
-Do **not**: more epochs on the v1 mix **or** the v2 filtered mix; BoN / IFFC+STATE on the Run 12 or Run 13 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT or multi-turn.
+Do **not**: more epochs on the v1 mix **or** the v2 filtered mix; BoN / IFFC+STATE on the Run 12 or Run 13 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT or multi-turn; present Run 14’s 2.0% as a method win or a training-time recovery.
 
 ### Next (Sanskar decides — not started here)
 
@@ -979,9 +986,10 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix; BoN / IFFC+STA
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path destroys multi-turn despite valid single-step IFFC.
 4. Pause SFT and return to the inference ladder (BoN **36.5%** is still the best measured result).
-5. **Diagnostic (harness only, not training):** `--fc-mode iffc --iffc-strip-empty-assistant` on `--model gemma4-e2b-sft-iffc-v2` — omit trailing assistant `[]` from `chat_history` before the next BFCL user turn. Tests whether SFT v2’s collapse is self-conditioning on `[]` in history. Default **off**. Notes tag `iffc_strip_empty_assistant=1`; figures under `iffc-strip-empty-assistant/`. **Not** a claim that standard IFFC improved.
 
-**Eval identity:** v1 fuse best val @ iter 1000 → Q4_K_M GGUF → `llama-server -m sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf`, then `uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn --categories multi_turn_base --fc-mode iffc`. v2: `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v2-best2000-Q4_K_M.gguf` then `--model gemma4-e2b-sft-iffc-v2` (distinct `runs` row; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`). Diagnostic strip-`[]` eval uses the same `--model gemma4-e2b-sft-iffc-v2` plus `--iffc-strip-empty-assistant` (new `runs` row; figures `.../iffc-strip-empty-assistant/figures`). Do **not** pass `--model gemma4-e2b`. See `sft/README.md`. Do not overwrite Run 12 or Run 13.
+`--fc-mode iffc --iffc-strip-empty-assistant` on `--model gemma4-e2b-sft-iffc-v2` is **scored** as Run 14: **4/200 = 2.0%** (**DIAGNOSTIC**; did **not** rescue). Do **not** re-run to overwrite that `runs` row. Default remains **off** for standard IFFC (Run 5–13 bookkeeping unchanged).
+
+**Eval identity:** v1 fuse best val @ iter 1000 → Q4_K_M GGUF → `llama-server -m sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf`, then `uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn --categories multi_turn_base --fc-mode iffc`. v2: `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v2-best2000-Q4_K_M.gguf` then `--model gemma4-e2b-sft-iffc-v2` (distinct `runs` row; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`). Diagnostic strip-`[]` eval (Run 14, already scored **4/200 = 2.0%** — do not overwrite) uses the same `--model gemma4-e2b-sft-iffc-v2` plus `--iffc-strip-empty-assistant` (distinct `runs` row; figures `.../iffc-strip-empty-assistant/figures`). Do **not** pass `--model gemma4-e2b`. See `sft/README.md`. Do not overwrite Run 12, Run 13, or Run 14.
 
 ### Sources
 
@@ -1646,6 +1654,9 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
     ↓ v2 mix: drop non-terminal [] after tool results (PR #24; 334→0 non-terminal;
       552 terminal empty-after-exec kept) is SCORED NEGATIVE
       Run 13: 1/200 = 0.5% — same collapse; filter insufficient
+    ↓ DIAGNOSTIC (harness only, not training): strip trailing assistant []
+      from chat_history on the same v2 GGUF (Run 14): 4/200 = 2.0% —
+      did NOT rescue never-start collapse; do not present 2% as a method win
     ↓ Next (Sanskar decides — not started): drop ALL empty-after-exec including
       terminal + stronger continuation curriculum; ToolACE-only vs xLAM-only
       ablation at small scale; investigate Gemma-4 chat-template / fuse path;
@@ -1654,8 +1665,9 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
     ↓ mlx-lm LoRA on Apple Silicon (--mask-prompt, rank 16–32)
     ↓ Fuse adapter, convert to GGUF (Q4_K_M), serve via llama-server
     ↓ Evaluate on BFCL v4 multi_turn_base vs NFC 27.0% / IFFC 30.5% / SFT v1 0.5% / SFT v2 0.5%
+      / Run 14 DIAGNOSTIC strip-[] 2.0% (not a method win)
     ↓ Do not more epochs on v1 or v2, BoN/STATE on the Run 12 or Run 13 GGUF,
-      fuse final@2000 first, or claim the [] filter fixed SFT
+      fuse final@2000 first, claim the [] filter fixed SFT, or present Run 14 2% as a win
 ```
 
 This pipeline answers the central thesis question: **does fine-tuning or inference-time optimization close the SLM-to-cloud-model gap more effectively for tool calling on edge devices?**
