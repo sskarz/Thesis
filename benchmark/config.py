@@ -64,6 +64,16 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Gemma-4-E2B-it SFT-IFFC (Q4_K_M)",
         "slug": "Gemma-4-E2B-it-SFT-IFFC-Q4_K_M",
     },
+    # Filtered mix (drop non-terminal [] after tool-exec), LoRA best@2000 val 0.211, PR #24.
+    # Distinct api_name/slug so Run 13 does not overwrite Run 12 (gemma4-e2b-sft-iffc).
+    "gemma4-e2b-sft-iffc-v2": {
+        "hf_repo": "",  # placeholder: serve with -m, not -hf
+        "gguf_path": "sft/fused/gemma-4-e2b-it-iffc-v2-best2000-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-sft-iffc-v2",
+        "display": "Gemma-4-E2B-it SFT-IFFC-v2 filtered-[] (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M",
+    },
     "functiongemma-270m": {
         "hf_repo": "ggml-org/functiongemma-270m-it-GGUF",
         "quant": "",
