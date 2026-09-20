@@ -2,7 +2,7 @@
 
 Frozen data mix and split for supervised fine-tuning of **Gemma-4-E2B-it** on Apple Silicon with [mlx-lm](https://github.com/ml-explore/mlx-lm) LoRA. Training targets match the existing `--fc-mode iffc` harness (`benchmark/iffc.py`): assistant turns are a JSON list of `{"function_name", "parameters"}`; tool results are user-role observations. Native `tool_calls` are **not** mixed into this adapter dataset.
 
-This folder prepares data and prints/runs the mlx-lm command. It does **not** claim BFCL scores. The thesis test remains BFCL v4 `multi_turn_base` and is **never** in train / val / corpus_test.
+This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored the v1 mix as a negative: 1/200 = 0.5%** on BFCL v4 `multi_turn_base` (`gemma4-e2b-sft-iffc`, fused Q4_K_M best@1000). Root cause is ToolACE stop-after-tools `[]` targets (5520 empty assistant turns; 78.1% of post-tool-result targets are `[]`), **not** the IFFC parser (zero `iffc_unparseable`). Do **not** train more epochs on this mix, run BoN/STATE on this checkpoint, or fuse `final@2000` as the first fix. Next: rebuild the mix (downweight/drop non-terminal `[]` after tool results; keep continuation turns), retrain, re-eval. Details in `THESIS.md` / `METHODS.md`. The thesis test remains BFCL v4 `multi_turn_base` and is **never** in train / val / corpus_test.
 
 ## Locked mix (do not reopen)
 
@@ -101,7 +101,7 @@ Dry-run (Linux/CI): `uv run python -m sft.train_mlx --smoke` prints the command 
 
 ## Eval (BFCL v4 `multi_turn_base`)
 
-Thesis test is **`multi_turn_base` only**. Best val checkpoint is **iter 1000**. Fuse that adapter (not necessarily the last iter), convert to Q4_K_M GGUF, serve with `-m`, then score under `--model gemma4-e2b-sft-iffc` so results land in a new folder / DB key. Do **not** invent scores. Paths may vary slightly.
+Thesis test is **`multi_turn_base` only**. Best val checkpoint is **iter 1000**. Fuse that adapter (not necessarily the last iter), convert to Q4_K_M GGUF, serve with `-m`, then score under `--model gemma4-e2b-sft-iffc` so results land in a new folder / DB key. **Run 12 already scored this v1 GGUF: 1/200 = 0.5%** (scored negative; do not overwrite that `runs` row). Do **not** `--fc-mode iffc-state` or BoN on this checkpoint. A mix-rebuild eval needs a new fused GGUF and a new run. Paths may vary slightly.
 
 ```bash
 # Fuse best@1000 (mlx-lm adapter filename is often 0001000_adapters.safetensors;
@@ -127,7 +127,7 @@ python llama.cpp/convert_hf_to_gguf.py sft/fused/gemma-4-e2b-it-iffc-best1000 \
 
 uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn \
   --categories multi_turn_base --fc-mode iffc
-# optional: --fc-mode iffc-state
+# Do not --fc-mode iffc-state / iffc-state-bon on this v1 checkpoint (Run 12 0.5%).
 ```
 
 If `convert_hf_to_gguf.py` rejects the fused layout, export/dequantize via mlx_lm.fuse docs for your mlx-lm version, then convert. Results: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-Q4_K_M/` (distinct from `Gemma-4-E2B-it-Q4_K_M/`).

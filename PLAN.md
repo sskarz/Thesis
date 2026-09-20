@@ -48,7 +48,9 @@ These directly support the thesis claim of "optimization" and are required for t
 
 - **What:** Frozen IFFC-format mix (all ToolACE + 25k oversampled xLAM-60k; seed=42; ~90/5/5 train/val/corpus_test) → mlx-lm LoRA on Apple Silicon → fuse → GGUF. Thesis test remains BFCL v4 `multi_turn_base` (never in the mix).
 - **Why:** Training-time counterpart to inference-time IFFC / IFFC+STATE / BoN — same JSON-in-text channel, not native `tool_calls`
-- **Target:** Gemma-4-E2B-it `multi_turn_base` first (do not invent scores)
+- **Measured (Gemma `multi_turn_base`):** Run 12 `--model gemma4-e2b-sft-iffc --fc-mode iffc` **1/200 = 0.5%** (only `multi_turn_base_50`). **Scored negative** vs NFC 27.0% / IFFC 30.5% / CD 10.5% / GST 30.5% / STATE 34.0% / BoN 36.5%. Root cause: 5520 ToolACE assistant `[]` targets (78.1% of post-tool-result turns) teach stop-after-tools — **not** a parser bug (zero `iffc_unparseable`). Details in `THESIS.md`.
+- **Do not:** more epochs on this mix; BoN/STATE on this checkpoint; fuse `final@2000` as the first fix
+- **Next (not started):** rebuild mix — downweight/drop non-terminal `[]` after tool results and/or keep continuation turns; retrain LoRA; re-eval same BFCL setup. Optional ablation: ToolACE-only vs xLAM-only
 - **Code:** `sft/` — see `sft/README.md` for Mac commands
 - **Skipped v1:** APIGen-MT-5k (NC), Glaive, Hermes (docs-only optional backup)
 - **Effort:** Medium-High (overnight train on Mac; not CI)
@@ -119,5 +121,5 @@ This answers the central question from METHODS.md: **does fine-tuning or inferen
 4. Best-of-N majority voting wrapper
 5. Context compression for multi-turn
 6. Parallel calling grammar investigation
-7. MLX SFT v1 (data pipeline is in `sft/`; Mac LoRA train + BFCL `multi_turn_base` eval after fuse/GGUF)
+7. MLX SFT v1 is **scored negative** (Run 12 **1/200 = 0.5%**). Next: rebuild mix (drop/downweight non-terminal `[]` after tool results); retrain; re-eval. Do not more epochs on v1 / BoN on this GGUF / fuse `final@2000` first.
 8. Jetson migration (if time permits)
