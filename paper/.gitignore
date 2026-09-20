@@ -1,4 +1,5 @@
 # LaTeX auxiliaries (keep source + figures; rebuild PDF with latexmk)
+/main.pdf
 *.aux
 *.bbl
 *.blg

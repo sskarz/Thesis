@@ -114,7 +114,7 @@ Figure~\ref{fig:channels} summarizes the format channels. Every multi-turn metho
   font=\small,
   box/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=gray!6},
   neg/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=red!8},
-  pos/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=green!8},
+  win/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=green!8},
   diag/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=yellow!12, densely dashed},
   arr/.style={-{Latex}, thick}
 ]
@@ -122,8 +122,8 @@ Figure~\ref{fig:channels} summarizes the format channels. Every multi-turn metho
 \node[box, right=1.05cm of nfc] (iffc) {IFFC\\[-1pt]{\scriptsize Appendix~B JSON-in-text}};
 \node[neg, right=1.05cm of iffc] (cd) {CD\\[-1pt]{\scriptsize TagDispatch-style; \textbf{not} XG-2}};
 \node[box, below=0.85cm of nfc] (gst) {GST$+$NFC\\[-1pt]{\scriptsize He Detail; \textbf{not} GBNF}};
-\node[pos, below=0.85cm of iffc] (state) {IFFC$+$STATE\\[-1pt]{\scriptsize harness STATE; \textbf{not} LLM sum.}};
-\node[pos, below=0.85cm of cd] (bon) {BoN $N{=}5$\\[-1pt]{\scriptsize MV@$N$; \textbf{not} verifier}};
+\node[win, below=0.85cm of iffc] (state) {IFFC$+$STATE\\[-1pt]{\scriptsize harness STATE; \textbf{not} LLM sum.}};
+\node[win, below=0.85cm of cd] (bon) {BoN $N{=}5$\\[-1pt]{\scriptsize MV@$N$; \textbf{not} verifier}};
 \node[neg, below=0.85cm of gst] (sft) {SFT v1/v2\\[-1pt]{\scriptsize LoRA; scored negative}};
 \node[diag, below=0.85cm of state] (r14) {Run~14 strip-\texttt{[]}\\[-1pt]{\scriptsize DIAGNOSTIC; not a win}};
 \node[neg, below=0.85cm of bon] (shell) {Shell FS-only\\[-1pt]{\scriptsize $n{=}13$; negative ablation}};
