@@ -1,8 +1,10 @@
-# SFT v1 — MLX LoRA on Gemma-4-E2B (IFFC JSON-in-text)
+# SFT v3 — MLX LoRA on Gemma-4-E2B (IFFC JSON-in-text)
 
 Frozen data mix and split for supervised fine-tuning of **Gemma-4-E2B-it** on Apple Silicon with [mlx-lm](https://github.com/ml-explore/mlx-lm) LoRA. Training targets match the existing `--fc-mode iffc` harness (`benchmark/iffc.py`): assistant turns are a JSON list of `{"function_name", "parameters"}`; tool results are user-role observations. Native `tool_calls` are **not** mixed into this adapter dataset.
 
-This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored the v1 mix as a negative: 1/200 = 0.5%** on BFCL v4 `multi_turn_base` (`gemma4-e2b-sft-iffc`, fused Q4_K_M best@1000). Root cause is ToolACE stop-after-tools `[]` targets (5520 empty assistant turns; 78.1% of post-tool-result targets are `[]`), **not** the IFFC parser (zero `iffc_unparseable`). **Run 13 scored the v2 filtered non-terminal-`[]` mix as the same collapse: 1/200 = 0.5%** (`gemma4-e2b-sft-iffc-v2`, LoRA best@2000 `val=0.211`; only `multi_turn_base_50`; correct-set overlap identical with Run 12). PR #24 dropped 334 mid-trajectory empty-after-exec (non-terminal 334→0) and still kept 552 terminal; the filter did **not** recover. **Run 14** (`--iffc-strip-empty-assistant` on the same v2 GGUF) scored **4/200 = 2.0%** as a **DIAGNOSTIC** history-bookkeeping ablation — did **not** rescue the never-start collapse; **do not present 2% as a method win**. Do **not** train more epochs on v1 or this filtered mix, run BoN/STATE on these checkpoints, or claim the `[]` filter fixed SFT. Next (Sanskar decides — not started): drop **all** empty-after-exec including terminal + stronger continuation curriculum; ToolACE-only vs xLAM-only ablation at small scale; investigate Gemma-4 chat-template / fuse path; or pause SFT (BoN 36.5% still best). Details in `THESIS.md` / `METHODS.md`. The thesis test remains BFCL v4 `multi_turn_base` and is **never** in train / val / corpus_test.
+This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored the v1 mix as a negative: 1/200 = 0.5%** on BFCL v4 `multi_turn_base` (`gemma4-e2b-sft-iffc`, fused Q4_K_M best@1000). Root cause is ToolACE stop-after-tools `[]` targets (5520 empty assistant turns; 78.1% of post-tool-result targets are `[]`), **not** the IFFC parser (zero `iffc_unparseable`). **Run 13 scored the v2 filtered non-terminal-`[]` mix as the same collapse: 1/200 = 0.5%** (`gemma4-e2b-sft-iffc-v2`, LoRA best@2000 `val=0.211`; only `multi_turn_base_50`; correct-set overlap identical with Run 12). PR #24 dropped 334 mid-trajectory empty-after-exec (non-terminal 334→0) and still kept 552 terminal; the filter did **not** recover. **Run 14** (`--iffc-strip-empty-assistant` on the same v2 GGUF) scored **4/200 = 2.0%** as a **DIAGNOSTIC** history-bookkeeping ablation — did **not** rescue the never-start collapse; **do not present 2% as a method win**. Do **not** train more epochs on v1 or the v2 mix, run BoN/STATE on those checkpoints, or claim the v2 `[]` filter fixed SFT.
+
+**SFT v3** (default `sft.train_mlx --prepare-only`) is a **data curriculum** change, not another inference harness: drop **all** empty-after-exec `[]` targets including terminal, and keep / synthesize **recovery_after_empty** rows whose history shows a prior stop then a new user question with a nonempty tool-call gold. Conversation-level ToolACE+xLAM splits stay frozen; BFCL `multi_turn_base` stays held out. Details in `THESIS.md` / `METHODS.md`.
 
 ## Locked mix (do not reopen)
 
@@ -96,31 +98,46 @@ python -m mlx_lm.fuse \
 #    see [Eval](#eval-bfcl-v4-multi_turn_base) (separate MODELS key, not gemma4-e2b).
 ```
 
-`--mask-prompt` only backprops the **last** chat message. `sft.train_mlx` unrolls each conversation so every assistant turn is a row ending on that turn (split membership stays at conversation id), then applies the [empty-after-exec filter](#unroll-filter-drop-non-terminal--after-tool-results).
+`--mask-prompt` only backprops the **last** chat message. `sft.train_mlx` unrolls each conversation so every assistant turn is a row ending on that turn (split membership stays at conversation id), then applies the [SFT v3 unroll recipe](#unroll-filter-sft-v3-drop-all-empty-after-exec--recovery-curriculum).
 
 Dry-run (Linux/CI): `uv run python -m sft.train_mlx --smoke` prints the command and writes unrolled JSONL without calling mlx-lm.
 
-## Unroll filter (drop non-terminal `[]` after tool results)
+## Unroll filter (SFT v3: drop all empty-after-exec + recovery curriculum)
 
-SFT v1 trained on every unrolled assistant turn. ToolACE maps natural-language “done” replies to IFFC `[]`. After a user message that is an IFFC tool-result observation (`Function execution results:…` from `format_iffc_execution_user_message`), **78%** of those targets were `[]` (2121 empty vs 596 continue). All ~5,520 empty `[]` targets in the mlx train set came from ToolACE; xLAM had 0. That taught early stop: BFCL Run 12 empty-turn rate was ~70% vs ~13% on base IFFC, and `multi_turn_base` collapsed to 0.5% even though the live probe still emitted valid IFFC JSON. Run 13 scored the filtered mix at the **same 0.5%** (primary empty_turn 167 vs Run 12 101; audit empty turns still ~70%, 522/734 error rows).
+SFT v1 trained on every unrolled assistant turn. ToolACE maps natural-language “done” replies to IFFC `[]`. After a user message that is an IFFC tool-result observation (`Function execution results:…` from `format_iffc_execution_user_message`), **78%** of those targets were `[]` (2121 empty vs 596 continue). All ~5,520 empty `[]` targets in the mlx train set came from ToolACE; xLAM had 0. That taught early stop: BFCL Run 12 empty-turn rate was ~70% vs ~13% on base IFFC, and `multi_turn_base` collapsed to 0.5% even though the live probe still emitted valid IFFC JSON. Run 13 scored the v2 filtered mix at the **same 0.5%** (primary empty_turn 167 vs Run 12 101; audit empty turns still ~70%, 522/734 error rows). **Run 14** (`--iffc-strip-empty-assistant` on the same v2 GGUF) scored **4/200 = 2.0%** as a **DIAGNOSTIC** history-bookkeeping ablation — it did **not** rescue the never-start collapse; **do not present 2% as a method win**.
 
-**v2 policy (drop, not downweight):** when building unrolled mlx JSONL, drop a row iff
+BFCL `multi_turn_base` is call → results → `[]` → **new user turn**. Training that over-weights assistant `[]` after tool results makes the SFT model stop and then fail to start again. v3 attacks that in the **unrolled mlx JSONL**, not in the live harness.
 
-1. the assistant target is exactly `[]`,
-2. the previous user message looks like an IFFC tool-result observation (contains `Function execution results` or the `format_iffc_execution_user_message` footer), **and**
-3. the parent conversation still has a later assistant turn with a non-empty tool call (this `[]` was mid-trajectory, not a true terminal stop).
+**v3 policy (default, drop not downweight):** when building unrolled mlx JSONL:
 
-Keep true terminal `[]` (no later tool-calling assistant turn). Keep every non-empty tool-call target, including continuation after exec (`user` observation → `[call]`). Keep ordinary user → `[]` clarifying / irrelevance turns. xLAM rows are unchanged unless they somehow gain this pattern.
+1. Drop a row iff the assistant target is exactly `[]` **and** the previous user message looks like an IFFC tool-result observation (`Function execution results` or the `format_iffc_execution_user_message` footer). This includes **terminal** empty-after-exec (stricter than v2’s non-terminal-only filter).
+2. Keep every non-empty tool-call target, including continuation after exec (`user` observation → `[call]`).
+3. Keep ordinary user → `[]` clarifying / irrelevance turns (previous user is not an execution observation).
+4. **Recovery curriculum:** keep rows whose history already contains a prior assistant `[]` (formatter NL→`[]`, or a clarifying stop), then a **new user question**, with a nonempty tool-call gold. These are counted as `recovery_after_empty`.
+5. **Synthetic stop in history only:** ToolACE multi-turn often has no explicit `[]` between tool results and the next human turn (NL is either collapsed into a `[]` *target* — which v3 drops — or the transcript jumps from the execution observation to the next user question). For the *next* user→call unroll row, if history is `… exec results, new user, [call]` with nothing in between, insert assistant `[]` **only in that row’s history prefix**. The gold target stays the nonempty call. This does **not** add a `[]` training row and must not be mistaken for putting BFCL test prompts into train — it is bookkeeping structure only.
 
-mlx-lm chat JSONL has no sample-weight field, so v2 **drops** the bad rows. Conversation-level `split_data` files are **not** rewritten (split unit stays conversation id). Ablation: `--keep-nonterminal-empty-after-exec` restores the v1 unroll.
+xLAM rows are unchanged unless they somehow gain this pattern. Conversation-level `split_data` files are **not** rewritten (split unit stays conversation id). mlx-lm chat JSONL has no sample-weight field, so v3 **drops** empty-after-exec rows.
 
-Unroll logs before/after counts of total rows, empty `[]` targets, empty-after-exec targets (and the non-terminal subset), by source (`toolace` vs `xlam`). On the mix that produced Run 13, the filter dropped **334** non-terminal empty-after-exec rows (334→0) and **kept 552** terminal empty-after-exec. That v2 mix scored **1/200 = 0.5%** — filter insufficient.
+**Ablation flags** (pass through `sft.train_mlx` / `./sft/train_mlx.sh`):
+
+| Flag | Recipe | Behavior |
+|---|---|---|
+| *(default)* | **v3** | Drop all empty-after-exec (incl. terminal) + synthetic recovery history |
+| `--keep-terminal-empty-after-exec` | v2 | Drop non-terminal empty-after-exec only; keep terminal `[]`; no synthetic recovery |
+| `--keep-nonterminal-empty-after-exec` | v1 | Keep every assistant turn (Run 12 mix) |
+| `--no-synthetic-recovery` | v3 minus synth | Still drop all empty-after-exec; do not insert history-only `[]` |
+
+Unroll logs before/after counts of total rows, empty `[]` targets, empty-after-exec (non-terminal + terminal), `recovery_after_empty`, and synthetic insertions, by source (`toolace` vs `xlam`). On the mix that produced Run 13, v2 dropped **334** non-terminal empty-after-exec (334→0) and **kept 552** terminal — that mix scored **1/200 = 0.5%**. v3 should take empty-after-exec **targets** to ~0 and show a nonzero `recovery_after_empty` count.
 
 ```bash
-# Already have formatted ToolACE + xLAM and frozen splits? Re-unroll mlx train/val:
+# Already have formatted ToolACE + xLAM and frozen splits? Re-unroll mlx train/val (v3 default):
 uv run python -m sft.train_mlx --prepare-only
 # equivalent audit (prints stats; does not write mlx/ unless --out):
 uv run python -m sft.filter_empty_after_exec --splits-dir sft/data/splits
+
+# v2 / v1 ablations (same frozen splits, different mlx unroll):
+uv run python -m sft.train_mlx --prepare-only --keep-terminal-empty-after-exec
+uv run python -m sft.train_mlx --prepare-only --keep-nonterminal-empty-after-exec
 
 # Full regenerate from formatted sources (splits stay conversation-level; mlx changes):
 uv run python -m sft.format_iffc          # only if raw → formatted is stale
@@ -128,6 +145,8 @@ uv run python -m sft.split_data           # optional; seed=42, same conversation
 uv run python -m sft.train_mlx --prepare-only
 # then train as usual: ./sft/train_mlx.sh --full --run
 ```
+
+Confirm the prepare log: `recipe=v3`, empty-after-exec after ≈ 0, `recovery_after_empty` after > 0. Do **not** add BFCL `multi_turn_base` ids or prompts to these JSONL files.
 
 ## Eval (BFCL v4 `multi_turn_base`)
 
@@ -222,7 +241,7 @@ sft/
 ├── config.py                 # seed, paths, model ids
 ├── download_datasets.py
 ├── format_iffc.py            # reuses benchmark.iffc
-├── filter_empty_after_exec.py  # drop mid-trajectory [] after tool results
+├── filter_empty_after_exec.py  # v3: drop all [] after tool results + recovery
 ├── split_data.py
 ├── train_mlx.py              # unroll + filter + mlx_lm.lora wrapper
 ├── train_mlx.sh
