@@ -603,7 +603,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
 ```
 
-Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%; BoN N=5 Run 11 = 73/200 = 36.5%.
+Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%; BoN N=5 Run 11 = 73/200 = 36.5%; SFT-IFFC LoRA best@1000 Run 12 = 1/200 = 0.5% (scored negative).
 
 ### Pause / resume (kill overnight, continue the same run)
 
@@ -908,11 +908,11 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 ## Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)
 
-Training-time counterpart to the inference-time IFFC channel. **No BFCL scores yet** — this section records the frozen data recipe and how to train on a Mac, not a result.
+Training-time counterpart to the inference-time IFFC channel. **Scored negative** — Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** on BFCL v4 `multi_turn_base` (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`. Full audit: `THESIS.md`.
 
 **Chat format:** the same JSON-in-text IFFC shape as `--fc-mode iffc` (`benchmark/iffc.py` Appendix B). Assistant turns are a JSON list of `{"function_name", "parameters"}` (or `[]`). Tool/observation turns are user-role execution messages. Native `tool_calls` are **not** mixed into this adapter dataset.
 
-**Mix (locked):**
+**Mix (v1, locked for this checkpoint):**
 
 - **All** of [Team-ACE/ToolACE](https://huggingface.co/datasets/Team-ACE/ToolACE) (~11,300 multi-turn conversations)
 - Stratified **25,000** rows from [Salesforce/xlam-function-calling-60k](https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k), oversampling parallel / multi-answer rows (`n_tools_in_gold ≥ 2` taken first)
@@ -925,7 +925,37 @@ Training-time counterpart to the inference-time IFFC channel. **No BFCL scores y
 
 **Code:** `sft/` (download → format → split → `mlx_lm.lora` with `--mask-prompt`, LoRA rank 16 default / 16–32 band). Conversations are unrolled so every assistant turn receives loss. Artifacts under `sft/data/` are gitignored. CI does not run overnight training.
 
-**Eval identity:** fuse best val @ iter 1000 → Q4_K_M GGUF → `llama-server -m <local.gguf>`, then `uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn --categories multi_turn_base --fc-mode iffc` (optionally `--fc-mode iffc-state`). Do **not** pass `--model gemma4-e2b`. See `sft/README.md`. Do not invent scores.
+### Run 12 result (scored negative)
+
+| Method | Run | Score |
+|--------|-----|-------|
+| NFC | 4 | 54/200 = 27.0% |
+| IFFC (base) | 5 | 61/200 = 30.5% |
+| CD | 8 | 21/200 = 10.5% |
+| GST | 9 | 61/200 = 30.5% |
+| IFFC+STATE | 10 | 68/200 = 34.0% |
+| BoN N=5 | 11 | 73/200 = 36.5% |
+| **SFT-IFFC LoRA best@1000** | **12** | **1/200 = 0.5%** |
+
+**Primary BFCL bucket per failed entry** (n=199; sum 101+63+35=199): `empty_turn` **101**, `state_mismatch` **63**, `under_call` **35**.
+
+**Thesis Bot audit** (different metric — do not conflate with the 101 `empty_turn` primaries): empty turns 13.2% (Run 5 IFFC) → **69.9%** (Run 12); early-stop trajectories 56/200 → **158/200**. Both views support **early abstain dominates**.
+
+### Root cause: ToolACE `[]` pathology, not parser
+
+Live single-step IFFC probe on the served GGUF emits valid `[{"function_name","parameters"}]` — format + chat template OK. Zero `iffc_unparseable` on all 200.
+
+The mlx train split has **5520** assistant `[]` targets, **all from ToolACE** (32.5% of ToolACE assistant turns; xLAM 0%). After a `"Function execution results"` user message, **78.1%** of assistant targets are `[]` (2121 empty vs 596 continue). That teaches **stop-after-tools**. BFCL multi-turn needs continued calls on later user turns. Live probe: after stock→send, `"show messages sent"` → `[]`. Same entries IFFC wins (e.g. `multi_turn_base_101`) SFT gets turn0+turn1 right then `[]` on turn2 (`view_messages_sent` missing). Secondary: when it does call, some bad order (e.g. `mv` before `mkdir` on `multi_turn_base_0`) then empties.
+
+### Anti-recommendations
+
+Do **not**: more epochs on the same mix; BoN / IFFC+STATE on this checkpoint; fuse `final@2000` as the first fix.
+
+### Next (Sanskar to pick — not started here)
+
+Rebuild the SFT mix that **downweights or drops non-terminal `[]` after tool results** and/or **keeps multi-turn continuation turns**; retrain LoRA; re-eval the same BFCL setup. Optional ablation: ToolACE-only vs xLAM-only.
+
+**Eval identity:** fuse best val @ iter 1000 → Q4_K_M GGUF → `llama-server -m <local.gguf>`, then `uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn --categories multi_turn_base --fc-mode iffc`. Do **not** pass `--model gemma4-e2b`. See `sft/README.md`. Run 12 already scored this checkpoint — do not overwrite it; a mix-rebuild eval needs a new fused GGUF and a new `runs` row.
 
 ### Sources
 
@@ -1569,14 +1599,15 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 
 | Priority | Technique | Target Problem | Expected Impact | Effort |
 |----------|-----------|----------------|-----------------|--------|
-| 1 | **MLX LoRA SFT v1 on Gemma-4-E2B (IFFC mix)** | Gemma `multi_turn_base` | Unscored; frozen ToolACE+25k xLAM recipe in `sft/` | Medium |
-| 2 | **Function masking augmentation (Hammer)** | Generalization, irrelevance | Robust to unseen APIs; +irrelevance | Medium |
-| 3 | **Add xLAM-1b-fc-r as benchmark baseline** | Comparison point | Shows fine-tuned vs. base SLM gap | Low |
-| 4 | **GRPO post-SFT with BFCL checker as reward** | All categories, esp. multi-turn | +5–15pp on top of SFT | High |
-| 5 | **DiaTool-DPO for multi-turn** | Multi-turn categories | Better dialogue flow + rejection | High |
-| 6 | **FunctionGemma domain fine-tuning** | FunctionGemma-270M scores | 58% → 85% on domain tasks | Medium |
-| 7 | **Structured pruning (Phi-3 style)** | Edge size reduction | 3B → 1.8B with maintained accuracy | Very High |
-| 8 | **Curriculum-ordered training** | Training stability | Prevents catastrophic forgetting | Medium |
+| 1 | **Rebuild SFT mix (drop/downweight non-terminal `[]` after tool results; keep continuation turns)** | Gemma `multi_turn_base` after Run 12 0.5% | Undo ToolACE stop-after-tools prior; re-eval same IFFC setup | Medium |
+| 2 | **Optional ablation: ToolACE-only vs xLAM-only** | Isolate 5520 ToolACE `[]` targets (xLAM 0%) | Diagnose mix vs format | Medium |
+| 3 | **Function masking augmentation (Hammer)** | Generalization, irrelevance | Robust to unseen APIs; +irrelevance | Medium |
+| 4 | **Add xLAM-1b-fc-r as benchmark baseline** | Comparison point | Shows fine-tuned vs. base SLM gap | Low |
+| 5 | **GRPO post-SFT with BFCL checker as reward** | All categories, esp. multi-turn | +5–15pp on top of a *fixed* mix — not on Run 12 | High |
+| 6 | **DiaTool-DPO for multi-turn** | Multi-turn categories | Better dialogue flow + rejection | High |
+| 7 | **FunctionGemma domain fine-tuning** | FunctionGemma-270M scores | 58% → 85% on domain tasks | Medium |
+| 8 | **Structured pruning (Phi-3 style)** | Edge size reduction | 3B → 1.8B with maintained accuracy | Very High |
+| 9 | **Curriculum-ordered training** | Training stability | Prevents catastrophic forgetting | Medium |
 
 ### Recommended Training Pipeline
 
@@ -1584,12 +1615,16 @@ For a complete training-time experiment within this thesis:
 
 ```
 Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
-    ↓ Format ToolACE (all) + xLAM-60k (25k, oversample parallel) as IFFC JSON-in-text
+    ↓ v1 mix (ToolACE-all + 25k xLAM, IFFC JSON-in-text) is SCORED NEGATIVE
+      Run 12: 1/200 = 0.5% — stop-after-tools from ToolACE [] targets
+    ↓ Rebuild mix: downweight/drop non-terminal [] after tool results
+      and/or keep multi-turn continuation turns
+      Optional ablation: ToolACE-only vs xLAM-only
     ↓ Frozen split seed=42 (~90/5/5 train/val/corpus_test); BFCL multi_turn_base held out
     ↓ mlx-lm LoRA on Apple Silicon (--mask-prompt, rank 16–32)
     ↓ Fuse adapter, convert to GGUF (Q4_K_M), serve via llama-server
-    ↓ Evaluate on BFCL v4 multi_turn_base vs NFC / IFFC / IFFC+STATE / BoN
-    ↓ Do not invent scores until that eval lands
+    ↓ Evaluate on BFCL v4 multi_turn_base vs NFC 27.0% / IFFC 30.5% / SFT v1 0.5%
+    ↓ Do not more epochs on v1, BoN/STATE on the Run 12 GGUF, or fuse final@2000 first
 ```
 
 This pipeline answers the central thesis question: **does fine-tuning or inference-time optimization close the SLM-to-cloud-model gap more effectively for tool calling on edge devices?**

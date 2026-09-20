@@ -89,7 +89,7 @@ The live smoke layer:
 2. Skips cleanly when `http://localhost:8080` is unavailable
 3. Checks that single-turn and multi-turn responses are structurally valid for the pipeline
 
-MLX LoRA SFT (Gemma-4-E2B, IFFC mix) is documented in [`sft/README.md`](sft/README.md). Unit tests: `uv run pytest -q tests/sft`. Do not run overnight training in CI.
+MLX LoRA SFT v1 (Gemma-4-E2B, IFFC mix) is documented in [`sft/README.md`](sft/README.md). Unit tests: `uv run pytest -q tests/sft`. Do not run overnight training in CI. **Run 12 scored this checkpoint as a negative: 1/200 = 0.5%** on `multi_turn_base` (mix stop-after-tools, not parser — see `THESIS.md`).
 
 ### 5. Run the benchmark
 
@@ -152,6 +152,8 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 ```
 
 Optional `--bon-n N` and `--resume` if an unfinished iffc-state-bon run exists.
+
+Gemma SFT-IFFC LoRA best@1000 vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% / IFFC+STATE 34.0% / BoN 36.5% `multi_turn_base` baselines (Run 12 scored **1/200 = 0.5%**, a scored negative; see `THESIS.md`). Serve the fused GGUF, then `--model gemma4-e2b-sft-iffc`. Do **not** overwrite Run 12; a mix-rebuild eval needs a new GGUF and a new `runs` row.
 
 Offline IFFC parser + mock chat-completions smoke (no llama-server):
 
@@ -284,7 +286,7 @@ uv run python -m benchmark.run_all --model llama-3.2-3b
 
 Results land in `benchmark/results/Llama-3.2-3B-Instruct-Q4_K_M/`.
 
-Mac-local SFT GGUF (not HuggingFace). Start llama-server with `-m`, then pass `--model gemma4-e2b-sft-iffc` so scores do not overwrite base Gemma-4-E2B:
+Mac-local SFT GGUF (not HuggingFace). Start llama-server with `-m`, then pass `--model gemma4-e2b-sft-iffc` so scores do not overwrite base Gemma-4-E2B. Run 12 already scored this v1 checkpoint (**1/200 = 0.5%**, scored negative — do not overwrite):
 
 ```bash
 ./llama.cpp/build/bin/llama-server --jinja -fa on \
