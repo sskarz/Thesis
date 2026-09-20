@@ -480,6 +480,10 @@ def unroll_conversation(record: dict) -> list[dict]:
     ``mlx_lm.lora --mask-prompt`` only trains on the **final** message. Unrolling
     so every example ends on an assistant turn is how multi-turn IFFC targets
     actually receive loss. Split membership stays at conversation id.
+
+    This helper is unfiltered. ``sft.train_mlx.prepare_mlx_data`` runs
+    ``sft.filter_empty_after_exec`` on the unrolled rows so mid-trajectory
+    ``[]`` after tool-result observations are not trained.
     """
     messages = record.get("messages") or []
     rows: list[dict] = []
@@ -505,6 +509,11 @@ def unroll_conversation(record: dict) -> list[dict]:
 
 
 def unroll_records(records: list[dict]) -> list[dict]:
+    """Unroll every assistant turn with **no** empty-after-exec filter.
+
+    Training data should go through ``sft.filter_empty_after_exec.unroll_and_filter``
+    (used by ``sft.train_mlx.prepare_mlx_data``).
+    """
     out: list[dict] = []
     for rec in records:
         out.extend(unroll_conversation(rec))

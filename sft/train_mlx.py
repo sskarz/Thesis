@@ -1,7 +1,9 @@
-"""Thin wrapper around ``mlx_lm.lora`` for the IFFC SFT v1 mix.
+"""Thin wrapper around ``mlx_lm.lora`` for the IFFC SFT mix.
 
 Unrolls conversation-level splits so ``--mask-prompt`` trains every assistant
-turn. Does **not** run training in CI; on Linux this prints the command.
+turn, then drops mid-trajectory ``[]`` after tool-result observations (see
+``sft.filter_empty_after_exec``). Does **not** run training in CI; on Linux
+this prints the command.
 """
 
 from __future__ import annotations
@@ -35,7 +37,7 @@ from sft.config import (
     TRAIN_JSONL,
     VALID_JSONL,
 )
-from sft.format_iffc import unroll_records
+from sft.filter_empty_after_exec import unroll_and_filter
 from sft.io import read_jsonl, write_jsonl
 
 
@@ -46,12 +48,34 @@ def prepare_mlx_data(
     smoke: bool = False,
     smoke_train_rows: int = SMOKE_TRAIN_ROWS,
     smoke_valid_rows: int = SMOKE_VALID_ROWS,
+    drop_nonterminal_empty_after_exec: bool = True,
 ) -> Path:
-    """Unroll train/valid conversations into mlx-lm ``{train,valid}.jsonl``."""
+    """Unroll train/valid conversations into mlx-lm ``{train,valid}.jsonl``.
+
+    Default v2 filter drops mid-trajectory assistant ``[]`` targets that follow
+    an IFFC tool-result observation when the parent conversation still has a
+    later non-empty tool call. Conversation-level splits are unchanged.
+    """
     train = read_jsonl(splits_dir / TRAIN_JSONL.name)
     valid = read_jsonl(splits_dir / VALID_JSONL.name)
-    train_u = unroll_records(train)
-    valid_u = unroll_records(valid)
+    train_u, train_stats = unroll_and_filter(
+        train,
+        drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
+    )
+    valid_u, valid_stats = unroll_and_filter(
+        valid,
+        drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
+    )
+    print(
+        train_stats.format(
+            "train", enabled=drop_nonterminal_empty_after_exec
+        )
+    )
+    print(
+        valid_stats.format(
+            "valid", enabled=drop_nonterminal_empty_after_exec
+        )
+    )
     if smoke:
         train_u = train_u[:smoke_train_rows]
         valid_u = valid_u[:smoke_valid_rows]
@@ -62,7 +86,8 @@ def prepare_mlx_data(
     n_valid = write_jsonl(mlx_dir / "valid.jsonl", valid_u)
     print(
         f"mlx data: unrolled train={n_train} valid={n_valid} → {mlx_dir} "
-        f"(from {len(train)}/{len(valid)} conversations; smoke={smoke})"
+        f"(from {len(train)}/{len(valid)} conversations; smoke={smoke}; "
+        f"drop_nonterminal_empty_after_exec={drop_nonterminal_empty_after_exec})"
     )
     return mlx_dir
 
@@ -147,6 +172,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Only unroll JSONL; do not invoke mlx_lm",
     )
+    parser.add_argument(
+        "--keep-nonterminal-empty-after-exec",
+        action="store_true",
+        help=(
+            "Disable the v2 drop of mid-trajectory [] after tool-result "
+            "observations (SFT v1 unroll: keep every assistant turn)."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if not (args.splits_dir / TRAIN_JSONL.name).exists():
@@ -164,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         splits_dir=args.splits_dir,
         mlx_dir=args.mlx_dir,
         smoke=smoke,
+        drop_nonterminal_empty_after_exec=not args.keep_nonterminal_empty_after_exec,
     )
 
     if args.rank != LORA_RANK:

@@ -95,9 +95,38 @@ python -m mlx_lm.fuse \
 #    see [Eval](#eval-bfcl-v4-multi_turn_base) (separate MODELS key, not gemma4-e2b).
 ```
 
-`--mask-prompt` only backprops the **last** chat message. `sft.train_mlx` unrolls each conversation so every assistant turn is a row ending on that turn (split membership stays at conversation id).
+`--mask-prompt` only backprops the **last** chat message. `sft.train_mlx` unrolls each conversation so every assistant turn is a row ending on that turn (split membership stays at conversation id), then applies the [empty-after-exec filter](#unroll-filter-drop-non-terminal--after-tool-results).
 
 Dry-run (Linux/CI): `uv run python -m sft.train_mlx --smoke` prints the command and writes unrolled JSONL without calling mlx-lm.
+
+## Unroll filter (drop non-terminal `[]` after tool results)
+
+SFT v1 trained on every unrolled assistant turn. ToolACE maps natural-language “done” replies to IFFC `[]`. After a user message that is an IFFC tool-result observation (`Function execution results:…` from `format_iffc_execution_user_message`), **78%** of those targets were `[]` (2121 empty vs 596 continue). All ~5,520 empty `[]` targets in the mlx train set came from ToolACE; xLAM had 0. That taught early stop: BFCL Run 12 empty-turn rate was ~70% vs ~13% on base IFFC, and `multi_turn_base` collapsed to 0.5% even though the live probe still emitted valid IFFC JSON.
+
+**v2 policy (drop, not downweight):** when building unrolled mlx JSONL, drop a row iff
+
+1. the assistant target is exactly `[]`,
+2. the previous user message looks like an IFFC tool-result observation (contains `Function execution results` or the `format_iffc_execution_user_message` footer), **and**
+3. the parent conversation still has a later assistant turn with a non-empty tool call (this `[]` was mid-trajectory, not a true terminal stop).
+
+Keep true terminal `[]` (no later tool-calling assistant turn). Keep every non-empty tool-call target, including continuation after exec (`user` observation → `[call]`). Keep ordinary user → `[]` clarifying / irrelevance turns. xLAM rows are unchanged unless they somehow gain this pattern.
+
+mlx-lm chat JSONL has no sample-weight field, so v2 **drops** the bad rows. Conversation-level `split_data` files are **not** rewritten (split unit stays conversation id). Ablation: `--keep-nonterminal-empty-after-exec` restores the v1 unroll.
+
+Unroll logs before/after counts of total rows, empty `[]` targets, empty-after-exec targets (and the non-terminal subset), by source (`toolace` vs `xlam`).
+
+```bash
+# Already have formatted ToolACE + xLAM and frozen splits? Re-unroll mlx train/val:
+uv run python -m sft.train_mlx --prepare-only
+# equivalent audit (prints stats; does not write mlx/ unless --out):
+uv run python -m sft.filter_empty_after_exec --splits-dir sft/data/splits
+
+# Full regenerate from formatted sources (splits stay conversation-level; mlx changes):
+uv run python -m sft.format_iffc          # only if raw → formatted is stale
+uv run python -m sft.split_data           # optional; seed=42, same conversation ids
+uv run python -m sft.train_mlx --prepare-only
+# then train as usual: ./sft/train_mlx.sh --full --run
+```
 
 ## Eval (BFCL v4 `multi_turn_base`)
 
@@ -184,8 +213,9 @@ sft/
 ├── config.py                 # seed, paths, model ids
 ├── download_datasets.py
 ├── format_iffc.py            # reuses benchmark.iffc
+├── filter_empty_after_exec.py  # drop mid-trajectory [] after tool results
 ├── split_data.py
-├── train_mlx.py              # unroll + mlx_lm.lora wrapper
+├── train_mlx.py              # unroll + filter + mlx_lm.lora wrapper
 ├── train_mlx.sh
 ├── lora_config.yaml          # rank 16, scale 32, mask_prompt
 └── data/                     # gitignored artifacts
