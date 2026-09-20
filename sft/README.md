@@ -160,6 +160,10 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn
 # Do not --fc-mode iffc-state / iffc-state-bon on this v1 checkpoint (Run 12 0.5%).
 # Run 13 already scored the v2 filtered-[] GGUF at 1/200 = 0.5% (do not overwrite;
 # do not BoN/STATE on v2; do not claim the [] filter fixed SFT).
+# Diagnostic-only history bookkeeping (not a training method; new runs row):
+# uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-turn \
+#   --categories multi_turn_base --fc-mode iffc --iffc-strip-empty-assistant \
+#   --notes "DIAGNOSTIC: strip trailing IFFC assistant [] vs Run 13 0.5%"
 ```
 
 If `convert_hf_to_gguf.py` rejects the fused layout, export/dequantize via mlx_lm.fuse docs for your mlx-lm version, then convert. Results: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-Q4_K_M/` (distinct from `Gemma-4-E2B-it-Q4_K_M/`).

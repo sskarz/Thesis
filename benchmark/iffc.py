@@ -149,6 +149,30 @@ def iffc_calls_to_func_strings(calls: list[dict]) -> list[str]:
     return result
 
 
+def is_empty_iffc_assistant_message(message: dict) -> bool:
+    """True iff *message* is an assistant turn whose content parses as ``[]``."""
+    if not isinstance(message, dict) or message.get("role") != "assistant":
+        return False
+    parsed = try_parse_iffc_response(assistant_text(message))
+    return parsed == []
+
+
+def strip_trailing_empty_assistant(chat_history: list[dict]) -> int:
+    """Pop trailing assistant ``[]`` stop turns from *chat_history*.
+
+    Diagnostic-only history bookkeeping (``--iffc-strip-empty-assistant``).
+    IFFC uses ``[]`` to end the within-turn tool loop; that assistant
+    message is normally left in ``chat_history`` before the next BFCL
+    user turn (Run 5–13). SFT v2 probes continue correctly when that
+    ``[]`` is absent. Returns the number of messages removed.
+    """
+    n = 0
+    while chat_history and is_empty_iffc_assistant_message(chat_history[-1]):
+        chat_history.pop()
+        n += 1
+    return n
+
+
 def format_iffc_execution_user_message(
     func_strings: list[str],
     exec_results: list[Any],

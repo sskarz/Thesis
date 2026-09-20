@@ -86,12 +86,17 @@ class _ScriptedChatHandler(BaseHTTPRequestHandler):
     """Minimal OpenAI-compatible chat completions endpoint with scripted replies."""
 
     contents: list[str] = []
+    payloads: list[dict] = []
     _idx = 0
 
     def do_POST(self) -> None:  # noqa: N802
         length = int(self.headers.get("Content-Length", "0"))
-        if length:
-            self.rfile.read(length)
+        raw = self.rfile.read(length) if length else b""
+        if raw:
+            try:
+                type(self).payloads.append(json.loads(raw.decode()))
+            except json.JSONDecodeError:
+                type(self).payloads.append({})
         if self._idx >= len(self.contents):
             body = json.dumps({"error": "no more scripted responses"}).encode()
             self.send_response(500)
@@ -126,6 +131,7 @@ class _ScriptedChatHandler(BaseHTTPRequestHandler):
 
 def _start_scripted_server(contents: list[str]) -> tuple[ThreadingHTTPServer, str]:
     _ScriptedChatHandler.contents = contents
+    _ScriptedChatHandler.payloads = []
     _ScriptedChatHandler._idx = 0
     server = ThreadingHTTPServer(("127.0.0.1", 0), _ScriptedChatHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -178,9 +184,78 @@ def run_mock_multi_step_loop() -> None:
         server.server_close()
 
 
+def run_mock_strip_empty_assistant_history() -> None:
+    """Two BFCL user turns: flag on drops assistant ``[]``; flag off keeps it."""
+    contents = [
+        '[{"function_name": "get_weather", "parameters": {"city": "San Francisco"}}]',
+        "[]",
+        "[]",
+    ]
+    entry = {
+        "id": "smoke-iffc-strip",
+        "initial_config": {},
+        "involved_classes": [],
+        "question": [
+            [{"role": "user", "content": "What is the weather in San Francisco?"}],
+            [{"role": "user", "content": "What about tomorrow?"}],
+        ],
+    }
+
+    def _assistant_empties(messages: list[dict]) -> list[dict]:
+        return [
+            m
+            for m in messages
+            if m.get("role") == "assistant"
+            and try_parse_iffc_response(m.get("content")) == []
+        ]
+
+    server, base_url = _start_scripted_server(contents)
+    prev_url = config.SERVER_URL
+    prev_execute = generate_multi_turn.execute_multi_turn_func_call
+    prev_strip = config.IFFC_STRIP_EMPTY_ASSISTANT
+    try:
+        config.SERVER_URL = base_url
+        generate_multi_turn.execute_multi_turn_func_call = (
+            lambda **kwargs: (["72 F"], None)
+        )
+
+        generate_multi_turn.generate_for_entry(
+            entry,
+            "multi_turn_base",
+            [WEATHER_TOOL],
+            fc_mode=config.FC_IFFC,
+            strip_empty_assistant=False,
+        )
+        off_payloads = list(_ScriptedChatHandler.payloads)
+        assert len(off_payloads) == 3
+        assert _assistant_empties(off_payloads[2]["messages"]), (
+            "flag off must keep assistant [] in history for the next user turn"
+        )
+
+        _ScriptedChatHandler.payloads = []
+        _ScriptedChatHandler._idx = 0
+        generate_multi_turn.generate_for_entry(
+            entry,
+            "multi_turn_base",
+            [WEATHER_TOOL],
+            fc_mode=config.FC_IFFC,
+            strip_empty_assistant=True,
+        )
+        on_payloads = list(_ScriptedChatHandler.payloads)
+        assert len(on_payloads) == 3
+        assert _assistant_empties(on_payloads[2]["messages"]) == []
+    finally:
+        config.SERVER_URL = prev_url
+        config.IFFC_STRIP_EMPTY_ASSISTANT = prev_strip
+        generate_multi_turn.execute_multi_turn_func_call = prev_execute
+        server.shutdown()
+        server.server_close()
+
+
 def run_offline_smoke() -> None:
     run_fixture_checks()
     run_mock_multi_step_loop()
+    run_mock_strip_empty_assistant_history()
 
 
 def run_live_smoke() -> None:

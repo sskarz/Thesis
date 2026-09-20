@@ -16,6 +16,10 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
   from actual tool execution results. Same checker as IFFC. Not GST / CD / GBNF.
 - ``iffc-state-bon``: Best-of-N majority vote overlay on IFFC+STATE (MV@N,
   default N=5, temperature=0.7). Vote per step, execute the winner once.
+
+Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits trailing
+IFFC assistant ``[]`` stop turns from ``chat_history`` before the next BFCL
+user turn. Default off. History-bookkeeping ablation, not a training method.
 """
 
 import argparse
@@ -39,6 +43,7 @@ from .iffc import (
     ensure_iffc_system_message,
     format_iffc_execution_user_message,
     iffc_calls_to_func_strings,
+    strip_trailing_empty_assistant,
     try_parse_iffc_response,
 )
 
@@ -121,6 +126,37 @@ def _resolve_fc_mode(fc_mode: str | None) -> str:
 
 def _is_json_text_mode(fc_mode: str) -> bool:
     return fc_mode in config.FC_JSON_TEXT_MODES
+
+
+def _resolve_strip_empty_assistant(
+    strip_empty_assistant: bool | None,
+) -> bool:
+    if strip_empty_assistant is None:
+        return bool(config.IFFC_STRIP_EMPTY_ASSISTANT)
+    return bool(strip_empty_assistant)
+
+
+def _iffc_family_mode(fc_mode: str) -> bool:
+    """Plain IFFC plus iffc-state overlays (same JSON-in-text ``[]`` stop)."""
+    return fc_mode == config.FC_IFFC or fc_mode in config.FC_IFFC_STATE_MODES
+
+
+def _maybe_strip_trailing_empty_assistant(
+    chat_history: list[dict],
+    fc_mode: str,
+    enabled: bool,
+) -> None:
+    """Drop trailing assistant ``[]`` from IFFC *chat_history* when *enabled*.
+
+    Diagnostic-only (``--iffc-strip-empty-assistant``). Default IFFC keeps
+    the within-turn stop message so Run 5–13 bookkeeping is unchanged.
+    When on, history must not contain assistant ``[]`` when the next BFCL
+    user turn is appended (SFT v2 self-conditioning probe). No-op for
+    NFC / GST / CD.
+    """
+    if not enabled or not _iffc_family_mode(fc_mode):
+        return
+    strip_trailing_empty_assistant(chat_history)
 
 
 def _build_chat_payload(
@@ -294,6 +330,7 @@ def generate_for_entry(
     all_tools: list[dict],
     execution_model_name: str | None = None,
     fc_mode: str | None = None,
+    strip_empty_assistant: bool | None = None,
 ) -> tuple[list[list[list[str]]], dict]:
     """Run the multi-turn inference loop for a single test entry (sync).
 
@@ -336,6 +373,7 @@ def generate_for_entry(
 
     exec_model_name = execution_model_name or f"{config.MODEL_NAME}_gen"
     fc_mode = _resolve_fc_mode(fc_mode)
+    strip_empty_assistant = _resolve_strip_empty_assistant(strip_empty_assistant)
     state_tracker = (
         iffc_state_mode.StateTracker()
         if fc_mode in config.FC_IFFC_STATE_MODES
@@ -343,6 +381,11 @@ def generate_for_entry(
     )
 
     for turn_idx, turn_messages in enumerate(questions):
+        # Before the next BFCL user turn: drop the previous turn's IFFC ``[]``
+        # stop so it cannot self-condition the next question (flag default off).
+        _maybe_strip_trailing_empty_assistant(
+            chat_history, fc_mode, strip_empty_assistant
+        )
         # miss_func: if this turn's question is [], add back withheld functions
         if is_miss_func and not turn_messages:
             # Restore withheld functions
@@ -415,6 +458,11 @@ def generate_for_entry(
             if action == "retry":
                 continue
             if action == "end_turn":
+                # Optional: strip immediately after the within-turn ``[]`` stop
+                # as well as before the next BFCL user turn.
+                _maybe_strip_trailing_empty_assistant(
+                    chat_history, fc_mode, strip_empty_assistant
+                )
                 break
 
             step_results.append(func_strings)
@@ -520,8 +568,12 @@ async def _generate_entry_async(
         if fc_mode in config.FC_IFFC_STATE_MODES
         else None
     )
+    strip_empty_assistant = _resolve_strip_empty_assistant(None)
 
     for turn_idx, turn_messages in enumerate(questions):
+        _maybe_strip_trailing_empty_assistant(
+            chat_history, fc_mode, strip_empty_assistant
+        )
         if is_miss_func and not turn_messages:
             if turn_idx in restore_map:
                 for tool in withheld_tools:
@@ -609,6 +661,9 @@ async def _generate_entry_async(
             if action == "retry":
                 continue
             if action == "end_turn":
+                _maybe_strip_trailing_empty_assistant(
+                    chat_history, fc_mode, strip_empty_assistant
+                )
                 break
 
             step_results.append(func_strings)
@@ -834,6 +889,8 @@ async def _run_async(
     extra = ""
     if fc_mode == config.FC_IFFC_STATE_BON:
         extra = f"  bon_n={config.BON_N}  temp={config.BON_TEMPERATURE}"
+    if config.IFFC_STRIP_EMPTY_ASSISTANT:
+        extra += "  iffc_strip_empty_assistant=1 (DIAGNOSTIC)"
     print(
         f"[multi-turn generate] fc-mode={fc_mode}  categories={list(cats)}"
         f"  run_id={run_id}{extra}"
@@ -907,6 +964,16 @@ def _parse_cli() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--iffc-strip-empty-assistant",
+        action="store_true",
+        help=(
+            "Diagnostic-only: after an IFFC within-turn stop that parses as [], "
+            "drop that trailing assistant [] from chat_history before the next "
+            "BFCL user turn (and right after the stop). Default off — Run 5–13 "
+            "IFFC bookkeeping unchanged. Not a training method."
+        ),
+    )
+    parser.add_argument(
         "--categories",
         nargs="+",
         metavar="CATEGORY",
@@ -936,6 +1003,7 @@ if __name__ == "__main__":
     config.set_fc_mode(args.fc_mode)
     if args.bon_n is not None:
         config.set_bon_n(args.bon_n)
+    config.set_iffc_strip_empty_assistant(args.iffc_strip_empty_assistant)
     if args.run_id is not None:
         config.RUN_ID = args.run_id
     run(
