@@ -153,6 +153,9 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "BoN N=5 on IFFC+STATE vs 34% / IFFC 30.5% / GST 30.5% / NFC 27% / CD 10.5%"
 uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn \
   --categories multi_turn_base --fc-mode iffc
+uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc --iffc-strip-empty-assistant \
+  --notes "DIAGNOSTIC: strip trailing IFFC assistant [] vs Run 13 0.5% (history bookkeeping, not a training method)"
 ```
 
 ### Query the database

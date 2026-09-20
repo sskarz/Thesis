@@ -182,6 +182,8 @@ def test_run_all_iffc_base_only_wires_flags(monkeypatch):
     run = db.get_run(run_all.config.RUN_ID)
     assert "fc_mode=iffc" in (run["notes"] or "")
     assert "multi_turn_base" in (run["notes"] or "")
+    assert "iffc_strip_empty_assistant" not in (run["notes"] or "")
+    assert "DIAGNOSTIC" not in (run["notes"] or "")
 
 
 def test_run_all_sft_iffc_model_is_cli_selectable_with_distinct_slug(monkeypatch):
@@ -259,6 +261,72 @@ def test_run_all_sft_iffc_v2_model_is_cli_selectable_with_distinct_slug(monkeypa
     assert run["model_slug"] != run_all.config.MODELS["gemma4-e2b-sft-iffc"]["slug"]
     assert run["model_slug"] != run_all.config.MODELS["gemma4-e2b"]["slug"]
     assert "fc_mode=iffc" in (run["notes"] or "")
+    assert "iffc_strip_empty_assistant" not in (run["notes"] or "")
+
+
+def test_run_all_iffc_strip_empty_assistant_wires_notes_and_nested_figures(
+    monkeypatch,
+):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+
+    calls = []
+
+    def record(name):
+        def inner(*args, **kwargs):
+            calls.append((name, args, kwargs))
+            return None
+
+        return inner
+
+    monkeypatch.setattr(run_all, "check_server", lambda: True)
+    monkeypatch.setattr(run_all.generate_responses, "run", record("generate_responses.run"))
+    monkeypatch.setattr(run_all.generate_multi_turn, "run", record("generate_multi_turn.run"))
+    monkeypatch.setattr(run_all.evaluate_responses, "run", record("evaluate_responses.run"))
+    monkeypatch.setattr(run_all.evaluate_multi_turn, "run", record("evaluate_multi_turn.run"))
+    monkeypatch.setattr(run_all.collect_metrics, "run", record("collect_metrics.run"))
+    monkeypatch.setattr(run_all.visualize, "run", record("visualize.run"))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark.run_all",
+            "--model",
+            "gemma4-e2b-sft-iffc-v2",
+            "--only-multi-turn",
+            "--categories",
+            "multi_turn_base",
+            "--fc-mode",
+            "iffc",
+            "--iffc-strip-empty-assistant",
+            "--notes",
+            "DIAGNOSTIC strip [] vs Run 13 0.5% (history bookkeeping, not a training method)",
+        ],
+    )
+
+    run_all.main()
+
+    mt_gen = next(c for c in calls if c[0] == "generate_multi_turn.run")
+    assert mt_gen[2]["fc_mode"] == "iffc"
+    assert list(mt_gen[2]["categories"]) == ["multi_turn_base"]
+    assert run_all.config.IFFC_STRIP_EMPTY_ASSISTANT is True
+    assert run_all.config.FC_MODE == "iffc"
+
+    run = db.get_run(run_all.config.RUN_ID)
+    notes = run["notes"] or ""
+    assert run["model_key"] == "gemma4-e2b-sft-iffc-v2"
+    assert "fc_mode=iffc" in notes
+    assert "iffc_strip_empty_assistant=1" in notes
+    assert "history bookkeeping" in notes
+    assert "not a training method" in notes
+    assert "multi_turn_base" in notes
+
+    nested = (
+        run_all.config.MODEL_RESULTS_DIR
+        / run_all.config.IFFC_STRIP_EMPTY_ASSISTANT_DIRNAME
+    )
+    assert run_all.config.FIGURES_DIR == nested / "figures"
+    assert run_all.config.METRICS_DIR == nested / "metrics"
+    assert run_all.config.SCORES_DIR == nested / "scores"
 
 
 def test_run_all_cd_base_only_wires_flags(monkeypatch):
@@ -467,6 +535,20 @@ def test_fc_mode_from_notes():
     assert run_all.bon_n_from_notes("fc_mode=iffc-state") is None
     assert run_all.bon_n_from_notes("fc_mode=iffc-state-bon bon_n=5") == 5
     assert run_all.bon_n_from_notes("bon_n=3 fc_mode=iffc-state-bon") == 3
+    assert run_all.iffc_strip_empty_assistant_from_notes(None) is False
+    assert run_all.iffc_strip_empty_assistant_from_notes("fc_mode=iffc") is False
+    assert (
+        run_all.iffc_strip_empty_assistant_from_notes(
+            "fc_mode=iffc iffc_strip_empty_assistant=1 categories=multi_turn_base"
+        )
+        is True
+    )
+    assert (
+        run_all.iffc_strip_empty_assistant_from_notes(
+            "iffc_strip_empty_assistant=0 fc_mode=iffc"
+        )
+        is False
+    )
 
 
 def test_resolve_pipeline_run_resume_matches_fc_mode(monkeypatch):
@@ -608,4 +690,54 @@ def test_run_all_resume_restores_bon_n_from_notes(monkeypatch):
     assert run_all.config.RUN_ID == existing
     assert run_all.config.BON_N == 3
     assert run_all.config.FC_MODE == "iffc-state-bon"
+
+
+def test_resolve_pipeline_run_resume_matches_strip_empty_flag(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    plain = db.create_run(
+        "qwen2.5-3b",
+        notes="fc_mode=iffc categories=multi_turn_base",
+    )
+    diagnostic = db.create_run(
+        "qwen2.5-3b",
+        notes=(
+            "fc_mode=iffc iffc_strip_empty_assistant=1 "
+            "DIAGNOSTIC: IFFC strip trailing assistant [] "
+            "(history bookkeeping ablation; not a training method) "
+            "categories=multi_turn_base"
+        ),
+    )
+
+    got, resumed = run_all.resolve_pipeline_run(
+        model_key="qwen2.5-3b",
+        fc_mode="iffc",
+        notes=None,
+        resume=True,
+        iffc_strip_empty_assistant=True,
+    )
+    assert resumed is True
+    assert got == diagnostic
+    assert got != plain
+
+    plain_id, plain_resumed = run_all.resolve_pipeline_run(
+        model_key="qwen2.5-3b",
+        fc_mode="iffc",
+        notes=None,
+        resume=True,
+        iffc_strip_empty_assistant=False,
+    )
+    assert plain_resumed is True
+    assert plain_id == plain
+
+    try:
+        run_all.resolve_pipeline_run(
+            model_key="qwen2.5-3b",
+            fc_mode="iffc",
+            notes=None,
+            resume_run_id=plain,
+            iffc_strip_empty_assistant=True,
+        )
+        raise AssertionError("expected strip-flag mismatch")
+    except ValueError as exc:
+        assert "iffc_strip_empty_assistant=0" in str(exc)
 

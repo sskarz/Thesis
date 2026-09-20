@@ -204,6 +204,12 @@ BON_N_DEFAULT = 5
 BON_N: int = BON_N_DEFAULT
 BON_TEMPERATURE = 0.7
 
+# Diagnostic-only: drop trailing IFFC assistant ``[]`` stop turns from
+# chat_history before the next BFCL user turn. Default **off** so Run 5–13
+# IFFC bookkeeping is unchanged. Not a training method; not a new fc-mode.
+IFFC_STRIP_EMPTY_ASSISTANT: bool = False
+IFFC_STRIP_EMPTY_ASSISTANT_DIRNAME = "iffc-strip-empty-assistant"
+
 
 def set_fc_mode(mode: str) -> None:
     """Set the process-wide function-calling mode."""
@@ -221,6 +227,30 @@ def set_bon_n(n: int) -> None:
     if not isinstance(n, int) or isinstance(n, bool) or n < 1:
         raise ValueError(f"bon-n must be an integer >= 1, got {n!r}")
     BON_N = n
+
+
+def set_iffc_strip_empty_assistant(enabled: bool) -> None:
+    """Enable or disable diagnostic stripping of trailing IFFC assistant ``[]``."""
+    global IFFC_STRIP_EMPTY_ASSISTANT
+    IFFC_STRIP_EMPTY_ASSISTANT = bool(enabled)
+
+
+def apply_iffc_strip_empty_assistant_result_paths() -> None:
+    """Nest on-disk metrics/scores/figures under a diagnostic subdirectory.
+
+    Scoring identity (``--model`` / ``model_key``) is unchanged so Run 12/13
+    keys stay intact. Charts for this ablation must not overwrite standard
+    IFFC figures for the same model. No-op when the flag is off.
+    """
+    global FIGURES_DIR, METRICS_DIR, SCORES_DIR
+    if not IFFC_STRIP_EMPTY_ASSISTANT:
+        return
+    root = MODEL_RESULTS_DIR / IFFC_STRIP_EMPTY_ASSISTANT_DIRNAME
+    FIGURES_DIR = root / "figures"
+    METRICS_DIR = root / "metrics"
+    SCORES_DIR = root / "scores"
+    for path in (FIGURES_DIR, METRICS_DIR, SCORES_DIR):
+        path.mkdir(parents=True, exist_ok=True)
 
 
 def resolve_multi_turn_categories(
