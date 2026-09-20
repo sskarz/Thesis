@@ -1,0 +1,506 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc}
+\usepackage{caption}
+\usepackage{url}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+
+\graphicspath{{figures/}}
+
+\hypersetup{
+  pdftitle={Optimizing Consecutive Tool Calling for Small Language Models on Edge Devices},
+  pdfauthor={Sanskar Thapa}
+}
+
+\newcommand{\todo}[1]{\textcolor{red!65!black}{\textbf{TODO:} #1}}
+\newcommand{\pp}{\,pp}
+
+\title{Optimizing Consecutive Tool Calling for\\ Small Language Models on Edge Devices}
+\author{Sanskar Thapa\\[0.4em]
+{\normalsize Master's thesis draft (due December 2026)}\\[0.2em]
+{\normalsize \url{https://github.com/sskarz/Thesis}}}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Small language models (SLMs) with fewer than five billion parameters are attractive for on-device agentic systems, but their reliability at consecutive, stateful tool calling remains poorly characterized under realistic edge serving stacks. This paper evaluates quantized SLMs on the Berkeley Function Calling Leaderboard (BFCL) v4, treating multi-turn execution accuracy as the primary agentic metric and single-turn AST categories as supporting diagnostics. All own experiments use llama.cpp build 8111 with Metal on a MacBook Pro M4 Pro; no own NVIDIA RTX~4090 numbers are reported.
+
+On single-turn BFCL v4 AST (excluding parallel categories invalidated by a serving-layer grammar bug), Qwen3.5-4B Q4\_K\_M achieves the highest weighted accuracy at 817/990 (82.53\%), followed by Qwen2.5-3B Q4\_K\_M at 753/990 (76.06\%), FunctionGemma-270M bf16 at 395/990 (39.90\%), and Llama-3.2-3B Q4\_K\_M at 365/990 (36.87\%). Schema-aware type coercion plus a system prompt raises Llama-3.2-3B multiple-category accuracy from 41.5\% to 92.0\%, showing that much of the apparent inter-family gap was formatting rather than tool selection.
+
+On multi-turn, Gemma-4-E2B-it Q4\_K\_M scores 54/200 (27.0\%) under native function calling (NFC) and 61/200 (30.5\%) under Instruction-Followed Function Calling (IFFC; Appendix~B of~\cite{taheri2026iffc}) on \texttt{multi\_turn\_base}. A TagDispatch-style constrained-decoding approximation (\textbf{not} full XGrammar-2) scores 21/200 (10.5\%), a scored negative. Guided-structured templates overlaid on NFC (\textbf{not} GBNF and \textbf{not} IFFC) also score 61/200 (30.5\%), tying IFFC in count via a 19-row swap. IFFC plus harness-written STATE from executed tool results (\textbf{not} LLM summarization) scores 68/200 (34.0\%). Best-of-N majority voting ($N{=}5$; \textbf{not} verifier BoN) on that channel scores 73/200 (36.5\%) at roughly $7\times$ generate wall clock. MLX LoRA SFT checkpoints score 1/200 (0.5\%) on both the original mix and a filtered non-terminal-\texttt{[]} mix (ToolACE empty-list stop-after-tools). Stripping trailing assistant \texttt{[]} from IFFC chat history on the same v2 GGUF (diagnostic Run~14) reaches only 4/200 (2.0\%) and is \textbf{not} a method win. Residual failures are dominated by state tracking rather than JSON validity.
+\end{abstract}
+
+\paragraph{Honesty labels (required).}
+CD $\neq$ full XGrammar-2.
+GST $\neq$ GBNF / not IFFC.
+STATE $\neq$ LLM summarization.
+BoN $=$ MV@$N$ majority vote, not verifier BoN; ${\sim}7\times$ wall cost.
+Run~14 strip-empty $=$ diagnostic history bookkeeping, \textbf{not} a method win.
+SFT Runs~12--13 scored negatives (0.5\%); ToolACE \texttt{[]} stop-after-tools is the documented root cause.
+
+\paragraph{Open TODOs (no invented scores).}
+(1)~Parallel / \texttt{parallel\_multiple} re-run after the llama-server tools GBNF truncation fix (tables still report 0\%).
+(2)~Multi-turn evaluation for Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B, and FunctionGemma-270M (only Gemma-4-E2B-it multi-turn results are available).
+(3)~NVIDIA Jetson Orin Nano Super (CUDA, 8~GB) replication of the Mac M4~Pro results.
+(4)~Dual-model IFFC (paper Algorithm~1: QA LLM $+$ small reasoning model); this draft evaluates Appendix~B JSON-in-text only.
+(5)~SFT~v3 curriculum (drop all empty-after-exec including terminal $+$ recovery rows) is implemented as a data recipe and is \textbf{unscored}.
+(6)~Additional models and quantization levels (e.g., xLAM-1b-fc-r, Q5\_K\_M / Q8\_0).
+
+\section{Introduction}
+\label{sec:intro}
+
+Agentic applications require a model to select tools, fill typed arguments, incorporate execution feedback, and decide when not to call any tool at all. Errors early in a multi-step trajectory cascade: a wrong function, a mistyped argument, or a hallucinated call when none is needed can leave the environment in an incorrect state that later turns cannot recover. Cloud-scale models are routinely evaluated for these behaviors, but edge and local-first deployments need models that fit in a few gigabytes of memory and deliver interactive latency on consumer silicon.
+
+This work studies small language models under five billion parameters served with llama.cpp~\cite{llamacpp} on Apple Silicon. The central questions are empirical:
+
+\begin{enumerate}
+  \item How accurately do quantized SLMs perform single-turn tool selection and multi-turn consecutive tool calling on BFCL v4 when served with Metal?
+  \item How much of measured failure is format and serving infrastructure versus genuine agentic reasoning?
+  \item Do inference-time format channels---native \texttt{tool\_calls}, JSON-in-text IFFC, shell dialects, grammar-constrained decoding, guided-structured templates, harness-written STATE working memory, and Best-of-N majority voting---move the primary multi-turn metric?
+\end{enumerate}
+
+\paragraph{Contributions.}
+We contribute: (i)~a MacBook Pro M4~Pro / llama.cpp Metal baseline for four SLMs on single-turn BFCL v4 AST; (ii)~a measured type-coercion plus system-prompt recovery that lifts Llama-3.2-3B multiple accuracy from 41.5\% to 92.0\%; (iii)~multi-turn NFC versus IFFC results for Gemma-4-E2B-it on \texttt{multi\_turn\_base} (27.0\% versus 30.5\%); (iv)~a TagDispatch-style two-pass constrained-decoding ablation scoring 21/200 (10.5\%), a scored negative; (v)~a GST$+$NFC ablation tying IFFC at 61/200 (30.5\%) without beating it; (vi)~a closed negative shell-as-action ablation on BFCL-FS ($n{=}13$); (vii)~documentation of a llama-server tools GBNF truncation bug that invalidated parallel categories; (viii)~an IFFC$+$STATE working-memory ablation at 68/200 (34.0\%), the first method above the IFFC/GST 30.5\% plateau; (ix)~Best-of-N $N{=}5$ on IFFC$+$STATE at 73/200 (36.5\%), a further ${+}2.5$\pp\ at ${\sim}7\times$ wall-clock cost; (x)~an MLX SFT-IFFC LoRA ablation at 1/200 (0.5\%), a scored negative whose root cause is training-mix empty-list targets after tool results; (xi)~an SFT-IFFC-v2 filtered-\texttt{[]} retrain that again scores 1/200 (0.5\%); and (xii)~a history-bookkeeping diagnostic that strips trailing assistant \texttt{[]} at serve time (4/200 ${=} 2.0\%$), which does not rescue turn-0 refusal.
+
+The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:method} describes methods and ablations. Section~\ref{sec:setup} details the experimental setup. Section~\ref{sec:results} reports measured results. Section~\ref{sec:discussion} discusses findings and limitations. Section~\ref{sec:conclusion} concludes.
+
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{BFCL and Gorilla.}
+The Berkeley Function Calling Leaderboard (BFCL) and the Gorilla line of work evaluate large language models as API callers with AST and execution checkers, including multi-turn stateful trajectories~\cite{patil2023gorilla,patil2024bfcl}. We adopt BFCL v4 as the primary benchmark and treat \texttt{multi\_turn\_base} execution accuracy as the headline metric for consecutive tool calling.
+
+\paragraph{Instruction-Followed Function Calling (IFFC).}
+Taheri et al.~\cite{taheri2026iffc} argue that small reasoning models can act as instruction followers for function calling when tool use is expressed as constrained natural-language or JSON instructions rather than native tool APIs. That paper reports large gains on BFCL~V3 Live and Non-Live \emph{single-turn} categories for some models, often under full Algorithm~1 decoupling of a QA LLM from a small reasoning model (SRM). We implement Appendix~B JSON-in-text on the \emph{same} model for the full multi-turn loop, without dual QA/SRM decoupling. Dual-model IFFC remains \todo{deferred}.
+
+\paragraph{XGrammar-2 and structured decoding.}
+XGrammar-2 introduces efficient dynamic structured generation for agentic LLMs, including TagDispatch for tag-triggered grammar switches~\cite{dong2026xgrammar2}. That paper reports, for example, lifting Llama-3.2-3B correct-call rates from 33\% to 78\% under its engine---figures we cite as prior work only, not as our measurements. Our CD ablation approximates TagDispatch with two stock llama-server requests and \textbf{does not claim to run full XGrammar-2}. Guided generation and GBNF-style grammars more broadly are studied by Willard and Louf~\cite{willard2023outlines}; format restrictions can also hurt quality~\cite{tam2024format}.
+
+\paragraph{Guided-structured templates.}
+He et al.~\cite{he2025gst} propose seven-step guided-structured templates that improve function calling and interpretability over free-form chain-of-thought on BFCL v2 for several model families. We measure their Detail template as a prompt-only overlay on NFC (GST$+$NFC) on \texttt{multi\_turn\_base}; the checker executes native \texttt{tool\_calls} only and ignores GST draft text. This is \textbf{not} GBNF and \textbf{not} IFFC.
+
+\paragraph{Type coercion and specialist SLM tool callers.}
+Error taxonomies for sub-7B tool callers frequently rank type mismatch among the dominant failure modes (e.g., APIGen~\cite{liu2024apigen}). Specialist on-device models such as FunctionGemma~\cite{google2025functiongemma}, Hammer (function masking)~\cite{ye2025hammer}, and xLAM~\cite{zhang2024xlam} show that fine-tuning and format design can make small models competitive on tool calling. We situate our type-coercion result as an inference-time mitigation that does not change weights.
+
+\paragraph{Working memory and test-time compute.}
+ACON~\cite{xu2025acon} compresses older turns with LLM summarization. Our STATE overlay is a harness-written key-value snapshot from \emph{executed} tool results, not an LLM summary. Snell et al.~\cite{snell2024testtime} frame test-time compute versus parameter scaling; our Best-of-N is majority vote on tool-call tuples (MV@$N$), not tree search and not a learned verifier.
+
+\paragraph{Training-time methods.}
+QLoRA~\cite{dettmers2023qlora} is the standard efficient-finetuning reference for quantized LLMs. ToolACE~\cite{liu2024toolace} and xLAM~\cite{zhang2024xlam} supply the IFFC JSON-in-text mix used here. We train LoRA adapters with MLX~\cite{mlx} on Apple Silicon (not QLoRA-on-CUDA) and report scored negatives on BFCL \texttt{multi\_turn\_base} (Runs~12--13). We do not invent QLoRA scores.
+
+\section{Method}
+\label{sec:method}
+
+Figure~\ref{fig:channels} summarizes the format channels. Every multi-turn method is scored with the same BFCL \texttt{multi\_turn\_checker}; only the request shape, decoding constraints, prompt overlay, working-memory injection, sampling, or weights change.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=gray!6},
+  neg/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=red!8},
+  win/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=green!8},
+  diag/.style={draw, rounded corners=2pt, align=center, inner sep=5pt, fill=yellow!12, densely dashed},
+  arr/.style={-{Latex}, thick}
+]
+\node[box] (nfc) {NFC\\[-1pt]{\scriptsize native \texttt{tools}/\texttt{tool\_calls}}};
+\node[box, right=1.05cm of nfc] (iffc) {IFFC\\[-1pt]{\scriptsize Appendix~B JSON-in-text}};
+\node[neg, right=1.05cm of iffc] (cd) {CD\\[-1pt]{\scriptsize TagDispatch-style; \textbf{not} XG-2}};
+\node[box, below=0.85cm of nfc] (gst) {GST$+$NFC\\[-1pt]{\scriptsize He Detail; \textbf{not} GBNF}};
+\node[win, below=0.85cm of iffc] (state) {IFFC$+$STATE\\[-1pt]{\scriptsize harness STATE; \textbf{not} LLM sum.}};
+\node[win, below=0.85cm of cd] (bon) {BoN $N{=}5$\\[-1pt]{\scriptsize MV@$N$; \textbf{not} verifier}};
+\node[neg, below=0.85cm of gst] (sft) {SFT v1/v2\\[-1pt]{\scriptsize LoRA; scored negative}};
+\node[diag, below=0.85cm of state] (r14) {Run~14 strip-\texttt{[]}\\[-1pt]{\scriptsize DIAGNOSTIC; not a win}};
+\node[neg, below=0.85cm of bon] (shell) {Shell FS-only\\[-1pt]{\scriptsize $n{=}13$; negative ablation}};
+\draw[arr] (nfc) -- (iffc);
+\draw[arr] (iffc) -- (cd);
+\draw[arr] (nfc) -- (gst);
+\draw[arr] (iffc) -- (state);
+\draw[arr] (state) -- (bon);
+\draw[arr] (iffc) -- (sft);
+\draw[arr] (sft) -- (r14);
+\end{tikzpicture}
+\caption{Format channels evaluated on Gemma-4-E2B-it Q4\_K\_M, BFCL v4 \texttt{multi\_turn\_base} ($n{=}200$), MacBook Pro M4~Pro / llama.cpp Metal. Green: methods that beat the 30.5\% IFFC/GST plateau. Red: scored negatives. Dashed yellow: Run~14 is history bookkeeping on the same SFT-v2 GGUF, not a training method.}
+\label{fig:channels}
+\end{figure}
+
+\subsection{Benchmark and primary metric}
+\label{sec:method-bench}
+
+We evaluate on BFCL v4~\cite{patil2024bfcl}. Single-turn categories use the AST checker over simple (400), multiple (200), parallel (200), parallel\_multiple (200), irrelevance (240), Java (100), and JavaScript (50) cases. Multi-turn categories use the execution checker: the model enters an agent loop, tools execute against a live backend, and resulting state is compared to a reference trajectory. Categories are \texttt{multi\_turn\_base}, \texttt{multi\_turn\_miss\_func}, \texttt{multi\_turn\_miss\_param}, and \texttt{multi\_turn\_long\_context} (200 each). The primary optimization target is \texttt{multi\_turn\_base}. Secondary slices stress withheld tools, missing parameters, and long contexts.
+
+\subsection{Format channels: NFC, IFFC, and shell}
+\label{sec:method-channels}
+
+\paragraph{Native Function Calling (NFC).}
+The harness sends OpenAI-compatible \texttt{tools} and \texttt{tool\_choice} (typically \texttt{auto}). llama-server with \texttt{--jinja} may apply lazy tools GBNF after chat-template trigger tokens. Assistant outputs are native \texttt{tool\_calls}. This is the multi-turn baseline (Gemma-4-E2B-it Run~4).
+
+\paragraph{Instruction-Followed Function Calling (IFFC).}
+Following Appendix~B of~\cite{taheri2026iffc}, we omit \texttt{tools} and \texttt{tool\_choice}. The system prompt instructs the model to emit a JSON list of objects with \texttt{function\_name} and \texttt{parameters} in assistant text. Tool results are fed back as user-role messages. Trajectories are mapped to BFCL function strings for the same \texttt{multi\_turn\_checker} used by NFC. This is Run~5 on \texttt{multi\_turn\_base} only. We do \textbf{not} implement dual-model QA/SRM decoupling in this draft.
+
+\paragraph{Shell dialect (BFCL-FS ablation).}
+An allowlisted Unix-like text dialect is mapped onto GorillaFileSystem function strings (e.g., \texttt{cd notes} $\to$ \texttt{cd(folder='notes')}) and scored with the existing multi-turn execution path. Evaluation is restricted to the fs-only subset where \texttt{involved\_classes} equals \texttt{["GorillaFileSystem"]}, $n{=}13$ on \texttt{multi\_turn\_base}. This is a format ablation, not a substitute for the full 200-entry score. Two harness versions (v1 and v2) were measured; both underperform NFC on the same IDs.
+
+\subsection{TagDispatch-style constrained decoding (\texttt{--fc-mode cd})}
+\label{sec:method-cd}
+
+Full XGrammar-2 TagDispatch switches sub-grammars inside a single decode when structural tags are emitted~\cite{dong2026xgrammar2}. Stock llama-server does not expose that intra-request primitive (optional LLGuidance is off on the Mac Metal build used here). We therefore approximate TagDispatch with a two-pass protocol that never sends \texttt{tools} or \texttt{tool\_choice}, so native tools GBNF does not activate:
+
+\paragraph{Pass 1 (dispatch).}
+A GBNF grammar constrains the completion to either an empty list or a list of objects carrying only \texttt{function\_name} values drawn from an enum of the live tool list.
+
+\paragraph{Pass 2 (dispatched arguments).}
+For the selected name(s), a \texttt{json\_schema} (compiled by llama-server to GBNF) constrains an IFFC-shaped list of \texttt{\{function\_name, parameters\}} objects for those tools only.
+
+The persistent multi-turn transcript remains IFFC-shaped; only completion requests carry grammar or \texttt{json\_schema}. \textbf{This is not full XGrammar-2} (no Cross-Grammar Cache, no intra-request tag switch, two HTTP requests when a tool is invoked). Run~8 scored this path at 21/200 ${=} 10.5\%$.
+
+\subsection{Type coercion and system prompt}
+\label{sec:method-coerce}
+
+For Llama-3.2-3B, diagnostic inspection of multiple failures showed correct function selection with string-serialized integers, floats, arrays, and objects. We apply (i)~a system prompt requiring native JSON types and (ii)~schema-aware post-hoc coercion of argument values to the BFCL parameter types. Both are inference-time only (\texttt{benchmark/coerce\_types.py}).
+
+\subsection{Parallel grammar bug and bypass}
+\label{sec:method-parallel}
+
+When \texttt{tools} are present, llama-server may compile a tools grammar whose repetition structure mismatches the model's trained multi-call delimiters (e.g., expecting comma-separated calls inside one block while the template uses separate \texttt{tool\_call} blocks). Generation can stop after the first closing tag, yielding truncated parallel output. For \texttt{parallel} and \texttt{parallel\_multiple} we implemented a bypass (\texttt{tool\_choice none} with content parsing of \texttt{tool\_call} blocks). Re-measurement after the fix is \todo{pending}; tables still report 0\% for those categories.
+
+\subsection{Guided-structured templates (GST$+$NFC)}
+\label{sec:method-gst}
+
+Following He et al.~\cite{he2025gst}, we overlay the Detail guided-structured template as a one-shot system curriculum (\texttt{benchmark/gst.py}) on top of NFC: \texttt{tools} and \texttt{tool\_choice=auto} remain enabled. The model is instructed to write a \texttt{[GST]}\ldots\texttt{[/GST]} reasoning scaffold before native \texttt{tool\_calls}. The BFCL multi-turn checker executes \texttt{tool\_calls} only; GST draft text is ignored. \textbf{This is prompt-only---not GBNF, not XGrammar-2, and not IFFC.} Run~9 measures GST$+$NFC on Gemma-4-E2B-it \texttt{multi\_turn\_base}.
+
+\subsection{IFFC $+$ harness STATE (\texttt{--fc-mode iffc-state})}
+\label{sec:method-state}
+
+IFFC$+$STATE keeps the Appendix~B JSON-in-text channel (no \texttt{tools} / \texttt{tool\_choice}) and adds a harness-written working-memory block. After each tool execution, the harness builds a compact \texttt{[STATE]}\ldots\texttt{[/STATE]} snapshot from real execution results and attaches it in user messages. The last two user/assistant$+$tool turns stay verbatim; older raw Function execution results dumps are dropped in favor of the accumulated STATE. \textbf{This is not GST, not CD/GBNF, and not LLM summarization.} Scoring still maps IFFC JSON to BFCL function strings. Run~10 measures this path.
+
+\subsection{Best-of-N on IFFC$+$STATE (\texttt{--fc-mode iffc-state-bon})}
+\label{sec:method-bon}
+
+Best-of-N rides on the IFFC$+$STATE channel so the 34.0\% baseline is not given back. At each agent step the harness samples $N$ completions at temperature 0.7 (default $N{=}5$), majority-votes the \texttt{(function\_name, arguments)} ballot, executes the winner once, then continues the IFFC$+$STATE loop. \textbf{This is majority-vote test-time compute~\cite{snell2024testtime}, not a verifier/reward-model Best-of-N, and not NFC/GST/CD.} Latency is approximately $N$ times a greedy IFFC$+$STATE decode. Run~11 measures $N{=}5$.
+
+\subsection{MLX SFT-IFFC (LoRA best@1000 and filtered v2)}
+\label{sec:method-sft}
+
+We train LoRA adapters on Gemma-4-E2B-it with mlx-lm~\cite{mlx} using an IFFC JSON-in-text mix (ToolACE multi-turn~\cite{liu2024toolace} $+$ stratified xLAM~\cite{zhang2024xlam}), fuse a best-validation checkpoint, quantize to Q4\_K\_M, and evaluate under \texttt{--fc-mode iffc} on \texttt{multi\_turn\_base}. Run~12 uses best@1000 on the original mix (\texttt{gemma4-e2b-sft-iffc}). Run~13 uses best@2000 on a filtered mix that dropped 334 mid-trajectory empty-after-exec rows while keeping 552 terminal empty-after-exec rows (\texttt{gemma4-e2b-sft-iffc-v2}). Both mixes still teach stop-after-tools relative to BFCL multi-turn continuation needs.
+
+Run~14 is a serve-time diagnostic on the v2 GGUF: \texttt{--iffc-strip-empty-assistant} removes trailing assistant \texttt{[]} from chat history before the next completion (\textbf{history bookkeeping, not a retrain, not a method win}).
+
+\section{Experimental Setup}
+\label{sec:setup}
+
+\subsection{Hardware and serving stack}
+
+All own experiments run on a MacBook Pro with Apple M4~Pro (48~GB), Metal GPU acceleration, llama.cpp build 8111 (commit \texttt{11c325c6e}), compiled with \texttt{-DGGML\_METAL=ON}. Models are served with \texttt{llama-server --jinja}, flash attention on, and high GPU layer offload (\texttt{-ngl 99}). This draft does \textbf{not} claim RTX~4090 results for own measurements. \todo{NVIDIA Jetson Orin Nano Super (CUDA, 8~GB) replication.}
+
+\subsection{Models}
+
+Single-turn matrix (Q4\_K\_M unless noted): Qwen2.5-3B-Instruct, Llama-3.2-3B-Instruct, Qwen3.5-4B, and FunctionGemma-270M-IT (bf16; only published precision). Multi-turn primary model: Gemma-4-E2B-it Q4\_K\_M (Run~4 NFC across four multi-turn slices; Runs~5, 8--14 on \texttt{multi\_turn\_base}; shell ablation on fs-only $n{=}13$). Decoding for reported accuracy runs uses temperature 0.0 except BoN (temperature 0.7, $N{=}5$). CD/STATE/BoN overnight config: llama-server \texttt{-np 4 -c 65536}.
+
+\subsection{Evaluation protocol}
+
+Single-turn: BFCL AST checker. Multi-turn: BFCL execution / \texttt{multi\_turn\_checker}. FunctionGemma nonstandard control-token outputs are normalized via a dedicated parser when llama-server does not already map them to \texttt{tool\_calls}. Weighted single-turn averages exclude \texttt{parallel} and \texttt{parallel\_multiple} because those scores are invalidated pending re-run (990 cases: simple, multiple, irrelevance, Java, JavaScript). Failure buckets in Section~\ref{sec:results} use one primary error per failed \texttt{entry\_id} unless noted as eval-error \emph{row} counts.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Single-turn BFCL v4 AST}
+\label{sec:results-st}
+
+Table~\ref{tab:single-turn} reports per-category AST accuracy on Mac M4~Pro / llama.cpp Metal. Figure~\ref{fig:accuracy} is the corresponding comparison chart from the same Mac runs.
+
+\begin{table}[t]
+\centering
+\caption{Single-turn BFCL v4 AST accuracy on MacBook Pro M4~Pro / llama.cpp Metal. Parallel categories are 0\% pending re-run after a llama-server tools GBNF truncation bug (Section~\ref{sec:method-parallel}); they are excluded from the weighted average.}
+\label{tab:single-turn}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Category ($n$) & Qwen2.5-3B & Llama-3.2-3B & Qwen3.5-4B & FuncGemma-270M \\
+ & Q4\_K\_M & Q4\_K\_M & Q4\_K\_M & bf16 \\
+\midrule
+Simple (400) & 373/400 (93.25\%) & 207/400 (51.75\%) & 361/400 (90.25\%) & 205/400 (51.25\%) \\
+Multiple (200) & 185/200 (92.50\%) & 67/200 (33.50\%) & 181/200 (90.50\%) & 118/200 (59.00\%) \\
+Parallel (200)$^*$ & 0/200 (0.00\%) & 0/200 (0.00\%) & 0/200 (0.00\%) & 0/200 (0.00\%) \\
+Par.\ multiple (200)$^*$ & 0/200 (0.00\%) & 0/200 (0.00\%) & 0/200 (0.00\%) & 0/200 (0.00\%) \\
+Irrelevance (240) & 141/240 (58.75\%) & 2/240 (0.83\%) & 219/240 (91.25\%) & 48/240 (20.00\%) \\
+Java (100) & 37/100 (37.00\%) & 54/100 (54.00\%) & 39/100 (39.00\%) & 15/100 (15.00\%) \\
+JavaScript (50) & 17/50 (34.00\%) & 35/50 (70.00\%) & 17/50 (34.00\%) & 9/50 (18.00\%) \\
+\midrule
+Weighted, excl.\ parallel$^*$ & 753/990 (76.06\%) & 365/990 (36.87\%) & \textbf{817/990 (82.53\%)} & 395/990 (39.90\%) \\
+\bottomrule
+\end{tabular}\\[0.4em]
+{\raggedright\scriptsize $^*$Parallel / parallel\_multiple: 0\% attributed to llama-server tools GBNF truncation; bypass implemented; re-run \todo{not yet scored}. Gemma-4-E2B-it is multi-turn only and is not in this table.\par}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{accuracy_comparison.pdf}
+\caption{Single-turn BFCL v4 AST accuracy by category for Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B, and FunctionGemma-270M. Measured on MacBook Pro M4~Pro with llama.cpp Metal. Parallel bars are the invalidated 0\% scores (GBNF truncation), not a claimed model limitation.}
+\label{fig:accuracy}
+\end{figure}
+
+Qwen2.5-3B leads simple and multiple. Qwen3.5-4B leads overall among non-parallel categories via strong irrelevance detection (91.25\%). Llama-3.2-3B is weak on core Python calling and near floor on irrelevance, but strongest on Java (54/100) and JavaScript (35/50). FunctionGemma, despite 270M parameters, exceeds Llama on multiple (59.00\% versus 33.50\%).
+
+\subsection{Type coercion plus system prompt (Llama multiple)}
+\label{sec:results-coerce}
+
+On the full multiple category, combining system prompt and schema-aware type coercion raises Llama-3.2-3B from 41.5\% to 92.0\% (own measured diagnostic; Table~\ref{tab:coerce}). Type coercion alone accounts for most of the lift; Qwen models show little change because they already emit correct JSON types. The result indicates that benchmark AST failures for Llama were dominated by serialization, not by wrong tool choice. The 41.5\% diagnostic baseline is a separate snapshot from the 33.50\% (67/200) Llama multiple cell in Table~\ref{tab:single-turn}; both are reported as measured, not reconciled by invention.
+
+\begin{table}[t]
+\centering
+\caption{Inference-time type-coercion diagnostic on the full BFCL v4 \texttt{multiple} category ($n{=}200$). MacBook Pro M4~Pro / llama.cpp Metal. No weight updates.}
+\label{tab:coerce}
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Method & Llama-3.2-3B & Qwen2.5-3B & Qwen3.5-4B \\
+\midrule
+Baseline & 41.5\% & 93.0\% & 94.5\% \\
+System prompt only & 57.0\% (${+}15.5$\pp) & 94.5\% (${+}1.5$\pp) & 94.5\% ($\pm 0$) \\
+Type coercion only & 87.5\% (${+}46.0$\pp) & 93.0\% ($\pm 0$) & 94.5\% ($\pm 0$) \\
+Prompt $+$ coercion & \textbf{92.0\% (${+}50.5$\pp)} & 94.5\% (${+}1.5$\pp) & 94.5\% ($\pm 0$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Multi-turn scoreboard (Runs 4--14)}
+\label{sec:results-mt}
+
+Figure~\ref{fig:scoreboard} and Table~\ref{tab:scoreboard} are the headline multi-turn result. All scores are Gemma-4-E2B-it Q4\_K\_M on BFCL v4 \texttt{multi\_turn\_base} ($n{=}200$), Mac Metal. NFC secondary slices (Run~4 only): \texttt{miss\_func} 16/200 ${=} 8.0\%$; \texttt{miss\_param} 39/200 ${=} 19.5\%$; \texttt{long\_context} 22/200 ${=} 11.0\%$.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\textwidth]{multiturn_scoreboard.pdf}
+\caption{Multi-turn execution accuracy on BFCL v4 \texttt{multi\_turn\_base} ($n{=}200$) for Gemma-4-E2B-it Q4\_K\_M, Runs~4--14. Hardware: MacBook Pro M4~Pro, llama.cpp Metal. Run~14 is a diagnostic history-bookkeeping ablation on the SFT-v2 GGUF, not a method win. CD is a TagDispatch-style two-pass approximation, not full XGrammar-2.}
+\label{fig:scoreboard}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{Gemma-4-E2B-it Q4\_K\_M on BFCL v4 \texttt{multi\_turn\_base} ($n{=}200$), MacBook Pro M4~Pro / llama.cpp Metal. $\Delta$ is versus NFC Run~4. Honesty labels are part of the method identity, not optional footnotes.}
+\label{tab:scoreboard}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}rlrrl@{}}
+\toprule
+Run & Method & Score & Acc. & $\Delta$ vs NFC \\
+\midrule
+4 & NFC (native \texttt{tools}/\texttt{tool\_calls}) & 54/200 & 27.0\% & --- \\
+5 & IFFC (Appendix~B JSON-in-text) & 61/200 & 30.5\% & ${+}3.5$\pp / ${+}7$ \\
+8 & CD TagDispatch-style (\textbf{not} XGrammar-2) & 21/200 & 10.5\% & ${-}16.5$\pp / ${-}33$ \\
+9 & GST$+$NFC He Detail (\textbf{not} GBNF / not IFFC) & 61/200 & 30.5\% & ${+}3.5$\pp / ${+}7$ \\
+10 & IFFC$+$STATE (harness STATE; \textbf{not} LLM sum.) & 68/200 & 34.0\% & ${+}7.0$\pp / ${+}14$ \\
+11 & BoN $N{=}5$ MV@$N$ (\textbf{not} verifier BoN) & 73/200 & 36.5\% & ${+}9.5$\pp / ${+}19$ \\
+12 & SFT-IFFC LoRA best@1000 & 1/200 & 0.5\% & ${-}26.5$\pp / ${-}53$ \\
+13 & SFT-IFFC-v2 filtered non-terminal-\texttt{[]} & 1/200 & 0.5\% & ${-}26.5$\pp / ${-}53$ \\
+14 & Strip trailing \texttt{[]} (\textbf{DIAGNOSTIC}, not a win) & 4/200 & 2.0\% & ${-}25.0$\pp / ${-}50$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{IFFC versus NFC (pairwise).}
+Both fail ${=} 124$; IFFC rescues ${=} 22$; IFFC regresses ${=} 15$. Eval-error \emph{row} counts (not unique entries): \texttt{empty\_turn} approximately 118$\to$41; \texttt{state\_mismatch} approximately 136$\to$60; \texttt{missing\_gt\_exec} approximately 38 unchanged.
+
+\paragraph{CD (Run~8) is a scored negative.}
+${-}16.5$\pp\ versus NFC and ${-}20.0$\pp\ versus IFFC (179 errors). Top fail strings include missing GT execution at turn~0 (46), VehicleControlAPI state mismatch (29), GorillaFileSystem (20), TravelAPI (19), TradingBot (15), and empty turn~0 (10). Wall clock about 115 minutes; \texttt{run\_id=8}.
+
+\paragraph{GST$+$NFC (Run~9) ties IFFC in count, not in entries.}
+61/200 via a 19-row swap each way (both-ok 42, GST-only 19, IFFC-only 19). Versus NFC: ${+}3.5$\pp\ (both-ok 43, GST-only 18, NFC-only 11). Empty turns fall to 31 (NFC 59, IFFC 41) while state mismatch rises to 79 (NFC 68, IFFC 60). The checklist increased calling volume, not environment-state tracking. The checker ignores GST drafts.
+
+\paragraph{IFFC$+$STATE (Run~10) breaks the 30.5\% plateau.}
+68/200 ${=} 34.0\%$ (${+}7$ entries / ${+}3.5$\pp\ versus both IFFC and GST). Wall about 181 minutes. Correct-set overlap versus IFFC: shared 48, rescue ${+}20$, regress ${-}13$ (net ${+}7$). Versus GST: shared 43, rescue ${+}25$, regress ${-}18$. Empty turns fall 41$\to$31 while \texttt{state\_mismatch} rises 60$\to$64 and under-call is essentially flat (${\approx}38\to 37$). STATE appears to help forgotten calls more than env-diff fidelity. Stored \texttt{responses.result} blobs contain literal \texttt{[STATE]} in 0/200 rows (expected: STATE is conversation context from the harness). Inference metrics: prompt tokens/s mean/median/p95 about 969/967/1066; generation about 89.7/89.7/92.1; TTFT about 312/125/1266~ms; RSS baseline/peak about 14463/14867~MB.
+
+\paragraph{BoN (Run~11) is the current best score, at a cost.}
+73/200 ${=} 36.5\%$ (${+}5$ entries / ${+}2.5$\pp\ versus greedy IFFC$+$STATE). Generate wall about 21.3 hours. Overlap versus Run~10: shared 56, BoN-only 17, greedy-only 12 (net ${+}5$). \texttt{finished\_at} and \texttt{inference\_metrics} were still unset at verify time; we do \textbf{not} invent tok/s or TTFT for Run~11. Table~\ref{tab:bon-cost} reports the measured wall/cost tradeoff from \texttt{multi\_turn\_timings}.
+
+\begin{table}[t]
+\centering
+\caption{Latency / cost of BoN $N{=}5$ (Run~11) versus greedy IFFC$+$STATE (Run~10) on Gemma-4-E2B-it Q4\_K\_M, \texttt{multi\_turn\_base} $n{=}200$, Mac M4~Pro Metal, \texttt{-np 4 -c 65536}. From \texttt{multi\_turn\_timings}. No \texttt{inference\_metrics} rows for Run~11 at verify time.}
+\label{tab:bon-cost}
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Metric & Run~10 STATE & Run~11 BoN $N{=}5$ & Ratio \\
+\midrule
+Avg.\ \texttt{predicted\_ms} / entry & ${\sim}150$~s & ${\sim}1318$~s & ${\sim}8.8\times$ \\
+Avg.\ \texttt{prompt\_ms} / entry & ${\sim}22$~s & ${\sim}210$~s & ${\sim}9.5\times$ \\
+Avg.\ \texttt{api\_calls} & 8.4 & 42.7 & ${\sim}5.1\times$ \\
+Avg.\ turns & ${\sim}3.67$ & ${\sim}3.67$ & ${\sim}1\times$ \\
+Generate wall & ${\sim}3.0$~h (pipeline ${\sim}181$~min) & ${\sim}21.3$~h & ${\sim}7\times$ \\
+\midrule
+Accuracy & 68/200 (34.0\%) & 73/200 (36.5\%) & ${+}2.5$\pp \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{SFT Runs~12--13 are scored negatives (0.5\%).}
+Run~12 (LoRA best@1000, fused Q4\_K\_M, \texttt{fc\_mode=iffc}) scores 1/200 ${=} 0.5\%$ (only \texttt{multi\_turn\_base\_50}). Zero \texttt{iffc\_unparseable} flags: a live single-step IFFC probe emits valid \texttt{function\_name}/\texttt{parameters} JSON, so this is not a chat-template or parser failure. Dominant behavior is early stop with an empty list \texttt{[]} after tool results. The MLX train mix has 5520 assistant \texttt{[]} targets, all from ToolACE (32.5\% of ToolACE assistant turns; xLAM 0\%); after a Function execution results user message, 78.1\% of assistant targets are \texttt{[]} (2121 empty vs 596 continue). That teaches stop-after-tools, while BFCL multi-turn requires continued calls on later user turns.
+
+Run~13 (filtered non-terminal-\texttt{[]} mix, LoRA best@2000, val 0.211) again scores 1/200 ${=} 0.5\%$ with the same sole pass. Empty primary fails rise 101$\to$167. The filter dropped 334 mid-trajectory empty-after-exec rows but kept 552 terminal examples; it did not recover multi-turn accuracy. Figure~\ref{fig:sft} shows the v2 per-category (here, the single scored slice) chart.
+
+\paragraph{Run~14 is a diagnostic, not a method win.}
+Same v2 GGUF as Run~13; \texttt{--iffc-strip-empty-assistant}; no retrain. Score: 4/200 ${=} 2.0\%$ (wins \texttt{\_50}, \texttt{\_161}, \texttt{\_192}, \texttt{\_193}). Empty-for-turn-0 error rows remain 153 (unchanged). Stripping trailing assistant \texttt{[]} from chat history does \textbf{not} rescue the never-start collapse.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\textwidth]{sft_v2_accuracy.pdf}
+\caption{SFT-IFFC-v2 (Run~13) accuracy on the scored BFCL v4 slice. Gemma-4-E2B-it fused Q4\_K\_M, MacBook Pro M4~Pro / llama.cpp Metal, \texttt{--fc-mode iffc}. Score 1/200 ${=} 0.5\%$ --- a scored negative; the non-terminal-\texttt{[]} filter did not recover.}
+\label{fig:sft}
+\end{figure}
+
+\subsection{Failure buckets}
+\label{sec:results-fail}
+
+Figure~\ref{fig:fail} and Table~\ref{tab:fail} use one primary error per failed \texttt{entry\_id}. Residual errors after IFFC are state mismatch and under-call, not parse failure. BoN cuts state mismatch (64$\to$53) while empty turns rise slightly (31$\to$36). SFT collapses into empty-turn dominance.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\textwidth]{failure_buckets.pdf}
+\caption{Primary failure-bucket stack for Gemma-4-E2B-it Q4\_K\_M on BFCL v4 \texttt{multi\_turn\_base} ($n{=}200$), MacBook Pro M4~Pro / llama.cpp Metal. One primary label per failed entry. Run~14 is diagnostic history bookkeeping, not a claimed method.}
+\label{fig:fail}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{Primary failure buckets (one error per failed \texttt{entry\_id}) on Gemma-4-E2B-it Q4\_K\_M, BFCL v4 \texttt{multi\_turn\_base}, Mac M4~Pro Metal. Failed entries: NFC 146, IFFC 139, CD 179, GST 139, STATE 132, BoN 127, SFT-v1 199, SFT-v2 199, Run~14 196.}
+\label{tab:fail}
+\footnotesize
+\setlength{\tabcolsep}{3.2pt}
+\begin{tabular}{@{}lrrrrrrrrr@{}}
+\toprule
+Bucket & NFC & IFFC & CD & GST & STATE & BoN & R12 & R13 & R14$^\dagger$ \\
+\midrule
+Empty turn & 59 & 41 & 14 & 31 & 31 & 36 & 101 & 167 & 160 \\
+Under-call / miss.\ GT & 19 & 38 & 70 & 29 & 37 & 38 & 35 & 7 & 8 \\
+State mismatch & 68 & 60 & 95 & 79 & 64 & 53 & 63 & 25 & 28 \\
+\midrule
+Failed entries & 146 & 139 & 179 & 139 & 132 & 127 & 199 & 199 & 196 \\
+\bottomrule
+\end{tabular}\\[0.3em]
+{\raggedright\scriptsize $^\dagger$Run~14 is a DIAGNOSTIC strip-empty history ablation on the SFT-v2 GGUF, not a training method. Turn-0 empties remain 153/200.\par}
+\end{table}
+
+State mismatch by environment on Run~10 (64 entries): VehicleControl 22, GorillaFileSystem 21, Travel 7, Twitter 6, Ticket 3, Message 3, TradingBot 2. On Run~11 (53 entries): VehicleControl 22, GorillaFileSystem 13, Travel 9, Twitter 3, Ticket 3, Message 2, TradingBot 1.
+
+\subsection{Shell dialect ablation (fs-only, $n{=}13$)}
+\label{sec:results-shell}
+
+On the same 13 GorillaFileSystem-only \texttt{multi\_turn\_base} IDs: NFC 3/13 ${=} 23.1\%$; IFFC 1/13 ${=} 7.7\%$; shell v1 1/13 ${=} 7.7\%$; shell v2 0/13 ${=} 0.0\%$ (Table~\ref{tab:shell}). This negative ablation is closed: do not pursue shell-as-action as the default multi-turn format. These percentages must \textbf{not} be compared to full-200 \texttt{multi\_turn\_base} scores.
+
+\begin{table}[t]
+\centering
+\caption{Shell-as-action format ablation on GorillaFileSystem-only \texttt{multi\_turn\_base} IDs ($n{=}13$), Gemma-4-E2B-it Q4\_K\_M, Mac Metal. Not comparable to the 200-entry scoreboard.}
+\label{tab:shell}
+\small
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+Mode & Score & Acc. & Pass IDs \\
+\midrule
+NFC (Run~4) & 3/13 & 23.1\% & \texttt{\_3}, \texttt{\_12}, \texttt{\_29} \\
+IFFC (Run~5) & 1/13 & 7.7\% & \texttt{\_12} \\
+Shell v1 & 1/13 & 7.7\% & \texttt{\_12} \\
+Shell v2 & 0/13 & 0.0\% & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Inference performance (M4~Pro)}
+\label{sec:results-perf}
+
+Figures~\ref{fig:perf} and~\ref{fig:mem} and Table~\ref{tab:perf} report dedicated metrics (3 warmup $+$ 50 controlled requests) on Metal. FunctionGemma is the latency and throughput winner; Qwen3.5-4B trades speed for the best non-parallel weighted AST accuracy among the four single-turn models.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{performance_comparison.pdf}
+\caption{Single-turn inference performance (prompt/generation throughput and TTFT) for the four-model Mac comparison. Hardware: MacBook Pro M4~Pro, llama.cpp Metal. Sampled over 50 requests per model after warmup.}
+\label{fig:perf}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{memory_comparison.pdf}
+\caption{Resident set size (RSS) baseline and peak during the same Mac M4~Pro / llama.cpp Metal metrics collection as Figure~\ref{fig:perf} (50 requests per model).}
+\label{fig:mem}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{Inference metrics on MacBook Pro M4~Pro / llama.cpp Metal (50 requests/model). Median generation and median TTFT are the headline latency numbers used in the abstract.}
+\label{tab:perf}
+\footnotesize
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Model & Gen.\ med.\ (tok/s) & TTFT med.\ (ms) & Peak RSS (MB) & Wtd.\ AST \\
+\midrule
+Qwen2.5-3B Q4\_K\_M & 93.6 & 11.6 & 8{,}546.9 & 76.06\% \\
+Llama-3.2-3B Q4\_K\_M & 89.1 & 218.2 & 12{,}383.7 & 36.87\% \\
+Qwen3.5-4B Q4\_K\_M & 38.0 & 656.3 & 4{,}075.4 & 82.53\% \\
+FunctionGemma-270M bf16 & 204.2 & 16.2 & 6{,}562.2 & 39.90\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Mean prompt / generation throughput: Qwen2.5-3B 192.5 / 93.5 tok/s; Llama-3.2-3B 824.9 / 88.5 tok/s; Qwen3.5-4B 620.5 / 37.9 tok/s; FunctionGemma 2567.5 / 201.0 tok/s. Gemma NFC/CD/GST/STATE generation means (from \texttt{inference\_metrics}): 92.43 / 89.6 / 92.45 / 89.7 tok/s; peak RSS 15591 / 15531 / 15160 / 14867~MB. IFFC Run~5 has no \texttt{inference\_metrics} row.
+
+\section{Discussion and Limitations}
+\label{sec:discussion}
+
+\paragraph{Format channel helps modestly; residual is state tracking.}
+IFFC improves \texttt{multi\_turn\_base} by ${+}3.5$ percentage points and sharply cuts empty-turn and state-mismatch error rows, but 124 of 200 entries still fail under both NFC and IFFC. Once the model can emit valid calls, consecutive correctness is limited by environment-state fidelity across turns, not by whether the channel is native tools or JSON-in-text.
+
+\paragraph{Paper-scale IFFC gains do not transfer to \texttt{multi\_turn\_base} without dual QA/SRM.}
+Large lifts in~\cite{taheri2026iffc} are reported on single-turn Live/Non-Live suites, often where NFC is already weak, and under full Algorithm~1 decoupling. Our Appendix~B-only multi-turn setup sits in the modest-gain band. Dual-model IFFC remains \todo{open}.
+
+\paragraph{Constrained decoding (TagDispatch-style) is a scored negative on this stack.}
+Run~8 at 10.5\% underperforms NFC and IFFC. The two-pass name-then-args approximation on stock llama-server appears to trade semantic flexibility for syntactic validity in ways that hurt multi-turn execution accuracy. \textbf{This is not a claim about full XGrammar-2 TagDispatch.}
+
+\paragraph{GST$+$NFC ties IFFC but does not beat it.}
+Run~9 matches IFFC's 61/200 via different entries. Empty turns drop versus NFC while state mismatches rise---consistent with a scaffold that promotes calling without improving env-state tracking when drafts are checker-ignored. Simply porting He Detail onto NFC is the wrong lever for beating IFFC on \texttt{multi\_turn\_base}. \textbf{GST is not GBNF and not IFFC.}
+
+\paragraph{IFFC$+$STATE breaks the 30.5\% plateau.}
+Run~10 at 34.0\% nets ${+}7$ versus both IFFC and GST via a rescue/regress swap, not pure dominance. Empty turns improve; \texttt{state\_mismatch} does not. Remaining headroom is VehicleControl/GorillaFileSystem fidelity and under-call recovery (64 ${+} 37$ failed entries). \textbf{STATE is not LLM summarization.}
+
+\paragraph{Best-of-N buys another ${+}2.5$\pp\ at ${\sim}7\times$ generate cost.}
+MV@$N{=}5$ reduces state mismatch with a mild empty-turn regression. On an edge Mac Metal stack this is a deliberate test-time compute trade, not a default serving mode. \textbf{BoN here is majority vote, not a verifier.}
+
+\paragraph{MLX SFT v1 and v2 collapse to 0.5\%.}
+The failure mode is learned early abstention from ToolACE-heavy empty-list targets after tool results, not missing IFFC format. Filtering non-terminal \texttt{[]} is insufficient while terminal empty-after-exec remain. Inference-time BoN 36.5\% remains the best measured \texttt{multi\_turn\_base} score on the base Gemma stack. SFT~v3 (drop all empty-after-exec including terminal $+$ recovery curriculum) is \todo{implemented as a recipe, unscored}.
+
+\paragraph{Run~14 strip-empty is not a method win.}
+${+}1.5$\pp\ to 2.0\% with turn-0 refusal unchanged at 153 entries. Prefer data-curriculum or pause-SFT decisions over serve-time \texttt{[]} stripping as a claimed method.
+
+\paragraph{Shell-as-action is negative on BFCL-FS.}
+On the 13-entry FS-only slice, shell underperforms NFC and does not beat IFFC. Mapping polish alone is unlikely to close the gap.
+
+\paragraph{Grammar-constrained decoding is double-edged.}
+Native tools GBNF helps single-call validity but truncated parallel generations on mismatched templates, producing artifactual 0\% parallel scores. The TagDispatch-style CD path avoids \texttt{tools}/\texttt{tool\_choice} and constrains names then arguments, but measured accuracy is worse than unconstrained IFFC/NFC.
+
+\paragraph{Limitations.}
+Results are Apple Silicon / Metal only; Jetson CUDA replication is \todo{open}. Multi-turn coverage is Gemma-centric. Parallel re-runs are incomplete. We do not invent scores for unfinished experiments. No own RTX~4090 numbers are claimed.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+Quantized SLMs on a MacBook Pro M4~Pro with llama.cpp Metal already achieve strong single-turn tool selection for Qwen-family 3--4B models (weighted non-parallel AST up to 82.53\%), while specialist FunctionGemma delivers interactive latency at 270M parameters. Inference-time type coercion largely closes Llama's multiple gap (41.5\% to 92.0\%). For consecutive tool calling, Gemma-4-E2B-it reaches 27.0\% NFC and 30.5\% IFFC on \texttt{multi\_turn\_base}; TagDispatch-style CD scores 10.5\% (scored negative; \textbf{not} full XGrammar-2); GST$+$NFC ties IFFC at 30.5\% without beating it (\textbf{not} GBNF); IFFC$+$STATE reaches 34.0\% (\textbf{not} LLM summarization); Best-of-N $N{=}5$ on that channel reaches 36.5\% (MV@$N$, \textbf{not} verifier BoN) at roughly $7\times$ generate wall clock. Both MLX SFT-IFFC LoRA checkpoints (v1 and filtered v2) collapse to 0.5\% via stop-after-tools; stripping \texttt{[]} from history on v2 only reaches 2.0\% and is a diagnostic, not a method win. Format and scaffold changes help modestly, but state tracking dominates residual error. Completing parallel re-runs, multi-model multi-turn baselines, Jetson replication, dual-model IFFC, and a stronger SFT curriculum will determine how far inference-time and light training methods can push edge agent reliability before December 2026.
+
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+\end{document}

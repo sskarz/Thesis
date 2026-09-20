@@ -1,0 +1,23 @@
+# LaTeX auxiliaries (keep source + figures; rebuild PDF with latexmk)
+/main.pdf
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+*.bcf
+*.run.xml
+*.idx
+*.ilg
+*.ind
+auto/
+_minted*/

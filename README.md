@@ -4,6 +4,8 @@
 
 Benchmark LLM tool/function-calling accuracy and inference performance on local hardware using [llama.cpp](https://github.com/ggml-org/llama.cpp) and the [Berkeley Function Calling Leaderboard (BFCL)](https://gorilla.cs.berkeley.edu/leaderboard.html).
 
+The **formal LaTeX research-paper draft** is in [`paper/`](paper/) (`paper/main.tex`). Informal working notes remain in [`THESIS.md`](THESIS.md) (do not delete). Build with `latexmk -pdf` from `paper/` — see [`paper/README.md`](paper/README.md).
+
 ## Prerequisites
 
 | Requirement | Tested version | Notes |
@@ -312,6 +314,12 @@ To add a new model, add an entry to the `MODELS` dict in `benchmark/config.py`.
 ```
 Thesis/
 ├── README.md
+├── THESIS.md                          # Informal project notes (not the paper)
+├── paper/                             # Formal LaTeX draft (arXiv-style)
+│   ├── main.tex
+│   ├── references.bib
+│   ├── Makefile
+│   └── figures/
 ├── CLAUDE.md                          # Development notes & reproducibility reference
 ├── pyproject.toml                     # Python dependencies (managed by uv)
 ├── llama-cpp-bfcl-setup-guide.md      # Full setup guide
