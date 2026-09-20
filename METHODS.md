@@ -954,6 +954,13 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **Thesis Bot audit** (different metric — do not conflate with the primary buckets): empty turns 13.2% (Run 5 IFFC) → **69.9%** (Run 12) → still **~70%** on Run 13 (522/734 error rows). Early-stop trajectories 56/200 (IFFC) → **158/200** (Run 12) → **67/200** (Run 13). Early-stop fell 158→67 but empty-labeled primary fails rose 101→167 — more empty turns overall as first-fail labels, **not a win**. Both runs support **early abstain dominates**.
 
+**Audit probes** (Thesis Bot — not primary buckets; do not claim the filter fixed multi-turn):
+
+1. **Misleading short probe vs BFCL IFFC shape.** A short live multi-turn that returned `view_messages_sent` on v2 bundled the next ask into the tool-result user message. Under true BFCL IFFC shape (exec results → model emits `[]` to end the within-turn loop → a separate next user turn), the same v2 GGUF returns `[]` on turn 2 for `multi_turn_base_101` (matches scored Run 13). Only win remains `multi_turn_base_50`.
+2. **Self-conditioning on `[]`.** Controlled probes, 3-tool IFFC system prompt: (A) BFCL-shaped history with intermediate `[]` → turn 2 `[]`; (B) next-ask bundled into results, no `[]` in history → `view_messages_sent`; (C) no `[]` assistant turns → works; (D) prior `[]` in history even if last user bundles the ask → still `[]`. Once SFT emits `[]`, later turns stay empty.
+3. **Pattern shift** (C = call, E = empty `[]`). Run 5 mostly `CCC`/`CC`/`CCCC`; Run 12 `CE`/`CEE`/`CEEE` (start then stop); Run 13 `EE`/`EEEE`/`EEE` dominant (turn-0 refusal). Filter cut mid-trajectory `[]` targets but worsened leading empties (`first_empty` idx 0: **40→153**).
+4. **Not tool-catalog size alone.** Short vs full tools both fail BFCL-shaped turn 2; turn-0-empty vs turn-0-call tool counts similar (~27–30).
+
 ### Root cause: ToolACE `[]` pathology, not parser
 
 Live single-step IFFC probe on the served GGUF emits valid `[{"function_name","parameters"}]` — format + chat template OK. Zero `iffc_unparseable` on all 200 Run 12 responses and all 200 Run 13 responses.
@@ -964,7 +971,7 @@ PR #24 dropped 334 of those mid-trajectory empty-after-exec rows (non-terminal 3
 
 ### Anti-recommendations
 
-Do **not**: more epochs on the v1 mix **or** the v2 filtered mix; BoN / IFFC+STATE on the Run 12 or Run 13 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT.
+Do **not**: more epochs on the v1 mix **or** the v2 filtered mix; BoN / IFFC+STATE on the Run 12 or Run 13 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT or multi-turn.
 
 ### Next (Sanskar decides — not started here)
 
@@ -973,7 +980,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix; BoN / IFFC+STA
 3. Investigate whether the Gemma-4 chat-template / fuse path destroys multi-turn despite valid single-step IFFC.
 4. Pause SFT and return to the inference ladder (BoN **36.5%** is still the best measured result).
 
-**Eval identity:** v1 fuse best val @ iter 1000 → Q4_K_M GGUF → `llama-server -m <local.gguf>`, then `uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn --categories multi_turn_base --fc-mode iffc`. v2 used `--model gemma4-e2b-sft-iffc-v2` (distinct `runs` row; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`). Do **not** pass `--model gemma4-e2b`. See `sft/README.md`. Do not overwrite Run 12 or Run 13.
+**Eval identity:** v1 fuse best val @ iter 1000 → Q4_K_M GGUF → `llama-server -m sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf`, then `uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn --categories multi_turn_base --fc-mode iffc`. v2: `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v2-best2000-Q4_K_M.gguf` then `--model gemma4-e2b-sft-iffc-v2` (distinct `runs` row; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`). Do **not** pass `--model gemma4-e2b`. See `sft/README.md`. Do not overwrite Run 12 or Run 13.
 
 ### Sources
 
