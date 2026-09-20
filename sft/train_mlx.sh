@@ -6,6 +6,8 @@
 #   ./sft/train_mlx.sh --full --run
 #
 # Does not download data. Run download → format → split first (see README.md).
+# Unroll applies the v2 empty-after-exec drop unless
+# --keep-nonterminal-empty-after-exec is passed through EXTRA.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
