@@ -70,11 +70,27 @@ def _maybe_json(value: Any) -> Any:
     return value
 
 
+_OPENAI_OBJECT_TYPES = frozenset({"object", "dict"})
+
+
+def _is_openai_json_schema(parameters: dict[str, Any]) -> bool:
+    """True when ``parameters`` already looks like JSON Schema, not xLAM named specs.
+
+    xLAM rows sometimes put a nested schema dict in ``parameters["type"]``.
+    Membership against a set of strings would raise ``TypeError: unhashable
+    type: 'dict'``, so only string ``type`` values are checked.
+    """
+    if "properties" in parameters:
+        return True
+    raw_type = parameters.get("type")
+    return isinstance(raw_type, str) and raw_type.lower() in _OPENAI_OBJECT_TYPES
+
+
 def _xlam_style_params_to_openai(parameters: dict[str, Any]) -> dict[str, Any]:
     """Convert ``{name: {type, description, required}}`` into JSON Schema."""
     if not isinstance(parameters, dict):
         return {"type": "object", "properties": {}}
-    if parameters.get("type") in {"object", "dict"} or "properties" in parameters:
+    if _is_openai_json_schema(parameters):
         return parameters
 
     properties: dict[str, Any] = {}
@@ -107,7 +123,12 @@ def normalize_function_docs(tools_or_docs: list[Any] | None) -> list[dict]:
     for item in tools_or_docs or []:
         if not isinstance(item, dict):
             continue
-        if item.get("type") == "function" and isinstance(item.get("function"), dict):
+        item_type = item.get("type")
+        if (
+            isinstance(item_type, str)
+            and item_type.lower() == "function"
+            and isinstance(item.get("function"), dict)
+        ):
             func = dict(item["function"])
         else:
             func = dict(item)

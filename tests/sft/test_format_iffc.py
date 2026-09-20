@@ -12,6 +12,7 @@ from sft.format_iffc import (
     extract_json_array_of_objects,
     format_toolace_row,
     format_xlam_row,
+    normalize_function_docs,
     parse_toolace_call_list,
     unroll_conversation,
 )
@@ -192,6 +193,47 @@ def test_format_xlam_parallel_answers_roundtrip_parser():
     assert "tool_calls" not in assistant
     assert rec["messages"][0]["role"] == "system"
     assert "math_toolkit.sum_of_multiples" in rec["messages"][0]["content"]
+
+
+def test_xlam_nested_type_dict_does_not_raise():
+    """xLAM sometimes stores ``parameters["type"]`` as a nested schema dict.
+
+    ``"type" in {"object", "dict"}`` raises TypeError on an unhashable dict;
+    formatting must skip that membership check and still emit tools.
+    """
+    tools = [
+        {
+            "name": "weird_tool",
+            "description": "has nested type dict",
+            "parameters": {
+                "type": {"type": "string"},
+                "foo": {"type": "int", "required": True},
+            },
+        }
+    ]
+    openai_tools = normalize_function_docs(tools)
+    assert openai_tools
+    assert openai_tools[0]["type"] == "function"
+    params = openai_tools[0]["function"]["parameters"]
+    assert params["type"] == "object"
+    assert "foo" in params["properties"]
+    assert params["properties"]["foo"]["type"] == "integer"
+    assert "foo" in params.get("required", [])
+
+    rec = format_xlam_row(
+        {
+            "id": "nested-type",
+            "query": "Call the weird tool.",
+            "tools": tools,
+            "answers": [{"name": "weird_tool", "arguments": {"foo": 1}}],
+        },
+        0,
+    )
+    assert rec is not None
+    assert rec["id"] == "xlam-nested-type"
+    assert rec["messages"][0]["role"] == "system"
+    assert "weird_tool" in rec["messages"][0]["content"]
+    assert rec["n_tools_in_gold"] == 1
 
 
 def test_dumps_iffc_calls_matches_harness_keys():
