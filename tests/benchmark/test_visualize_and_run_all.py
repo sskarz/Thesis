@@ -184,6 +184,44 @@ def test_run_all_iffc_base_only_wires_flags(monkeypatch):
     assert "multi_turn_base" in (run["notes"] or "")
 
 
+def test_run_all_sft_iffc_model_is_cli_selectable_with_distinct_slug(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+
+    def noop(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(run_all, "check_server", lambda: True)
+    monkeypatch.setattr(run_all.generate_responses, "run", noop)
+    monkeypatch.setattr(run_all.generate_multi_turn, "run", noop)
+    monkeypatch.setattr(run_all.evaluate_responses, "run", noop)
+    monkeypatch.setattr(run_all.evaluate_multi_turn, "run", noop)
+    monkeypatch.setattr(run_all.collect_metrics, "run", noop)
+    monkeypatch.setattr(run_all.visualize, "run", noop)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark.run_all",
+            "--model",
+            "gemma4-e2b-sft-iffc",
+            "--only-multi-turn",
+            "--categories",
+            "multi_turn_base",
+            "--fc-mode",
+            "iffc",
+        ],
+    )
+
+    run_all.main()
+
+    run = db.get_run(run_all.config.RUN_ID)
+    assert run["model_key"] == "gemma4-e2b-sft-iffc"
+    assert run["model_slug"] == "Gemma-4-E2B-it-SFT-IFFC-Q4_K_M"
+    assert run["model_display"] == "Gemma-4-E2B-it SFT-IFFC (Q4_K_M)"
+    assert run["model_slug"] != run_all.config.MODELS["gemma4-e2b"]["slug"]
+    assert "fc_mode=iffc" in (run["notes"] or "")
+
+
 def test_run_all_cd_base_only_wires_flags(monkeypatch):
     monkeypatch.setattr(db, "_detect_hardware", lambda: {})
 

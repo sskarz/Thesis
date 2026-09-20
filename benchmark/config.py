@@ -53,6 +53,17 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Gemma-4-E2B-it (Q4_K_M)",
         "slug": "Gemma-4-E2B-it-Q4_K_M",
     },
+    # Mac-local MLX LoRA SFT (IFFC mix, best val @ iter 1000). Not on HuggingFace.
+    # llama-server is started with `-m <local.gguf>` (see CLAUDE.md / sft/README.md);
+    # `--model gemma4-e2b-sft-iffc` is scoring identity only — do not reuse gemma4-e2b.
+    "gemma4-e2b-sft-iffc": {
+        "hf_repo": "",  # placeholder: serve with -m, not -hf
+        "gguf_path": "sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-sft-iffc",
+        "display": "Gemma-4-E2B-it SFT-IFFC (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-SFT-IFFC-Q4_K_M",
+    },
     "functiongemma-270m": {
         "hf_repo": "ggml-org/functiongemma-270m-it-GGUF",
         "quant": "",

@@ -30,6 +30,19 @@ def test_create_and_get_run(monkeypatch):
     assert json.loads(run["hardware"])["cpu"] == "test"
 
 
+def test_create_run_sft_iffc_uses_distinct_slug(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+    base_id = db.create_run("gemma4-e2b")
+    sft_id = db.create_run("gemma4-e2b-sft-iffc")
+    base = db.get_run(base_id)
+    sft = db.get_run(sft_id)
+    assert sft["model_key"] == "gemma4-e2b-sft-iffc"
+    assert sft["model_slug"] == "Gemma-4-E2B-it-SFT-IFFC-Q4_K_M"
+    assert sft["model_display"] == "Gemma-4-E2B-it SFT-IFFC (Q4_K_M)"
+    assert sft["model_slug"] != base["model_slug"]
+    assert sft["model_key"] != base["model_key"]
+
+
 def test_finish_run(monkeypatch):
     monkeypatch.setattr(db, "_detect_hardware", lambda: {})
     run_id = db.create_run("qwen2.5-3b")
