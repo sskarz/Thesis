@@ -21,8 +21,8 @@ This folder prepares data and prints/runs the mlx-lm command. It does **not** cl
 
 `benchmark/config.py` registers Gemma as GGUF:
 
-- key: `gemma4-e2b`
-- HF GGUF: `bartowski/google_gemma-4-E2B-it-GGUF` (`Q4_K_M`)
+- key: `gemma4-e2b` — base instruct GGUF (`bartowski/google_gemma-4-E2B-it-GGUF`, `Q4_K_M`)
+- key: `gemma4-e2b-sft-iffc` — Mac-local MLX LoRA SFT (IFFC mix, best val @ iter 1000). Distinct `api_name` / `slug` so BFCL results do **not** overwrite base Gemma. Serve with `llama-server -m <local.gguf>` (not `-hf`).
 
 Instruct weights: **`google/gemma-4-e2b-it`** (gated; HuggingFace token required).
 
@@ -91,24 +91,46 @@ python -m mlx_lm.fuse \
   --save-path sft/fused/gemma-4-e2b-it-iffc
 # or: uv run python -m sft.train_mlx --full --fuse --run
 
-# 9. GGUF (for llama-server, same path as other thesis models)
-# Fuse writes MLX/HF-style weights. Convert with llama.cpp, then quantize to Q4_K_M
-# to match bartowski/google_gemma-4-E2B-it-GGUF serving:
-#
-#   python llama.cpp/convert_hf_to_gguf.py sft/fused/gemma-4-e2b-it-iffc \
-#     --outfile sft/fused/gemma-4-e2b-it-iffc.gguf
-#   ./llama.cpp/build/bin/llama-quantize \
-#     sft/fused/gemma-4-e2b-it-iffc.gguf \
-#     sft/fused/gemma-4-e2b-it-iffc-Q4_K_M.gguf Q4_K_M
-#
-# If convert_hf_to_gguf.py rejects the fused layout, export/dequantize via
-# mlx_lm.fuse docs for your mlx-lm version, then convert. Register a new
-# MODELS key in benchmark/config.py only after you have a GGUF that loads.
+# 9. GGUF (for llama-server). Eval uses the best-val checkpoint @ iter 1000 —
+#    see [Eval](#eval-bfcl-v4-multi_turn_base) (separate MODELS key, not gemma4-e2b).
 ```
 
 `--mask-prompt` only backprops the **last** chat message. `sft.train_mlx` unrolls each conversation so every assistant turn is a row ending on that turn (split membership stays at conversation id).
 
 Dry-run (Linux/CI): `uv run python -m sft.train_mlx --smoke` prints the command and writes unrolled JSONL without calling mlx-lm.
+
+## Eval (BFCL v4 `multi_turn_base`)
+
+Thesis test is **`multi_turn_base` only**. Best val checkpoint is **iter 1000**. Fuse that adapter (not necessarily the last iter), convert to Q4_K_M GGUF, serve with `-m`, then score under `--model gemma4-e2b-sft-iffc` so results land in a new folder / DB key. Do **not** invent scores. Paths may vary slightly.
+
+```bash
+# Fuse best@1000 (mlx-lm adapter filename is often 0001000_adapters.safetensors;
+# point --adapter-path at a dir that contains that checkpoint as adapters.safetensors
+# if fuse would otherwise pick a later iter)
+python -m mlx_lm.fuse \
+  --model sft/models/gemma-4-e2b-it-mlx \
+  --adapter-path sft/adapters \
+  --save-path sft/fused/gemma-4-e2b-it-iffc-best1000
+
+# Fuse writes MLX/HF-style weights. Convert + quantize to match other thesis GGUFs:
+python llama.cpp/convert_hf_to_gguf.py sft/fused/gemma-4-e2b-it-iffc-best1000 \
+  --outfile sft/fused/gemma-4-e2b-it-iffc-best1000.gguf
+./llama.cpp/build/bin/llama-quantize \
+  sft/fused/gemma-4-e2b-it-iffc-best1000.gguf \
+  sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf Q4_K_M
+
+# Serve the local GGUF (not -hf). llama-server loads -m; --model is scoring identity.
+./llama.cpp/build/bin/llama-server --jinja -fa on \
+  -m sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 \
+  -np 4 -cb -ub 1024
+
+uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc
+# optional: --fc-mode iffc-state
+```
+
+If `convert_hf_to_gguf.py` rejects the fused layout, export/dequantize via mlx_lm.fuse docs for your mlx-lm version, then convert. Results: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-Q4_K_M/` (distinct from `Gemma-4-E2B-it-Q4_K_M/`).
 
 ## Manifest schema (`sft/data/splits/MANIFEST.json`)
 
