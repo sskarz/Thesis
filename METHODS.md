@@ -979,8 +979,9 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix; BoN / IFFC+STA
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path destroys multi-turn despite valid single-step IFFC.
 4. Pause SFT and return to the inference ladder (BoN **36.5%** is still the best measured result).
+5. **Diagnostic (harness only, not training):** `--fc-mode iffc --iffc-strip-empty-assistant` on `--model gemma4-e2b-sft-iffc-v2` — omit trailing assistant `[]` from `chat_history` before the next BFCL user turn. Tests whether SFT v2’s collapse is self-conditioning on `[]` in history. Default **off**. Notes tag `iffc_strip_empty_assistant=1`; figures under `iffc-strip-empty-assistant/`. **Not** a claim that standard IFFC improved.
 
-**Eval identity:** v1 fuse best val @ iter 1000 → Q4_K_M GGUF → `llama-server -m sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf`, then `uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn --categories multi_turn_base --fc-mode iffc`. v2: `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v2-best2000-Q4_K_M.gguf` then `--model gemma4-e2b-sft-iffc-v2` (distinct `runs` row; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`). Do **not** pass `--model gemma4-e2b`. See `sft/README.md`. Do not overwrite Run 12 or Run 13.
+**Eval identity:** v1 fuse best val @ iter 1000 → Q4_K_M GGUF → `llama-server -m sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf`, then `uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn --categories multi_turn_base --fc-mode iffc`. v2: `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v2-best2000-Q4_K_M.gguf` then `--model gemma4-e2b-sft-iffc-v2` (distinct `runs` row; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`). Diagnostic strip-`[]` eval uses the same `--model gemma4-e2b-sft-iffc-v2` plus `--iffc-strip-empty-assistant` (new `runs` row; figures `.../iffc-strip-empty-assistant/figures`). Do **not** pass `--model gemma4-e2b`. See `sft/README.md`. Do not overwrite Run 12 or Run 13.
 
 ### Sources
 

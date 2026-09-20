@@ -13,6 +13,10 @@ Function-calling modes (``--fc-mode``):
   actual tool execution results (METHODS §5). Not GST; not CD/GBNF.
 - ``iffc-state-bon``: Best-of-N majority vote overlay on IFFC+STATE
   (METHODS §4; default N=5, temperature=0.7). Not NFC/GST/CD.
+
+Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits
+trailing IFFC assistant ``[]`` from ``chat_history`` before the next BFCL
+user turn. Default off (Run 5–13 unchanged). Not a training method.
 """
 
 import argparse
@@ -43,6 +47,7 @@ def check_server() -> bool:
 
 _FC_MODE_IN_NOTES = re.compile(r"\bfc_mode=([a-z0-9_.-]+)")
 _BON_N_IN_NOTES = re.compile(r"\bbon_n=(\d+)")
+_STRIP_EMPTY_IN_NOTES = re.compile(r"\biffc_strip_empty_assistant=([01])")
 
 
 def _notes_with_run_meta(args: argparse.Namespace) -> str | None:
@@ -51,6 +56,12 @@ def _notes_with_run_meta(args: argparse.Namespace) -> str | None:
         extra.append(f"fc_mode={args.fc_mode}")
     if args.fc_mode == config.FC_IFFC_STATE_BON:
         extra.append(f"bon_n={config.BON_N}")
+    if args.iffc_strip_empty_assistant:
+        extra.append("iffc_strip_empty_assistant=1")
+        extra.append(
+            "DIAGNOSTIC: IFFC strip trailing assistant [] "
+            "(history bookkeeping ablation; not a training method)"
+        )
     if args.categories:
         extra.append(f"categories={','.join(args.categories)}")
     if not extra:
@@ -79,12 +90,21 @@ def bon_n_from_notes(notes: str | None) -> int | None:
     return int(match.group(1))
 
 
+def iffc_strip_empty_assistant_from_notes(notes: str | None) -> bool:
+    """Parse ``iffc_strip_empty_assistant=1`` from run notes. Missing tag means off."""
+    if not notes:
+        return False
+    match = _STRIP_EMPTY_IN_NOTES.search(notes)
+    return bool(match and match.group(1) == "1")
+
+
 def resolve_pipeline_run(
     model_key: str,
     fc_mode: str,
     notes: str | None,
     resume: bool = False,
     resume_run_id: int | None = None,
+    iffc_strip_empty_assistant: bool = False,
 ) -> tuple[int, bool]:
     """Create a new run or reuse an unfinished one.
 
@@ -106,14 +126,30 @@ def resolve_pipeline_run(
             raise ValueError(
                 f"Run {resume_run_id} is fc_mode={existing_mode}, not {fc_mode}"
             )
+        existing_strip = iffc_strip_empty_assistant_from_notes(run["notes"])
+        if existing_strip != iffc_strip_empty_assistant:
+            raise ValueError(
+                f"Run {resume_run_id} is iffc_strip_empty_assistant="
+                f"{int(existing_strip)}, not {int(iffc_strip_empty_assistant)}"
+            )
         return resume_run_id, True
 
     if resume:
         for run in db.get_unfinished_runs(model_key):
-            if fc_mode_from_notes(run["notes"]) == fc_mode:
-                return run["id"], True
+            if fc_mode_from_notes(run["notes"]) != fc_mode:
+                continue
+            if (
+                iffc_strip_empty_assistant_from_notes(run["notes"])
+                != iffc_strip_empty_assistant
+            ):
+                continue
+            return run["id"], True
+        strip_tag = (
+            " iffc_strip_empty_assistant=1" if iffc_strip_empty_assistant else ""
+        )
         raise ValueError(
-            f"No unfinished run for model {model_key!r} with fc_mode={fc_mode}. "
+            f"No unfinished run for model {model_key!r} with fc_mode={fc_mode}"
+            f"{strip_tag}. "
             "Omit --resume to start a new run, or pass --resume-run-id."
         )
 
@@ -168,6 +204,19 @@ def main():
         ),
     )
     parser.add_argument(
+        "--iffc-strip-empty-assistant",
+        action="store_true",
+        help=(
+            "Diagnostic-only IFFC history bookkeeping: omit trailing "
+            "assistant [] stop turns from chat_history before the next "
+            "BFCL user turn. Default off (Run 5–13 IFFC unchanged). "
+            "Not a training method; notes record "
+            "iffc_strip_empty_assistant=1. Figures go under "
+            "iffc-strip-empty-assistant/ so they do not overwrite "
+            "standard IFFC charts."
+        ),
+    )
+    parser.add_argument(
         "--categories",
         nargs="+",
         metavar="CATEGORY",
@@ -190,7 +239,8 @@ def main():
         action="store_true",
         help=(
             "Continue the latest unfinished run for this model with the same "
-            "--fc-mode. Multi-turn generation skips entry IDs already in "
+            "--fc-mode (and --iffc-strip-empty-assistant if set). Multi-turn "
+            "generation skips entry IDs already in "
             "responses. Kill the process and rerun with the same flags plus "
             "--resume."
         ),
@@ -200,7 +250,7 @@ def main():
         type=int,
         metavar="ID",
         default=None,
-        help="Continue a specific runs.id (must match --model and --fc-mode).",
+        help="Continue a specific runs.id (must match --model, --fc-mode, and the strip-empty flag).",
     )
     args = parser.parse_args()
     if args.skip_multi_turn and args.only_multi_turn:
@@ -218,6 +268,8 @@ def main():
             config.set_bon_n(args.bon_n)
         except ValueError as e:
             parser.error(str(e))
+    config.set_iffc_strip_empty_assistant(args.iffc_strip_empty_assistant)
+    config.apply_iffc_strip_empty_assistant_result_paths()
 
     do_single = not args.only_multi_turn
     do_multi = not args.skip_multi_turn
@@ -232,6 +284,7 @@ def main():
             notes=notes,
             resume=args.resume,
             resume_run_id=args.resume_run_id,
+            iffc_strip_empty_assistant=args.iffc_strip_empty_assistant,
         )
     except ValueError as e:
         parser.error(str(e))
@@ -270,6 +323,11 @@ def main():
             else " (NFC = native tools)"
         )
     )
+    if args.iffc_strip_empty_assistant:
+        print(
+            "IFFC strip empty assistant: ON "
+            "(DIAGNOSTIC history bookkeeping; not a training method)"
+        )
     if not do_single:
         print("Single-turn: SKIPPED")
     if not do_multi:

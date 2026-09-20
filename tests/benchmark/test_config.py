@@ -56,3 +56,25 @@ def test_sft_iffc_v2_model_is_distinct_from_v1_and_base():
         assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / base["slug"]
     finally:
         config.select_model(previous)
+
+
+def test_iffc_strip_empty_assistant_nests_figures_without_changing_model_key():
+    previous = config.DEFAULT_MODEL
+    try:
+        config.select_model("gemma4-e2b-sft-iffc-v2")
+        standard_figures = config.FIGURES_DIR
+        config.set_iffc_strip_empty_assistant(True)
+        config.apply_iffc_strip_empty_assistant_result_paths()
+        assert config.IFFC_STRIP_EMPTY_ASSISTANT is True
+        assert config.MODEL_NAME == "gemma4-e2b-sft-iffc-v2"
+        nested = (
+            config.MODEL_RESULTS_DIR / config.IFFC_STRIP_EMPTY_ASSISTANT_DIRNAME
+        )
+        assert config.FIGURES_DIR == nested / "figures"
+        assert config.METRICS_DIR == nested / "metrics"
+        assert config.SCORES_DIR == nested / "scores"
+        assert config.FIGURES_DIR != standard_figures
+        assert config.FIGURES_DIR.is_dir()
+    finally:
+        config.set_iffc_strip_empty_assistant(False)
+        config.select_model(previous)

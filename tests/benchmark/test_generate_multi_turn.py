@@ -3,6 +3,7 @@ import json
 import asyncio
 
 from benchmark import db, generate_multi_turn
+from benchmark.iffc import try_parse_iffc_response
 from tests.helpers import write_jsonl
 
 
@@ -242,6 +243,141 @@ def test_generate_for_entry_iffc_parses_json_and_feeds_user_results(monkeypatch)
     assert timing["id"] == "iffc-1"
     assert timing["api_calls"] == 2
     assert timing["flags"] == ""
+
+
+def _cd_tool():
+    return {
+        "type": "function",
+        "function": {
+            "name": "cd",
+            "description": "change directory",
+            "parameters": {"type": "object", "properties": {"folder": {"type": "string"}}},
+        },
+    }
+
+
+def _two_turn_iffc_payloads(monkeypatch, *, strip_empty_assistant: bool):
+    """BFCL two-user-turn IFFC: tool call → [] stop → next user question."""
+    payloads: list[dict] = []
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '[{"function_name": "cd", "parameters": {"folder": "docs"}}]'
+                            )
+                        }
+                    }
+                ],
+                "timings": _timings(),
+            },
+            {
+                "choices": [{"message": {"content": "[]"}, "finish_reason": "stop"}],
+                "timings": _timings(15, 30, 2, 10),
+            },
+            {
+                "choices": [{"message": {"content": "[]"}, "finish_reason": "stop"}],
+                "timings": _timings(8, 12, 1, 4),
+            },
+        ]
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        lambda **kwargs: (["ok"], None),
+    )
+
+    entry = {
+        "id": "iffc-strip-hist",
+        "initial_config": {},
+        "involved_classes": [],
+        "question": [
+            [{"role": "user", "content": "Open docs"}],
+            [{"role": "user", "content": "Now list files"}],
+        ],
+    }
+    generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_base",
+        [_cd_tool()],
+        fc_mode="iffc",
+        strip_empty_assistant=strip_empty_assistant,
+    )
+    return payloads
+
+
+def _assistant_empty_list_messages(messages: list[dict]) -> list[dict]:
+    return [
+        m
+        for m in messages
+        if m.get("role") == "assistant"
+        and try_parse_iffc_response(m.get("content")) == []
+    ]
+
+
+def test_generate_for_entry_iffc_keeps_empty_assistant_in_history_by_default(
+    monkeypatch,
+):
+    payloads = _two_turn_iffc_payloads(monkeypatch, strip_empty_assistant=False)
+    # Third request is the next BFCL user turn; default IFFC still has [] in history.
+    assert len(payloads) == 3
+    next_turn = payloads[2]["messages"]
+    assert any(m.get("content") == "Now list files" for m in next_turn)
+    empties = _assistant_empty_list_messages(next_turn)
+    assert empties, "flag off must retain assistant [] before the next user turn"
+    idx_empty = next_turn.index(empties[-1])
+    idx_next = next(
+        i for i, m in enumerate(next_turn) if m.get("content") == "Now list files"
+    )
+    assert idx_empty < idx_next
+
+
+def test_generate_for_entry_iffc_strip_empty_assistant_omits_stop_from_next_turn(
+    monkeypatch,
+):
+    payloads = _two_turn_iffc_payloads(monkeypatch, strip_empty_assistant=True)
+    assert len(payloads) == 3
+    next_turn = payloads[2]["messages"]
+    assert any(m.get("content") == "Now list files" for m in next_turn)
+    assert _assistant_empty_list_messages(next_turn) == []
+    # Tool call from turn 0 is still in history; only the [] stop is gone.
+    assert any(
+        m.get("role") == "assistant" and "cd" in str(m.get("content"))
+        for m in next_turn
+    )
+    assert "tools" not in payloads[0]
+
+
+def test_maybe_strip_empty_assistant_is_noop_for_nfc_and_cd():
+    history = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "[]"},
+    ]
+    generate_multi_turn._maybe_strip_trailing_empty_assistant(history, "nfc", True)
+    assert history[-1]["content"] == "[]"
+    generate_multi_turn._maybe_strip_trailing_empty_assistant(history, "cd", True)
+    assert history[-1]["content"] == "[]"
+    generate_multi_turn._maybe_strip_trailing_empty_assistant(history, "gst", True)
+    assert history[-1]["content"] == "[]"
+    generate_multi_turn._maybe_strip_trailing_empty_assistant(history, "iffc", True)
+    assert history[-1]["role"] == "user"
+    for mode in ("iffc-state", "iffc-state-bon"):
+        state_hist = [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "[]"},
+        ]
+        generate_multi_turn._maybe_strip_trailing_empty_assistant(
+            state_hist, mode, True
+        )
+        assert state_hist[-1]["role"] == "user"
 
 
 def test_generate_for_entry_iffc_retries_then_ends_on_unparseable(monkeypatch):

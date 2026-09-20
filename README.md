@@ -105,6 +105,7 @@ Multi-turn function-calling mode and category filter:
 - `--fc-mode gst`: Guided-Structured Templates ([arXiv:2509.18076](https://arxiv.org/abs/2509.18076)) on the NFC channel — 7-step `[GST]` scaffold in content, native `tool_calls` still executed. Prompt-only; not GBNF. See METHODS.md.
 - `--fc-mode iffc-state`: IFFC JSON-in-text plus a harness-written `[STATE]` snapshot from **actual** tool execution results (METHODS §5 working memory). Same checker as IFFC. **Not** GST, **not** CD/GBNF, **not** LLM summarization. See METHODS.md.
 - `--fc-mode iffc-state-bon`: Best-of-N majority voting overlay on **IFFC+STATE** (METHODS §4; Snell et al. arXiv:2408.03314). Sample N=5 (configurable `--bon-n`) at `temperature=0.7`, vote per step, execute the winner once. **~N× latency.** **Not** NFC/GST/CD. See METHODS.md.
+- `--iffc-strip-empty-assistant`: **diagnostic-only** IFFC history bookkeeping — omit trailing assistant `[]` stop turns from `chat_history` before the next BFCL user turn (and right after the within-turn stop). Default **off** (Run 5–13 IFFC unchanged). **Not** a training method and **not** a claim that standard IFFC improved. Notes record `iffc_strip_empty_assistant=1`; figures nest under `iffc-strip-empty-assistant/`.
 - `--categories multi_turn_base`: run only that multi-turn split (skip miss_func / miss_param / long_context)
 
 ```bash
@@ -154,6 +155,14 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 Optional `--bon-n N` and `--resume` if an unfinished iffc-state-bon run exists.
 
 Gemma SFT-IFFC vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% / IFFC+STATE 34.0% / BoN 36.5% `multi_turn_base` baselines. Run 12 (`--model gemma4-e2b-sft-iffc`, LoRA best@1000) scored **1/200 = 0.5%**. Run 13 (`--model gemma4-e2b-sft-iffc-v2`, filtered-[] LoRA best@2000) scored **1/200 = 0.5%** — same collapse; the non-terminal-`[]` filter did **not** recover (see `THESIS.md`). Do **not** overwrite Run 12 or Run 13; do **not** BoN/STATE on these checkpoints; do **not** claim the `[]` filter fixed SFT.
+
+Diagnostic ablation (history bookkeeping only — **not** a new training method). Serve the existing v2 GGUF, then:
+
+```bash
+uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc --iffc-strip-empty-assistant \
+  --notes "DIAGNOSTIC: strip trailing IFFC assistant [] vs Run 13 0.5% (history bookkeeping, not a training method)"
+```
 
 Offline IFFC parser + mock chat-completions smoke (no llama-server):
 

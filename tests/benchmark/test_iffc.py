@@ -9,7 +9,9 @@ from benchmark.iffc import (
     format_available_functions,
     format_iffc_execution_user_message,
     iffc_calls_to_func_strings,
+    is_empty_iffc_assistant_message,
     parse_iffc_response,
+    strip_trailing_empty_assistant,
     try_parse_iffc_response,
 )
 from benchmark.smoke_iffc import run_offline_smoke
@@ -48,6 +50,34 @@ def test_parse_empty_list():
     assert parse_iffc_response("[]") == []
     assert parse_iffc_response("  []  ") == []
     assert try_parse_iffc_response("[]") == []
+
+
+def test_strip_trailing_empty_assistant_pops_only_empty_list_stop():
+    history = [
+        {"role": "user", "content": "Open docs"},
+        {
+            "role": "assistant",
+            "content": '[{"function_name": "cd", "parameters": {"folder": "docs"}}]',
+        },
+        {"role": "user", "content": "Function execution results:\n- cd -> ok"},
+        {"role": "assistant", "content": "[]"},
+    ]
+    assert is_empty_iffc_assistant_message(history[-1])
+    assert not is_empty_iffc_assistant_message(history[1])
+    assert strip_trailing_empty_assistant(history) == 1
+    assert history[-1]["role"] == "user"
+    assert "execution results" in history[-1]["content"]
+    assert not any(
+        m.get("role") == "assistant" and try_parse_iffc_response(m.get("content")) == []
+        for m in history
+    )
+    # Second call is a no-op; a real call list is not treated as empty.
+    assert strip_trailing_empty_assistant(history) == 0
+    fenced = [{"role": "assistant", "content": "```json\n[]\n```"}]
+    assert strip_trailing_empty_assistant(fenced) == 1
+    unparseable = [{"role": "assistant", "content": "Sure, I can help."}]
+    assert strip_trailing_empty_assistant(unparseable) == 0
+    assert unparseable[0]["content"] == "Sure, I can help."
 
 
 def test_parse_one_call():
