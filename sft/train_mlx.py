@@ -1,9 +1,9 @@
 """Thin wrapper around ``mlx_lm.lora`` for the IFFC SFT mix.
 
 Unrolls conversation-level splits so ``--mask-prompt`` trains every assistant
-turn, then drops mid-trajectory ``[]`` after tool-result observations (see
-``sft.filter_empty_after_exec``). Does **not** run training in CI; on Linux
-this prints the command.
+turn, then applies the SFT v3 empty-after-exec drop + recovery curriculum
+(see ``sft.filter_empty_after_exec``). Does **not** run training in CI; on
+Linux this prints the command.
 """
 
 from __future__ import annotations
@@ -37,7 +37,12 @@ from sft.config import (
     TRAIN_JSONL,
     VALID_JSONL,
 )
-from sft.filter_empty_after_exec import unroll_and_filter
+from sft.filter_empty_after_exec import (
+    RECIPE_V3,
+    recipe_drop_flags,
+    resolve_recipe,
+    unroll_and_filter,
+)
 from sft.io import read_jsonl, write_jsonl
 
 
@@ -49,31 +54,56 @@ def prepare_mlx_data(
     smoke_train_rows: int = SMOKE_TRAIN_ROWS,
     smoke_valid_rows: int = SMOKE_VALID_ROWS,
     drop_nonterminal_empty_after_exec: bool = True,
+    drop_terminal_empty_after_exec: bool = True,
+    synthesize_recovery_stop: bool = True,
+    recipe: str | None = None,
 ) -> Path:
     """Unroll train/valid conversations into mlx-lm ``{train,valid}.jsonl``.
 
-    Default v2 filter drops mid-trajectory assistant ``[]`` targets that follow
-    an IFFC tool-result observation when the parent conversation still has a
-    later non-empty tool call. Conversation-level splits are unchanged.
+    Default SFT v3 drops **all** assistant ``[]`` targets that follow an IFFC
+    tool-result observation (terminal included) and injects a history-only
+    ``[]`` on the next user→call unroll when tool results were immediately
+    followed by a new user question. Conversation-level splits are unchanged.
     """
+    if recipe is None:
+        if not drop_nonterminal_empty_after_exec:
+            recipe = "v1"
+        elif not drop_terminal_empty_after_exec:
+            recipe = "v2"
+        else:
+            recipe = RECIPE_V3
     train = read_jsonl(splits_dir / TRAIN_JSONL.name)
     valid = read_jsonl(splits_dir / VALID_JSONL.name)
     train_u, train_stats = unroll_and_filter(
         train,
         drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
+        drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+        synthesize_recovery_stop=synthesize_recovery_stop,
+        recipe=recipe,
     )
     valid_u, valid_stats = unroll_and_filter(
         valid,
         drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
+        drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+        synthesize_recovery_stop=synthesize_recovery_stop,
+        recipe=recipe,
     )
     print(
         train_stats.format(
-            "train", enabled=drop_nonterminal_empty_after_exec
+            "train",
+            recipe=recipe,
+            drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
+            drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+            synthesize_recovery_stop=synthesize_recovery_stop,
         )
     )
     print(
         valid_stats.format(
-            "valid", enabled=drop_nonterminal_empty_after_exec
+            "valid",
+            recipe=recipe,
+            drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
+            drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+            synthesize_recovery_stop=synthesize_recovery_stop,
         )
     )
     if smoke:
@@ -87,7 +117,10 @@ def prepare_mlx_data(
     print(
         f"mlx data: unrolled train={n_train} valid={n_valid} → {mlx_dir} "
         f"(from {len(train)}/{len(valid)} conversations; smoke={smoke}; "
-        f"drop_nonterminal_empty_after_exec={drop_nonterminal_empty_after_exec})"
+        f"recipe={recipe}; "
+        f"drop_nonterminal_empty_after_exec={drop_nonterminal_empty_after_exec}; "
+        f"drop_terminal_empty_after_exec={drop_terminal_empty_after_exec}; "
+        f"synthesize_recovery_stop={synthesize_recovery_stop})"
     )
     return mlx_dir
 
@@ -176,8 +209,24 @@ def main(argv: list[str] | None = None) -> int:
         "--keep-nonterminal-empty-after-exec",
         action="store_true",
         help=(
-            "Disable the v2 drop of mid-trajectory [] after tool-result "
-            "observations (SFT v1 unroll: keep every assistant turn)."
+            "SFT v1 unroll: keep every assistant turn (disables the "
+            "empty-after-exec drop, including non-terminal [])."
+        ),
+    )
+    parser.add_argument(
+        "--keep-terminal-empty-after-exec",
+        action="store_true",
+        help=(
+            "SFT v2 unroll: drop mid-trajectory [] after tool results, but "
+            "keep true terminal empty-after-exec."
+        ),
+    )
+    parser.add_argument(
+        "--no-synthetic-recovery",
+        action="store_true",
+        help=(
+            "Do not insert a history-only [] after tool results on the next "
+            "user→call unroll row (v3 default inserts it)."
         ),
     )
     args = parser.parse_args(argv)
@@ -193,11 +242,20 @@ def main(argv: list[str] | None = None) -> int:
     if iters is None:
         iters = LORA_ITERS_SMOKE if smoke else LORA_ITERS_FULL
 
+    recipe = resolve_recipe(
+        keep_nonterminal_empty_after_exec=args.keep_nonterminal_empty_after_exec,
+        keep_terminal_empty_after_exec=args.keep_terminal_empty_after_exec,
+    )
+    drop_nt, drop_t = recipe_drop_flags(recipe)
+    synthesize = recipe == RECIPE_V3 and not args.no_synthetic_recovery
     data_dir = prepare_mlx_data(
         splits_dir=args.splits_dir,
         mlx_dir=args.mlx_dir,
         smoke=smoke,
-        drop_nonterminal_empty_after_exec=not args.keep_nonterminal_empty_after_exec,
+        drop_nonterminal_empty_after_exec=drop_nt,
+        drop_terminal_empty_after_exec=drop_t,
+        synthesize_recovery_stop=synthesize,
+        recipe=recipe,
     )
 
     if args.rank != LORA_RANK:
