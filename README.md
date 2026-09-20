@@ -284,6 +284,16 @@ uv run python -m benchmark.run_all --model llama-3.2-3b
 
 Results land in `benchmark/results/Llama-3.2-3B-Instruct-Q4_K_M/`.
 
+Mac-local SFT GGUF (not HuggingFace). Start llama-server with `-m`, then pass `--model gemma4-e2b-sft-iffc` so scores do not overwrite base Gemma-4-E2B:
+
+```bash
+./llama.cpp/build/bin/llama-server --jinja -fa on \
+  -m sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 -np 4
+uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc
+```
+
 To add a new model, add an entry to the `MODELS` dict in `benchmark/config.py`.
 
 ## Project Structure

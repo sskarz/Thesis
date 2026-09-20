@@ -151,6 +151,8 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --categories multi_turn_base --fc-mode iffc-state-bon \
   --notes "BoN N=5 on IFFC+STATE vs 34% / IFFC 30.5% / GST 30.5% / NFC 27% / CD 10.5%"
+uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc
 ```
 
 ### Query the database
@@ -201,6 +203,18 @@ cd /home/sanskar/Documents/Github/Thesis/llama.cpp
 ```
 
 **Note:** FunctionGemma uses a non-standard output format (`<start_function_call>call:name{args}<end_function_call>`) that llama-server cannot parse into OpenAI-style `tool_calls`. The custom parser in `benchmark/parse_functiongemma.py` post-processes the raw `content` field into the `[{"func": {args}}]` format expected by the BFCL evaluator. This is called automatically by `generate_responses.py`.
+
+### Start SFT Gemma (Mac-local GGUF)
+
+Local fused Q4_K_M — **not** `-hf`. Path may vary slightly. Use `--model gemma4-e2b-sft-iffc` for scoring identity so results do not overwrite base `gemma4-e2b`.
+
+```bash
+cd /path/to/Thesis/llama.cpp
+./build/bin/llama-server --jinja -fa on \
+  -m ../sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 \
+  -np 4 -cb -ub 1024
+```
 
 ## BFCL Categories
 

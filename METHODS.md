@@ -925,6 +925,8 @@ Training-time counterpart to the inference-time IFFC channel. **No BFCL scores y
 
 **Code:** `sft/` (download → format → split → `mlx_lm.lora` with `--mask-prompt`, LoRA rank 16 default / 16–32 band). Conversations are unrolled so every assistant turn receives loss. Artifacts under `sft/data/` are gitignored. CI does not run overnight training.
 
+**Eval identity:** fuse best val @ iter 1000 → Q4_K_M GGUF → `llama-server -m <local.gguf>`, then `uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn --categories multi_turn_base --fc-mode iffc` (optionally `--fc-mode iffc-state`). Do **not** pass `--model gemma4-e2b`. See `sft/README.md`. Do not invent scores.
+
 ### Sources
 
 - Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920.
