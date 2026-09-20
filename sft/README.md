@@ -2,7 +2,7 @@
 
 Frozen data mix and split for supervised fine-tuning of **Gemma-4-E2B-it** on Apple Silicon with [mlx-lm](https://github.com/ml-explore/mlx-lm) LoRA. Training targets match the existing `--fc-mode iffc` harness (`benchmark/iffc.py`): assistant turns are a JSON list of `{"function_name", "parameters"}`; tool results are user-role observations. Native `tool_calls` are **not** mixed into this adapter dataset.
 
-This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored the v1 mix as a negative: 1/200 = 0.5%** on BFCL v4 `multi_turn_base` (`gemma4-e2b-sft-iffc`, fused Q4_K_M best@1000). Root cause is ToolACE stop-after-tools `[]` targets (5520 empty assistant turns; 78.1% of post-tool-result targets are `[]`), **not** the IFFC parser (zero `iffc_unparseable`). Do **not** train more epochs on this mix, run BoN/STATE on this checkpoint, or fuse `final@2000` as the first fix. Next: rebuild the mix (downweight/drop non-terminal `[]` after tool results; keep continuation turns), retrain, re-eval. Details in `THESIS.md` / `METHODS.md`. The thesis test remains BFCL v4 `multi_turn_base` and is **never** in train / val / corpus_test.
+This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored the v1 mix as a negative: 1/200 = 0.5%** on BFCL v4 `multi_turn_base` (`gemma4-e2b-sft-iffc`, fused Q4_K_M best@1000). Root cause is ToolACE stop-after-tools `[]` targets (5520 empty assistant turns; 78.1% of post-tool-result targets are `[]`), **not** the IFFC parser (zero `iffc_unparseable`). **Run 13 scored the v2 filtered non-terminal-`[]` mix as the same collapse: 1/200 = 0.5%** (`gemma4-e2b-sft-iffc-v2`, LoRA best@2000 `val=0.211`; only `multi_turn_base_50`; correct-set overlap identical with Run 12). PR #24 dropped 334 mid-trajectory empty-after-exec (non-terminal 334→0) and still kept 552 terminal; the filter did **not** recover. Do **not** train more epochs on v1 or this filtered mix, run BoN/STATE on these checkpoints, or claim the `[]` filter fixed SFT. Next (Sanskar decides — not started): drop **all** empty-after-exec including terminal + stronger continuation curriculum; ToolACE-only vs xLAM-only ablation at small scale; investigate Gemma-4 chat-template / fuse path; or pause SFT (BoN 36.5% still best). Details in `THESIS.md` / `METHODS.md`. The thesis test remains BFCL v4 `multi_turn_base` and is **never** in train / val / corpus_test.
 
 ## Locked mix (do not reopen)
 
@@ -22,8 +22,8 @@ This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored th
 `benchmark/config.py` registers Gemma as GGUF:
 
 - key: `gemma4-e2b` — base instruct GGUF (`bartowski/google_gemma-4-E2B-it-GGUF`, `Q4_K_M`)
-- key: `gemma4-e2b-sft-iffc` — Mac-local MLX LoRA SFT (IFFC mix, best val @ iter 1000). Distinct `api_name` / `slug` so BFCL results do **not** overwrite base Gemma. Serve with `llama-server -m <local.gguf>` (not `-hf`).
-- key: `gemma4-e2b-sft-iffc-v2` — filtered-mix SFT v2 (drop non-terminal `[]` after tool-exec, LoRA best@2000 val 0.211, PR #24). Distinct `api_name` / `slug` so Run 13 does **not** overwrite Run 12.
+- key: `gemma4-e2b-sft-iffc` — Mac-local MLX LoRA SFT v1 (IFFC mix, best val @ iter 1000). Run 12 scored **1/200 = 0.5%**. Distinct `api_name` / `slug` so BFCL results do **not** overwrite base Gemma. Serve with `llama-server -m <local.gguf>` (not `-hf`).
+- key: `gemma4-e2b-sft-iffc-v2` — filtered-mix SFT v2 (drop non-terminal `[]` after tool-exec, LoRA best@2000 val 0.211, PR #24). Distinct `api_name` / `slug` so Run 13 does **not** overwrite Run 12. Run 13 scored **1/200 = 0.5%** (same collapse). Figures: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`. Serve with `llama-server -m <local.gguf>` (not `-hf`).
 
 Instruct weights: **`google/gemma-4-e2b-it`** (gated; HuggingFace token required).
 
@@ -102,7 +102,7 @@ Dry-run (Linux/CI): `uv run python -m sft.train_mlx --smoke` prints the command 
 
 ## Unroll filter (drop non-terminal `[]` after tool results)
 
-SFT v1 trained on every unrolled assistant turn. ToolACE maps natural-language “done” replies to IFFC `[]`. After a user message that is an IFFC tool-result observation (`Function execution results:…` from `format_iffc_execution_user_message`), **78%** of those targets were `[]` (2121 empty vs 596 continue). All ~5,520 empty `[]` targets in the mlx train set came from ToolACE; xLAM had 0. That taught early stop: BFCL Run 12 empty-turn rate was ~70% vs ~13% on base IFFC, and `multi_turn_base` collapsed to 0.5% even though the live probe still emitted valid IFFC JSON.
+SFT v1 trained on every unrolled assistant turn. ToolACE maps natural-language “done” replies to IFFC `[]`. After a user message that is an IFFC tool-result observation (`Function execution results:…` from `format_iffc_execution_user_message`), **78%** of those targets were `[]` (2121 empty vs 596 continue). All ~5,520 empty `[]` targets in the mlx train set came from ToolACE; xLAM had 0. That taught early stop: BFCL Run 12 empty-turn rate was ~70% vs ~13% on base IFFC, and `multi_turn_base` collapsed to 0.5% even though the live probe still emitted valid IFFC JSON. Run 13 scored the filtered mix at the **same 0.5%** (primary empty_turn 167 vs Run 12 101; audit empty turns still ~70%, 522/734 error rows).
 
 **v2 policy (drop, not downweight):** when building unrolled mlx JSONL, drop a row iff
 
@@ -114,7 +114,7 @@ Keep true terminal `[]` (no later tool-calling assistant turn). Keep every non-e
 
 mlx-lm chat JSONL has no sample-weight field, so v2 **drops** the bad rows. Conversation-level `split_data` files are **not** rewritten (split unit stays conversation id). Ablation: `--keep-nonterminal-empty-after-exec` restores the v1 unroll.
 
-Unroll logs before/after counts of total rows, empty `[]` targets, empty-after-exec targets (and the non-terminal subset), by source (`toolace` vs `xlam`).
+Unroll logs before/after counts of total rows, empty `[]` targets, empty-after-exec targets (and the non-terminal subset), by source (`toolace` vs `xlam`). On the mix that produced Run 13, the filter dropped **334** non-terminal empty-after-exec rows (334→0) and **kept 552** terminal empty-after-exec. That v2 mix scored **1/200 = 0.5%** — filter insufficient.
 
 ```bash
 # Already have formatted ToolACE + xLAM and frozen splits? Re-unroll mlx train/val:
@@ -131,7 +131,7 @@ uv run python -m sft.train_mlx --prepare-only
 
 ## Eval (BFCL v4 `multi_turn_base`)
 
-Thesis test is **`multi_turn_base` only**. Best val checkpoint is **iter 1000**. Fuse that adapter (not necessarily the last iter), convert to Q4_K_M GGUF, serve with `-m`, then score under `--model gemma4-e2b-sft-iffc` so results land in a new folder / DB key. **Run 12 already scored this v1 GGUF: 1/200 = 0.5%** (scored negative; do not overwrite that `runs` row). Do **not** `--fc-mode iffc-state` or BoN on this checkpoint. A mix-rebuild eval needs a new fused GGUF and a new run. Paths may vary slightly.
+Thesis test is **`multi_turn_base` only**. Best val checkpoint for v1 is **iter 1000**. Fuse that adapter (not necessarily the last iter), convert to Q4_K_M GGUF, serve with `-m`, then score under `--model gemma4-e2b-sft-iffc` so results land in a new folder / DB key. **Run 12 already scored this v1 GGUF: 1/200 = 0.5%** (scored negative; do not overwrite that `runs` row). **Run 13 already scored the v2 filtered-[] GGUF: 1/200 = 0.5%** (`gemma4-e2b-sft-iffc-v2`, LoRA best@2000; do not overwrite). Do **not** `--fc-mode iffc-state` or BoN on these checkpoints. Do **not** claim the `[]` filter fixed SFT. Paths may vary slightly.
 
 ```bash
 # Fuse best@1000 (mlx-lm adapter filename is often 0001000_adapters.safetensors;
@@ -158,6 +158,8 @@ python llama.cpp/convert_hf_to_gguf.py sft/fused/gemma-4-e2b-it-iffc-best1000 \
 uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn \
   --categories multi_turn_base --fc-mode iffc
 # Do not --fc-mode iffc-state / iffc-state-bon on this v1 checkpoint (Run 12 0.5%).
+# Run 13 already scored the v2 filtered-[] GGUF at 1/200 = 0.5% (do not overwrite;
+# do not BoN/STATE on v2; do not claim the [] filter fixed SFT).
 ```
 
 If `convert_hf_to_gguf.py` rejects the fused layout, export/dequantize via mlx_lm.fuse docs for your mlx-lm version, then convert. Results: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-Q4_K_M/` (distinct from `Gemma-4-E2B-it-Q4_K_M/`).

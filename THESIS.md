@@ -90,8 +90,9 @@ Gemma-4-E2B-it family (multi-turn only; not in the single-turn table above):
 |------------|-------------|--------------|--------|
 | Gemma-4-E2B-it (base instruct) | `gemma4-e2b` | Q4_K_M | `bartowski/google_gemma-4-E2B-it-GGUF` |
 | Gemma-4-E2B-it SFT-IFFC best1000 | `gemma4-e2b-sft-iffc` | Q4_K_M fused | local `sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf` |
+| Gemma-4-E2B-it SFT-IFFC-v2 filtered-[] best2000 | `gemma4-e2b-sft-iffc-v2` | Q4_K_M fused | local fused Q4_K_M (LoRA best val @ iter 2000; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`) |
 
-Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on **multi-turn categories only**: Run 4 NFC (`--only-multi-turn`, all four slices), Run 5 IFFC (`--categories multi_turn_base --fc-mode iffc`), Run 8 TagDispatch-style CD (`--categories multi_turn_base --fc-mode cd`; **21/200 = 10.5%**, a scored negative vs NFC/IFFC), Run 9 GST+NFC (`--categories multi_turn_base --fc-mode gst`; **61/200 = 30.5%**, ties IFFC, does not beat it), Run 10 IFFC+STATE (`--categories multi_turn_base --fc-mode iffc-state`; **68/200 = 34.0%**, first method above the 30.5% plateau), Run 11 Best-of-N on IFFC+STATE (`--categories multi_turn_base --fc-mode iffc-state-bon`; **73/200 = 36.5%**, beats IFFC+STATE by +5 entries / +2.5 pp at ~7× wall), and Run 12 SFT-IFFC LoRA best@1000 (`--model gemma4-e2b-sft-iffc --categories multi_turn_base --fc-mode iffc`; **1/200 = 0.5%**, a scored negative vs every inference-time baseline). A shell-dialect format ablation ([PR #5](https://github.com/sskarz/Thesis/pull/5) harness; v2 after [PR #9](https://github.com/sskarz/Thesis/pull/9)) was run on the 13-entry `fs-only` GorillaFileSystem subset of `multi_turn_base`; that slice is **not** a full-200 score (v1 1/13, v2 0/13). Single-turn scores for this model are not reported here.
+Gemma-4-E2B-it (Q4_K_M) was additionally evaluated on **multi-turn categories only**: Run 4 NFC (`--only-multi-turn`, all four slices), Run 5 IFFC (`--categories multi_turn_base --fc-mode iffc`), Run 8 TagDispatch-style CD (`--categories multi_turn_base --fc-mode cd`; **21/200 = 10.5%**, a scored negative vs NFC/IFFC), Run 9 GST+NFC (`--categories multi_turn_base --fc-mode gst`; **61/200 = 30.5%**, ties IFFC, does not beat it), Run 10 IFFC+STATE (`--categories multi_turn_base --fc-mode iffc-state`; **68/200 = 34.0%**, first method above the 30.5% plateau), Run 11 Best-of-N on IFFC+STATE (`--categories multi_turn_base --fc-mode iffc-state-bon`; **73/200 = 36.5%**, beats IFFC+STATE by +5 entries / +2.5 pp at ~7× wall), Run 12 SFT-IFFC LoRA best@1000 (`--model gemma4-e2b-sft-iffc --categories multi_turn_base --fc-mode iffc`; **1/200 = 0.5%**, a scored negative vs every inference-time baseline), and Run 13 SFT-IFFC-v2 filtered-[] LoRA best@2000 (`--model gemma4-e2b-sft-iffc-v2 --categories multi_turn_base --fc-mode iffc`; **1/200 = 0.5%**, same collapse as Run 12 — the non-terminal-`[]` filter did **not** recover). A shell-dialect format ablation ([PR #5](https://github.com/sskarz/Thesis/pull/5) harness; v2 after [PR #9](https://github.com/sskarz/Thesis/pull/9)) was run on the 13-entry `fs-only` GorillaFileSystem subset of `multi_turn_base`; that slice is **not** a full-200 score (v1 1/13, v2 0/13). Single-turn scores for this model are not reported here.
 
 ### Quantization notes
 
@@ -134,7 +135,7 @@ Single-turn results on BFCL v4, evaluated with the AST checker. **Bold** indicat
 
 ### NFC vs IFFC vs CD vs GST vs IFFC+STATE vs BoN vs SFT-IFFC on `multi_turn_base`
 
-Primary metric: BFCL v4 `multi_turn_base` (200 execution-evaluated cases) on Gemma-4-E2B-it Q4_K_M, Mac Metal llama-server. CD is `--fc-mode cd`: a TagDispatch-style **two-pass approximation** on stock llama-server (pass 1: name GBNF enum; pass 2: `json_schema` for selected tools; never sends `tools` / `tool_choice`). **This is not XGrammar-2.** GST is `--fc-mode gst`: a **prompt-only overlay on NFC** (He et al. Detail template; still `tools` + `tool_choice=auto`). **This is not GBNF / XGrammar / IFFC.** IFFC+STATE is `--fc-mode iffc-state`: IFFC JSON-in-text plus a **harness-written `[STATE]`** snapshot from actual tool execution results. **This is not GST, not CD/GBNF, and not LLM summarization.** BoN is `--fc-mode iffc-state-bon`: **MV@N majority vote** (N=5, `temperature=0.7`) on the IFFC+STATE channel. **This is not NFC, not GST, not CD, and not a verifier / reward-model Best-of-N.** SFT-IFFC is `--model gemma4-e2b-sft-iffc --fc-mode iffc`: MLX LoRA on the same IFFC JSON-in-text channel (fused Q4_K_M, best val @ iter 1000). **This is not an inference-time overlay and not a parser change.**
+Primary metric: BFCL v4 `multi_turn_base` (200 execution-evaluated cases) on Gemma-4-E2B-it Q4_K_M, Mac Metal llama-server. CD is `--fc-mode cd`: a TagDispatch-style **two-pass approximation** on stock llama-server (pass 1: name GBNF enum; pass 2: `json_schema` for selected tools; never sends `tools` / `tool_choice`). **This is not XGrammar-2.** GST is `--fc-mode gst`: a **prompt-only overlay on NFC** (He et al. Detail template; still `tools` + `tool_choice=auto`). **This is not GBNF / XGrammar / IFFC.** IFFC+STATE is `--fc-mode iffc-state`: IFFC JSON-in-text plus a **harness-written `[STATE]`** snapshot from actual tool execution results. **This is not GST, not CD/GBNF, and not LLM summarization.** BoN is `--fc-mode iffc-state-bon`: **MV@N majority vote** (N=5, `temperature=0.7`) on the IFFC+STATE channel. **This is not NFC, not GST, not CD, and not a verifier / reward-model Best-of-N.** SFT-IFFC is `--model gemma4-e2b-sft-iffc --fc-mode iffc`: MLX LoRA on the same IFFC JSON-in-text channel (fused Q4_K_M, best val @ iter 1000). SFT-IFFC-v2 is `--model gemma4-e2b-sft-iffc-v2 --fc-mode iffc`: the same channel after [PR #24](https://github.com/sskarz/Thesis/pull/24) dropped non-terminal empty-after-exec `[]` (LoRA best val @ iter 2000). **Neither is an inference-time overlay or a parser change.**
 
 | Mode | Run | Score | Accuracy | Δ vs NFC |
 |------|-----|-------|----------|----------|
@@ -145,8 +146,9 @@ Primary metric: BFCL v4 `multi_turn_base` (200 execution-evaluated cases) on Gem
 | IFFC+STATE (IFFC JSON-in-text + harness `[STATE]`) | 10 | 68/200 | 34.0% | +7.0 pp / +14 entries |
 | BoN N=5 on IFFC+STATE (MV@N, `temp=0.7`) | 11 | 73/200 | 36.5% | +9.5 pp / +19 entries |
 | **SFT-IFFC LoRA best@1000** (IFFC channel) | **12** | **1/200** | **0.5%** | **−26.5 pp / −53 entries** |
+| **SFT-IFFC-v2 filtered-[] LoRA best@2000** (IFFC channel) | **13** | **1/200** | **0.5%** | **−26.5 pp / −53 entries** |
 
-Run 8 CD is a **scored negative** vs both NFC and IFFC (10.5% < 27.0% / 30.5%; 179 errors). Run 9 GST+NFC **ties IFFC at 61/200 = 30.5%** — a count tie, not the same 61 entries. Run 10 IFFC+STATE is the **first method above that 30.5% plateau** (+7 entries / +3.5 pp vs IFFC and vs GST). Run 11 BoN **beats IFFC+STATE** (+5 entries / +2.5 pp) at ~7× wall / ~N× decode — a modest lift, **not free**. Run 12 SFT-IFFC is a **scored negative** vs every inference-time baseline on this slice (0.5% < 10.5% CD; 199 errors; only `multi_turn_base_50` correct). Root cause is the training mix (ToolACE stop-after-tools `[]`), not the IFFC parser. Details below. The 13-entry BFCL-FS shell ablation is a separate slice and is **not** in this table.
+Run 8 CD is a **scored negative** vs both NFC and IFFC (10.5% < 27.0% / 30.5%; 179 errors). Run 9 GST+NFC **ties IFFC at 61/200 = 30.5%** — a count tie, not the same 61 entries. Run 10 IFFC+STATE is the **first method above that 30.5% plateau** (+7 entries / +3.5 pp vs IFFC and vs GST). Run 11 BoN **beats IFFC+STATE** (+5 entries / +2.5 pp) at ~7× wall / ~N× decode — a modest lift, **not free**. Run 12 SFT-IFFC is a **scored negative** vs every inference-time baseline on this slice (0.5% < 10.5% CD; 199 errors; only `multi_turn_base_50` correct). Root cause is the training mix (ToolACE stop-after-tools `[]`), not the IFFC parser. Run 13 SFT-IFFC-v2 is the **same collapse** (1/200 = 0.5%; only `multi_turn_base_50`; correct-set overlap identical with Run 12): dropping 334 non-terminal empty-after-exec `[]` rows ([PR #24](https://github.com/sskarz/Thesis/pull/24)) did **not** recover accuracy. Inference-time baselines are unchanged: BoN 36.5% still best; IFFC+STATE 34.0%; IFFC 30.5%. Details below. The 13-entry BFCL-FS shell ablation is a separate slice and is **not** in this table.
 
 ### Gemma-4-E2B-it baseline (Run 4, 2026-09-10)
 
@@ -159,7 +161,7 @@ This is a multi-turn-only baseline: `--only-multi-turn`, 800 execution-evaluated
 | `multi_turn_miss_param` | 39/200 | 19.5% | 2 |
 | `multi_turn_long_context` | 22/200 | 11.0% | 72 (mostly `context_overflow`) |
 
-**`multi_turn_base` (full 200) remains the primary optimization target.** Run 4 NFC scored 27.0% on that slice; Run 5 IFFC (+3.5 pp), Run 8 CD (scored negative, 10.5%), Run 9 GST+NFC (ties IFFC at 30.5%), Run 10 IFFC+STATE (**68/200 = 34.0%**, first break past 30.5%), Run 11 BoN on IFFC+STATE (**73/200 = 36.5%**, +2.5 pp vs STATE at ~7× wall), and Run 12 SFT-IFFC LoRA best@1000 (**1/200 = 0.5%**, scored negative) are reported below. The BFCL-FS shell eval is a 13-entry FS-only ablation, not a substitute for those 200-entry scores. `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
+**`multi_turn_base` (full 200) remains the primary optimization target.** Run 4 NFC scored 27.0% on that slice; Run 5 IFFC (+3.5 pp), Run 8 CD (scored negative, 10.5%), Run 9 GST+NFC (ties IFFC at 30.5%), Run 10 IFFC+STATE (**68/200 = 34.0%**, first break past 30.5%), Run 11 BoN on IFFC+STATE (**73/200 = 36.5%**, +2.5 pp vs STATE at ~7× wall), Run 12 SFT-IFFC LoRA best@1000 (**1/200 = 0.5%**, scored negative), and Run 13 SFT-IFFC-v2 filtered-[] LoRA best@2000 (**1/200 = 0.5%**, same collapse — filter did not recover) are reported below. The BFCL-FS shell eval is a 13-entry FS-only ablation, not a substitute for those 200-entry scores. `miss_func`, `miss_param`, and `long_context` are secondary stress slices (withheld tools, missing parameters, and long histories). They are not the headline success criterion.
 
 Wall-clock generation throughput was ~24–37 s/entry at 8-way parallel, versus ~4–5 min/entry on the prior sequential path.
 
@@ -212,7 +214,7 @@ The paper ([*Small Reasoning Models are Instruction Followers in Function Callin
 
 IFFC reduced under-calling; it did not convert this into a single-turn-style accuracy jump. The remaining bottleneck is sequential state tracking, not JSON vs native tools.
 
-A TagDispatch-style constrained-decoding ablation (`--fc-mode cd`) on the same 200-entry `multi_turn_base` is reported next; it is a **scored negative**. Guided-Structured Templates (`--fc-mode gst`, Run 9) follow; they **tie IFFC** and do not beat it. IFFC + harness STATE (`--fc-mode iffc-state`, Run 10) follows GST; it is the **first method above 30.5%**. Best-of-N majority vote on IFFC+STATE (`--fc-mode iffc-state-bon`, Run 11) follows STATE; it **beats STATE at 73/200 = 36.5%** with a ~7× wall-clock cost. MLX SFT-IFFC LoRA best@1000 (`--model gemma4-e2b-sft-iffc --fc-mode iffc`, Run 12) follows BoN; it is a **scored negative at 1/200 = 0.5%** (training-mix stop-after-tools, not a parser bug). A separate format channel — allowlisted shell text mapped onto GorillaFileSystem — is a **13-entry `fs-only` ablation** (two live evals, v1 and v2), not a replacement for the 200-entry scores.
+A TagDispatch-style constrained-decoding ablation (`--fc-mode cd`) on the same 200-entry `multi_turn_base` is reported next; it is a **scored negative**. Guided-Structured Templates (`--fc-mode gst`, Run 9) follow; they **tie IFFC** and do not beat it. IFFC + harness STATE (`--fc-mode iffc-state`, Run 10) follows GST; it is the **first method above 30.5%**. Best-of-N majority vote on IFFC+STATE (`--fc-mode iffc-state-bon`, Run 11) follows STATE; it **beats STATE at 73/200 = 36.5%** with a ~7× wall-clock cost. MLX SFT-IFFC LoRA best@1000 (`--model gemma4-e2b-sft-iffc --fc-mode iffc`, Run 12) follows BoN; it is a **scored negative at 1/200 = 0.5%** (training-mix stop-after-tools, not a parser bug). MLX SFT-IFFC-v2 filtered-[] LoRA best@2000 (`--model gemma4-e2b-sft-iffc-v2 --fc-mode iffc`, Run 13) follows Run 12; it is the **same 0.5% collapse** — the non-terminal-`[]` filter was insufficient. A separate format channel — allowlisted shell text mapped onto GorillaFileSystem — is a **13-entry `fs-only` ablation** (two live evals, v1 and v2), not a replacement for the 200-entry scores.
 
 ### Gemma-4-E2B-it TagDispatch-style CD (Run 8) — scored negative
 
@@ -407,7 +409,7 @@ The following points are **interpretation**, not additional measurements.
 
 4. **First clear break of the IFFC=GST 30.5% tie.** That supports additive working memory on the IFFC channel where GST-on-NFC was not additive.
 
-5. **Remaining headroom is still agentic.** `state_mismatch` 64 + under-call 37. Next should target FS/Vehicle fidelity or under-call recovery, not another empty-only prompt trick. Best-of-N on this channel (Run 11) is reported next; MLX SFT v1 (Run 12) is now a **scored negative** (mix rebuild, not more epochs on the same data).
+5. **Remaining headroom is still agentic.** `state_mismatch` 64 + under-call 37. Next should target FS/Vehicle fidelity or under-call recovery, not another empty-only prompt trick. Best-of-N on this channel (Run 11) is reported next; MLX SFT v1 (Run 12) and the filtered-[] mix rebuild (Run 13) are both **scored negatives** at 0.5% (not more epochs on the same data).
 
 **Paper / method gap.** ACON (Xu et al., [arXiv:2510.00615](https://arxiv.org/abs/2510.00615)) compresses older turns with LLM summarization. This harness writes a structured key-value `[STATE]` from executed tool results — **not** an LLM summary, **not** GST, **not** CD/GBNF. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is still deferred. Do **not** treat `--fc-mode iffc-state` as solved state tracking given state mismatch 60→64 vs IFFC.
 
@@ -492,7 +494,7 @@ The following points are **interpretation**, not additional measurements.
 
 4. **Cost is the story.** ~7× wall and ~8.8× decode for +2.5 pp is a real edge-device tradeoff, not a free accuracy bump. Do **not** treat N=5 as the default serving recipe.
 
-5. **Remaining headroom is still agentic.** State mismatch 53 (VehicleControl 22, GFS 13, Travel 9) plus under-call 38. Next leverage: FS/Vehicle fidelity or under-call recovery — not another empty-only prompt trick and not unbounded N. The first training-time follow-on (MLX SFT v1, Run 12) is reported next; it is a **scored negative**.
+5. **Remaining headroom is still agentic.** State mismatch 53 (VehicleControl 22, GFS 13, Travel 9) plus under-call 38. Next leverage: FS/Vehicle fidelity or under-call recovery — not another empty-only prompt trick and not unbounded N. The first training-time follow-on (MLX SFT v1, Run 12) is reported next; it is a **scored negative**. The mix rebuild (Run 13) is the same collapse.
 
 **Paper / method gap.** Snell et al. ([arXiv:2408.03314](https://arxiv.org/abs/2408.03314)) frame test-time compute vs parameter scaling. This harness is **majority vote on tool-call tuples**, not tree search and not a learned verifier. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is still deferred. Do **not** treat `--fc-mode iffc-state-bon` as solved sequential calling given 127 remaining failures and ~7× wall.
 
@@ -576,11 +578,91 @@ Do **not**:
 
 Those would amplify or paper over a stop-after-tools prior, not remove it.
 
-#### Next (Sanskar to pick — not started here)
+#### Next (Sanskar to pick — scored as Run 13)
 
-Rebuild the SFT mix so it **downweights or drops non-terminal `[]` after tool results** and/or **keeps multi-turn continuation turns**; retrain LoRA; re-eval the same BFCL setup (`--model gemma4-e2b-sft-iffc --only-multi-turn --categories multi_turn_base --fc-mode iffc`). Optional ablation: ToolACE-only vs xLAM-only (xLAM contributed 0 of the 5520 `[]` targets).
+The mix rebuild that **dropped non-terminal `[]` after tool results** ([PR #24](https://github.com/sskarz/Thesis/pull/24)) was trained and scored as Run 13. Result: **1/200 = 0.5%** — same collapse as Run 12; filter insufficient. See the Run 13 subsection.
 
 **Paper / method gap.** ToolACE (Liu et al., [arXiv:2409.00920](https://arxiv.org/abs/2409.00920)) and xLAM (Zhang et al., [arXiv:2409.03215](https://arxiv.org/abs/2409.03215)) are the v1 sources; IFFC Appendix B is the chat shape. Run 12 shows that copying ToolACE’s terminal-`[]` density into an unrolled multi-turn IFFC adapter **hurts** BFCL sequential calling. Do **not** treat SFT-on-IFFC as a free accuracy bump over Run 5.
+
+### Gemma-4-E2B-it SFT-IFFC-v2 filtered-[] LoRA best@2000 (Run 13) — scored negative
+
+Run 13 evaluates the first mix rebuild after Run 12: [PR #24](https://github.com/sskarz/Thesis/pull/24) dropped **334** mid-trajectory empty-after-exec `[]` rows (non-terminal **334→0**) while **keeping 552** terminal empty-after-exec. Same IFFC JSON-in-text harness as Run 5 / Run 12 (`--fc-mode iffc`). Requests omit `tools` / `tool_choice`. Scoring uses the same BFCL `multi_turn_checker`. Distinct `model_key` `gemma4-e2b-sft-iffc-v2` so results do **not** overwrite base Gemma or Run 12.
+
+**Not** an inference-time overlay, **not** GST, **not** CD/GBNF, **not** IFFC+STATE / BoN on this checkpoint. The channel is the same Appendix B JSON-in-text; only the unroll filter and LoRA weights changed.
+
+#### Checkpoint identity
+
+| Field | Value |
+|-------|-------|
+| `run_id` | 13 (Mac `benchmark.db`, verified) |
+| `model_display` | Gemma-4-E2B-it SFT-IFFC-v2 filtered-[] (Q4_K_M) |
+| `model_key` | `gemma4-e2b-sft-iffc-v2` |
+| Adapter | MLX LoRA, mlx-lm 0.32, best val @ iter 2000 (`val=0.211`) |
+| Mode | `--fc-mode iffc`, `--categories multi_turn_base` |
+| Notes | `SFT-IFFC-v2 filtered nonterminal-[] LoRA best@2000 val0.211; mlx-lm 0.32; Q4_K_M; fc_mode=iffc categories=multi_turn_base vs Run12 0.5% / BoN 36.5%` |
+| Wall | ~14 min |
+| Rows | 200 responses, 199 `eval_errors`, 200 `multi_turn_timings` |
+| Flags | all 200 `flags` empty — **zero** `iffc_unparseable` |
+| Figures | `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures` |
+
+Result: **1/200 = 0.5%**. Only win: `multi_turn_base_50` — the **same** entry as Run 12; correct-set overlap is identical. This is **−26.5 pp / −53 entries vs NFC**, **−30.0 pp / −60 vs IFFC**, and **−36.0 pp / −72 vs BoN**. Same score as Run 12. The non-terminal-`[]` filter did **not** recover accuracy.
+
+#### Same-slice baselines
+
+| Method | Run | Score |
+|--------|-----|-------|
+| NFC | 4 | 54/200 = 27.0% |
+| IFFC (base) | 5 | 61/200 = 30.5% |
+| CD | 8 | 21/200 = 10.5% |
+| GST | 9 | 61/200 = 30.5% |
+| IFFC+STATE | 10 | 68/200 = 34.0% |
+| BoN N=5 | 11 | 73/200 = 36.5% |
+| SFT-IFFC LoRA best@1000 | 12 | 1/200 = 0.5% |
+| **SFT-IFFC-v2 filtered-[] LoRA best@2000** | **13** | **1/200 = 0.5%** |
+
+Inference-time baselines are **unchanged**: BoN **36.5%** remains the best inference result; IFFC+STATE 34.0%; IFFC 30.5%; Run 12 SFT v1 0.5%.
+
+#### Error mix (two views — do not conflate)
+
+**Primary BFCL bucket per failed entry** (one error per failed `entry_id`; n=199; sum 167+25+7=199):
+
+| Bucket | Run 12 | Run 13 |
+|--------|--------|--------|
+| `empty_turn` | 101 | **167** |
+| `state_mismatch` | 63 | **25** |
+| `under_call` | 35 | **7** |
+
+**Thesis Bot trajectory audit** (turn-level empty rate and early-stop trajectories — a different metric from the 167 `empty_turn` primaries):
+
+| Audit figure | Run 12 SFT-IFFC v1 | Run 13 SFT-IFFC-v2 |
+|--------------|--------------------|--------------------|
+| Empty turns | ~70% | still **~70%** (522/734 error rows) |
+| Early-stop trajectories | 158/200 | **67/200** |
+
+Document the audit **alongside** the verified primary buckets; do not swap them. Early-stop trajectories fell 158→67, but empty-labeled **primary** fails rose 101→167. That is **more empty turns overall as first-fail labels**, not a win. Empty turns still dominate ~70% of error rows.
+
+#### Filter vs result
+
+PR #24 dropped 334 mid-trajectory empty-after-exec rows (non-terminal 334→0) and still kept 552 terminal empty-after-exec. The live score is the same 0.5% as the unfiltered v1 mix. Format is not the gap: zero `iffc_unparseable` on all 200 Run 13 responses (same as Run 12).
+
+#### Anti-recommendations
+
+Do **not**:
+
+- train more epochs on **this** filtered mix
+- run BoN or IFFC+STATE on **this** v2 checkpoint
+- claim the `[]` filter **fixed** SFT
+
+Those would amplify or paper over the same collapse.
+
+#### Next (Sanskar decides — not started here)
+
+1. Drop **all** empty-after-exec including terminal, plus a stronger multi-turn continuation curriculum.
+2. ToolACE-only vs xLAM-only ablation at small scale.
+3. Investigate whether the Gemma-4 chat-template / fuse path destroys multi-turn despite valid single-step IFFC.
+4. Pause SFT and return to the inference ladder (BoN **36.5%** is still the best measured result).
+
+**Paper / method gap.** The v2 filter was the measured test of “drop non-terminal ToolACE `[]` after tool results.” Run 13 shows that cut is **insufficient** for BFCL sequential calling. Do **not** treat filtered-`[]` SFT as a recovery over Run 12 or over Run 5 IFFC.
 
 ### Gemma-4-E2B-it BFCL-FS shell dialect (fs-only live eval)
 
@@ -617,7 +699,7 @@ Controls from `benchmark.db` (Run 4 NFC, Run 5 IFFC traces scored on these IDs) 
 | Shell v1 (prior live eval) | — | 1/13 | 7.7% | `multi_turn_base_12` |
 | Shell v2 (this run) | — | 0/13 | 0.0% | — |
 
-Full `multi_turn_base` (200 entries): NFC **54/200 = 27.0%**, IFFC **61/200 = 30.5%**, CD **21/200 = 10.5%** (Run 8, scored negative), GST+NFC **61/200 = 30.5%** (Run 9, ties IFFC), IFFC+STATE **68/200 = 34.0%** (Run 10, first method above 30.5%), BoN N=5 on IFFC+STATE **73/200 = 36.5%** (Run 11, beats STATE by +2.5 pp at ~7× wall), SFT-IFFC LoRA best@1000 **1/200 = 0.5%** (Run 12, scored negative; mix stop-after-tools, not parser). Those remain the primary thesis numbers. The 13-ID table is an apples-to-apples format comparison on GorillaFileSystem-only entries.
+Full `multi_turn_base` (200 entries): NFC **54/200 = 27.0%**, IFFC **61/200 = 30.5%**, CD **21/200 = 10.5%** (Run 8, scored negative), GST+NFC **61/200 = 30.5%** (Run 9, ties IFFC), IFFC+STATE **68/200 = 34.0%** (Run 10, first method above 30.5%), BoN N=5 on IFFC+STATE **73/200 = 36.5%** (Run 11, beats STATE by +2.5 pp at ~7× wall), SFT-IFFC LoRA best@1000 **1/200 = 0.5%** (Run 12, scored negative; mix stop-after-tools, not parser), SFT-IFFC-v2 filtered-[] LoRA best@2000 **1/200 = 0.5%** (Run 13, same collapse; filter did not recover). Those remain the primary thesis numbers. The 13-ID table is an apples-to-apples format comparison on GorillaFileSystem-only entries.
 
 #### Interpretation
 
@@ -773,8 +855,8 @@ FunctionGemma-270M is a purpose-built tool-calling model fine-tuned from Gemma 3
 
 ## Remaining Work
 
-- **MLX SFT v1 (scored negative — mix rebuild next):** Frozen mix was **all** Team-ACE/ToolACE (~11.3k multi-turn) + stratified **25k** Salesforce/xlam-function-calling-60k (oversample parallel / multi-answer), IFFC JSON-in-text only (same `--fc-mode iffc` shape; no native `tool_calls`). Splits by conversation id, seed=42, stratify on source / is_multi_turn / n_tools_in_gold (1 vs ≥2), ~90/5/5 → ~32.7k / 1.8k / 1.8k train/val/corpus_test. Thesis test remains BFCL v4 `multi_turn_base` — never in those files. Base: Gemma-4-E2B-it; fused Q4_K_M best val @ iter 1000 (`gemma4-e2b-sft-iffc`). **Run 12 scored 1/200 = 0.5%** (only `multi_turn_base_50`; 199 errors; zero `iffc_unparseable`). Primary buckets: empty_turn **101**, state_mismatch **63**, under_call **35**. Audit (different metric): empty turns 13.2% (IFFC) → **69.9%**; early-stop 56/200 → **158/200**. Root cause: 5520 ToolACE assistant `[]` targets (32.5% of ToolACE assistant turns; xLAM 0%); after `"Function execution results"`, **78.1%** of targets are `[]` (2121 empty vs 596 continue) — teaches stop-after-tools. Not a serve/parser bug. Do **not** more epochs on this mix, BoN/STATE on this checkpoint, or fuse `final@2000` as the first fix. **Next (not started):** rebuild the mix — downweight/drop non-terminal `[]` after tool results and/or keep continuation turns; retrain LoRA; re-eval the same BFCL setup. Optional ablation: ToolACE-only vs xLAM-only. Pipeline: `sft/` (see `sft/README.md`).
-- **Multi-turn optimization**: Gemma-4-E2B-it on `multi_turn_base`: NFC Run 4 **54/200 = 27.0%**; IFFC Run 5 **61/200 = 30.5%** (+3.5 pp); TagDispatch-style CD Run 8 **21/200 = 10.5%** (179 errors); GST+NFC Run 9 **61/200 = 30.5%** (ties IFFC; +7 vs NFC); IFFC+STATE Run 10 **68/200 = 34.0%** (first method above the 30.5% plateau; +7 vs IFFC and vs GST); BoN N=5 on IFFC+STATE Run 11 **73/200 = 36.5%** (beats STATE by +5 / +2.5 pp at ~7× wall); SFT-IFFC LoRA best@1000 Run 12 **1/200 = 0.5%** (scored negative; 199 errors). CD is **measured and negative**. Guided templates are **measured**: they **tie IFFC and do not beat it** — the 61=61 is a 19-row swap, not the same 61 entries. GST vs NFC: empty 59→31 but state mismatch 68→79. IFFC+STATE is **measured** and **beats** the IFFC/GST plateau: empty 41→31 (tied GST’s empty cut); state mismatch 60→**64** (did not improve); under-call ≈38→37. The +7 vs IFFC is a 20-rescue / 13-regress swap, not pure dominance. BoN is **measured** and **beats STATE**: empty 31→**36** (rose); state 64→**53** (cut); under-call 37→38 (flat). The +5 vs STATE is a 17-rescue / 12-regress swap. Wall generate ~21.3 h vs Run 10 ~3.0 h; avg `predicted_ms` ~1318 s vs ~150 s (~8.8×). Modest +2.5 pp is **not free**. SFT-IFFC is **measured and negative**: empty_turn 101 / state_mismatch 63 / under_call 35; audit empty turns 13.2%→69.9%, early-stop 56→158 of 200. Honesty: `--fc-mode iffc-state-bon` is MV@N on the IFFC+STATE channel — **not** NFC, **not** GST, **not** CD/GBNF, **not** a verifier/reward-model BoN; `--fc-mode iffc-state` is IFFC JSON-in-text plus harness-written STATE from executed tool results — **not** GST, **not** CD/GBNF, **not** LLM summarization; `--fc-mode gst` is prompt-only on the NFC channel (not GBNF/IFFC); `--fc-mode cd` is a two-pass approximation on stock llama-server — **not** full XGrammar-2; Run 12 SFT is weight change on the IFFC channel — **not** a parser fix and **not** IFFC+STATE/BoN on the SFT GGUF. Do **not** pursue this CD condition, another GST Detail overlay on NFC, unbounded N, more epochs on the v1 mix, BoN/STATE on the Run 12 checkpoint, or fuse `final@2000` as D1 default. Residual errors on the inference-time channel are still agentic state mismatch (VehicleControl 22 / GorillaFileSystem 13 / Travel 9) and under-calling, not format parsing. Next leverage on that channel: FS/Vehicle state fidelity or under-call recovery — not another empty-only prompt trick and not more test-time N without a cost budget. Next training-time step: **rebuild the SFT mix** (drop/downweight non-terminal `[]` after tool results; keep continuation turns) — not more LoRA on the same ToolACE `[]` density. BFCL-FS / VFS shell→GorillaFileSystem fs-only is a **negative ablation** (v1 **1/13 = 7.7%**, v2 **0/13 = 0.0%** vs NFC **3/13 = 23.1%** vs IFFC **1/13 = 7.7%** on the same 13 GorillaFileSystem-only IDs; not the full 200). Do **not** pursue shell-as-action as D1 default. The toy VFS harness stays for non-BFCL / future SFT only. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is deferred. `miss_func` / `miss_param` / `long_context` remain secondary stress tests. Run 11 `finished_at` was NULL at verify time (`inference_metrics=0`, `metrics_per_request=0`); eval scored. Run 12 finished `2026-09-20T12:33:00Z`.
+- **MLX SFT (v1 and v2 both scored negative):** Frozen mix was **all** Team-ACE/ToolACE (~11.3k multi-turn) + stratified **25k** Salesforce/xlam-function-calling-60k (oversample parallel / multi-answer), IFFC JSON-in-text only (same `--fc-mode iffc` shape; no native `tool_calls`). Splits by conversation id, seed=42, stratify on source / is_multi_turn / n_tools_in_gold (1 vs ≥2), ~90/5/5 → ~32.7k / 1.8k / 1.8k train/val/corpus_test. Thesis test remains BFCL v4 `multi_turn_base` — never in those files. Base: Gemma-4-E2B-it. **Run 12** (`gemma4-e2b-sft-iffc`, fused Q4_K_M best val @ iter 1000): **1/200 = 0.5%** (only `multi_turn_base_50`; 199 errors; zero `iffc_unparseable`). Primary buckets: empty_turn **101**, state_mismatch **63**, under_call **35**. Audit: empty turns 13.2% (IFFC) → **69.9%**; early-stop 56/200 → **158/200**. Root cause: 5520 ToolACE assistant `[]` targets (32.5% of ToolACE assistant turns; xLAM 0%); after `"Function execution results"`, **78.1%** of targets are `[]` (2121 empty vs 596 continue) — teaches stop-after-tools. **Run 13** (`gemma4-e2b-sft-iffc-v2`, LoRA best@2000 `val=0.211`, mlx-lm 0.32): [PR #24](https://github.com/sskarz/Thesis/pull/24) dropped 334 mid-trajectory empty-after-exec rows (non-terminal 334→0) and still kept 552 terminal empty-after-exec. Score **1/200 = 0.5%** — same collapse as Run 12; only win `multi_turn_base_50` (correct-set overlap identical); 200 responses, 199 `eval_errors`, 200 timings; ~14 min wall; all flags empty (zero `iffc_unparseable`). Primary buckets: empty_turn **167**, state_mismatch **25**, under_call **7**. Audit (do not conflate): empty turns still ~70% (522/734 error rows); early-stop 158→**67** (down) but empty-labeled primary fails 101→**167** — more empty turns overall, not a win. Filter did **not** recover accuracy. Figures: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`. Do **not** more epochs on the filtered mix, BoN/STATE on the v2 checkpoint, or claim the `[]` filter fixed SFT. **Next (Sanskar decides — not started):** (1) drop **all** empty-after-exec including terminal + stronger multi-turn continuation curriculum; (2) ToolACE-only vs xLAM-only ablation at small scale; (3) investigate Gemma-4 chat-template / fuse path destroying multi-turn despite valid single-step IFFC; (4) pause SFT and return to the inference ladder (BoN 36.5% still best). Pipeline: `sft/` (see `sft/README.md`).
+- **Multi-turn optimization**: Gemma-4-E2B-it on `multi_turn_base`: NFC Run 4 **54/200 = 27.0%**; IFFC Run 5 **61/200 = 30.5%** (+3.5 pp); TagDispatch-style CD Run 8 **21/200 = 10.5%** (179 errors); GST+NFC Run 9 **61/200 = 30.5%** (ties IFFC; +7 vs NFC); IFFC+STATE Run 10 **68/200 = 34.0%** (first method above the 30.5% plateau; +7 vs IFFC and vs GST); BoN N=5 on IFFC+STATE Run 11 **73/200 = 36.5%** (beats STATE by +5 / +2.5 pp at ~7× wall); SFT-IFFC LoRA best@1000 Run 12 **1/200 = 0.5%** (scored negative; 199 errors); SFT-IFFC-v2 filtered-[] LoRA best@2000 Run 13 **1/200 = 0.5%** (same collapse; filter did not recover). CD is **measured and negative**. Guided templates are **measured**: they **tie IFFC and do not beat it** — the 61=61 is a 19-row swap, not the same 61 entries. GST vs NFC: empty 59→31 but state mismatch 68→79. IFFC+STATE is **measured** and **beats** the IFFC/GST plateau: empty 41→31 (tied GST’s empty cut); state mismatch 60→**64** (did not improve); under-call ≈38→37. The +7 vs IFFC is a 20-rescue / 13-regress swap, not pure dominance. BoN is **measured** and **beats STATE**: empty 31→**36** (rose); state 64→**53** (cut); under-call 37→38 (flat). The +5 vs STATE is a 17-rescue / 12-regress swap. Wall generate ~21.3 h vs Run 10 ~3.0 h; avg `predicted_ms` ~1318 s vs ~150 s (~8.8×). Modest +2.5 pp is **not free**. SFT-IFFC v1 is **measured and negative**: empty_turn 101 / state_mismatch 63 / under_call 35; audit empty turns 13.2%→69.9%, early-stop 56→158 of 200. SFT-IFFC-v2 is **measured and the same collapse**: empty_turn **167** / state_mismatch **25** / under_call **7**; audit empty turns still ~70% (522/734 error rows); early-stop 158→67 (down) but empty-labeled primary fails 101→167 — more empty turns overall, not a win. Honesty: `--fc-mode iffc-state-bon` is MV@N on the IFFC+STATE channel — **not** NFC, **not** GST, **not** CD/GBNF, **not** a verifier/reward-model BoN; `--fc-mode iffc-state` is IFFC JSON-in-text plus harness-written STATE from executed tool results — **not** GST, **not** CD/GBNF, **not** LLM summarization; `--fc-mode gst` is prompt-only on the NFC channel (not GBNF/IFFC); `--fc-mode cd` is a two-pass approximation on stock llama-server — **not** full XGrammar-2; Run 12 SFT is weight change on the IFFC channel — **not** a parser fix and **not** IFFC+STATE/BoN on the SFT GGUF; Run 13 SFT-v2 is the same IFFC channel after dropping 334 non-terminal empty-after-exec `[]` (552 terminal kept) — **not** a recovery and **not** IFFC+STATE/BoN on the v2 GGUF. Do **not** pursue this CD condition, another GST Detail overlay on NFC, unbounded N, more epochs on the v1 mix **or** the v2 filtered mix, BoN/STATE on the Run 12 or Run 13 checkpoint, fuse `final@2000` as D1 default, or claim the `[]` filter fixed SFT. Residual errors on the inference-time channel are still agentic state mismatch (VehicleControl 22 / GorillaFileSystem 13 / Travel 9) and under-calling, not format parsing. Next leverage on that channel: FS/Vehicle state fidelity or under-call recovery — not another empty-only prompt trick and not more test-time N without a cost budget. **Next (Sanskar decides — not started):** drop **all** empty-after-exec including terminal + stronger continuation curriculum; ToolACE-only vs xLAM-only ablation at small scale; investigate Gemma-4 chat-template / fuse path; or pause SFT and return to the inference ladder (BoN 36.5% still best). BFCL-FS / VFS shell→GorillaFileSystem fs-only is a **negative ablation** (v1 **1/13 = 7.7%**, v2 **0/13 = 0.0%** vs NFC **3/13 = 23.1%** vs IFFC **1/13 = 7.7%** on the same 13 GorillaFileSystem-only IDs; not the full 200). Do **not** pursue shell-as-action as D1 default. The toy VFS harness stays for non-BFCL / future SFT only. Dual-model IFFC (paper Algorithm 1 QA/SRM decoupling) is deferred. `miss_func` / `miss_param` / `long_context` remain secondary stress tests. Run 11 `finished_at` was NULL at verify time (`inference_metrics=0`, `metrics_per_request=0`); eval scored. Run 12 finished `2026-09-20T12:33:00Z`. Run 13 finished ~14 min wall.
 - **NVIDIA Jetson Orin Nano Super migration**: Repeat all benchmarks on CUDA with 8 GB shared memory to measure real edge-device performance.
 - **RAG augmentation for large tool sets**: The `multiple` category only presents 2–4 tools per test case, so RAG-based tool filtering provides no benefit. However, real-world agentic applications may expose 50–100+ tools. Test whether retrieval-augmented generation (embedding-based tool retrieval to pre-filter the tool set before prompting) improves accuracy and reduces prompt length for large tool registries.
 - **Additional models and quantizations**: Expand the model matrix (e.g., Phi-3.5-mini, Gemma-2-2B) and test alternative quantization levels (Q5_K_M, Q8_0) to map the accuracy-size Pareto frontier.
