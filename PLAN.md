@@ -44,13 +44,13 @@ These directly support the thesis claim of "optimization" and are required for t
 - **Effort:** Low (just add to config.py model registry, run benchmark)
 - **Source:** Zhang et al., "xLAM: Large Action Models," arXiv:2409.03215
 
-### 4. MLX LoRA SFT of Gemma-4-E2B (METHODS — Experiment: MLX SFT v1)
+### 4. MLX LoRA SFT of Gemma-4-E2B (METHODS — Experiment: MLX SFT)
 
 - **What:** Frozen IFFC-format mix (all ToolACE + 25k oversampled xLAM-60k; seed=42; ~90/5/5 train/val/corpus_test) → mlx-lm LoRA on Apple Silicon → fuse → GGUF. Thesis test remains BFCL v4 `multi_turn_base` (never in the mix).
 - **Why:** Training-time counterpart to inference-time IFFC / IFFC+STATE / BoN — same JSON-in-text channel, not native `tool_calls`
-- **Measured (Gemma `multi_turn_base`):** Run 12 `--model gemma4-e2b-sft-iffc --fc-mode iffc` **1/200 = 0.5%** (only `multi_turn_base_50`). **Scored negative** vs NFC 27.0% / IFFC 30.5% / CD 10.5% / GST 30.5% / STATE 34.0% / BoN 36.5%. Root cause: 5520 ToolACE assistant `[]` targets (78.1% of post-tool-result turns) teach stop-after-tools — **not** a parser bug (zero `iffc_unparseable`). Details in `THESIS.md`.
-- **Do not:** more epochs on this mix; BoN/STATE on this checkpoint; fuse `final@2000` as the first fix
-- **Next (not started):** rebuild mix — downweight/drop non-terminal `[]` after tool results and/or keep continuation turns; retrain LoRA; re-eval same BFCL setup. Optional ablation: ToolACE-only vs xLAM-only
+- **Measured (Gemma `multi_turn_base`):** Run 12 `--model gemma4-e2b-sft-iffc --fc-mode iffc` **1/200 = 0.5%** (only `multi_turn_base_50`). Run 13 `--model gemma4-e2b-sft-iffc-v2 --fc-mode iffc` **1/200 = 0.5%** (same entry; correct-set overlap identical). **Both scored negative** vs NFC 27.0% / IFFC 30.5% / CD 10.5% / GST 30.5% / STATE 34.0% / BoN 36.5%. Run 12 root cause: 5520 ToolACE assistant `[]` targets (78.1% of post-tool-result turns) teach stop-after-tools — **not** a parser bug (zero `iffc_unparseable`). Run 13: PR #24 dropped 334 non-terminal empty-after-exec (334→0) and kept 552 terminal; filter **did not recover**. Primary buckets Run 13: empty_turn **167**, state_mismatch **25**, under_call **7** (vs Run 12: 101 / 63 / 35). Details in `THESIS.md`.
+- **Do not:** more epochs on v1 or the v2 filtered mix; BoN/STATE on these checkpoints; claim the `[]` filter fixed SFT
+- **Next (Sanskar decides — not started):** (1) drop all empty-after-exec including terminal + stronger continuation curriculum; (2) ToolACE-only vs xLAM-only ablation at small scale; (3) investigate Gemma-4 chat-template / fuse path; (4) pause SFT and return to the inference ladder (BoN 36.5% still best)
 - **Code:** `sft/` — see `sft/README.md` for Mac commands
 - **Skipped v1:** APIGen-MT-5k (NC), Glaive, Hermes (docs-only optional backup)
 - **Effort:** Medium-High (overnight train on Mac; not CI)
@@ -121,5 +121,5 @@ This answers the central question from METHODS.md: **does fine-tuning or inferen
 4. Best-of-N majority voting wrapper
 5. Context compression for multi-turn
 6. Parallel calling grammar investigation
-7. MLX SFT v1 is **scored negative** (Run 12 **1/200 = 0.5%**). Next: rebuild mix (drop/downweight non-terminal `[]` after tool results); retrain; re-eval. Do not more epochs on v1 / BoN on this GGUF / fuse `final@2000` first.
+7. MLX SFT v1 **and** v2 are **scored negative** (Run 12 **1/200 = 0.5%**; Run 13 **1/200 = 0.5%** — non-terminal-`[]` filter did not recover). Next (Sanskar decides): drop all empty-after-exec including terminal + continuation curriculum; ToolACE vs xLAM ablation at small scale; investigate Gemma-4 chat-template / fuse; or pause SFT (BoN 36.5% still best). Do not more epochs on v1/v2 / BoN on these GGUFs / claim the filter fixed SFT.
 8. Jetson migration (if time permits)
