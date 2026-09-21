@@ -1,4 +1,4 @@
-"""SFT v3 empty-after-exec drop + recovery-after-empty curriculum.
+"""SFT v4 empty-target curriculum (extends v3 recovery, does not replace it).
 
 SFT v1 unrolled every assistant turn, including ToolACE replies that the
 formatter maps to ``[]`` immediately after a ``format_iffc_execution_user_message``
@@ -14,33 +14,32 @@ terminal stop-after-tools targets still taught call→results→``[]``, and BFCL
 then issues a **new user turn** that the adapter never recovered from
 (Run 14 stripping ``[]`` from live history only reached 2.0%).
 
-SFT v3 (this module's default):
+SFT v3 dropped **all** empty-after-exec targets (terminal included) and kept /
+synthesized ``recovery_after_empty``. That zeroed empty-after-exec targets
+(~0) with ``recovery_after_empty`` ≈ 397, but leftover empties remained:
+~2471 assistant ``[]`` after ordinary (non-exec) user messages (ToolACE
+clarifying / chitchat), and ~1859 unrolled rows whose **first** assistant in
+the prefix is ``[]`` (~5.7%). v3 smoke still never-started GFS
+``multi_turn_base_1`` turn-0 (``[]`` vs base IFFC ``ls(a=True)``). Recovery
+after ``[]`` already PASSes — do **not** weaken it.
 
-* **Hard-drop all empty-after-exec targets**, including terminal ones. An
-  unrolled row is dropped iff the assistant target is exactly ``[]`` and the
-  previous user message looks like an IFFC tool-result observation.
-* **Keep** nonempty tool-call targets (including continue-after-exec).
-* **Keep** user → ``[]`` clarifying / irrelevance turns (previous user is not
-  an execution observation).
-* **Recovery curriculum:** keep unrolled rows whose history already contains
-  a prior assistant ``[]`` (formatter NL→``[]``, or a clarifying stop), then a
-  **new user question**, with a nonempty tool-call gold target. Count these as
-  ``recovery_after_empty``.
-* **Synthetic BFCL bookkeeping (history only):** ToolACE often has no explicit
-  ``[]`` between tool results and the next human turn — the formatter either
-  collapses a natural-language "done" into a ``[]`` *target* (which v3 drops)
-  or jumps straight from the execution observation to the next user question.
-  When building the *next* user→call unroll row, if history has tool results
-  immediately followed by that new user question and no intervening assistant
-  ``[]``, insert ``[]`` **only in that row's history prefix**. The gold target
-  stays the nonempty call. This does **not** create a ``[]`` training row.
-* xLAM is single-turn and has no execution observations; those rows are
-  unchanged unless they somehow gain this pattern.
+SFT v4 (this module's default) keeps the v3 empty-after-exec drop and
+recovery curriculum, and additionally:
 
-mlx-lm chat JSONL has no sample-weight field, so v3 **drops** empty-after-exec
-rows instead of downweighting. Conversation-level ``split_data`` files are
-**not** rewritten (split unit stays conversation id). Ablations:
+* **Drop first-assistant-empty targets:** when the unrolled row's target is
+  ``[]`` and that assistant is the first assistant message in the messages
+  prefix, drop the row. This is the turn-0 never-start teacher.
+* **Drop clarifying empty-after-user:** when the target is ``[]``, the
+  immediately previous message is ``user``, and it is **not** an IFFC
+  tool-result observation, drop the row. Keep recovery rows whose gold is a
+  nonempty call after a prior ``[]`` in history.
 
+mlx-lm chat JSONL has no sample-weight field, so these rows are **dropped**
+not downweighted. Conversation-level ``split_data`` files are **not**
+rewritten (split unit stays conversation id). Ablations:
+
+* ``--keep-first-assistant-empty`` and ``--keep-clarifying-empty-after-user``
+  together restore v3 (v3 empty-after-exec + recovery unchanged).
 * ``--keep-terminal-empty-after-exec`` restores v2 (drop non-terminal only).
 * ``--keep-nonterminal-empty-after-exec`` restores v1 (keep every assistant turn).
 * ``--no-synthetic-recovery`` disables history-only ``[]`` insertion.
@@ -70,6 +69,7 @@ KIND_EMPTY_AFTER_EXEC_NONTERMINAL = "empty_after_exec_nonterminal"
 RECIPE_V1 = "v1"
 RECIPE_V2 = "v2"
 RECIPE_V3 = "v3"
+RECIPE_V4 = "v4"
 
 EMPTY_IFFC_TARGET = "[]"
 
@@ -123,6 +123,46 @@ def has_later_nonempty_tool_call(messages: list[dict], assistant_index: int) -> 
     return False
 
 
+def is_first_assistant_in_prefix(messages: list[dict], index: int) -> bool:
+    """True when ``messages[index]`` is the first assistant turn in the prefix."""
+    if index < 0 or index >= len(messages):
+        return False
+    if messages[index].get("role") != "assistant":
+        return False
+    return all(messages[j].get("role") != "assistant" for j in range(index))
+
+
+def is_first_assistant_empty_target(messages: list[dict], index: int) -> bool:
+    """True when the target is ``[]`` and it is the first assistant in the prefix.
+
+    This is the turn-0 never-start teacher: the unrolled row's gold is empty
+    and no earlier assistant turn exists in that messages prefix.
+    """
+    if not is_first_assistant_in_prefix(messages, index):
+        return False
+    return is_empty_iffc_target(messages[index].get("content"))
+
+
+def is_clarifying_empty_after_user(messages: list[dict], index: int) -> bool:
+    """True when gold is ``[]`` immediately after a non-exec user message.
+
+    Distinct from empty-after-exec (previous user is an IFFC tool-result
+    observation). ToolACE clarifying / chitchat ``[]`` after a normal user
+    turn matches this; recovery rows with a nonempty call gold do not.
+    """
+    if index <= 0 or index >= len(messages):
+        return False
+    msg = messages[index]
+    if msg.get("role") != "assistant":
+        return False
+    if not is_empty_iffc_target(msg.get("content")):
+        return False
+    prev = messages[index - 1]
+    if prev.get("role") != "user":
+        return False
+    return not is_iffc_execution_observation(prev.get("content"))
+
+
 def classify_assistant_turn(messages: list[dict], index: int) -> str:
     """Classify one assistant turn against the parent conversation."""
     if index < 0 or index >= len(messages):
@@ -144,19 +184,26 @@ def resolve_recipe(
     *,
     keep_nonterminal_empty_after_exec: bool = False,
     keep_terminal_empty_after_exec: bool = False,
+    keep_first_assistant_empty: bool = False,
+    keep_clarifying_empty_after_user: bool = False,
 ) -> str:
     """Map ablation flags to a recipe id.
 
-    v3 (default): drop all empty-after-exec, including terminal.
+    v4 (default): v3 plus drop first-assistant-empty and clarifying
+    empty-after-user ``[]`` targets.
+    v3: both ``--keep-first-assistant-empty`` and
+    ``--keep-clarifying-empty-after-user`` (empty-after-exec + recovery only).
     v2: ``--keep-terminal-empty-after-exec`` (drop non-terminal only).
     v1: ``--keep-nonterminal-empty-after-exec`` (keep every assistant turn).
-    v1 wins if both keep-flags are set.
+    v1 wins if both keep-flags are set; v2 wins over v3/v4 keep-flags.
     """
     if keep_nonterminal_empty_after_exec:
         return RECIPE_V1
     if keep_terminal_empty_after_exec:
         return RECIPE_V2
-    return RECIPE_V3
+    if keep_first_assistant_empty and keep_clarifying_empty_after_user:
+        return RECIPE_V3
+    return RECIPE_V4
 
 
 def recipe_drop_flags(recipe: str) -> tuple[bool, bool]:
@@ -168,23 +215,63 @@ def recipe_drop_flags(recipe: str) -> tuple[bool, bool]:
     return True, True
 
 
+def recipe_v4_drop_flags(recipe: str) -> tuple[bool, bool]:
+    """Return ``(drop_first_assistant_empty, drop_clarifying_empty_after_user)``.
+
+    Only v4 turns these on. v1/v2/v3 keep first-turn and clarifying ``[]``
+    so those ablations stay comparable to scored Run 12 / 13 / v3 prepare.
+    """
+    if recipe == RECIPE_V4:
+        return True, True
+    return False, False
+
+
+def infer_recipe(
+    *,
+    drop_nonterminal_empty_after_exec: bool,
+    drop_terminal_empty_after_exec: bool,
+    drop_first_assistant_empty: bool | None = None,
+    drop_clarifying_empty_after_user: bool | None = None,
+) -> str:
+    """Infer a recipe id from drop kwargs (``None`` v4 flags mean default-on)."""
+    if not drop_nonterminal_empty_after_exec:
+        return RECIPE_V1
+    if not drop_terminal_empty_after_exec:
+        return RECIPE_V2
+    if (
+        drop_first_assistant_empty is False
+        and drop_clarifying_empty_after_user is False
+    ):
+        return RECIPE_V3
+    return RECIPE_V4
+
+
 def should_drop_assistant_turn(
     messages: list[dict],
     index: int,
     *,
     drop_nonterminal_empty_after_exec: bool = True,
     drop_terminal_empty_after_exec: bool = True,
+    drop_first_assistant_empty: bool = True,
+    drop_clarifying_empty_after_user: bool = True,
 ) -> bool:
-    """Drop empty ``[]`` targets after a tool-result observation.
+    """Drop empty ``[]`` targets under the active recipe.
 
-    v3 default drops both non-terminal and terminal empty-after-exec. Pass
-    ``drop_terminal_empty_after_exec=False`` for the v2 policy.
+    v4 default: empty-after-exec (terminal + non-terminal), first-assistant
+    empty, and clarifying empty-after-user. Pass the v4 drop flags ``False``
+    for the v3 policy; ``drop_terminal_empty_after_exec=False`` for v2.
     """
     kind = classify_assistant_turn(messages, index)
-    if kind == KIND_EMPTY_AFTER_EXEC_NONTERMINAL:
-        return drop_nonterminal_empty_after_exec
-    if kind == KIND_EMPTY_AFTER_EXEC_TERMINAL:
-        return drop_terminal_empty_after_exec
+    if kind == KIND_EMPTY_AFTER_EXEC_NONTERMINAL and drop_nonterminal_empty_after_exec:
+        return True
+    if kind == KIND_EMPTY_AFTER_EXEC_TERMINAL and drop_terminal_empty_after_exec:
+        return True
+    if drop_first_assistant_empty and is_first_assistant_empty_target(messages, index):
+        return True
+    if drop_clarifying_empty_after_user and is_clarifying_empty_after_user(
+        messages, index
+    ):
+        return True
     return False
 
 
@@ -287,7 +374,7 @@ def _source_of(row: dict, parent: dict | None = None) -> str:
 class EmptyAfterExecFilterStats:
     """Before/after counts for the empty-after-exec drop + recovery curriculum."""
 
-    recipe: str = RECIPE_V3
+    recipe: str = RECIPE_V4
     total_before: int = 0
     total_after: int = 0
     empty_targets_before: int = 0
@@ -298,10 +385,16 @@ class EmptyAfterExecFilterStats:
     nonterminal_empty_after_exec_after: int = 0
     terminal_empty_after_exec_before: int = 0
     terminal_empty_after_exec_after: int = 0
+    first_turn_empty_before: int = 0
+    first_turn_empty_after: int = 0
+    clarifying_empty_before: int = 0
+    clarifying_empty_after: int = 0
     recovery_after_empty_before: int = 0
     recovery_after_empty_after: int = 0
     synthetic_recovery_inserted: int = 0
     dropped: int = 0
+    dropped_first_turn_empty: int = 0
+    dropped_clarifying_empty: int = 0
     by_source_before: Counter[str] = field(default_factory=Counter)
     by_source_after: Counter[str] = field(default_factory=Counter)
     empty_targets_by_source_before: Counter[str] = field(default_factory=Counter)
@@ -319,6 +412,8 @@ class EmptyAfterExecFilterStats:
         source: str,
         after: bool,
         recovery: bool = False,
+        first_turn_empty: bool = False,
+        clarifying_empty: bool = False,
     ) -> None:
         if after:
             self.total_after += 1
@@ -344,6 +439,10 @@ class EmptyAfterExecFilterStats:
                 self.nonterminal_empty_after_exec_after += 1
             if is_terminal:
                 self.terminal_empty_after_exec_after += 1
+            if first_turn_empty:
+                self.first_turn_empty_after += 1
+            if clarifying_empty:
+                self.clarifying_empty_after += 1
             if recovery:
                 self.recovery_after_empty_after += 1
                 self.recovery_after_empty_by_source_after[source] += 1
@@ -358,19 +457,63 @@ class EmptyAfterExecFilterStats:
                 self.nonterminal_empty_after_exec_before += 1
             if is_terminal:
                 self.terminal_empty_after_exec_before += 1
+            if first_turn_empty:
+                self.first_turn_empty_before += 1
+            if clarifying_empty:
+                self.clarifying_empty_before += 1
             if recovery:
                 self.recovery_after_empty_before += 1
                 self.recovery_after_empty_by_source_before[source] += 1
 
-    def note_before(self, kind: str, source: str, *, recovery: bool = False) -> None:
-        self._note(kind=kind, source=source, after=False, recovery=recovery)
+    def note_before(
+        self,
+        kind: str,
+        source: str,
+        *,
+        recovery: bool = False,
+        first_turn_empty: bool = False,
+        clarifying_empty: bool = False,
+    ) -> None:
+        self._note(
+            kind=kind,
+            source=source,
+            after=False,
+            recovery=recovery,
+            first_turn_empty=first_turn_empty,
+            clarifying_empty=clarifying_empty,
+        )
 
-    def note_after(self, kind: str, source: str, *, recovery: bool = False) -> None:
-        self._note(kind=kind, source=source, after=True, recovery=recovery)
+    def note_after(
+        self,
+        kind: str,
+        source: str,
+        *,
+        recovery: bool = False,
+        first_turn_empty: bool = False,
+        clarifying_empty: bool = False,
+    ) -> None:
+        self._note(
+            kind=kind,
+            source=source,
+            after=True,
+            recovery=recovery,
+            first_turn_empty=first_turn_empty,
+            clarifying_empty=clarifying_empty,
+        )
 
-    def note_dropped(self, source: str) -> None:
+    def note_dropped(
+        self,
+        source: str,
+        *,
+        first_turn_empty: bool = False,
+        clarifying_empty: bool = False,
+    ) -> None:
         self.dropped += 1
         self.dropped_by_source[source] += 1
+        if first_turn_empty:
+            self.dropped_first_turn_empty += 1
+        if clarifying_empty:
+            self.dropped_clarifying_empty += 1
 
     def note_synthetic_recovery(self) -> None:
         self.synthetic_recovery_inserted += 1
@@ -391,10 +534,16 @@ class EmptyAfterExecFilterStats:
             "nonterminal_empty_after_exec_after": self.nonterminal_empty_after_exec_after,
             "terminal_empty_after_exec_before": self.terminal_empty_after_exec_before,
             "terminal_empty_after_exec_after": self.terminal_empty_after_exec_after,
+            "first_turn_empty_before": self.first_turn_empty_before,
+            "first_turn_empty_after": self.first_turn_empty_after,
+            "clarifying_empty_before": self.clarifying_empty_before,
+            "clarifying_empty_after": self.clarifying_empty_after,
             "recovery_after_empty_before": self.recovery_after_empty_before,
             "recovery_after_empty_after": self.recovery_after_empty_after,
             "synthetic_recovery_inserted": self.synthetic_recovery_inserted,
             "dropped": self.dropped,
+            "dropped_first_turn_empty": self.dropped_first_turn_empty,
+            "dropped_clarifying_empty": self.dropped_clarifying_empty,
             "by_source_before": _plain(self.by_source_before),
             "by_source_after": _plain(self.by_source_after),
             "empty_targets_by_source_before": _plain(self.empty_targets_by_source_before),
@@ -422,16 +571,23 @@ class EmptyAfterExecFilterStats:
         recipe: str | None = None,
         drop_nonterminal_empty_after_exec: bool | None = None,
         drop_terminal_empty_after_exec: bool | None = None,
+        drop_first_assistant_empty: bool | None = None,
+        drop_clarifying_empty_after_user: bool | None = None,
         synthesize_recovery_stop: bool | None = None,
     ) -> str:
         recipe_id = recipe or self.recipe
         drop_nt, drop_t = recipe_drop_flags(recipe_id)
+        drop_first, drop_clarify = recipe_v4_drop_flags(recipe_id)
         if drop_nonterminal_empty_after_exec is not None:
             drop_nt = drop_nonterminal_empty_after_exec
         if drop_terminal_empty_after_exec is not None:
             drop_t = drop_terminal_empty_after_exec
+        if drop_first_assistant_empty is not None:
+            drop_first = drop_first_assistant_empty
+        if drop_clarifying_empty_after_user is not None:
+            drop_clarify = drop_clarifying_empty_after_user
         if enabled is None:
-            enabled = drop_nt or drop_t
+            enabled = drop_nt or drop_t or drop_first or drop_clarify
         synth = True if synthesize_recovery_stop is None else synthesize_recovery_stop
         sources = sorted(
             set(self.by_source_before) | set(self.by_source_after) | {"toolace", "xlam"}
@@ -439,6 +595,8 @@ class EmptyAfterExecFilterStats:
         lines = [
             f"empty-after-exec filter ({label}): recipe={recipe_id} "
             f"drop_nonterminal={drop_nt} drop_terminal={drop_t} "
+            f"drop_first_assistant_empty={drop_first} "
+            f"drop_clarifying_empty_after_user={drop_clarify} "
             f"synthetic_recovery={synth}",
             f"  rows: {self.total_before} → {self.total_after} "
             f"(dropped {self.dropped})",
@@ -450,6 +608,12 @@ class EmptyAfterExecFilterStats:
             f"{self.nonterminal_empty_after_exec_after}; "
             f"terminal {self.terminal_empty_after_exec_before} → "
             f"{self.terminal_empty_after_exec_after})",
+            f"  first_turn_empty: {self.first_turn_empty_before} → "
+            f"{self.first_turn_empty_after} "
+            f"(dropped {self.dropped_first_turn_empty})",
+            f"  clarifying_empty: {self.clarifying_empty_before} → "
+            f"{self.clarifying_empty_after} "
+            f"(dropped {self.dropped_clarifying_empty})",
             f"  recovery_after_empty: {self.recovery_after_empty_before} → "
             f"{self.recovery_after_empty_after} "
             f"(synthetic inserted {self.synthetic_recovery_inserted})",
@@ -481,26 +645,34 @@ def unroll_and_filter(
     *,
     drop_nonterminal_empty_after_exec: bool = True,
     drop_terminal_empty_after_exec: bool = True,
+    drop_first_assistant_empty: bool | None = None,
+    drop_clarifying_empty_after_user: bool | None = None,
     synthesize_recovery_stop: bool = True,
     recipe: str | None = None,
     check_bfcl_leak: bool = True,
 ) -> tuple[list[dict], EmptyAfterExecFilterStats]:
-    """Unroll conversations, drop empty-after-exec, inject recovery history.
+    """Unroll conversations, drop empty targets, inject recovery history.
 
-    Defaults are SFT v3 (drop terminal + non-terminal empty-after-exec, and
-    synthesize a history-only ``[]`` on the next user→call unroll when tool
-    results were immediately followed by a new user question).
+    Defaults are SFT v4: v3 empty-after-exec + recovery, plus drop first-
+    assistant ``[]`` targets and clarifying empty-after-user ``[]``. Pass
+    both v4 drop flags ``False`` to ablate back to v3. ``None`` v4 flags
+    follow the inferred recipe so v1/v2 kwargs do not silently gain v4 drops.
     """
     recs = list(records)
     if check_bfcl_leak:
         assert_no_bfcl(recs)
     if recipe is None:
-        if not drop_nonterminal_empty_after_exec:
-            recipe = RECIPE_V1
-        elif not drop_terminal_empty_after_exec:
-            recipe = RECIPE_V2
-        else:
-            recipe = RECIPE_V3
+        recipe = infer_recipe(
+            drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
+            drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+            drop_first_assistant_empty=drop_first_assistant_empty,
+            drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
+        )
+    drop_first_v4, drop_clarify_v4 = recipe_v4_drop_flags(recipe)
+    if drop_first_assistant_empty is None:
+        drop_first_assistant_empty = drop_first_v4
+    if drop_clarifying_empty_after_user is None:
+        drop_clarifying_empty_after_user = drop_clarify_v4
     stats = EmptyAfterExecFilterStats(recipe=recipe)
     out: list[dict] = []
     for rec in recs:
@@ -512,14 +684,28 @@ def unroll_and_filter(
             source = _source_of(row, rec)
             prefix = list(row.get("messages") or [])
             recovery_before = is_recovery_after_empty(prefix)
-            stats.note_before(kind, source, recovery=recovery_before)
+            first_turn = is_first_assistant_empty_target(messages, idx)
+            clarifying = is_clarifying_empty_after_user(messages, idx)
+            stats.note_before(
+                kind,
+                source,
+                recovery=recovery_before,
+                first_turn_empty=first_turn,
+                clarifying_empty=clarifying,
+            )
             if should_drop_assistant_turn(
                 messages,
                 idx,
                 drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
                 drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+                drop_first_assistant_empty=drop_first_assistant_empty,
+                drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
             ):
-                stats.note_dropped(source)
+                stats.note_dropped(
+                    source,
+                    first_turn_empty=first_turn,
+                    clarifying_empty=clarifying,
+                )
                 continue
             injected = False
             if synthesize_recovery_stop:
@@ -532,7 +718,13 @@ def unroll_and_filter(
                 row = {**row, "recovery_after_empty": True}
             if injected:
                 row = {**row, "synthetic_recovery_stop": True}
-            stats.note_after(kind, source, recovery=recovery_after)
+            stats.note_after(
+                kind,
+                source,
+                recovery=recovery_after,
+                first_turn_empty=first_turn,
+                clarifying_empty=clarifying,
+            )
             out.append(row)
     return out, stats
 
@@ -540,10 +732,10 @@ def unroll_and_filter(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Unroll conversation-level IFFC JSONL. Default SFT v3 drops all "
-            "assistant [] targets after tool-execution observations (including "
-            "terminal) and injects a history-only [] on the next user→call "
-            "row when tool results were immediately followed by a new question."
+            "Unroll conversation-level IFFC JSONL. Default SFT v4 keeps the "
+            "v3 empty-after-exec drop + recovery curriculum, and also drops "
+            "first-assistant [] targets and clarifying [] after ordinary user "
+            "messages. v3/v2/v1 remain behind keep-flags."
         )
     )
     parser.add_argument(
@@ -578,6 +770,23 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--keep-first-assistant-empty",
+        action="store_true",
+        help=(
+            "Keep unrolled rows whose gold is [] and that assistant is the "
+            "first in the prefix (disable the v4 turn-0 empty drop)."
+        ),
+    )
+    parser.add_argument(
+        "--keep-clarifying-empty-after-user",
+        action="store_true",
+        help=(
+            "Keep user→[] clarifying / chitchat targets when the previous "
+            "message is not an IFFC tool-result observation. Pass together "
+            "with --keep-first-assistant-empty to ablate back to v3."
+        ),
+    )
+    parser.add_argument(
         "--no-synthetic-recovery",
         action="store_true",
         help=(
@@ -589,9 +798,16 @@ def main(argv: list[str] | None = None) -> int:
     recipe = resolve_recipe(
         keep_nonterminal_empty_after_exec=args.keep_nonterminal_empty_after_exec,
         keep_terminal_empty_after_exec=args.keep_terminal_empty_after_exec,
+        keep_first_assistant_empty=args.keep_first_assistant_empty,
+        keep_clarifying_empty_after_user=args.keep_clarifying_empty_after_user,
     )
     drop_nt, drop_t = recipe_drop_flags(recipe)
-    synthesize = recipe == RECIPE_V3 and not args.no_synthetic_recovery
+    drop_first, drop_clarify = recipe_v4_drop_flags(recipe)
+    if args.keep_first_assistant_empty:
+        drop_first = False
+    if args.keep_clarifying_empty_after_user:
+        drop_clarify = False
+    synthesize = recipe in (RECIPE_V3, RECIPE_V4) and not args.no_synthetic_recovery
 
     if args.input is None and args.splits_dir is None:
         parser.error("pass --input FILE or --splits-dir DIR")
@@ -603,6 +819,8 @@ def main(argv: list[str] | None = None) -> int:
             read_jsonl(path),
             drop_nonterminal_empty_after_exec=drop_nt,
             drop_terminal_empty_after_exec=drop_t,
+            drop_first_assistant_empty=drop_first,
+            drop_clarifying_empty_after_user=drop_clarify,
             synthesize_recovery_stop=synthesize,
             recipe=recipe,
         )
@@ -612,6 +830,8 @@ def main(argv: list[str] | None = None) -> int:
                 recipe=recipe,
                 drop_nonterminal_empty_after_exec=drop_nt,
                 drop_terminal_empty_after_exec=drop_t,
+                drop_first_assistant_empty=drop_first,
+                drop_clarifying_empty_after_user=drop_clarify,
                 synthesize_recovery_stop=synthesize,
             )
         )
