@@ -85,6 +85,17 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Gemma-4-E2B-it SFT-IFFC-v4 (Q4_K_M)",
         "slug": "Gemma-4-E2B-it-SFT-IFFC-v4-Q4_K_M",
     },
+    # SFT v5 (PR #35 unroll: v4 empty-recovery + turn-0 completeness +
+    # env-state consistency). LoRA best@1800 val 0.147. Distinct api_name/slug
+    # so Run 17 does not overwrite Runs 12–16. No BFCL score claimed here.
+    "gemma4-e2b-sft-iffc-v5": {
+        "hf_repo": "",  # serve with -m, not -hf
+        "gguf_path": "sft/fused/gemma-4-e2b-it-iffc-v5-best1800-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-sft-iffc-v5",
+        "display": "Gemma-4-E2B-it SFT-IFFC-v5 (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-SFT-IFFC-v5-Q4_K_M",
+    },
     "functiongemma-270m": {
         "hf_repo": "ggml-org/functiongemma-270m-it-GGUF",
         "quant": "",
