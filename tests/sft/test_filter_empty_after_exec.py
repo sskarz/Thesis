@@ -14,12 +14,17 @@ from sft.filter_empty_after_exec import (
     RECIPE_V1,
     RECIPE_V2,
     RECIPE_V3,
+    RECIPE_V4,
     classify_assistant_turn,
+    infer_recipe,
     inject_recovery_stop,
+    is_clarifying_empty_after_user,
+    is_first_assistant_empty_target,
     is_iffc_execution_observation,
     is_recovery_after_empty,
     main as filter_main,
     recipe_drop_flags,
+    recipe_v4_drop_flags,
     resolve_recipe,
     should_drop_assistant_turn,
     unroll_and_filter,
@@ -39,6 +44,18 @@ _V1 = dict(
     drop_nonterminal_empty_after_exec=False,
     drop_terminal_empty_after_exec=False,
     synthesize_recovery_stop=False,
+)
+# v3 ablation: empty-after-exec + recovery; keep first-turn / clarifying [].
+_V3 = dict(
+    drop_nonterminal_empty_after_exec=True,
+    drop_terminal_empty_after_exec=True,
+    drop_first_assistant_empty=False,
+    drop_clarifying_empty_after_user=False,
+    synthesize_recovery_stop=True,
+)
+_V3_DROP = dict(
+    drop_first_assistant_empty=False,
+    drop_clarifying_empty_after_user=False,
 )
 
 
@@ -177,7 +194,7 @@ def test_mid_trajectory_empty_after_exec_is_dropped():
         _call("cd", folder="docs"),
     ]
     assert stats.dropped == 1
-    assert stats.recipe == RECIPE_V3
+    assert stats.recipe == RECIPE_V4
     assert stats.nonterminal_empty_after_exec_before == 1
     assert stats.nonterminal_empty_after_exec_after == 0
     assert stats.empty_after_exec_after == 0
@@ -194,7 +211,7 @@ def test_true_terminal_empty_after_exec_is_kept_on_v2_flag():
     assert not should_drop_assistant_turn(
         messages, idxs[-1], drop_terminal_empty_after_exec=False
     )
-    assert should_drop_assistant_turn(messages, idxs[-1])  # v3 default
+    assert should_drop_assistant_turn(messages, idxs[-1])  # v4/v3 default
 
     kept_v2, stats_v2 = unroll_and_filter([rec], **_V2)
     assert len(kept_v2) == 2
@@ -231,22 +248,28 @@ def test_nonempty_call_after_exec_is_kept():
     assert stats.empty_targets_before == 0
 
 
-def test_clarifying_user_empty_turn_is_kept():
+def test_clarifying_user_empty_turn_is_kept_on_v3():
     rec = _clarifying_empty_then_call()
     messages = rec["messages"]
     idxs = _assistant_indices(messages)
     assert classify_assistant_turn(messages, idxs[0]) == KIND_EMPTY
-    assert not should_drop_assistant_turn(messages, idxs[0])
+    assert is_first_assistant_empty_target(messages, idxs[0])
+    assert is_clarifying_empty_after_user(messages, idxs[0])
+    assert not should_drop_assistant_turn(messages, idxs[0], **_V3_DROP)
+    assert should_drop_assistant_turn(messages, idxs[0])  # v4 default
 
-    kept, stats = unroll_and_filter([rec])
+    kept, stats = unroll_and_filter([rec], **_V3)
     assert len(kept) == 2
     assert kept[0]["messages"][-1]["content"] == "[]"
     assert stats.dropped == 0
     assert stats.empty_targets_after == 1
     assert stats.empty_after_exec_before == 0
+    assert stats.recipe == RECIPE_V3
+    assert stats.first_turn_empty_after == 1
+    assert stats.clarifying_empty_after == 1
 
 
-def test_terminal_empty_after_exec_then_later_empty_drops_after_exec_keeps_clarify():
+def test_terminal_empty_after_exec_then_later_empty_drops_after_exec_keeps_clarify_on_v3():
     """v3 drops the after-exec []; later user→[] clarifying turn is kept."""
     rec = _record(
         "toolace-thanks",
@@ -260,7 +283,7 @@ def test_terminal_empty_after_exec_then_later_empty_drops_after_exec_keeps_clari
             {"role": "assistant", "content": "[]"},
         ],
     )
-    kept, stats = unroll_and_filter([rec])
+    kept, stats = unroll_and_filter([rec], **_V3)
     assert [row["messages"][-1]["content"] for row in kept] == [
         _call("ls"),
         "[]",
@@ -268,6 +291,9 @@ def test_terminal_empty_after_exec_then_later_empty_drops_after_exec_keeps_clari
     assert stats.dropped == 1
     assert stats.empty_after_exec_after == 0
     assert stats.empty_targets_after == 1
+    assert stats.clarifying_empty_after == 1
+    assert stats.first_turn_empty_after == 0
+    assert stats.recipe == RECIPE_V3
 
     kept_v2, stats_v2 = unroll_and_filter([rec], **_V2)
     assert len(kept_v2) == 3
@@ -294,7 +320,7 @@ def test_stats_by_source_before_after_and_opt_out():
     ]
     kept, stats = unroll_and_filter(records)
     d = stats.as_dict()
-    assert d["recipe"] == RECIPE_V3
+    assert d["recipe"] == RECIPE_V4
     assert d["total_before"] == 3 + 2 + 1  # mid 3, terminal 2, xlam 1
     assert d["dropped"] == 2  # mid [] + terminal []
     assert d["total_after"] == d["total_before"] - 2
@@ -337,7 +363,7 @@ def test_prepare_mlx_data_drops_mid_trajectory_empty_after_exec(
     assert all(row["messages"][-1]["content"] != "[]" for row in train_rows)
     logged = capsys.readouterr().out
     assert "empty-after-exec filter (train)" in logged
-    assert "recipe=v3" in logged
+    assert "recipe=v4" in logged
     assert "non-terminal 1 → 0" in logged
     assert "recovery_after_empty" in logged
     assert "toolace:" in logged
@@ -536,15 +562,30 @@ def test_synthetic_recovery_does_not_touch_continue_after_exec():
 def test_clarifying_empty_then_call_counts_as_recovery():
     rec = _clarifying_empty_then_call()
     kept, stats = unroll_and_filter([rec])
-    assert stats.dropped == 0
     assert stats.empty_after_exec_before == 0
     assert stats.recovery_after_empty_after == 1
     recovery = next(row for row in kept if row.get("recovery_after_empty"))
     assert json.loads(recovery["messages"][-1]["content"])[0]["function_name"] == "ls"
+    # v4 drops the [] *target*; the [] remains in the recovery row's history.
+    assert stats.dropped == 1
+    assert stats.dropped_first_turn_empty == 1
+    assert stats.dropped_clarifying_empty == 1
+    assert stats.first_turn_empty_after == 0
+    assert stats.clarifying_empty_after == 0
+    assert all(row["messages"][-1]["content"] != "[]" for row in kept)
+    assert any(
+        m["role"] == "assistant" and m["content"] == "[]"
+        for m in recovery["messages"][:-1]
+    )
+
+    kept_v3, stats_v3 = unroll_and_filter([rec], **_V3)
+    assert stats_v3.dropped == 0
+    assert stats_v3.recovery_after_empty_after == 1
+    assert stats_v3.first_turn_empty_after == 1
 
 
-def test_recipe_flags_v1_v2_v3():
-    assert resolve_recipe() == RECIPE_V3
+def test_recipe_flags_v1_v2_v3_v4():
+    assert resolve_recipe() == RECIPE_V4
     assert resolve_recipe(keep_terminal_empty_after_exec=True) == RECIPE_V2
     assert resolve_recipe(keep_nonterminal_empty_after_exec=True) == RECIPE_V1
     assert (
@@ -554,9 +595,32 @@ def test_recipe_flags_v1_v2_v3():
         )
         == RECIPE_V1
     )
+    assert (
+        resolve_recipe(
+            keep_first_assistant_empty=True,
+            keep_clarifying_empty_after_user=True,
+        )
+        == RECIPE_V3
+    )
+    assert resolve_recipe(keep_first_assistant_empty=True) == RECIPE_V4
+    assert resolve_recipe(keep_clarifying_empty_after_user=True) == RECIPE_V4
+    assert recipe_drop_flags(RECIPE_V4) == (True, True)
     assert recipe_drop_flags(RECIPE_V3) == (True, True)
     assert recipe_drop_flags(RECIPE_V2) == (True, False)
     assert recipe_drop_flags(RECIPE_V1) == (False, False)
+    assert recipe_v4_drop_flags(RECIPE_V4) == (True, True)
+    assert recipe_v4_drop_flags(RECIPE_V3) == (False, False)
+    assert recipe_v4_drop_flags(RECIPE_V2) == (False, False)
+    assert infer_recipe(
+        drop_nonterminal_empty_after_exec=True,
+        drop_terminal_empty_after_exec=True,
+    ) == RECIPE_V4
+    assert infer_recipe(
+        drop_nonterminal_empty_after_exec=True,
+        drop_terminal_empty_after_exec=True,
+        drop_first_assistant_empty=False,
+        drop_clarifying_empty_after_user=False,
+    ) == RECIPE_V3
 
 
 def test_filter_cli_v2_flag_keeps_terminal(tmp_path: Path, capsys):
@@ -583,7 +647,7 @@ def test_filter_cli_v2_flag_keeps_terminal(tmp_path: Path, capsys):
     assert "synthetic_recovery=False" in logged
 
 
-def test_filter_cli_v3_default_drops_terminal(tmp_path: Path, capsys):
+def test_filter_cli_v4_default_drops_terminal(tmp_path: Path, capsys):
     src = tmp_path / "train.jsonl"
     out = tmp_path / "unrolled.jsonl"
     src.write_text(json.dumps(_terminal_empty_after_exec()) + "\n")
@@ -592,8 +656,10 @@ def test_filter_cli_v3_default_drops_terminal(tmp_path: Path, capsys):
     assert len(rows) == 1
     assert rows[0]["messages"][-1]["content"] == _call("ls")
     logged = capsys.readouterr().out
-    assert "recipe=v3" in logged
+    assert "recipe=v4" in logged
     assert "dropped 1" in logged
+    assert "drop_first_assistant_empty=True" in logged
+    assert "drop_clarifying_empty_after_user=True" in logged
 
 
 def test_unroll_rejects_bfcl_id_leakage():
@@ -628,7 +694,7 @@ def test_synthetic_recovery_does_not_inject_bfcl_prompts():
         assert "tool_calls" not in msg
 
 
-def test_train_mlx_prepare_only_defaults_to_v3(tmp_path: Path, capsys):
+def test_train_mlx_prepare_only_defaults_to_v4(tmp_path: Path, capsys):
     from sft.train_mlx import main as train_main
 
     splits = tmp_path / "splits"
@@ -654,8 +720,10 @@ def test_train_mlx_prepare_only_defaults_to_v3(tmp_path: Path, capsys):
     assert len(rows) == 1
     assert rows[0]["messages"][-1]["content"] == _call("ls")
     logged = capsys.readouterr().out
-    assert "recipe=v3" in logged
+    assert "recipe=v4" in logged
     assert "drop_terminal_empty_after_exec=True" in logged
+    assert "drop_first_assistant_empty=True" in logged
+    assert "drop_clarifying_empty_after_user=True" in logged
 
 
 def test_train_mlx_keep_terminal_flag_is_v2(tmp_path: Path, capsys):
@@ -686,3 +754,228 @@ def test_train_mlx_keep_terminal_flag_is_v2(tmp_path: Path, capsys):
     assert rows[-1]["messages"][-1]["content"] == "[]"
     logged = capsys.readouterr().out
     assert "recipe=v2" in logged
+
+
+def _first_assistant_empty_after_system() -> dict:
+    """Turn-0 [] whose previous message is not a user (not clarifying)."""
+    return _record(
+        "toolace-first-sys",
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "assistant", "content": "[]"},
+            {"role": "user", "content": "list files"},
+            {"role": "assistant", "content": _call("ls")},
+        ],
+    )
+
+
+def _later_clarifying_empty() -> dict:
+    """Later user→[] chitchat; first assistant is a nonempty call."""
+    return _record(
+        "toolace-later-chitchat",
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "list files"},
+            {"role": "assistant", "content": _call("ls")},
+            {"role": "user", "content": "thanks"},
+            {"role": "assistant", "content": "[]"},
+        ],
+    )
+
+
+def test_v4_drops_first_assistant_empty_target():
+    rec = _clarifying_empty_then_call()
+    messages = rec["messages"]
+    idxs = _assistant_indices(messages)
+    assert is_first_assistant_empty_target(messages, idxs[0])
+    assert not is_first_assistant_empty_target(messages, idxs[1])
+    kept, stats = unroll_and_filter([rec])
+    targets = [row["messages"][-1]["content"] for row in kept]
+    assert "[]" not in targets
+    assert targets == [_call("ls")]
+    assert stats.recipe == RECIPE_V4
+    assert stats.first_turn_empty_before == 1
+    assert stats.first_turn_empty_after == 0
+    assert stats.dropped_first_turn_empty == 1
+    assert stats.empty_after_exec_after == 0
+    assert stats.recovery_after_empty_after == 1
+
+
+def test_v4_drops_later_clarifying_empty_after_user():
+    rec = _later_clarifying_empty()
+    messages = rec["messages"]
+    idxs = _assistant_indices(messages)
+    assert not is_first_assistant_empty_target(messages, idxs[-1])
+    assert is_clarifying_empty_after_user(messages, idxs[-1])
+    assert should_drop_assistant_turn(messages, idxs[-1])
+    assert not should_drop_assistant_turn(messages, idxs[-1], **_V3_DROP)
+
+    kept, stats = unroll_and_filter([rec])
+    assert [row["messages"][-1]["content"] for row in kept] == [_call("ls")]
+    assert stats.dropped == 1
+    assert stats.dropped_clarifying_empty == 1
+    assert stats.dropped_first_turn_empty == 0
+    assert stats.clarifying_empty_before == 1
+    assert stats.clarifying_empty_after == 0
+    assert stats.first_turn_empty_before == 0
+    assert stats.empty_after_exec_after == 0
+
+    kept_v3, stats_v3 = unroll_and_filter([rec], **_V3)
+    assert [row["messages"][-1]["content"] for row in kept_v3] == [
+        _call("ls"),
+        "[]",
+    ]
+    assert stats_v3.dropped == 0
+    assert stats_v3.clarifying_empty_after == 1
+
+
+def test_v4_first_turn_flag_alone_does_not_keep_clarifying_overlap():
+    """First-turn [] after a user is also clarifying; one keep-flag is not v3."""
+    rec = _clarifying_empty_then_call()
+    kept_first, stats_first = unroll_and_filter(
+        [rec], drop_first_assistant_empty=False
+    )
+    assert stats_first.recipe == RECIPE_V4
+    assert all(row["messages"][-1]["content"] != "[]" for row in kept_first)
+    assert stats_first.dropped_clarifying_empty == 1
+    assert stats_first.recovery_after_empty_after == 1
+
+    kept_clarify, stats_clarify = unroll_and_filter(
+        [rec], drop_clarifying_empty_after_user=False
+    )
+    assert stats_clarify.recipe == RECIPE_V4
+    assert all(row["messages"][-1]["content"] != "[]" for row in kept_clarify)
+    assert stats_clarify.dropped_first_turn_empty == 1
+
+
+def test_v4_keep_first_only_keeps_non_clarifying_first_empty():
+    rec = _first_assistant_empty_after_system()
+    messages = rec["messages"]
+    idxs = _assistant_indices(messages)
+    assert is_first_assistant_empty_target(messages, idxs[0])
+    assert not is_clarifying_empty_after_user(messages, idxs[0])
+
+    kept_v4, stats_v4 = unroll_and_filter([rec])
+    assert stats_v4.dropped_first_turn_empty == 1
+    assert stats_v4.dropped_clarifying_empty == 0
+    assert all(row["messages"][-1]["content"] != "[]" for row in kept_v4)
+    assert stats_v4.recovery_after_empty_after == 1
+
+    kept, stats = unroll_and_filter([rec], drop_first_assistant_empty=False)
+    assert any(row["messages"][-1]["content"] == "[]" for row in kept)
+    assert stats.dropped_first_turn_empty == 0
+    assert stats.first_turn_empty_after == 1
+    assert stats.recovery_after_empty_after == 1
+
+
+def test_v4_does_not_weaken_recovery_or_empty_after_exec():
+    records = [
+        _mid_trajectory_empty_after_exec(),
+        _terminal_empty_after_exec(),
+        _clarifying_empty_then_call(),
+        _exec_then_new_user_then_call(),
+        _later_clarifying_empty(),
+    ]
+    kept, stats = unroll_and_filter(records)
+    assert stats.empty_after_exec_after == 0
+    assert stats.first_turn_empty_after == 0
+    assert stats.clarifying_empty_after == 0
+    assert stats.recovery_after_empty_after >= 1
+    assert stats.synthetic_recovery_inserted == 1
+    assert all(row["messages"][-1]["content"] != "[]" for row in kept)
+    # Mid-trajectory cd after [], clarifying→ls, and synthetic gap recovery.
+    assert stats.recovery_after_empty_after == 3
+    d = stats.as_dict()
+    assert d["dropped_first_turn_empty"] >= 1
+    assert d["dropped_clarifying_empty"] >= 1
+    assert d["empty_after_exec_after"] == 0
+
+
+def test_v4_prepare_logs_first_turn_and_clarifying_counts(tmp_path: Path, capsys):
+    splits = tmp_path / "splits"
+    mlx = tmp_path / "mlx"
+    recs = [
+        _clarifying_empty_then_call(),
+        _later_clarifying_empty(),
+        _mid_trajectory_empty_after_exec(),
+    ]
+    splits.mkdir()
+    (splits / "train.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in recs)
+    )
+    (splits / "valid.jsonl").write_text(json.dumps(recs[0]) + "\n")
+    prepare_mlx_data(splits_dir=splits, mlx_dir=mlx)
+    train_rows = [
+        json.loads(line)
+        for line in (mlx / "train.jsonl").read_text().splitlines()
+        if line
+    ]
+    assert all(row["messages"][-1]["content"] != "[]" for row in train_rows)
+    logged = capsys.readouterr().out
+    assert "recipe=v4" in logged
+    assert "first_turn_empty:" in logged
+    assert "clarifying_empty:" in logged
+    assert "recovery_after_empty:" in logged
+    assert "empty-after-exec:" in logged
+
+
+def test_filter_cli_v3_ablation_keeps_first_and_clarifying(tmp_path: Path, capsys):
+    src = tmp_path / "train.jsonl"
+    out = tmp_path / "unrolled.jsonl"
+    src.write_text(json.dumps(_clarifying_empty_then_call()) + "\n")
+    assert (
+        filter_main(
+            [
+                "--input",
+                str(src),
+                "--out",
+                str(out),
+                "--keep-first-assistant-empty",
+                "--keep-clarifying-empty-after-user",
+            ]
+        )
+        == 0
+    )
+    rows = [json.loads(line) for line in out.read_text().splitlines() if line]
+    assert len(rows) == 2
+    assert rows[0]["messages"][-1]["content"] == "[]"
+    logged = capsys.readouterr().out
+    assert "recipe=v3" in logged
+    assert "drop_first_assistant_empty=False" in logged
+    assert "drop_clarifying_empty_after_user=False" in logged
+    assert "synthetic_recovery=True" in logged
+
+
+def test_train_mlx_v3_ablation_flags(tmp_path: Path, capsys):
+    from sft.train_mlx import main as train_main
+
+    splits = tmp_path / "splits"
+    mlx = tmp_path / "mlx"
+    rec = _clarifying_empty_then_call()
+    splits.mkdir()
+    (splits / "train.jsonl").write_text(json.dumps(rec) + "\n")
+    (splits / "valid.jsonl").write_text(json.dumps(rec) + "\n")
+    assert (
+        train_main(
+            [
+                "--prepare-only",
+                "--keep-first-assistant-empty",
+                "--keep-clarifying-empty-after-user",
+                "--splits-dir",
+                str(splits),
+                "--mlx-dir",
+                str(mlx),
+            ]
+        )
+        == 0
+    )
+    rows = [
+        json.loads(line)
+        for line in (mlx / "train.jsonl").read_text().splitlines()
+        if line
+    ]
+    assert len(rows) == 2
+    assert rows[0]["messages"][-1]["content"] == "[]"
+    logged = capsys.readouterr().out
+    assert "recipe=v3" in logged
+    assert "drop_first_assistant_empty=False" in logged

@@ -1,9 +1,10 @@
 """Thin wrapper around ``mlx_lm.lora`` for the IFFC SFT mix.
 
 Unrolls conversation-level splits so ``--mask-prompt`` trains every assistant
-turn, then applies the SFT v3 empty-after-exec drop + recovery curriculum
-(see ``sft.filter_empty_after_exec``). Does **not** run training in CI; on
-Linux this prints the command.
+turn, then applies the SFT v4 curriculum (v3 empty-after-exec + recovery,
+plus drop first-assistant-empty and clarifying empty-after-user; see
+``sft.filter_empty_after_exec``). Does **not** run training in CI; on Linux
+this prints the command.
 """
 
 from __future__ import annotations
@@ -39,7 +40,10 @@ from sft.config import (
 )
 from sft.filter_empty_after_exec import (
     RECIPE_V3,
+    RECIPE_V4,
+    infer_recipe,
     recipe_drop_flags,
+    recipe_v4_drop_flags,
     resolve_recipe,
     unroll_and_filter,
 )
@@ -55,29 +59,37 @@ def prepare_mlx_data(
     smoke_valid_rows: int = SMOKE_VALID_ROWS,
     drop_nonterminal_empty_after_exec: bool = True,
     drop_terminal_empty_after_exec: bool = True,
+    drop_first_assistant_empty: bool | None = None,
+    drop_clarifying_empty_after_user: bool | None = None,
     synthesize_recovery_stop: bool = True,
     recipe: str | None = None,
 ) -> Path:
     """Unroll train/valid conversations into mlx-lm ``{train,valid}.jsonl``.
 
-    Default SFT v3 drops **all** assistant ``[]`` targets that follow an IFFC
-    tool-result observation (terminal included) and injects a history-only
-    ``[]`` on the next user→call unroll when tool results were immediately
-    followed by a new user question. Conversation-level splits are unchanged.
+    Default SFT v4 keeps the v3 empty-after-exec drop + recovery curriculum
+    and also drops first-assistant ``[]`` targets and clarifying
+    empty-after-user ``[]``. Conversation-level splits are unchanged.
     """
     if recipe is None:
-        if not drop_nonterminal_empty_after_exec:
-            recipe = "v1"
-        elif not drop_terminal_empty_after_exec:
-            recipe = "v2"
-        else:
-            recipe = RECIPE_V3
+        recipe = infer_recipe(
+            drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
+            drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+            drop_first_assistant_empty=drop_first_assistant_empty,
+            drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
+        )
+    drop_first_v4, drop_clarify_v4 = recipe_v4_drop_flags(recipe)
+    if drop_first_assistant_empty is None:
+        drop_first_assistant_empty = drop_first_v4
+    if drop_clarifying_empty_after_user is None:
+        drop_clarifying_empty_after_user = drop_clarify_v4
     train = read_jsonl(splits_dir / TRAIN_JSONL.name)
     valid = read_jsonl(splits_dir / VALID_JSONL.name)
     train_u, train_stats = unroll_and_filter(
         train,
         drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
         drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+        drop_first_assistant_empty=drop_first_assistant_empty,
+        drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
         synthesize_recovery_stop=synthesize_recovery_stop,
         recipe=recipe,
     )
@@ -85,6 +97,8 @@ def prepare_mlx_data(
         valid,
         drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
         drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+        drop_first_assistant_empty=drop_first_assistant_empty,
+        drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
         synthesize_recovery_stop=synthesize_recovery_stop,
         recipe=recipe,
     )
@@ -94,6 +108,8 @@ def prepare_mlx_data(
             recipe=recipe,
             drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
             drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+            drop_first_assistant_empty=drop_first_assistant_empty,
+            drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
             synthesize_recovery_stop=synthesize_recovery_stop,
         )
     )
@@ -103,6 +119,8 @@ def prepare_mlx_data(
             recipe=recipe,
             drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
             drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+            drop_first_assistant_empty=drop_first_assistant_empty,
+            drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
             synthesize_recovery_stop=synthesize_recovery_stop,
         )
     )
@@ -120,6 +138,8 @@ def prepare_mlx_data(
         f"recipe={recipe}; "
         f"drop_nonterminal_empty_after_exec={drop_nonterminal_empty_after_exec}; "
         f"drop_terminal_empty_after_exec={drop_terminal_empty_after_exec}; "
+        f"drop_first_assistant_empty={drop_first_assistant_empty}; "
+        f"drop_clarifying_empty_after_user={drop_clarifying_empty_after_user}; "
         f"synthesize_recovery_stop={synthesize_recovery_stop})"
     )
     return mlx_dir
@@ -222,11 +242,28 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--keep-first-assistant-empty",
+        action="store_true",
+        help=(
+            "Keep unrolled rows whose gold is [] and that assistant is the "
+            "first in the prefix (disable the v4 turn-0 empty drop)."
+        ),
+    )
+    parser.add_argument(
+        "--keep-clarifying-empty-after-user",
+        action="store_true",
+        help=(
+            "Keep user→[] clarifying / chitchat targets when the previous "
+            "message is not an IFFC tool-result observation. Pass together "
+            "with --keep-first-assistant-empty to ablate back to v3."
+        ),
+    )
+    parser.add_argument(
         "--no-synthetic-recovery",
         action="store_true",
         help=(
             "Do not insert a history-only [] after tool results on the next "
-            "user→call unroll row (v3 default inserts it)."
+            "user→call unroll row (v3/v4 default inserts it)."
         ),
     )
     args = parser.parse_args(argv)
@@ -245,15 +282,24 @@ def main(argv: list[str] | None = None) -> int:
     recipe = resolve_recipe(
         keep_nonterminal_empty_after_exec=args.keep_nonterminal_empty_after_exec,
         keep_terminal_empty_after_exec=args.keep_terminal_empty_after_exec,
+        keep_first_assistant_empty=args.keep_first_assistant_empty,
+        keep_clarifying_empty_after_user=args.keep_clarifying_empty_after_user,
     )
     drop_nt, drop_t = recipe_drop_flags(recipe)
-    synthesize = recipe == RECIPE_V3 and not args.no_synthetic_recovery
+    drop_first, drop_clarify = recipe_v4_drop_flags(recipe)
+    if args.keep_first_assistant_empty:
+        drop_first = False
+    if args.keep_clarifying_empty_after_user:
+        drop_clarify = False
+    synthesize = recipe in (RECIPE_V3, RECIPE_V4) and not args.no_synthetic_recovery
     data_dir = prepare_mlx_data(
         splits_dir=args.splits_dir,
         mlx_dir=args.mlx_dir,
         smoke=smoke,
         drop_nonterminal_empty_after_exec=drop_nt,
         drop_terminal_empty_after_exec=drop_t,
+        drop_first_assistant_empty=drop_first,
+        drop_clarifying_empty_after_user=drop_clarify,
         synthesize_recovery_stop=synthesize,
         recipe=recipe,
     )
