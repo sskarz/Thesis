@@ -57,7 +57,8 @@ pdflatex main.tex
 - **Run 14 strip-empty = DIAGNOSTIC history bookkeeping, not a method win** (4/200 = 2.0%).
 - **SFT Runs 12–13 scored negatives** (0.5%); ToolACE `[]` stop-after-tools is the documented root cause.
 - **SFT Run 15 (v4) = scored recovery 15.0%**, still below IFFC 30.5% and NFC 27.0%; **not a win over IFFC**.
+- **SFT-v4+STATE Run 16 = scored negative/null overlay 13.0%** vs Run 15 15.0%; STATE helps base Gemma, not this ckpt. **Do not BoN this checkpoint as the next win.**
 
 ## TODOs still open in the draft
 
-Parallel / `parallel_multiple` re-run after the llama-server tools GBNF truncation fix; multi-turn evaluation for Qwen / Llama / FunctionGemma; NVIDIA Jetson Orin Nano Super replication; dual-model IFFC (paper Algorithm 1); IFFC+STATE on the scored SFT-v4 GGUF (Run 15 residual is state/under-call).
+Parallel / `parallel_multiple` re-run after the llama-server tools GBNF truncation fix; multi-turn evaluation for Qwen / Llama / FunctionGemma; NVIDIA Jetson Orin Nano Super replication; dual-model IFFC (paper Algorithm 1); SFT recipe v5 (turn-0 completeness + env-state consistency; keep v4 empty-recovery). IFFC+STATE on the SFT-v4 GGUF is scored (Run 16, 13.0%, null/negative).
