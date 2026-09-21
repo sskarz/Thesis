@@ -1,51 +1,19 @@
-"""SFT v4 empty-target curriculum (extends v3 recovery, does not replace it).
+"""SFT unroll curriculum (v5 default; v1–v4 remain as ablations).
 
-SFT v1 unrolled every assistant turn, including ToolACE replies that the
-formatter maps to ``[]`` immediately after a ``format_iffc_execution_user_message``
-observation. On the Mac mix that was ~5,520 empty ``[]`` targets (all ToolACE;
-xLAM had 0). After an execution-result user turn, 78% of assistant targets
-were ``[]`` (2121 empty vs 596 continue). That taught the adapter to stop as
-soon as tools returned — BFCL Run 12 hit 70% empty turns vs ~13% on base IFFC
-and collapsed ``multi_turn_base`` to 0.5%.
+SFT v1 unrolled every assistant turn, including ToolACE ``[]`` after exec
+(Run 12 0.5%). v2 dropped only non-terminal empty-after-exec (Run 13 still
+0.5%). v3 dropped all empty-after-exec and kept / synthesized recovery-
+after-``[]``. v4 (PR #31, Run 15 15.0%) dropped first-assistant-empty and
+clarifying ``[]`` as well — empty self-conditioning largely fixed, still
+below IFFC 30.5%. Residual: state_mismatch ~64%, under_calling ~35%
+(mostly turn 0). Do **not** present 15% as beating IFFC; do **not** add
+epochs on the v4 mix; do **not** treat BoN as the win for this ckpt.
 
-SFT v2 (PR #24) dropped only **non-terminal** empty-after-exec (334→0) and
-still kept 552 terminal ``[]``. Run 13 scored the same 0.5%. The remaining
-terminal stop-after-tools targets still taught call→results→``[]``, and BFCL
-then issues a **new user turn** that the adapter never recovered from
-(Run 14 stripping ``[]`` from live history only reached 2.0%).
-
-SFT v3 dropped **all** empty-after-exec targets (terminal included) and kept /
-synthesized ``recovery_after_empty``. That zeroed empty-after-exec targets
-(~0) with ``recovery_after_empty`` ≈ 397, but leftover empties remained:
-~2471 assistant ``[]`` after ordinary (non-exec) user messages (ToolACE
-clarifying / chitchat), and ~1859 unrolled rows whose **first** assistant in
-the prefix is ``[]`` (~5.7%). v3 smoke still never-started GFS
-``multi_turn_base_1`` turn-0 (``[]`` vs base IFFC ``ls(a=True)``). Recovery
-after ``[]`` already PASSes — do **not** weaken it.
-
-SFT v4 (this module's default) keeps the v3 empty-after-exec drop and
-recovery curriculum, and additionally:
-
-* **Drop first-assistant-empty targets:** when the unrolled row's target is
-  ``[]`` and that assistant is the first assistant message in the messages
-  prefix, drop the row. This is the turn-0 never-start teacher.
-* **Drop clarifying empty-after-user:** when the target is ``[]``, the
-  immediately previous message is ``user``, and it is **not** an IFFC
-  tool-result observation, drop the row. Keep recovery rows whose gold is a
-  nonempty call after a prior ``[]`` in history.
-
-mlx-lm chat JSONL has no sample-weight field, so these rows are **dropped**
-not downweighted. Conversation-level ``split_data`` files are **not**
-rewritten (split unit stays conversation id). Ablations:
-
-* ``--keep-first-assistant-empty`` and ``--keep-clarifying-empty-after-user``
-  together restore v3 (v3 empty-after-exec + recovery unchanged).
-* ``--keep-terminal-empty-after-exec`` restores v2 (drop non-terminal only).
-* ``--keep-nonterminal-empty-after-exec`` restores v1 (keep every assistant turn).
-* ``--no-synthetic-recovery`` disables history-only ``[]`` insertion.
-
-Do **not** copy BFCL ``multi_turn_base`` prompts into train; synthetic
-structure is bookkeeping only.
+SFT v5 (this module's default) keeps every v4 empty-target drop and the
+recovery-after-``[]`` curriculum, then adds turn-0 call-set completeness
+and env-state consistency (``sft.curriculum_v5``). Conversation-level
+``split_data`` files are not rewritten. Do **not** copy BFCL
+``multi_turn_base`` prompts into train. v5 does **not** claim a BFCL score.
 """
 
 from __future__ import annotations
@@ -57,6 +25,14 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from benchmark.iffc import parse_iffc_response
+from sft.curriculum_v5 import (
+    is_absorbed_independent_followup,
+    is_incomplete_turn0,
+    is_state_consistent_continue,
+    is_state_inconsistent_continue,
+    is_underspecified_turn0,
+    plan_turn0,
+)
 from sft.format_iffc import unroll_conversation
 from sft.io import read_jsonl, write_jsonl
 from sft.split_data import assert_no_bfcl
@@ -70,6 +46,8 @@ RECIPE_V1 = "v1"
 RECIPE_V2 = "v2"
 RECIPE_V3 = "v3"
 RECIPE_V4 = "v4"
+RECIPE_V5 = "v5"
+RECIPES_WITH_RECOVERY = (RECIPE_V3, RECIPE_V4, RECIPE_V5)
 
 EMPTY_IFFC_TARGET = "[]"
 
@@ -186,24 +164,37 @@ def resolve_recipe(
     keep_terminal_empty_after_exec: bool = False,
     keep_first_assistant_empty: bool = False,
     keep_clarifying_empty_after_user: bool = False,
+    keep_underspecified_turn0: bool = False,
+    keep_state_inconsistent: bool = False,
+    no_synthetic_complete_turn0: bool = False,
+    recipe: str | None = None,
 ) -> str:
     """Map ablation flags to a recipe id.
 
-    v4 (default): v3 plus drop first-assistant-empty and clarifying
-    empty-after-user ``[]`` targets.
+    v5 (default): v4 plus turn-0 completeness and env-state consistency.
+    v4: all three v5 keep/no-synth flags (empty-target curriculum only).
     v3: both ``--keep-first-assistant-empty`` and
     ``--keep-clarifying-empty-after-user`` (empty-after-exec + recovery only).
     v2: ``--keep-terminal-empty-after-exec`` (drop non-terminal only).
     v1: ``--keep-nonterminal-empty-after-exec`` (keep every assistant turn).
-    v1 wins if both keep-flags are set; v2 wins over v3/v4 keep-flags.
+    Explicit ``recipe=`` wins. v1 wins if both v1/v2 keep-flags are set;
+    v2 wins over v3/v4/v5 keep-flags; v3 wins over v4/v5 keep-flags.
     """
+    if recipe:
+        return recipe
     if keep_nonterminal_empty_after_exec:
         return RECIPE_V1
     if keep_terminal_empty_after_exec:
         return RECIPE_V2
     if keep_first_assistant_empty and keep_clarifying_empty_after_user:
         return RECIPE_V3
-    return RECIPE_V4
+    if (
+        keep_underspecified_turn0
+        and keep_state_inconsistent
+        and no_synthetic_complete_turn0
+    ):
+        return RECIPE_V4
+    return RECIPE_V5
 
 
 def recipe_drop_flags(recipe: str) -> tuple[bool, bool]:
@@ -218,12 +209,23 @@ def recipe_drop_flags(recipe: str) -> tuple[bool, bool]:
 def recipe_v4_drop_flags(recipe: str) -> tuple[bool, bool]:
     """Return ``(drop_first_assistant_empty, drop_clarifying_empty_after_user)``.
 
-    Only v4 turns these on. v1/v2/v3 keep first-turn and clarifying ``[]``
+    v4 and v5 turn these on. v1/v2/v3 keep first-turn and clarifying ``[]``
     so those ablations stay comparable to scored Run 12 / 13 / v3 prepare.
     """
-    if recipe == RECIPE_V4:
+    if recipe in (RECIPE_V4, RECIPE_V5):
         return True, True
     return False, False
+
+
+def recipe_v5_flags(recipe: str) -> tuple[bool, bool, bool, bool]:
+    """v5 drops/synth: underspecified, state-inconsistent, complete-turn0, absorbed.
+
+    Only v5 turns these on. v4 (and earlier) keep underspecified first-calls
+    and state-inconsistent continues so Run 15's mix stays reproducible.
+    """
+    if recipe == RECIPE_V5:
+        return True, True, True, True
+    return False, False, False, False
 
 
 def infer_recipe(
@@ -232,8 +234,11 @@ def infer_recipe(
     drop_terminal_empty_after_exec: bool,
     drop_first_assistant_empty: bool | None = None,
     drop_clarifying_empty_after_user: bool | None = None,
+    drop_underspecified_turn0: bool | None = None,
+    drop_state_inconsistent: bool | None = None,
+    synthesize_complete_turn0: bool | None = None,
 ) -> str:
-    """Infer a recipe id from drop kwargs (``None`` v4 flags mean default-on)."""
+    """Infer a recipe id from drop kwargs (``None`` v4/v5 flags mean default-on)."""
     if not drop_nonterminal_empty_after_exec:
         return RECIPE_V1
     if not drop_terminal_empty_after_exec:
@@ -243,7 +248,14 @@ def infer_recipe(
         and drop_clarifying_empty_after_user is False
     ):
         return RECIPE_V3
-    return RECIPE_V4
+    v5_off = (
+        drop_underspecified_turn0 is False
+        and drop_state_inconsistent is False
+        and synthesize_complete_turn0 is False
+    )
+    if v5_off:
+        return RECIPE_V4
+    return RECIPE_V5
 
 
 def should_drop_assistant_turn(
@@ -374,7 +386,7 @@ def _source_of(row: dict, parent: dict | None = None) -> str:
 class EmptyAfterExecFilterStats:
     """Before/after counts for the empty-after-exec drop + recovery curriculum."""
 
-    recipe: str = RECIPE_V4
+    recipe: str = RECIPE_V5
     total_before: int = 0
     total_after: int = 0
     empty_targets_before: int = 0
@@ -392,9 +404,21 @@ class EmptyAfterExecFilterStats:
     recovery_after_empty_before: int = 0
     recovery_after_empty_after: int = 0
     synthetic_recovery_inserted: int = 0
+    underspecified_turn0_before: int = 0
+    underspecified_turn0_after: int = 0
+    incomplete_turn0_before: int = 0
+    incomplete_turn0_after: int = 0
+    state_inconsistent_before: int = 0
+    state_inconsistent_after: int = 0
+    state_consistent_after: int = 0
+    synthetic_complete_turn0: int = 0
     dropped: int = 0
     dropped_first_turn_empty: int = 0
     dropped_clarifying_empty: int = 0
+    dropped_underspecified_turn0: int = 0
+    dropped_incomplete_turn0: int = 0
+    dropped_state_inconsistent: int = 0
+    dropped_absorbed_followup: int = 0
     by_source_before: Counter[str] = field(default_factory=Counter)
     by_source_after: Counter[str] = field(default_factory=Counter)
     empty_targets_by_source_before: Counter[str] = field(default_factory=Counter)
@@ -414,6 +438,10 @@ class EmptyAfterExecFilterStats:
         recovery: bool = False,
         first_turn_empty: bool = False,
         clarifying_empty: bool = False,
+        underspecified_turn0: bool = False,
+        incomplete_turn0: bool = False,
+        state_inconsistent: bool = False,
+        state_consistent: bool = False,
     ) -> None:
         if after:
             self.total_after += 1
@@ -443,6 +471,14 @@ class EmptyAfterExecFilterStats:
                 self.first_turn_empty_after += 1
             if clarifying_empty:
                 self.clarifying_empty_after += 1
+            if underspecified_turn0:
+                self.underspecified_turn0_after += 1
+            if incomplete_turn0:
+                self.incomplete_turn0_after += 1
+            if state_inconsistent:
+                self.state_inconsistent_after += 1
+            if state_consistent:
+                self.state_consistent_after += 1
             if recovery:
                 self.recovery_after_empty_after += 1
                 self.recovery_after_empty_by_source_after[source] += 1
@@ -461,6 +497,12 @@ class EmptyAfterExecFilterStats:
                 self.first_turn_empty_before += 1
             if clarifying_empty:
                 self.clarifying_empty_before += 1
+            if underspecified_turn0:
+                self.underspecified_turn0_before += 1
+            if incomplete_turn0:
+                self.incomplete_turn0_before += 1
+            if state_inconsistent:
+                self.state_inconsistent_before += 1
             if recovery:
                 self.recovery_after_empty_before += 1
                 self.recovery_after_empty_by_source_before[source] += 1
@@ -473,6 +515,9 @@ class EmptyAfterExecFilterStats:
         recovery: bool = False,
         first_turn_empty: bool = False,
         clarifying_empty: bool = False,
+        underspecified_turn0: bool = False,
+        incomplete_turn0: bool = False,
+        state_inconsistent: bool = False,
     ) -> None:
         self._note(
             kind=kind,
@@ -481,6 +526,9 @@ class EmptyAfterExecFilterStats:
             recovery=recovery,
             first_turn_empty=first_turn_empty,
             clarifying_empty=clarifying_empty,
+            underspecified_turn0=underspecified_turn0,
+            incomplete_turn0=incomplete_turn0,
+            state_inconsistent=state_inconsistent,
         )
 
     def note_after(
@@ -491,6 +539,10 @@ class EmptyAfterExecFilterStats:
         recovery: bool = False,
         first_turn_empty: bool = False,
         clarifying_empty: bool = False,
+        underspecified_turn0: bool = False,
+        incomplete_turn0: bool = False,
+        state_inconsistent: bool = False,
+        state_consistent: bool = False,
     ) -> None:
         self._note(
             kind=kind,
@@ -499,6 +551,10 @@ class EmptyAfterExecFilterStats:
             recovery=recovery,
             first_turn_empty=first_turn_empty,
             clarifying_empty=clarifying_empty,
+            underspecified_turn0=underspecified_turn0,
+            incomplete_turn0=incomplete_turn0,
+            state_inconsistent=state_inconsistent,
+            state_consistent=state_consistent,
         )
 
     def note_dropped(
@@ -507,6 +563,10 @@ class EmptyAfterExecFilterStats:
         *,
         first_turn_empty: bool = False,
         clarifying_empty: bool = False,
+        underspecified_turn0: bool = False,
+        incomplete_turn0: bool = False,
+        state_inconsistent: bool = False,
+        absorbed_followup: bool = False,
     ) -> None:
         self.dropped += 1
         self.dropped_by_source[source] += 1
@@ -514,6 +574,17 @@ class EmptyAfterExecFilterStats:
             self.dropped_first_turn_empty += 1
         if clarifying_empty:
             self.dropped_clarifying_empty += 1
+        if underspecified_turn0:
+            self.dropped_underspecified_turn0 += 1
+        if incomplete_turn0:
+            self.dropped_incomplete_turn0 += 1
+        if state_inconsistent:
+            self.dropped_state_inconsistent += 1
+        if absorbed_followup:
+            self.dropped_absorbed_followup += 1
+
+    def note_synthetic_complete(self) -> None:
+        self.synthetic_complete_turn0 += 1
 
     def note_synthetic_recovery(self) -> None:
         self.synthetic_recovery_inserted += 1
@@ -541,9 +612,21 @@ class EmptyAfterExecFilterStats:
             "recovery_after_empty_before": self.recovery_after_empty_before,
             "recovery_after_empty_after": self.recovery_after_empty_after,
             "synthetic_recovery_inserted": self.synthetic_recovery_inserted,
+            "underspecified_turn0_before": self.underspecified_turn0_before,
+            "underspecified_turn0_after": self.underspecified_turn0_after,
+            "incomplete_turn0_before": self.incomplete_turn0_before,
+            "incomplete_turn0_after": self.incomplete_turn0_after,
+            "state_inconsistent_before": self.state_inconsistent_before,
+            "state_inconsistent_after": self.state_inconsistent_after,
+            "state_consistent_after": self.state_consistent_after,
+            "synthetic_complete_turn0": self.synthetic_complete_turn0,
             "dropped": self.dropped,
             "dropped_first_turn_empty": self.dropped_first_turn_empty,
             "dropped_clarifying_empty": self.dropped_clarifying_empty,
+            "dropped_underspecified_turn0": self.dropped_underspecified_turn0,
+            "dropped_incomplete_turn0": self.dropped_incomplete_turn0,
+            "dropped_state_inconsistent": self.dropped_state_inconsistent,
+            "dropped_absorbed_followup": self.dropped_absorbed_followup,
             "by_source_before": _plain(self.by_source_before),
             "by_source_after": _plain(self.by_source_after),
             "empty_targets_by_source_before": _plain(self.empty_targets_by_source_before),
@@ -574,10 +657,14 @@ class EmptyAfterExecFilterStats:
         drop_first_assistant_empty: bool | None = None,
         drop_clarifying_empty_after_user: bool | None = None,
         synthesize_recovery_stop: bool | None = None,
+        drop_underspecified_turn0: bool | None = None,
+        drop_state_inconsistent: bool | None = None,
+        synthesize_complete_turn0: bool | None = None,
     ) -> str:
         recipe_id = recipe or self.recipe
         drop_nt, drop_t = recipe_drop_flags(recipe_id)
         drop_first, drop_clarify = recipe_v4_drop_flags(recipe_id)
+        drop_u, drop_s, synth_c, _drop_abs = recipe_v5_flags(recipe_id)
         if drop_nonterminal_empty_after_exec is not None:
             drop_nt = drop_nonterminal_empty_after_exec
         if drop_terminal_empty_after_exec is not None:
@@ -586,8 +673,22 @@ class EmptyAfterExecFilterStats:
             drop_first = drop_first_assistant_empty
         if drop_clarifying_empty_after_user is not None:
             drop_clarify = drop_clarifying_empty_after_user
+        if drop_underspecified_turn0 is not None:
+            drop_u = drop_underspecified_turn0
+        if drop_state_inconsistent is not None:
+            drop_s = drop_state_inconsistent
+        if synthesize_complete_turn0 is not None:
+            synth_c = synthesize_complete_turn0
         if enabled is None:
-            enabled = drop_nt or drop_t or drop_first or drop_clarify
+            enabled = (
+                drop_nt
+                or drop_t
+                or drop_first
+                or drop_clarify
+                or drop_u
+                or drop_s
+                or synth_c
+            )
         synth = True if synthesize_recovery_stop is None else synthesize_recovery_stop
         sources = sorted(
             set(self.by_source_before) | set(self.by_source_after) | {"toolace", "xlam"}
@@ -597,7 +698,10 @@ class EmptyAfterExecFilterStats:
             f"drop_nonterminal={drop_nt} drop_terminal={drop_t} "
             f"drop_first_assistant_empty={drop_first} "
             f"drop_clarifying_empty_after_user={drop_clarify} "
-            f"synthetic_recovery={synth}",
+            f"synthetic_recovery={synth} "
+            f"drop_underspecified_turn0={drop_u} "
+            f"drop_state_inconsistent={drop_s} "
+            f"synthetic_complete_turn0={synth_c}",
             f"  rows: {self.total_before} → {self.total_after} "
             f"(dropped {self.dropped})",
             f"  empty [] targets: {self.empty_targets_before} → "
@@ -617,6 +721,18 @@ class EmptyAfterExecFilterStats:
             f"  recovery_after_empty: {self.recovery_after_empty_before} → "
             f"{self.recovery_after_empty_after} "
             f"(synthetic inserted {self.synthetic_recovery_inserted})",
+            f"  underspecified_turn0: {self.underspecified_turn0_before} → "
+            f"{self.underspecified_turn0_after} "
+            f"(dropped {self.dropped_underspecified_turn0})",
+            f"  incomplete_turn0: {self.incomplete_turn0_before} → "
+            f"{self.incomplete_turn0_after} "
+            f"(dropped {self.dropped_incomplete_turn0}; "
+            f"synthetic complete {self.synthetic_complete_turn0})",
+            f"  state_inconsistent: {self.state_inconsistent_before} → "
+            f"{self.state_inconsistent_after} "
+            f"(dropped {self.dropped_state_inconsistent}; "
+            f"state_consistent kept {self.state_consistent_after}; "
+            f"absorbed follow-up dropped {self.dropped_absorbed_followup})",
             "  by source:",
         ]
         for source in sources:
@@ -647,16 +763,21 @@ def unroll_and_filter(
     drop_terminal_empty_after_exec: bool = True,
     drop_first_assistant_empty: bool | None = None,
     drop_clarifying_empty_after_user: bool | None = None,
+    drop_underspecified_turn0: bool | None = None,
+    drop_state_inconsistent: bool | None = None,
+    synthesize_complete_turn0: bool | None = None,
+    drop_absorbed_independent_followup: bool | None = None,
     synthesize_recovery_stop: bool = True,
     recipe: str | None = None,
     check_bfcl_leak: bool = True,
 ) -> tuple[list[dict], EmptyAfterExecFilterStats]:
-    """Unroll conversations, drop empty targets, inject recovery history.
+    """Unroll conversations, apply the active recipe, inject recovery history.
 
-    Defaults are SFT v4: v3 empty-after-exec + recovery, plus drop first-
-    assistant ``[]`` targets and clarifying empty-after-user ``[]``. Pass
-    both v4 drop flags ``False`` to ablate back to v3. ``None`` v4 flags
-    follow the inferred recipe so v1/v2 kwargs do not silently gain v4 drops.
+    Defaults are SFT v5: v4 empty-after-exec + recovery + first-assistant /
+    clarifying ``[]`` drops, plus turn-0 completeness and env-state
+    consistency. Pass ``recipe="v4"`` (or all three v5 flags off) to ablate
+    back to v4. ``None`` v4/v5 flags follow the inferred recipe so v1/v2
+    kwargs do not silently gain later drops.
     """
     recs = list(records)
     if check_bfcl_leak:
@@ -667,16 +788,29 @@ def unroll_and_filter(
             drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
             drop_first_assistant_empty=drop_first_assistant_empty,
             drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
+            drop_underspecified_turn0=drop_underspecified_turn0,
+            drop_state_inconsistent=drop_state_inconsistent,
+            synthesize_complete_turn0=synthesize_complete_turn0,
         )
     drop_first_v4, drop_clarify_v4 = recipe_v4_drop_flags(recipe)
+    drop_u_v5, drop_s_v5, synth_c_v5, drop_abs_v5 = recipe_v5_flags(recipe)
     if drop_first_assistant_empty is None:
         drop_first_assistant_empty = drop_first_v4
     if drop_clarifying_empty_after_user is None:
         drop_clarifying_empty_after_user = drop_clarify_v4
+    if drop_underspecified_turn0 is None:
+        drop_underspecified_turn0 = drop_u_v5
+    if drop_state_inconsistent is None:
+        drop_state_inconsistent = drop_s_v5
+    if synthesize_complete_turn0 is None:
+        synthesize_complete_turn0 = synth_c_v5
+    if drop_absorbed_independent_followup is None:
+        drop_absorbed_independent_followup = drop_abs_v5 and synthesize_complete_turn0
     stats = EmptyAfterExecFilterStats(recipe=recipe)
     out: list[dict] = []
     for rec in recs:
         messages = rec.get("messages") or []
+        plan = plan_turn0(messages)
         rows = unroll_conversation(rec)
         for row in rows:
             idx = len(row.get("messages") or []) - 1
@@ -686,12 +820,18 @@ def unroll_and_filter(
             recovery_before = is_recovery_after_empty(prefix)
             first_turn = is_first_assistant_empty_target(messages, idx)
             clarifying = is_clarifying_empty_after_user(messages, idx)
+            underspec = is_underspecified_turn0(messages, idx)
+            incomplete = is_incomplete_turn0(messages, idx)
+            state_bad = is_state_inconsistent_continue(messages, idx)
             stats.note_before(
                 kind,
                 source,
                 recovery=recovery_before,
                 first_turn_empty=first_turn,
                 clarifying_empty=clarifying,
+                underspecified_turn0=underspec,
+                incomplete_turn0=incomplete,
+                state_inconsistent=state_bad,
             )
             if should_drop_assistant_turn(
                 messages,
@@ -707,6 +847,39 @@ def unroll_and_filter(
                     clarifying_empty=clarifying,
                 )
                 continue
+            if drop_underspecified_turn0 and underspec:
+                stats.note_dropped(source, underspecified_turn0=True)
+                continue
+            if (
+                incomplete
+                and not synthesize_complete_turn0
+                and drop_underspecified_turn0
+            ):
+                stats.note_dropped(source, incomplete_turn0=True)
+                continue
+            if drop_state_inconsistent and state_bad:
+                stats.note_dropped(source, state_inconsistent=True)
+                continue
+            if drop_absorbed_independent_followup and is_absorbed_independent_followup(
+                messages, idx, plan.absorbed_keys
+            ):
+                stats.note_dropped(source, absorbed_followup=True)
+                continue
+            completed = False
+            incomplete_after = incomplete
+            if (
+                synthesize_complete_turn0
+                and idx == plan.first_nonempty_idx
+                and plan.merged_gold
+            ):
+                last = dict(prefix[-1])
+                last["content"] = plan.merged_gold
+                prefix = prefix[:-1] + [last]
+                row = {**row, "messages": prefix, "synthetic_complete_turn0": True}
+                stats.note_synthetic_complete()
+                completed = True
+                incomplete_after = False
+                underspec = False
             injected = False
             if synthesize_recovery_stop:
                 prefix, injected = inject_recovery_stop(prefix)
@@ -718,24 +891,126 @@ def unroll_and_filter(
                 row = {**row, "recovery_after_empty": True}
             if injected:
                 row = {**row, "synthetic_recovery_stop": True}
+            if completed:
+                row = {**row, "synthetic_complete_turn0": True}
+            state_ok = is_state_consistent_continue(prefix, len(prefix) - 1)
             stats.note_after(
                 kind,
                 source,
                 recovery=recovery_after,
                 first_turn_empty=first_turn,
                 clarifying_empty=clarifying,
+                underspecified_turn0=False if completed else underspec,
+                incomplete_turn0=incomplete_after,
+                state_inconsistent=False,
+                state_consistent=state_ok,
             )
             out.append(row)
     return out, stats
 
 
+def flags_for_recipe(
+    recipe: str,
+    *,
+    synthesize_recovery_stop: bool | None = None,
+) -> dict[str, Any]:
+    """Kwargs for ``unroll_and_filter`` that realize ``recipe``."""
+    drop_nt, drop_t = recipe_drop_flags(recipe)
+    drop_first, drop_clarify = recipe_v4_drop_flags(recipe)
+    drop_u, drop_s, synth_c, drop_abs = recipe_v5_flags(recipe)
+    if synthesize_recovery_stop is None:
+        synthesize_recovery_stop = recipe in RECIPES_WITH_RECOVERY
+    return {
+        "drop_nonterminal_empty_after_exec": drop_nt,
+        "drop_terminal_empty_after_exec": drop_t,
+        "drop_first_assistant_empty": drop_first,
+        "drop_clarifying_empty_after_user": drop_clarify,
+        "drop_underspecified_turn0": drop_u,
+        "drop_state_inconsistent": drop_s,
+        "synthesize_complete_turn0": synth_c,
+        "drop_absorbed_independent_followup": drop_abs and synth_c,
+        "synthesize_recovery_stop": synthesize_recovery_stop,
+        "recipe": recipe,
+    }
+
+
+def compare_recipe_unroll(
+    records: Iterable[dict],
+    *,
+    recipe: str = RECIPE_V5,
+    baseline: str = RECIPE_V4,
+    check_bfcl_leak: bool = True,
+) -> dict[str, Any]:
+    """Unroll the same conversations under two recipes and return row deltas.
+
+    Used by ``--compare-recipe`` so a Mac prepare can print v5 vs v4 kept /
+    dropped counts without a second CLI invocation. Does not write files.
+    """
+    recs = list(records)
+    _kept_a, stats_a = unroll_and_filter(
+        recs, check_bfcl_leak=check_bfcl_leak, **flags_for_recipe(recipe)
+    )
+    _kept_b, stats_b = unroll_and_filter(
+        recs, check_bfcl_leak=False, **flags_for_recipe(baseline)
+    )
+    da, db = stats_a.as_dict(), stats_b.as_dict()
+    return {
+        "recipe": recipe,
+        "baseline": baseline,
+        "total_after": da["total_after"],
+        "baseline_total_after": db["total_after"],
+        "delta_rows": da["total_after"] - db["total_after"],
+        "dropped": da["dropped"],
+        "baseline_dropped": db["dropped"],
+        "delta_dropped": da["dropped"] - db["dropped"],
+        "recovery_after_empty_after": da["recovery_after_empty_after"],
+        "baseline_recovery_after_empty_after": db["recovery_after_empty_after"],
+        "synthetic_recovery_inserted": da["synthetic_recovery_inserted"],
+        "synthetic_complete_turn0": da["synthetic_complete_turn0"],
+        "dropped_underspecified_turn0": da["dropped_underspecified_turn0"],
+        "dropped_incomplete_turn0": da["dropped_incomplete_turn0"],
+        "dropped_state_inconsistent": da["dropped_state_inconsistent"],
+        "dropped_absorbed_followup": da["dropped_absorbed_followup"],
+        "empty_after_exec_after": da["empty_after_exec_after"],
+        "baseline_empty_after_exec_after": db["empty_after_exec_after"],
+        "recipe_stats": da,
+        "baseline_stats": db,
+    }
+
+
+def format_recipe_comparison(delta: dict[str, Any], label: str) -> str:
+    """Pretty-print ``compare_recipe_unroll`` for the prepare log."""
+    return "\n".join(
+        [
+            f"recipe compare ({label}): {delta['recipe']} vs {delta['baseline']}",
+            f"  rows after: {delta['baseline_total_after']} → "
+            f"{delta['total_after']} (delta {delta['delta_rows']:+d})",
+            f"  dropped: {delta['baseline_dropped']} → {delta['dropped']} "
+            f"(delta {delta['delta_dropped']:+d})",
+            f"  recovery_after_empty: "
+            f"{delta['baseline_recovery_after_empty_after']} → "
+            f"{delta['recovery_after_empty_after']}",
+            f"  empty-after-exec after: "
+            f"{delta['baseline_empty_after_exec_after']} → "
+            f"{delta['empty_after_exec_after']}",
+            f"  v5 extra: underspecified dropped "
+            f"{delta['dropped_underspecified_turn0']}; "
+            f"incomplete dropped {delta['dropped_incomplete_turn0']}; "
+            f"synthetic complete {delta['synthetic_complete_turn0']}; "
+            f"state_inconsistent dropped {delta['dropped_state_inconsistent']}; "
+            f"absorbed follow-up dropped {delta['dropped_absorbed_followup']}",
+        ]
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Unroll conversation-level IFFC JSONL. Default SFT v4 keeps the "
-            "v3 empty-after-exec drop + recovery curriculum, and also drops "
-            "first-assistant [] targets and clarifying [] after ordinary user "
-            "messages. v3/v2/v1 remain behind keep-flags."
+            "Unroll conversation-level IFFC JSONL. Default SFT v5 keeps the "
+            "v4 empty-after-exec + recovery curriculum and first-assistant / "
+            "clarifying [] drops, then adds turn-0 call-set completeness and "
+            "env-state consistency. v4/v3/v2/v1 remain behind --recipe / "
+            "keep-flags."
         )
     )
     parser.add_argument(
@@ -755,6 +1030,18 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=None,
         help="Write unrolled+filtered JSONL (only with --input).",
+    )
+    parser.add_argument(
+        "--recipe",
+        choices=[RECIPE_V1, RECIPE_V2, RECIPE_V3, RECIPE_V4, RECIPE_V5],
+        default=None,
+        help="Unroll recipe id. Default v5. v4/v3/v2/v1 are ablations.",
+    )
+    parser.add_argument(
+        "--compare-recipe",
+        choices=[RECIPE_V1, RECIPE_V2, RECIPE_V3, RECIPE_V4, RECIPE_V5],
+        default=None,
+        help="Also unroll under this baseline and print row deltas (e.g. v4).",
     )
     parser.add_argument(
         "--keep-nonterminal-empty-after-exec",
@@ -787,6 +1074,31 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--keep-underspecified-turn0",
+        action="store_true",
+        help=(
+            "Keep first-call rows whose opening user names ≥2 catalog tools "
+            "but gold has one call (disable the v5 underspecified drop)."
+        ),
+    )
+    parser.add_argument(
+        "--keep-state-inconsistent",
+        action="store_true",
+        help=(
+            "Keep continue-after-exec gold that uses a user-named entity "
+            "the exec observation never confirmed (disable the v5 state drop)."
+        ),
+    )
+    parser.add_argument(
+        "--no-synthetic-complete-turn0",
+        action="store_true",
+        help=(
+            "Do not merge independently-knowable later first-episode calls "
+            "into the first nonempty gold. Incomplete first-turns are dropped "
+            "instead (v5 minus synth). Pass with both v5 keep-flags for v4."
+        ),
+    )
+    parser.add_argument(
         "--no-synthetic-recovery",
         action="store_true",
         help=(
@@ -800,14 +1112,26 @@ def main(argv: list[str] | None = None) -> int:
         keep_terminal_empty_after_exec=args.keep_terminal_empty_after_exec,
         keep_first_assistant_empty=args.keep_first_assistant_empty,
         keep_clarifying_empty_after_user=args.keep_clarifying_empty_after_user,
+        keep_underspecified_turn0=args.keep_underspecified_turn0,
+        keep_state_inconsistent=args.keep_state_inconsistent,
+        no_synthetic_complete_turn0=args.no_synthetic_complete_turn0,
+        recipe=args.recipe,
     )
     drop_nt, drop_t = recipe_drop_flags(recipe)
     drop_first, drop_clarify = recipe_v4_drop_flags(recipe)
+    drop_u, drop_s, synth_c, drop_abs = recipe_v5_flags(recipe)
     if args.keep_first_assistant_empty:
         drop_first = False
     if args.keep_clarifying_empty_after_user:
         drop_clarify = False
-    synthesize = recipe in (RECIPE_V3, RECIPE_V4) and not args.no_synthetic_recovery
+    if args.keep_underspecified_turn0:
+        drop_u = False
+    if args.keep_state_inconsistent:
+        drop_s = False
+    if args.no_synthetic_complete_turn0:
+        synth_c = False
+        drop_abs = False
+    synthesize = recipe in RECIPES_WITH_RECOVERY and not args.no_synthetic_recovery
 
     if args.input is None and args.splits_dir is None:
         parser.error("pass --input FILE or --splits-dir DIR")
@@ -815,12 +1139,17 @@ def main(argv: list[str] | None = None) -> int:
     def _run(path: Path, label: str, out_path: Path | None) -> None:
         if not path.exists():
             parser.error(f"missing {path}")
+        recs = read_jsonl(path)
         rows, stats = unroll_and_filter(
-            read_jsonl(path),
+            recs,
             drop_nonterminal_empty_after_exec=drop_nt,
             drop_terminal_empty_after_exec=drop_t,
             drop_first_assistant_empty=drop_first,
             drop_clarifying_empty_after_user=drop_clarify,
+            drop_underspecified_turn0=drop_u,
+            drop_state_inconsistent=drop_s,
+            synthesize_complete_turn0=synth_c,
+            drop_absorbed_independent_followup=drop_abs and synth_c,
             synthesize_recovery_stop=synthesize,
             recipe=recipe,
         )
@@ -833,8 +1162,19 @@ def main(argv: list[str] | None = None) -> int:
                 drop_first_assistant_empty=drop_first,
                 drop_clarifying_empty_after_user=drop_clarify,
                 synthesize_recovery_stop=synthesize,
+                drop_underspecified_turn0=drop_u,
+                drop_state_inconsistent=drop_s,
+                synthesize_complete_turn0=synth_c,
             )
         )
+        if args.compare_recipe:
+            delta = compare_recipe_unroll(
+                recs,
+                recipe=recipe,
+                baseline=args.compare_recipe,
+                check_bfcl_leak=False,
+            )
+            print(format_recipe_comparison(delta, label))
         if out_path is not None:
             n = write_jsonl(out_path, rows)
             print(f"  wrote {n} → {out_path}")
@@ -854,3 +1194,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
