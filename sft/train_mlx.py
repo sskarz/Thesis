@@ -1,10 +1,10 @@
 """Thin wrapper around ``mlx_lm.lora`` for the IFFC SFT mix.
 
 Unrolls conversation-level splits so ``--mask-prompt`` trains every assistant
-turn, then applies the SFT v4 curriculum (v3 empty-after-exec + recovery,
-plus drop first-assistant-empty and clarifying empty-after-user; see
-``sft.filter_empty_after_exec``). Does **not** run training in CI; on Linux
-this prints the command.
+turn, then applies the SFT v5 curriculum (v4 empty-after-exec + recovery +
+first-assistant / clarifying ``[]`` drops, plus turn-0 completeness and
+env-state consistency; see ``sft.filter_empty_after_exec``). Does **not**
+run training in CI; on Linux this prints the command.
 """
 
 from __future__ import annotations
@@ -39,11 +39,18 @@ from sft.config import (
     VALID_JSONL,
 )
 from sft.filter_empty_after_exec import (
+    RECIPE_V1,
+    RECIPE_V2,
     RECIPE_V3,
     RECIPE_V4,
+    RECIPE_V5,
+    RECIPES_WITH_RECOVERY,
+    compare_recipe_unroll,
+    format_recipe_comparison,
     infer_recipe,
     recipe_drop_flags,
     recipe_v4_drop_flags,
+    recipe_v5_flags,
     resolve_recipe,
     unroll_and_filter,
 )
@@ -61,14 +68,19 @@ def prepare_mlx_data(
     drop_terminal_empty_after_exec: bool = True,
     drop_first_assistant_empty: bool | None = None,
     drop_clarifying_empty_after_user: bool | None = None,
+    drop_underspecified_turn0: bool | None = None,
+    drop_state_inconsistent: bool | None = None,
+    synthesize_complete_turn0: bool | None = None,
     synthesize_recovery_stop: bool = True,
     recipe: str | None = None,
+    compare_recipe: str | None = None,
 ) -> Path:
     """Unroll train/valid conversations into mlx-lm ``{train,valid}.jsonl``.
 
-    Default SFT v4 keeps the v3 empty-after-exec drop + recovery curriculum
-    and also drops first-assistant ``[]`` targets and clarifying
-    empty-after-user ``[]``. Conversation-level splits are unchanged.
+    Default SFT v5 keeps the v4 empty-after-exec drop + recovery curriculum
+    and first-assistant / clarifying ``[]`` drops, then adds turn-0
+    completeness and env-state consistency. Conversation-level splits are
+    unchanged.
     """
     if recipe is None:
         recipe = infer_recipe(
@@ -76,54 +88,64 @@ def prepare_mlx_data(
             drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
             drop_first_assistant_empty=drop_first_assistant_empty,
             drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
+            drop_underspecified_turn0=drop_underspecified_turn0,
+            drop_state_inconsistent=drop_state_inconsistent,
+            synthesize_complete_turn0=synthesize_complete_turn0,
         )
     drop_first_v4, drop_clarify_v4 = recipe_v4_drop_flags(recipe)
+    drop_u_v5, drop_s_v5, synth_c_v5, drop_abs_v5 = recipe_v5_flags(recipe)
     if drop_first_assistant_empty is None:
         drop_first_assistant_empty = drop_first_v4
     if drop_clarifying_empty_after_user is None:
         drop_clarifying_empty_after_user = drop_clarify_v4
+    if drop_underspecified_turn0 is None:
+        drop_underspecified_turn0 = drop_u_v5
+    if drop_state_inconsistent is None:
+        drop_state_inconsistent = drop_s_v5
+    if synthesize_complete_turn0 is None:
+        synthesize_complete_turn0 = synth_c_v5
+    filter_kwargs = dict(
+        drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
+        drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
+        drop_first_assistant_empty=drop_first_assistant_empty,
+        drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
+        drop_underspecified_turn0=drop_underspecified_turn0,
+        drop_state_inconsistent=drop_state_inconsistent,
+        synthesize_complete_turn0=synthesize_complete_turn0,
+        drop_absorbed_independent_followup=drop_abs_v5 and synthesize_complete_turn0,
+        synthesize_recovery_stop=synthesize_recovery_stop,
+        recipe=recipe,
+    )
     train = read_jsonl(splits_dir / TRAIN_JSONL.name)
     valid = read_jsonl(splits_dir / VALID_JSONL.name)
-    train_u, train_stats = unroll_and_filter(
-        train,
+    train_u, train_stats = unroll_and_filter(train, **filter_kwargs)
+    valid_u, valid_stats = unroll_and_filter(valid, **filter_kwargs)
+    format_kwargs = dict(
+        recipe=recipe,
         drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
         drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
         drop_first_assistant_empty=drop_first_assistant_empty,
         drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
         synthesize_recovery_stop=synthesize_recovery_stop,
-        recipe=recipe,
+        drop_underspecified_turn0=drop_underspecified_turn0,
+        drop_state_inconsistent=drop_state_inconsistent,
+        synthesize_complete_turn0=synthesize_complete_turn0,
     )
-    valid_u, valid_stats = unroll_and_filter(
-        valid,
-        drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
-        drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
-        drop_first_assistant_empty=drop_first_assistant_empty,
-        drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
-        synthesize_recovery_stop=synthesize_recovery_stop,
-        recipe=recipe,
-    )
-    print(
-        train_stats.format(
+    print(train_stats.format("train", **format_kwargs))
+    print(valid_stats.format("valid", **format_kwargs))
+    if compare_recipe:
+        print(format_recipe_comparison(
+            compare_recipe_unroll(
+                train, recipe=recipe, baseline=compare_recipe, check_bfcl_leak=False
+            ),
             "train",
-            recipe=recipe,
-            drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
-            drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
-            drop_first_assistant_empty=drop_first_assistant_empty,
-            drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
-            synthesize_recovery_stop=synthesize_recovery_stop,
-        )
-    )
-    print(
-        valid_stats.format(
+        ))
+        print(format_recipe_comparison(
+            compare_recipe_unroll(
+                valid, recipe=recipe, baseline=compare_recipe, check_bfcl_leak=False
+            ),
             "valid",
-            recipe=recipe,
-            drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
-            drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
-            drop_first_assistant_empty=drop_first_assistant_empty,
-            drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
-            synthesize_recovery_stop=synthesize_recovery_stop,
-        )
-    )
+        ))
     if smoke:
         train_u = train_u[:smoke_train_rows]
         valid_u = valid_u[:smoke_valid_rows]
@@ -140,6 +162,9 @@ def prepare_mlx_data(
         f"drop_terminal_empty_after_exec={drop_terminal_empty_after_exec}; "
         f"drop_first_assistant_empty={drop_first_assistant_empty}; "
         f"drop_clarifying_empty_after_user={drop_clarifying_empty_after_user}; "
+        f"drop_underspecified_turn0={drop_underspecified_turn0}; "
+        f"drop_state_inconsistent={drop_state_inconsistent}; "
+        f"synthesize_complete_turn0={synthesize_complete_turn0}; "
         f"synthesize_recovery_stop={synthesize_recovery_stop})"
     )
     return mlx_dir
@@ -226,6 +251,18 @@ def main(argv: list[str] | None = None) -> int:
         help="Only unroll JSONL; do not invoke mlx_lm",
     )
     parser.add_argument(
+        "--recipe",
+        choices=[RECIPE_V1, RECIPE_V2, RECIPE_V3, RECIPE_V4, RECIPE_V5],
+        default=None,
+        help="Unroll recipe id. Default v5. v4/v3/v2/v1 are ablations.",
+    )
+    parser.add_argument(
+        "--compare-recipe",
+        choices=[RECIPE_V1, RECIPE_V2, RECIPE_V3, RECIPE_V4, RECIPE_V5],
+        default=None,
+        help="Also unroll under this baseline and print row deltas (e.g. v4).",
+    )
+    parser.add_argument(
         "--keep-nonterminal-empty-after-exec",
         action="store_true",
         help=(
@@ -263,7 +300,32 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "Do not insert a history-only [] after tool results on the next "
-            "user→call unroll row (v3/v4 default inserts it)."
+            "user→call unroll row (v3/v4/v5 default inserts it)."
+        ),
+    )
+    parser.add_argument(
+        "--keep-underspecified-turn0",
+        action="store_true",
+        help=(
+            "Keep first-call rows whose opening user names ≥2 catalog tools "
+            "but gold has one call (disable the v5 underspecified drop)."
+        ),
+    )
+    parser.add_argument(
+        "--keep-state-inconsistent",
+        action="store_true",
+        help=(
+            "Keep continue-after-exec gold that uses a user-named entity "
+            "the exec observation never confirmed (disable the v5 state drop)."
+        ),
+    )
+    parser.add_argument(
+        "--no-synthetic-complete-turn0",
+        action="store_true",
+        help=(
+            "Do not merge independently-knowable later first-episode calls "
+            "into the first nonempty gold. Incomplete first-turns are dropped "
+            "instead. Pass with both v5 keep-flags for v4."
         ),
     )
     args = parser.parse_args(argv)
@@ -284,14 +346,25 @@ def main(argv: list[str] | None = None) -> int:
         keep_terminal_empty_after_exec=args.keep_terminal_empty_after_exec,
         keep_first_assistant_empty=args.keep_first_assistant_empty,
         keep_clarifying_empty_after_user=args.keep_clarifying_empty_after_user,
+        keep_underspecified_turn0=args.keep_underspecified_turn0,
+        keep_state_inconsistent=args.keep_state_inconsistent,
+        no_synthetic_complete_turn0=args.no_synthetic_complete_turn0,
+        recipe=args.recipe,
     )
     drop_nt, drop_t = recipe_drop_flags(recipe)
     drop_first, drop_clarify = recipe_v4_drop_flags(recipe)
+    drop_u, drop_s, synth_c, _drop_abs = recipe_v5_flags(recipe)
     if args.keep_first_assistant_empty:
         drop_first = False
     if args.keep_clarifying_empty_after_user:
         drop_clarify = False
-    synthesize = recipe in (RECIPE_V3, RECIPE_V4) and not args.no_synthetic_recovery
+    if args.keep_underspecified_turn0:
+        drop_u = False
+    if args.keep_state_inconsistent:
+        drop_s = False
+    if args.no_synthetic_complete_turn0:
+        synth_c = False
+    synthesize = recipe in RECIPES_WITH_RECOVERY and not args.no_synthetic_recovery
     data_dir = prepare_mlx_data(
         splits_dir=args.splits_dir,
         mlx_dir=args.mlx_dir,
@@ -300,8 +373,12 @@ def main(argv: list[str] | None = None) -> int:
         drop_terminal_empty_after_exec=drop_t,
         drop_first_assistant_empty=drop_first,
         drop_clarifying_empty_after_user=drop_clarify,
+        drop_underspecified_turn0=drop_u,
+        drop_state_inconsistent=drop_s,
+        synthesize_complete_turn0=synth_c,
         synthesize_recovery_stop=synthesize,
         recipe=recipe,
+        compare_recipe=args.compare_recipe,
     )
 
     if args.rank != LORA_RANK:
