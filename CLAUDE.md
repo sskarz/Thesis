@@ -158,6 +158,10 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-t
   --notes "DIAGNOSTIC: strip trailing IFFC assistant [] vs Run 13 0.5% (history bookkeeping, not a training method)"
 # Run 14 already scored this diagnostic: 4/200 = 2.0% — do not overwrite;
 # do not present 2% as a method win.
+# Run 15 already scored SFT-IFFC-v4 best@1600: 30/200 = 15.0% — scored recovery,
+# still below IFFC 30.5% and NFC 27.0%; do not overwrite; do not present as beating IFFC.
+# uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v4 --only-multi-turn \
+#   --categories multi_turn_base --fc-mode iffc
 ```
 
 ### Query the database
