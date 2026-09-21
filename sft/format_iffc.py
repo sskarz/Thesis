@@ -482,10 +482,9 @@ def unroll_conversation(record: dict) -> list[dict]:
     actually receive loss. Split membership stays at conversation id.
 
     This helper is unfiltered. ``sft.train_mlx.prepare_mlx_data`` runs
-    ``sft.filter_empty_after_exec`` (SFT v3 by default): drops **all**
-    empty-after-exec ``[]`` targets (terminal included) and may insert a
-    history-only ``[]`` on the next user→call unroll so recovery is trained
-    without making ``[]`` itself a frequent target.
+    ``sft.filter_empty_after_exec`` (SFT v4 by default): v3 empty-after-exec
+    drop + recovery, plus drop first-assistant ``[]`` targets and clarifying
+    empty-after-user ``[]``. Recovery history-only ``[]`` insertion is unchanged.
     """
     messages = record.get("messages") or []
     rows: list[dict] = []
@@ -514,7 +513,7 @@ def unroll_records(records: list[dict]) -> list[dict]:
     """Unroll every assistant turn with **no** empty-after-exec filter.
 
     Training data should go through ``sft.filter_empty_after_exec.unroll_and_filter``
-    (used by ``sft.train_mlx.prepare_mlx_data``; SFT v3 default).
+    (used by ``sft.train_mlx.prepare_mlx_data``; SFT v4 default).
     """
     out: list[dict] = []
     for rec in records:
