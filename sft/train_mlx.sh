@@ -6,9 +6,10 @@
 #   ./sft/train_mlx.sh --full --run
 #
 # Does not download data. Run download → format → split first (see README.md).
-# Unroll applies the SFT v4 curriculum (v3 empty-after-exec + recovery, plus
-# drop first-assistant-empty and clarifying empty-after-user) unless v3/v2/v1
-# keep-flags are passed through EXTRA.
+# Unroll applies the SFT v5 curriculum (v4 empty-after-exec + recovery +
+# first-assistant / clarifying empty drops, plus turn-0 completeness and
+# env-state consistency) unless --recipe v4/v3/v2/v1 or keep-flags are
+# passed through EXTRA.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

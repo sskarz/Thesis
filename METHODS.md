@@ -920,6 +920,8 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **v4 + IFFC+STATE (Run 16, scored negative/null overlay):** Mac `benchmark.db` `run_id=16`: **26/200 = 13.0%** on the **same** SFT-v4 GGUF as Run 15 (`gemma4-e2b-sft-iffc-v4`, `sft/fused/gemma-4-e2b-it-iffc-v4-best1600-Q4_K_M.gguf`), `--fc-mode iffc-state`. Started `2026-09-21T18:39:35Z`, finished `2026-09-21T20:52:58Z` (~133.4 min wall). 200 responses, 174 `eval_errors`, 200 `multi_turn_timings`; **`inference_metrics` all zeros** (do not invent tok/s). Deltas: **−2.0 pp / −4 vs Run 15**; **−21.0 pp vs base STATE**; **−17.5 pp vs IFFC**; **−23.5 pp vs BoN**. Overlap vs Run 15: both 17, only16 9 (`_42,_47,_102,_104,_140,_158,_169,_179,_192`), lost 13 (`_52,_78,_107,_116,_133,_135,_149,_156,_159,_166,_182,_184,_190`). Primary buckets: empty_turn **3** (2%; `_175` turn0, `_185` turn0, `_108` turn4), state_mismatch **112** (64%; VehicleControl 25 / GFS 23 / Travel 21 / TradingBot 20 / Twitter 10 / Message 9 / Ticket 4), under_call **59** (34%; turn0=31). Sum `predicted_ms` ≈ 15.9 gen-min; avg turns 3.67; avg `api_calls` 14.83. STATE helps **base** Gemma, **not** this SFT-v4 checkpoint. **Do not propose BoN as the next win on this ckpt.** Pivot to **recipe v5**.
 
+**v5 unroll recipe (unscored):** default `sft.train_mlx --prepare-only` / `--recipe v5`. Keeps the v4 empty-target + recovery curriculum, then adds turn-0 call-set completeness (drop xLAM first-calls that name ≥2 catalog tools with one gold call; merge independently-knowable first-episode ToolACE extras into the first nonempty gold) and env-state consistency (drop continue-after-exec that uses a user-named entity the observation never confirmed). Same frozen conversation-level splits; BFCL `multi_turn_base` stays held out. Rebuild mlx JSONL with `--compare-recipe v4` for kept/dropped deltas. **Not trained / not scored here.** Do **not** claim v5 will beat IFFC. Code: `sft/curriculum_v5.py`, `sft/filter_empty_after_exec.py`. See `sft/README.md`.
+
 **Chat format:** the same JSON-in-text IFFC shape as `--fc-mode iffc` (`benchmark/iffc.py` Appendix B). Assistant turns are a JSON list of `{"function_name", "parameters"}` (or `[]`). Tool/observation turns are user-role execution messages. Native `tool_calls` are **not** mixed into this adapter dataset.
 
 **Mix (v1, locked for Run 12):**
@@ -931,7 +933,7 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **Mix (v4, Run 15):** same conversation-level splits; unroll is v3 (drop **all** empty-after-exec including terminal + recovery curriculum) **plus** drop first-assistant-empty and clarifying empty-after-user `[]` targets ([PR #31](https://github.com/sskarz/Thesis/pull/31)). LoRA best@1600 (`val=0.196`). **Scored recovery** at 15.0% — still below IFFC/NFC. Run 16 overlay on this mix is **13.0%** (null/negative).
 
-**Mix (v5, planned):** keep v4 empty-recovery; add **turn-0 completeness** and **env-state consistency**. Not BoN-on-v4.
+**Mix (v5, unscored):** same conversation-level splits; unroll is v4 **plus** turn-0 call-set completeness and env-state consistency (`sft/curriculum_v5.py`). Rebuild with `uv run python -m sft.train_mlx --prepare-only --compare-recipe v4`. **Not a BFCL score.** Not BoN-on-v4.
 
 **Skipped for v1:** APIGen-MT-5k (NC), Glaive, Hermes (Hermes remains an optional backup in docs only if a Hub source disappears).
 
@@ -1002,7 +1004,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix; BoN / IFFC+STA
 
 ### Next (Sanskar decides)
 
-1. **Recipe v5** (turn-0 completeness + env-state consistency; keep v4 empty-recovery). STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed; do **not** BoN this ckpt as the next win.
+1. **SFT v5 prepare → LoRA on the Mac** (this recipe; not more epochs on v4). Residual after v4 is state/under-call; v5 targets those in the unroll mix. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed; do **not** BoN this ckpt as the next win. Do **not** present an unscored prepare as a method win.
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Stay on the inference ladder for **base** Gemma (BoN **36.5%** is still the best measured result). Do **not** BoN the SFT-v4 checkpoint.
