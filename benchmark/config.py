@@ -74,6 +74,16 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Gemma-4-E2B-it SFT-IFFC-v2 filtered-[] (Q4_K_M)",
         "slug": "Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M",
     },
+    # SFT v4: drop first-assistant [] + clarifying empty-after-user + all empty-after-exec;
+    # keeps recovery; LoRA best@1600 val≈0.196; distinct api_name/slug so Run 15 ≠ Run 12–14.
+    "gemma4-e2b-sft-iffc-v4": {
+        "hf_repo": "",  # placeholder: serve with -m, not -hf
+        "gguf_path": "sft/fused/gemma-4-e2b-it-iffc-v4-best1600-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-sft-iffc-v4",
+        "display": "Gemma-4-E2B-it SFT-IFFC-v4 (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-SFT-IFFC-v4-Q4_K_M",
+    },
     "functiongemma-270m": {
         "hf_repo": "ggml-org/functiongemma-270m-it-GGUF",
         "quant": "",
