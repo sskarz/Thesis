@@ -26,6 +26,7 @@ This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored th
 - key: `gemma4-e2b` — base instruct GGUF (`bartowski/google_gemma-4-E2B-it-GGUF`, `Q4_K_M`)
 - key: `gemma4-e2b-sft-iffc` — Mac-local MLX LoRA SFT v1 (IFFC mix, best val @ iter 1000). Run 12 scored **1/200 = 0.5%**. Distinct `api_name` / `slug` so BFCL results do **not** overwrite base Gemma. Serve with `llama-server -m <local.gguf>` (not `-hf`).
 - key: `gemma4-e2b-sft-iffc-v2` — filtered-mix SFT v2 (drop non-terminal `[]` after tool-exec, LoRA best@2000 val 0.211, PR #24). Distinct `api_name` / `slug` so Run 13 does **not** overwrite Run 12. Run 13 scored **1/200 = 0.5%** (same collapse). Figures: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`. Serve with `llama-server -m <local.gguf>` (not `-hf`).
+- key: `gemma4-e2b-sft-iffc-v4` — SFT v4 curriculum (drop first-assistant `[]`, clarifying empty-after-user, all empty-after-exec; keeps recovery; LoRA best@1600). Distinct `api_name` / `slug` so **Run 15** scores this checkpoint without overwriting Runs 12–14. Serve with `llama-server -m <local.gguf>` (not `-hf`).
 
 Instruct weights: **`google/gemma-4-e2b-it`** (gated; HuggingFace token required).
 
