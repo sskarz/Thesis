@@ -91,7 +91,7 @@ The live smoke layer:
 2. Skips cleanly when `http://localhost:8080` is unavailable
 3. Checks that single-turn and multi-turn responses are structurally valid for the pipeline
 
-MLX LoRA SFT (Gemma-4-E2B, IFFC mix) is documented in [`sft/README.md`](sft/README.md). Unit tests: `uv run pytest -q tests/sft`. Do not run overnight training in CI. **Run 12 scored v1 as a negative: 1/200 = 0.5%**. **Run 13 scored the v2 filtered-[] mix as the same collapse: 1/200 = 0.5%** (filter insufficient — see `THESIS.md`). **Run 14** (`--iffc-strip-empty-assistant` on the same v2 GGUF) is a **DIAGNOSTIC** history-bookkeeping ablation: **4/200 = 2.0%** — did **not** rescue; **do not present 2% as a method win**.
+MLX LoRA SFT (Gemma-4-E2B, IFFC mix) is documented in [`sft/README.md`](sft/README.md). Unit tests: `uv run pytest -q tests/sft`. Do not run overnight training in CI. **Run 12 scored v1 as a negative: 1/200 = 0.5%**. **Run 13 scored the v2 filtered-[] mix as the same collapse: 1/200 = 0.5%** (filter insufficient — see `THESIS.md`). **Run 14** (`--iffc-strip-empty-assistant` on the same v2 GGUF) is a **DIAGNOSTIC** history-bookkeeping ablation: **4/200 = 2.0%** — did **not** rescue; **do not present 2% as a method win**. **Run 15** SFT-IFFC-v4 LoRA best@1600 is a **scored recovery: 30/200 = 15.0%**, still **below IFFC 30.5% and below NFC 27.0%** — **do not present as beating IFFC**.
 
 ### 5. Run the benchmark
 
@@ -159,6 +159,8 @@ Optional `--bon-n N` and `--resume` if an unfinished iffc-state-bon run exists.
 Gemma SFT-IFFC vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% / IFFC+STATE 34.0% / BoN 36.5% `multi_turn_base` baselines. Run 12 (`--model gemma4-e2b-sft-iffc`, LoRA best@1000) scored **1/200 = 0.5%**. Run 13 (`--model gemma4-e2b-sft-iffc-v2`, filtered-[] LoRA best@2000) scored **1/200 = 0.5%** — same collapse; the non-terminal-`[]` filter did **not** recover (see `THESIS.md`). Do **not** overwrite Run 12 or Run 13; do **not** BoN/STATE on these checkpoints; do **not** claim the `[]` filter fixed SFT.
 
 **Run 14 already scored** the strip-trailing-`[]` history-bookkeeping diagnostic on the same v2 GGUF (`--fc-mode iffc --iffc-strip-empty-assistant`): **4/200 = 2.0%**. **DIAGNOSTIC — not a training method.** Did **not** rescue the never-start collapse. **Do not present 2% as a method win.** Do **not** overwrite Run 14. Figures: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/iffc-strip-empty-assistant/figures`.
+
+**Run 15 already scored** SFT-IFFC-v4 (`--model gemma4-e2b-sft-iffc-v4 --fc-mode iffc`, LoRA best@1600): **30/200 = 15.0%**. **Scored recovery** from the 0.5–2% collapse, still **below IFFC 30.5% and below NFC 27.0%**. **Do not present 15% as beating IFFC.** Do **not** overwrite Run 15.
 
 ```bash
 uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-turn \
@@ -297,14 +299,22 @@ uv run python -m benchmark.run_all --model llama-3.2-3b
 
 Results land in `benchmark/results/Llama-3.2-3B-Instruct-Q4_K_M/`.
 
-Mac-local SFT GGUF (not HuggingFace). Start llama-server with `-m`, then pass a distinct `--model` so scores do not overwrite base Gemma-4-E2B. Run 12 already scored the v1 checkpoint (**1/200 = 0.5%**, scored negative — do not overwrite). Run 13 already scored the v2 filtered-[] checkpoint (**1/200 = 0.5%**, same collapse — do not overwrite; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`). Run 14 already scored `--iffc-strip-empty-assistant` on that same v2 GGUF (**4/200 = 2.0%**, **DIAGNOSTIC** history bookkeeping — **not** a method win; do not overwrite; figures `.../iffc-strip-empty-assistant/figures`):
+Mac-local SFT GGUF (not HuggingFace). Start llama-server with `-m`, then pass a distinct `--model` so scores do not overwrite base Gemma-4-E2B. Run 12 already scored the v1 checkpoint (**1/200 = 0.5%**, scored negative — do not overwrite). Run 13 already scored the v2 filtered-[] checkpoint (**1/200 = 0.5%**, same collapse — do not overwrite; figures `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`). Run 14 already scored `--iffc-strip-empty-assistant` on that same v2 GGUF (**4/200 = 2.0%**, **DIAGNOSTIC** history bookkeeping — **not** a method win; do not overwrite; figures `.../iffc-strip-empty-assistant/figures`). Run 15 already scored SFT-IFFC-v4 best@1600 (**30/200 = 15.0%**, scored recovery, still below IFFC/NFC — do not overwrite; do not present as beating IFFC):
 
 ```bash
+# v1 (Run 12 already scored 0.5% — do not overwrite)
 ./llama.cpp/build/bin/llama-server --jinja -fa on \
   -m sft/fused/gemma-4-e2b-it-iffc-best1000-Q4_K_M.gguf \
   --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 -np 4
 uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn \
   --categories multi_turn_base --fc-mode iffc
+
+# v4 (Run 15 already scored 15.0% recovery, still below IFFC/NFC — do not overwrite)
+# ./llama.cpp/build/bin/llama-server --jinja -fa on \
+#   -m sft/fused/gemma-4-e2b-it-iffc-v4-best1600-Q4_K_M.gguf \
+#   --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 -np 4
+# uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v4 --only-multi-turn \
+#   --categories multi_turn_base --fc-mode iffc
 ```
 
 To add a new model, add an entry to the `MODELS` dict in `benchmark/config.py`.
