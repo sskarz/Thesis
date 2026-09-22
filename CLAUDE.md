@@ -164,7 +164,10 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-t
 # do not overwrite; do not propose BoN as the next win on this ckpt.
 # Run 17 already scored SFT-IFFC-v5 best@1800: 23/200 = 11.5% — scored regression vs
 # Run 15 15.0% (−3.5 pp / −7); do not overwrite; do not present as a method win;
-# do not BoN this ckpt; do not more-epochs the v5 mix; next prepare is --recipe v6.
+# do not BoN this ckpt; do not more-epochs the v5 mix.
+# Run 18 already scored SFT-IFFC-v6 best@1800: 26/200 = 13.0% — scored miss vs
+# Run 15 15.0% (−2.0 pp / −4); do not overwrite; do not present as a method win;
+# do not BoN this ckpt; do not more-epochs the v6 mix.
 # uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v4 --only-multi-turn \
 #   --categories multi_turn_base --fc-mode iffc
 ```
