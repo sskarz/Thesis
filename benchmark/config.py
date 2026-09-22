@@ -98,6 +98,17 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Gemma-4-E2B-it SFT-IFFC-v5 (Q4_K_M)",
         "slug": "Gemma-4-E2B-it-SFT-IFFC-v5-Q4_K_M",
     },
+    # SFT v6 (PR #38: v4 empty/recovery + drop_state_inconsistent only;
+    # turn-0 rewrites off). LoRA best@1800 val 0.142. Distinct api_name/slug
+    # so Run 18 does not overwrite Runs 12–17.
+    "gemma4-e2b-sft-iffc-v6": {
+        "hf_repo": "",  # serve with -m, not -hf
+        "gguf_path": "sft/fused/gemma-4-e2b-it-iffc-v6-best1800-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-sft-iffc-v6",
+        "display": "Gemma-4-E2B-it SFT-IFFC-v6 (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-SFT-IFFC-v6-Q4_K_M",
+    },
     "functiongemma-270m": {
         "hf_repo": "ggml-org/functiongemma-270m-it-GGUF",
         "quant": "",
