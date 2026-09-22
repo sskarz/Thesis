@@ -603,7 +603,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
 ```
 
-Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%; BoN N=5 Run 11 = 73/200 = 36.5%; SFT-IFFC LoRA best@1000 Run 12 = 1/200 = 0.5% (scored negative); SFT-IFFC-v2 filtered-[] LoRA best@2000 Run 13 = 1/200 = 0.5% (same collapse; filter insufficient); SFT-IFFC-v2 + strip trailing `[]` Run 14 = 4/200 = 2.0% (**DIAGNOSTIC** history bookkeeping — **not** a method win); SFT-IFFC-v4 LoRA best@1600 Run 15 = 30/200 = 15.0% (**scored recovery** from collapse, still **below IFFC 30.5% and below NFC 27.0%** — **do not present as beating IFFC**); SFT-IFFC-v4 + IFFC+STATE Run 16 = 26/200 = 13.0% (**scored negative/null overlay** vs Run 15 — **do not propose BoN on this ckpt**); SFT-IFFC-v5 LoRA best@1800 Run 17 = 23/200 = 11.5% (**scored regression vs Run 15** — **do not present as a method win**; **no BoN / no more epochs on this mix**); SFT-IFFC-v6 LoRA best@1800 Run 18 = 26/200 = 13.0% (**scored miss vs Run 15 15.0%** — **do not present as a method win**; **no BoN / no more epochs on v6**).
+Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%; BoN N=5 Run 11 = 73/200 = 36.5%; SFT-IFFC LoRA best@1000 Run 12 = 1/200 = 0.5% (scored negative); SFT-IFFC-v2 filtered-[] LoRA best@2000 Run 13 = 1/200 = 0.5% (same collapse; filter insufficient); SFT-IFFC-v2 + strip trailing `[]` Run 14 = 4/200 = 2.0% (**DIAGNOSTIC** history bookkeeping — **not** a method win); SFT-IFFC-v4 LoRA best@1600 Run 15 = 30/200 = 15.0% (**scored recovery** from collapse, still **below IFFC 30.5% and below NFC 27.0%** — **do not present as beating IFFC**); SFT-IFFC-v4 + IFFC+STATE Run 16 = 26/200 = 13.0% (**scored negative/null overlay** vs Run 15 — **do not propose BoN on this ckpt**); SFT-IFFC-v5 LoRA best@1800 Run 17 = 23/200 = 11.5% (**scored regression vs Run 15** — **do not present as a method win**; **no BoN / no more epochs on this mix**); SFT-IFFC-v6 LoRA best@1800 Run 18 = 26/200 = 13.0% (**scored miss vs Run 15 15.0%** — **do not present as a method win**; **no BoN / no more epochs on v6**); xLAM-1b-fc-r NFC Run 19 = 0/200 = 0.0% (**scored format-channel collapse** on this multi_turn NFC harness — **not** published overall BFCL ~78.94%; **not** an ability floor; **not** a method win; gen_tps_mean ≈ **196.7**; avg `api_calls` **3.63**).
 
 ### Pause / resume (kill overnight, continue the same run)
 
@@ -1280,7 +1280,7 @@ Hammer-7B ranked #2 overall on BFCL, outperforming larger proprietary models on 
 
 ### Overview
 
-xLAM is Salesforce's family of Large Action Models, ranging from 1B to 8x22B parameters, fine-tuned specifically for function calling and agentic tasks. The 1B model is the smallest model on the BFCL leaderboard, achieving 78.94% overall accuracy — outperforming GPT-3.5-Turbo.
+xLAM is Salesforce's family of Large Action Models, ranging from 1B to 8x22B parameters, fine-tuned specifically for function calling and agentic tasks. The 1B model is the smallest model on the BFCL leaderboard, with a **published** overall accuracy of 78.94% — outperforming GPT-3.5-Turbo. **That published overall figure is a different metric / suite aggregation than this repo's BFCL v4 `multi_turn_base` NFC score.** Run 19 on **this** harness is **0/200 = 0.0%** (format-channel collapse) and must **not** be equated with 78.94%.
 
 ### Evidence
 
@@ -1288,15 +1288,16 @@ xLAM is Salesforce's family of Large Action Models, ranging from 1B to 8x22B par
 |-------|-----------|-------------|-------|
 | xLAM-2-fc-r | — | **#1 on BFCL** (as of April 2025) | Latest generation |
 | xLAM-7b-fc-r | 7B | 88.24% | #3 on leaderboard |
-| xLAM-1b-fc-r | **1B** | **78.94%** | Smallest model on leaderboard; outperforms GPT-3.5-Turbo |
+| xLAM-1b-fc-r | **1B** | **78.94%** (published overall; **not** this pipeline) | Smallest model on leaderboard; outperforms GPT-3.5-Turbo |
 
 On τ-bench (agentic evaluation), xLAM-2-70b-fc-r achieves 56.2% success rate, outperforming GPT-4o (52.9%).
 
 ### Applicability
 
 - **xLAM-1b-fc-r** is directly relevant to edge deployment — at 1B parameters it fits comfortably on all target hardware. GGUF versions are published on HuggingFace (`Salesforce/xLAM-1b-fc-r-gguf`).
-- **As a benchmark model:** Registry key `xlam-1b` is in `benchmark/config.py` (`Salesforce/xLAM-1b-fc-r-gguf`, Q4_K_M; distinct `api_name` / `slug` so results do not overwrite other models). Serve with `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M`. **No BFCL score claimed yet** (run not done). Running it through the existing BFCL v4 pipeline would provide a fine-tuned baseline to compare against the inference-time techniques applied to base models.
+- **As a benchmark model:** Registry key `xlam-1b` is in `benchmark/config.py` (`Salesforce/xLAM-1b-fc-r-gguf`, Q4_K_M; distinct `api_name` / `slug` so results do not overwrite other models). Serve with `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M`. **Run 19 already scored `--fc-mode nfc` on BFCL v4 `multi_turn_base`: 0/200 = 0.0%** (Mac `run_id=19`; wall **13.55 min**; finished `2026-09-22T14:26:42Z`). This is a **channel/format collapse on our multi_turn NFC harness**, a useful **negative external baseline** vs Gemma NFC Run 4 **27.0%**. **All 200** eval errors: `Model response list is empty for turn 0`. Response shapes: 196/200 all-empty `[[],…]`; 4/200 (`_33,_35,_36,_37`) have `["ERROR: "]` cells but still turn-0 empty. Avg `api_calls` **3.63**; gen_tps_mean ≈ **196.7** — **not** a dead server; the model generated tokens; NFC recorded **no tool calls**. **Do not** claim xLAM scores 0 on BFCL overall. **Do not** equate to published overall ~78.94%. **Do not** present as a method win or as an ability floor. An IFFC / format-aware diagnostic is **not** claimed (may be run later). Registry: [PR #41](https://github.com/sskarz/Thesis/pull/41). Full writeup: `THESIS.md`.
 - **Training data:** The xlam-function-calling-60k dataset used for training is publicly available.
+- **No new method.** Run 19 is stock `--fc-mode nfc` on a published GGUF.
 
 ### Sources
 
@@ -1672,7 +1673,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 1 | **SFT lever TBD (recipe v6 is closed)** | Gemma `multi_turn_base` after Run 18 scored v6 as a **miss vs v4** (26/200 = 13.0% vs Run 15 15.0%, −2.0 pp / −4). Modest +1.5 pp vs Run 17 11.5%. Empty 1; state 118 / under-call 55; avg api_calls 13.34. | **Do not** BoN v6; **do not** more-epochs the v6 mix. Thin filter on this family is likely exhausted. v4 IFFC 15% remains best SFT recovery. Do **not** present 13.0% as a method win. | TBD |
 | 2 | **Optional ablation: ToolACE-only vs xLAM-only (small scale)** | Isolate 5520 ToolACE `[]` targets (xLAM 0%) | Diagnose mix vs format | Medium |
 | 3 | **Function masking augmentation (Hammer)** | Generalization, irrelevance | Robust to unseen APIs; +irrelevance | Medium |
-| 4 | **Add xLAM-1b-fc-r as benchmark baseline** | Comparison point | Shows fine-tuned vs. base SLM gap | Low |
+| 4 | **Add xLAM-1b-fc-r as benchmark baseline** | Comparison point | **Scored (Run 19): 0/200 = 0.0% NFC** on this harness — **format-channel collapse**, **not** published overall ~78.94%, **not** an ability floor. Registry [PR #41](https://github.com/sskarz/Thesis/pull/41). IFFC / format-aware diagnostic **not** claimed. | Done (NFC); diagnostic TBD |
 | 5 | **GRPO post-SFT with BFCL checker as reward** | All categories, esp. multi-turn | +5–15pp on top of a *fixed* mix — not on Run 12 or Run 13 | High |
 | 6 | **DiaTool-DPO for multi-turn** | Multi-turn categories | Better dialogue flow + rejection | High |
 | 7 | **FunctionGemma domain fine-tuning** | FunctionGemma-270M scores | 58% → 85% on domain tasks | Medium |
