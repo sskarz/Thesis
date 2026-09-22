@@ -164,7 +164,7 @@ Gemma SFT-IFFC vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% / IFF
 
 **Run 16 already scored** IFFC+STATE on that **same** v4 GGUF (`--model gemma4-e2b-sft-iffc-v4 --fc-mode iffc-state`): **26/200 = 13.0%**. **Scored negative/null overlay** vs Run 15 (−4 / −2.0 pp). STATE helps **base** Gemma, not this checkpoint. **Do not propose BoN as the next win on this ckpt.** Do **not** overwrite Run 16.
 
-**Run 17 already scored** SFT-IFFC-v5 (`--model gemma4-e2b-sft-iffc-v5 --fc-mode iffc`, LoRA best@1800): **23/200 = 11.5%**. **Scored regression vs v4** (−7 / −3.5 pp vs Run 15 15.0%; also below Run 16 13.0%). Empty-`[]` fully suppressed (0 empty errors). **Do not present 11.5% as a method win.** **No BoN on this ckpt; no more epochs on the v5 mix.** Do **not** overwrite Run 17. v4 IFFC 15% remains best SFT recovery; BoN 36.5% remains best inference on **base** Gemma.
+**Run 17 already scored** SFT-IFFC-v5 (`--model gemma4-e2b-sft-iffc-v5 --fc-mode iffc`, LoRA best@1800): **23/200 = 11.5%**. **Scored regression vs v4** (−7 / −3.5 pp vs Run 15 15.0%; also below Run 16 13.0%; state_mismatch 109→133, under_call 59→44, empty 2→0, avg api_calls/entry 17.3→40.3). Empty-`[]` fully suppressed. **Do not present 11.5% as a method win.** **No BoN on this ckpt; no more epochs on the v5 mix.** Do **not** overwrite Run 17. v4 IFFC 15% remains best SFT recovery; BoN 36.5% remains best inference on **base** Gemma. Next: **recipe v6** (v4 empty/recovery + only `drop_state_inconsistent`).
 
 ```bash
 uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-turn \

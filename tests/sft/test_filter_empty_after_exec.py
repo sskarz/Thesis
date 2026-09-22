@@ -16,7 +16,9 @@ from sft.filter_empty_after_exec import (
     RECIPE_V3,
     RECIPE_V4,
     RECIPE_V5,
+    RECIPE_V6,
     classify_assistant_turn,
+    flags_for_recipe,
     infer_recipe,
     inject_recovery_stop,
     is_clarifying_empty_after_user,
@@ -586,7 +588,7 @@ def test_clarifying_empty_then_call_counts_as_recovery():
     assert stats_v3.first_turn_empty_after == 1
 
 
-def test_recipe_flags_v1_v2_v3_v4_v5():
+def test_recipe_flags_v1_v2_v3_v4_v5_v6():
     assert resolve_recipe() == RECIPE_V5
     assert resolve_recipe(keep_terminal_empty_after_exec=True) == RECIPE_V2
     assert resolve_recipe(keep_nonterminal_empty_after_exec=True) == RECIPE_V1
@@ -614,18 +616,30 @@ def test_recipe_flags_v1_v2_v3_v4_v5():
         )
         == RECIPE_V4
     )
+    assert (
+        resolve_recipe(
+            keep_underspecified_turn0=True,
+            no_synthetic_complete_turn0=True,
+        )
+        == RECIPE_V6
+    )
     assert resolve_recipe(recipe=RECIPE_V4) == RECIPE_V4
+    assert resolve_recipe(recipe=RECIPE_V6) == RECIPE_V6
+    assert recipe_drop_flags(RECIPE_V6) == (True, True)
     assert recipe_drop_flags(RECIPE_V5) == (True, True)
     assert recipe_drop_flags(RECIPE_V4) == (True, True)
     assert recipe_drop_flags(RECIPE_V3) == (True, True)
     assert recipe_drop_flags(RECIPE_V2) == (True, False)
     assert recipe_drop_flags(RECIPE_V1) == (False, False)
+    assert recipe_v4_drop_flags(RECIPE_V6) == (True, True)
     assert recipe_v4_drop_flags(RECIPE_V5) == (True, True)
     assert recipe_v4_drop_flags(RECIPE_V4) == (True, True)
     assert recipe_v4_drop_flags(RECIPE_V3) == (False, False)
     assert recipe_v4_drop_flags(RECIPE_V2) == (False, False)
     assert recipe_v5_flags(RECIPE_V5) == (True, True, True, True)
+    assert recipe_v5_flags(RECIPE_V6) == (False, True, False, False)
     assert recipe_v5_flags(RECIPE_V4) == (False, False, False, False)
+    assert recipe_v5_flags(RECIPE_V6) != recipe_v5_flags(RECIPE_V4)
     assert infer_recipe(
         drop_nonterminal_empty_after_exec=True,
         drop_terminal_empty_after_exec=True,
@@ -643,6 +657,13 @@ def test_recipe_flags_v1_v2_v3_v4_v5():
         drop_state_inconsistent=False,
         synthesize_complete_turn0=False,
     ) == RECIPE_V4
+    assert infer_recipe(
+        drop_nonterminal_empty_after_exec=True,
+        drop_terminal_empty_after_exec=True,
+        drop_underspecified_turn0=False,
+        drop_state_inconsistent=True,
+        synthesize_complete_turn0=False,
+    ) == RECIPE_V6
 
 
 def test_filter_cli_v2_flag_keeps_terminal(tmp_path: Path, capsys):
@@ -914,6 +935,30 @@ def test_v4_does_not_weaken_recovery_or_empty_after_exec():
     assert d["dropped_first_turn_empty"] >= 1
     assert d["dropped_clarifying_empty"] >= 1
     assert d["empty_after_exec_after"] == 0
+
+
+def test_v6_keeps_v4_empty_drops_and_recovery():
+    records = [
+        _mid_trajectory_empty_after_exec(),
+        _terminal_empty_after_exec(),
+        _clarifying_empty_then_call(),
+        _exec_then_new_user_then_call(),
+        _later_clarifying_empty(),
+    ]
+    kept, stats = unroll_and_filter(records, **flags_for_recipe(RECIPE_V6))
+    assert stats.recipe == RECIPE_V6
+    assert stats.empty_after_exec_after == 0
+    assert stats.first_turn_empty_after == 0
+    assert stats.clarifying_empty_after == 0
+    assert stats.recovery_after_empty_after >= 1
+    assert stats.synthetic_recovery_inserted == 1
+    assert stats.synthetic_complete_turn0 == 0
+    assert stats.dropped_underspecified_turn0 == 0
+    assert all(row["messages"][-1]["content"] != "[]" for row in kept)
+    assert stats.recovery_after_empty_after == 3
+    d = stats.as_dict()
+    assert d["dropped_first_turn_empty"] >= 1
+    assert d["dropped_clarifying_empty"] >= 1
 
 
 def test_v4_prepare_logs_first_turn_and_clarifying_counts(tmp_path: Path, capsys):

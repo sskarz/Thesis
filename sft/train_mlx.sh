@@ -8,8 +8,8 @@
 # Does not download data. Run download → format → split first (see README.md).
 # Unroll applies the SFT v5 curriculum (v4 empty-after-exec + recovery +
 # first-assistant / clarifying empty drops, plus turn-0 completeness and
-# env-state consistency) unless --recipe v4/v3/v2/v1 or keep-flags are
-# passed through EXTRA.
+# env-state consistency) unless --recipe v6/v4/v3/v2/v1 or keep-flags are
+# passed through EXTRA. v6 = v4 empty/recovery + drop_state_inconsistent only.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

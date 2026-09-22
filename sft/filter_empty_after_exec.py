@@ -1,4 +1,4 @@
-"""SFT unroll curriculum (v5 default; v1–v4 remain as ablations).
+"""SFT unroll curriculum (v5 default; v1–v4 and v6 remain as ablations).
 
 SFT v1 unrolled every assistant turn, including ToolACE ``[]`` after exec
 (Run 12 0.5%). v2 dropped only non-terminal empty-after-exec (Run 13 still
@@ -13,7 +13,16 @@ SFT v5 (this module's default) keeps every v4 empty-target drop and the
 recovery-after-``[]`` curriculum, then adds turn-0 call-set completeness
 and env-state consistency (``sft.curriculum_v5``). Conversation-level
 ``split_data`` files are not rewritten. Do **not** copy BFCL
-``multi_turn_base`` prompts into train. v5 does **not** claim a BFCL score.
+``multi_turn_base`` prompts into train. **Run 17 scored v5 IFFC 23/200 =
+11.5%** (regression vs Run 15 15.0%): state_mismatch 109→133, under_call
+59→44, empty 2→0, avg api_calls/entry 17.3→40.3. Hypothesis: synthetic
+complete turn-0 taught parallel call dumps that desync observe→act APIs.
+
+SFT v6 is **v4 empty/recovery + only** ``drop_state_inconsistent``. Turn-0
+rewrites stay off (``drop_underspecified_turn0=False``,
+``synthesize_complete_turn0=False``). Distinct recipe id — not a v4
+relabel. Select with ``--recipe v6``. Do **not** BoN this ckpt; do **not**
+add epochs on v4/v5. v6 does **not** claim a BFCL score.
 """
 
 from __future__ import annotations
@@ -47,7 +56,10 @@ RECIPE_V2 = "v2"
 RECIPE_V3 = "v3"
 RECIPE_V4 = "v4"
 RECIPE_V5 = "v5"
-RECIPES_WITH_RECOVERY = (RECIPE_V3, RECIPE_V4, RECIPE_V5)
+RECIPE_V6 = "v6"
+RECIPE_IDS = (RECIPE_V1, RECIPE_V2, RECIPE_V3, RECIPE_V4, RECIPE_V5, RECIPE_V6)
+RECIPES_WITH_RECOVERY = (RECIPE_V3, RECIPE_V4, RECIPE_V5, RECIPE_V6)
+RECIPES_WITH_V4_EMPTY = (RECIPE_V4, RECIPE_V5, RECIPE_V6)
 
 EMPTY_IFFC_TARGET = "[]"
 
@@ -172,13 +184,16 @@ def resolve_recipe(
     """Map ablation flags to a recipe id.
 
     v5 (default): v4 plus turn-0 completeness and env-state consistency.
+    v6: v4 empty/recovery plus only ``drop_state_inconsistent`` (no
+    underspecified drop, no complete-turn0 synth).
     v4: all three v5 keep/no-synth flags (empty-target curriculum only).
     v3: both ``--keep-first-assistant-empty`` and
     ``--keep-clarifying-empty-after-user`` (empty-after-exec + recovery only).
     v2: ``--keep-terminal-empty-after-exec`` (drop non-terminal only).
     v1: ``--keep-nonterminal-empty-after-exec`` (keep every assistant turn).
     Explicit ``recipe=`` wins. v1 wins if both v1/v2 keep-flags are set;
-    v2 wins over v3/v4/v5 keep-flags; v3 wins over v4/v5 keep-flags.
+    v2 wins over v3/v4/v5/v6 keep-flags; v3 wins over v4/v5/v6 keep-flags;
+    v4 wins over v6 when all three v5 keep/no-synth flags are set.
     """
     if recipe:
         return recipe
@@ -194,6 +209,8 @@ def resolve_recipe(
         and no_synthetic_complete_turn0
     ):
         return RECIPE_V4
+    if keep_underspecified_turn0 and no_synthetic_complete_turn0:
+        return RECIPE_V6
     return RECIPE_V5
 
 
@@ -209,22 +226,26 @@ def recipe_drop_flags(recipe: str) -> tuple[bool, bool]:
 def recipe_v4_drop_flags(recipe: str) -> tuple[bool, bool]:
     """Return ``(drop_first_assistant_empty, drop_clarifying_empty_after_user)``.
 
-    v4 and v5 turn these on. v1/v2/v3 keep first-turn and clarifying ``[]``
-    so those ablations stay comparable to scored Run 12 / 13 / v3 prepare.
+    v4, v5, and v6 turn these on. v1/v2/v3 keep first-turn and clarifying
+    ``[]`` so those ablations stay comparable to scored Run 12 / 13 / v3
+    prepare.
     """
-    if recipe in (RECIPE_V4, RECIPE_V5):
+    if recipe in RECIPES_WITH_V4_EMPTY:
         return True, True
     return False, False
 
 
 def recipe_v5_flags(recipe: str) -> tuple[bool, bool, bool, bool]:
-    """v5 drops/synth: underspecified, state-inconsistent, complete-turn0, absorbed.
+    """Curriculum extras: underspecified, state-inconsistent, complete-turn0, absorbed.
 
-    Only v5 turns these on. v4 (and earlier) keep underspecified first-calls
-    and state-inconsistent continues so Run 15's mix stays reproducible.
+    v5: all four on.
+    v6: only state-inconsistent (v4 empty/recovery + ``drop_state_inconsistent``).
+    v4 and earlier: all off so Run 15's mix stays reproducible.
     """
     if recipe == RECIPE_V5:
         return True, True, True, True
+    if recipe == RECIPE_V6:
+        return False, True, False, False
     return False, False, False, False
 
 
@@ -255,6 +276,13 @@ def infer_recipe(
     )
     if v5_off:
         return RECIPE_V4
+    v6_only_state = (
+        drop_underspecified_turn0 is False
+        and drop_state_inconsistent is True
+        and synthesize_complete_turn0 is False
+    )
+    if v6_only_state:
+        return RECIPE_V6
     return RECIPE_V5
 
 
@@ -775,9 +803,11 @@ def unroll_and_filter(
 
     Defaults are SFT v5: v4 empty-after-exec + recovery + first-assistant /
     clarifying ``[]`` drops, plus turn-0 completeness and env-state
-    consistency. Pass ``recipe="v4"`` (or all three v5 flags off) to ablate
-    back to v4. ``None`` v4/v5 flags follow the inferred recipe so v1/v2
-    kwargs do not silently gain later drops.
+    consistency. Pass ``recipe="v6"`` for v4 empty/recovery plus only
+    ``drop_state_inconsistent`` (no underspecified drop, no complete-turn0
+    synth). Pass ``recipe="v4"`` (or all three v5 flags off) to ablate back
+    to v4. ``None`` v4/v5 flags follow the inferred recipe so v1/v2 kwargs
+    do not silently gain later drops.
     """
     recs = list(records)
     if check_bfcl_leak:
@@ -943,8 +973,9 @@ def compare_recipe_unroll(
 ) -> dict[str, Any]:
     """Unroll the same conversations under two recipes and return row deltas.
 
-    Used by ``--compare-recipe`` so a Mac prepare can print v5 vs v4 kept /
-    dropped counts without a second CLI invocation. Does not write files.
+    Used by ``--compare-recipe`` so a Mac prepare can print v6 vs v4 (or
+    v5 vs v4) kept / dropped counts without a second CLI invocation. Does
+    not write files.
     """
     recs = list(records)
     _kept_a, stats_a = unroll_and_filter(
@@ -993,7 +1024,7 @@ def format_recipe_comparison(delta: dict[str, Any], label: str) -> str:
             f"  empty-after-exec after: "
             f"{delta['baseline_empty_after_exec_after']} → "
             f"{delta['empty_after_exec_after']}",
-            f"  v5 extra: underspecified dropped "
+            f"  curriculum extra: underspecified dropped "
             f"{delta['dropped_underspecified_turn0']}; "
             f"incomplete dropped {delta['dropped_incomplete_turn0']}; "
             f"synthetic complete {delta['synthetic_complete_turn0']}; "
@@ -1009,8 +1040,9 @@ def main(argv: list[str] | None = None) -> int:
             "Unroll conversation-level IFFC JSONL. Default SFT v5 keeps the "
             "v4 empty-after-exec + recovery curriculum and first-assistant / "
             "clarifying [] drops, then adds turn-0 call-set completeness and "
-            "env-state consistency. v4/v3/v2/v1 remain behind --recipe / "
-            "keep-flags."
+            "env-state consistency. v6 is v4 empty/recovery + only "
+            "drop_state_inconsistent (no turn-0 rewrites). v4/v3/v2/v1 remain "
+            "behind --recipe / keep-flags."
         )
     )
     parser.add_argument(
@@ -1033,13 +1065,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--recipe",
-        choices=[RECIPE_V1, RECIPE_V2, RECIPE_V3, RECIPE_V4, RECIPE_V5],
+        choices=list(RECIPE_IDS),
         default=None,
-        help="Unroll recipe id. Default v5. v4/v3/v2/v1 are ablations.",
+        help="Unroll recipe id. Default v5. v6/v4/v3/v2/v1 are ablations.",
     )
     parser.add_argument(
         "--compare-recipe",
-        choices=[RECIPE_V1, RECIPE_V2, RECIPE_V3, RECIPE_V4, RECIPE_V5],
+        choices=list(RECIPE_IDS),
         default=None,
         help="Also unroll under this baseline and print row deltas (e.g. v4).",
     )
@@ -1095,7 +1127,9 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Do not merge independently-knowable later first-episode calls "
             "into the first nonempty gold. Incomplete first-turns are dropped "
-            "instead (v5 minus synth). Pass with both v5 keep-flags for v4."
+            "instead (v5 minus synth). Pass with --keep-underspecified-turn0 "
+            "for v6 (state-inconsistent drop only); pass with both v5 "
+            "keep-flags for v4."
         ),
     )
     parser.add_argument(
