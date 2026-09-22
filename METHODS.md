@@ -1295,7 +1295,7 @@ On τ-bench (agentic evaluation), xLAM-2-70b-fc-r achieves 56.2% success rate, o
 ### Applicability
 
 - **xLAM-1b-fc-r** is directly relevant to edge deployment — at 1B parameters it fits comfortably on all target hardware. GGUF versions are published on HuggingFace (`Salesforce/xLAM-1b-fc-r-gguf`).
-- **As a benchmark model:** Running xLAM-1b-fc-r through the existing BFCL v4 pipeline would provide a fine-tuned baseline to compare against the inference-time techniques applied to base models.
+- **As a benchmark model:** Registry key `xlam-1b` is in `benchmark/config.py` (`Salesforce/xLAM-1b-fc-r-gguf`, Q4_K_M; distinct `api_name` / `slug` so results do not overwrite other models). Serve with `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M`. **No BFCL score claimed yet** (run not done). Running it through the existing BFCL v4 pipeline would provide a fine-tuned baseline to compare against the inference-time techniques applied to base models.
 - **Training data:** The xlam-function-calling-60k dataset used for training is publicly available.
 
 ### Sources
