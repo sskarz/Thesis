@@ -13,6 +13,9 @@ Function-calling modes (``--fc-mode``):
   actual tool execution results (METHODS §5). Not GST; not CD/GBNF.
 - ``iffc-state-bon``: Best-of-N majority vote overlay on IFFC+STATE
   (METHODS §4; default N=5, temperature=0.7). Not NFC/GST/CD.
+- ``xlam``: Salesforce xLAM JSON-in-text (``{"tool_calls":[{name, arguments}]}``);
+  used by multi-turn generation only. No native tools. Fair channel for
+  ``xlam-1b`` (Run 19 NFC 0/200 was format-channel collapse).
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits
 trailing IFFC assistant ``[]`` from ``chat_history`` before the next BFCL
@@ -190,7 +193,9 @@ def main():
             "iffc-state = IFFC JSON-in-text + harness-written STATE "
             "(not GST; not CD/GBNF); "
             "iffc-state-bon = Best-of-N majority vote on IFFC+STATE "
-            "(default N=5, temperature=0.7; not NFC/GST/CD)."
+            "(default N=5, temperature=0.7; not NFC/GST/CD); "
+            "xlam = Salesforce xLAM JSON-in-text "
+            '({"tool_calls":[{name, arguments}]}; no native tools).'
         ),
     )
     parser.add_argument(
@@ -320,6 +325,8 @@ def main():
                 f"temp={config.BON_TEMPERATURE}; ~N× latency)"
             )
             if args.fc_mode == config.FC_IFFC_STATE_BON
+            else " (xLAM = JSON-in-text {\"tool_calls\":[...]} ; no native tools)"
+            if args.fc_mode == config.FC_XLAM
             else " (NFC = native tools)"
         )
     )

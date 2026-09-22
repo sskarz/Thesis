@@ -142,6 +142,49 @@ def test_parse_unparseable_returns_empty_list_and_try_returns_none():
     assert parse_iffc_response("Sure, I can help with that.") == []
 
 
+def test_parse_xlam_wrapped_tool_calls():
+    text = (
+        '{"tool_calls": [{"name": "get_weather", "arguments": '
+        '{"location": "New York", "unit": "fahrenheit"}}]}'
+    )
+    assert try_parse_iffc_response(text) == [
+        {
+            "function_name": "get_weather",
+            "parameters": {"location": "New York", "unit": "fahrenheit"},
+        }
+    ]
+    assert parse_iffc_response(text) == [
+        {
+            "function_name": "get_weather",
+            "parameters": {"location": "New York", "unit": "fahrenheit"},
+        }
+    ]
+
+
+def test_parse_xlam_wrapped_empty_tool_calls():
+    assert try_parse_iffc_response('{"tool_calls": []}') == []
+    assert parse_iffc_response('{"tool_calls": []}') == []
+    assert try_parse_iffc_response('  {"tool_calls": []}  ') == []
+
+
+def test_parse_iffc_function_calls_wrapper_and_bare_list_still_work():
+    wrapped = (
+        '{"function_calls": [{"function_name": "cd", '
+        '"parameters": {"folder": "docs"}}]}'
+    )
+    assert parse_iffc_response(wrapped) == [
+        {"function_name": "cd", "parameters": {"folder": "docs"}}
+    ]
+    bare = '[{"function_name": "ls", "parameters": {"path": "."}}]'
+    assert parse_iffc_response(bare) == [
+        {"function_name": "ls", "parameters": {"path": "."}}
+    ]
+    single = '{"function_name": "ping", "parameters": {"host": "localhost"}}'
+    assert parse_iffc_response(single) == [
+        {"function_name": "ping", "parameters": {"host": "localhost"}}
+    ]
+
+
 def test_iffc_calls_to_func_strings_matches_nfc_repr_convention():
     calls = [
         {"function_name": "mv", "parameters": {"source": "a", "destination": "b"}},

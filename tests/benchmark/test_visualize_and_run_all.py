@@ -419,6 +419,55 @@ def test_run_all_gst_base_only_wires_flags(monkeypatch):
     assert "multi_turn_base" in (run["notes"] or "")
 
 
+def test_run_all_xlam_base_only_wires_flags(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+
+    calls = []
+
+    def record(name):
+        def inner(*args, **kwargs):
+            calls.append((name, args, kwargs))
+            return None
+
+        return inner
+
+    monkeypatch.setattr(run_all, "check_server", lambda: True)
+    monkeypatch.setattr(run_all.generate_responses, "run", record("generate_responses.run"))
+    monkeypatch.setattr(run_all.generate_multi_turn, "run", record("generate_multi_turn.run"))
+    monkeypatch.setattr(run_all.evaluate_responses, "run", record("evaluate_responses.run"))
+    monkeypatch.setattr(run_all.evaluate_multi_turn, "run", record("evaluate_multi_turn.run"))
+    monkeypatch.setattr(run_all.collect_metrics, "run", record("collect_metrics.run"))
+    monkeypatch.setattr(run_all.visualize, "run", record("visualize.run"))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark.run_all",
+            "--model",
+            "xlam-1b",
+            "--only-multi-turn",
+            "--categories",
+            "multi_turn_base",
+            "--fc-mode",
+            "xlam",
+        ],
+    )
+
+    run_all.main()
+
+    mt_gen = next(c for c in calls if c[0] == "generate_multi_turn.run")
+    assert mt_gen[2]["fc_mode"] == "xlam"
+    assert list(mt_gen[2]["categories"]) == ["multi_turn_base"]
+    assert "generate_responses.run" not in [c[0] for c in calls]
+    assert run_all.config.FC_MODE == "xlam"
+    assert run_all.config.MODEL_NAME == "xlam-1b"
+
+    run = db.get_run(run_all.config.RUN_ID)
+    assert run["model_key"] == "xlam-1b"
+    assert "fc_mode=xlam" in (run["notes"] or "")
+    assert "multi_turn_base" in (run["notes"] or "")
+
+
 def test_run_all_iffc_state_base_only_wires_flags(monkeypatch):
     monkeypatch.setattr(db, "_detect_hardware", lambda: {})
 

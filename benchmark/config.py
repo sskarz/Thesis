@@ -58,7 +58,9 @@ MODELS: dict[str, dict[str, str]] = {
     # overwrite other models. Run 19 NFC scored 0/200 = 0.0% on
     # multi_turn_base (format-channel collapse on this harness — not
     # published overall BFCL ~78.94%; not an ability floor). Do not
-    # overwrite. Serve with `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M`
+    # overwrite. Fair channel is `--fc-mode xlam` (no native tools).
+    # Do not invent a Run 20 score. Serve with
+    # `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M`
     # (HF file is `xLAM-1b-fc-r.Q4_K_M.gguf`; llama.cpp :quant matches
     # `Q4_K_M[.-]`).
     "xlam-1b": {
@@ -237,6 +239,10 @@ MULTI_TURN_MAX_STEPS = 20
 #        (METHODS §4 / PLAN #2; Snell et al. arXiv:2408.03314). Sample N
 #        completions at temperature=0.7, vote on (function_name, arguments)
 #        per step, execute the winner once. Not NFC/GST/CD.
+# xlam = Salesforce xLAM JSON-in-text ({"tool_calls":[{name, arguments}]}).
+#        Do not send tools/tool_choice. Parse assistant content. Empty
+#        {"tool_calls": []} ends the turn. Fair channel for xlam-1b
+#        (Run 19 NFC 0/200 was format-channel collapse, not a model score).
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
@@ -244,8 +250,17 @@ FC_CD = "cd"
 FC_GST = "gst"
 FC_IFFC_STATE = "iffc-state"
 FC_IFFC_STATE_BON = "iffc-state-bon"
-FC_MODES = (FC_NFC, FC_IFFC, FC_CD, FC_GST, FC_IFFC_STATE, FC_IFFC_STATE_BON)
-FC_JSON_TEXT_MODES = (FC_IFFC, FC_CD, FC_IFFC_STATE, FC_IFFC_STATE_BON)
+FC_XLAM = "xlam"
+FC_MODES = (
+    FC_NFC,
+    FC_IFFC,
+    FC_CD,
+    FC_GST,
+    FC_IFFC_STATE,
+    FC_IFFC_STATE_BON,
+    FC_XLAM,
+)
+FC_JSON_TEXT_MODES = (FC_IFFC, FC_CD, FC_IFFC_STATE, FC_IFFC_STATE_BON, FC_XLAM)
 FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON)
 FC_MODE: str = FC_NFC
 
