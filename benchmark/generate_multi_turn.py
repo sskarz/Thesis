@@ -16,6 +16,10 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
   from actual tool execution results. Same checker as IFFC. Not GST / CD / GBNF.
 - ``iffc-state-bon``: Best-of-N majority vote overlay on IFFC+STATE (MV@N,
   default N=5, temperature=0.7). Vote per step, execute the winner once.
+- ``xlam``: Salesforce xLAM JSON-in-text (``{"tool_calls":[{name, arguments}]}``).
+  Never sends ``tools``/``tool_choice``. Parse assistant text; empty
+  ``{"tool_calls": []}`` ends the turn. Fair channel for ``xlam-1b``
+  (Run 19 NFC 0/200 was format-channel collapse).
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits trailing
 IFFC assistant ``[]`` stop turns from ``chat_history`` before the next BFCL
@@ -35,6 +39,7 @@ from . import cd as cd_mode
 from . import config, db
 from . import gst as gst_mode
 from . import iffc_state as iffc_state_mode
+from . import xlam as xlam_mode
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
 from .iffc import (
     IFFC_PARSE_RETRIES,
@@ -164,7 +169,7 @@ def _build_chat_payload(
     active_tools: list[dict],
     fc_mode: str,
 ) -> dict:
-    """Build a chat-completions payload. IFFC/CD/iffc-state/iffc-state-bon never send tools/tool_choice.
+    """Build a chat-completions payload. IFFC/CD/iffc-state/iffc-state-bon/xlam never send tools/tool_choice.
 
     GST uses the NFC tools channel (``tools`` + ``tool_choice=auto``).
     BoN sampling uses temperature=0.7 via :mod:`benchmark.bon`; this helper
@@ -193,12 +198,15 @@ def _prepare_step_messages(
     fc_mode: str,
 ) -> None:
     if _is_json_text_mode(fc_mode):
-        # Persistent transcript is IFFC-shaped for IFFC, CD, iffc-state,
-        # and iffc-state-bon. CD applies grammar/json_schema on a working
-        # copy inside complete_step. iffc-state / iffc-state-bon keep
-        # Appendix B + a short STATE-trust addendum.
+        # Persistent transcript is JSON-in-text for IFFC, CD, iffc-state,
+        # iffc-state-bon, and xlam. CD applies grammar/json_schema on a
+        # working copy inside complete_step. iffc-state / iffc-state-bon
+        # keep Appendix B + a short STATE-trust addendum. xlam uses the
+        # Salesforce {"tool_calls":[...]} contract, not Appendix B.
         if fc_mode in config.FC_IFFC_STATE_MODES:
             iffc_state_mode.ensure_iffc_state_system_message(chat_history, active_tools)
+        elif fc_mode == config.FC_XLAM:
+            xlam_mode.ensure_xlam_system_message(chat_history, active_tools)
         else:
             ensure_iffc_system_message(chat_history, active_tools)
         return
@@ -271,12 +279,22 @@ def _decide_assistant_step(
             return "execute", func_strings, None, IFFC_PARSE_RETRIES, None
         if parsed is None and parse_retries_left > 0:
             chat_history.append({"role": "assistant", "content": content})
-            chat_history.append({"role": "user", "content": IFFC_RETRY_USER_MESSAGE})
+            retry_msg = (
+                xlam_mode.XLAM_RETRY_USER_MESSAGE
+                if fc_mode == config.FC_XLAM
+                else IFFC_RETRY_USER_MESSAGE
+            )
+            chat_history.append({"role": "user", "content": retry_msg})
             return "retry", None, None, parse_retries_left - 1, None
         chat_history.append({"role": "assistant", "content": content})
-        flag = None if parsed is not None else (
-            "cd_unparseable" if fc_mode == config.FC_CD else "iffc_unparseable"
-        )
+        if parsed is not None:
+            flag = None
+        elif fc_mode == config.FC_CD:
+            flag = "cd_unparseable"
+        elif fc_mode == config.FC_XLAM:
+            flag = "xlam_unparseable"
+        else:
+            flag = "iffc_unparseable"
         return "end_turn", None, None, parse_retries_left, flag
 
     tool_calls_raw = message.get("tool_calls")
@@ -302,6 +320,10 @@ def _append_execution_feedback(
         if fc_mode in config.FC_IFFC_STATE_MODES and state_tracker is not None:
             content = iffc_state_mode.record_and_format(
                 state_tracker, func_strings, exec_results
+            )
+        elif fc_mode == config.FC_XLAM:
+            content = xlam_mode.format_xlam_execution_user_message(
+                func_strings, exec_results
             )
         else:
             content = format_iffc_execution_user_message(func_strings, exec_results)
@@ -933,7 +955,7 @@ def run(
 
 def _parse_cli() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, GST, IFFC+STATE, or IFFC+STATE+BoN)."
+        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, GST, IFFC+STATE, IFFC+STATE+BoN, or xLAM)."
     )
     parser.add_argument(
         "--fc-mode",
@@ -950,7 +972,9 @@ def _parse_cli() -> argparse.Namespace:
             "iffc-state = IFFC JSON-in-text plus harness-written STATE "
             "(not GST; not CD/GBNF). "
             "iffc-state-bon = Best-of-N majority vote on IFFC+STATE "
-            "(default N=5, temperature=0.7; not NFC/GST/CD)."
+            "(default N=5, temperature=0.7; not NFC/GST/CD). "
+            "xlam = Salesforce xLAM JSON-in-text "
+            '({"tool_calls":[{name, arguments}]}; no native tools).'
         ),
     )
     parser.add_argument(

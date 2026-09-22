@@ -100,9 +100,14 @@ def try_parse_iffc_response(content: str | None) -> list[dict] | None:
     """Extract a JSON call list from assistant text.
 
     Returns:
-        * ``[]`` if the model emitted an empty list
+        * ``[]`` if the model emitted an empty list (bare ``[]`` or
+          wrapped ``{"function_calls": []}`` / ``{"tool_calls": []}``)
         * a list of ``{"function_name", "parameters"}`` dicts
         * ``None`` if no JSON list/object could be parsed (caller may retry)
+
+    Accepts a bare list, a single call dict, IFFC
+    ``{"function_calls": [...]}``, or Salesforce xLAM
+    ``{"tool_calls": [{name, arguments}, ...]}``.
     """
     if content is None:
         return None
@@ -234,12 +239,17 @@ def _parse_json_candidate(text: str) -> list[dict] | None:
 
 
 def _normalize_calls(value: Any) -> list[dict] | None:
-    """Accept a list of call dicts, a single call dict, or ``[]``."""
+    """Accept a list of call dicts, a single call dict, ``[]``, or a wrapped
+    ``function_calls`` / ``tool_calls`` object.
+    """
     if isinstance(value, dict):
         if "function_name" in value or "name" in value:
             value = [value]
         elif isinstance(value.get("function_calls"), list):
             value = value["function_calls"]
+        elif isinstance(value.get("tool_calls"), list):
+            # Salesforce xLAM JSON-in-text: {"tool_calls": [{name, arguments}, ...]}
+            value = value["tool_calls"]
         else:
             return None
     if not isinstance(value, list):

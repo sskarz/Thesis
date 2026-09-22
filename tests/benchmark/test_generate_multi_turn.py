@@ -245,6 +245,157 @@ def test_generate_for_entry_iffc_parses_json_and_feeds_user_results(monkeypatch)
     assert timing["flags"] == ""
 
 
+def test_generate_for_entry_xlam_parses_wrapped_json_and_omits_native_tools(
+    monkeypatch,
+):
+    payloads: list[dict] = []
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"tool_calls": [{"name": "cd", '
+                                '"arguments": {"folder": "docs"}}]}'
+                            )
+                        }
+                    }
+                ],
+                "timings": _timings(),
+            },
+            {
+                "choices": [
+                    {
+                        "message": {"content": '{"tool_calls": []}'},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "timings": _timings(15, 30, 2, 10),
+            },
+        ]
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    executed = []
+
+    def fake_execute(**kwargs):
+        executed.append(kwargs)
+        return ["tool-result"], None
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        fake_execute,
+    )
+
+    entry = {
+        "id": "xlam-1",
+        "initial_config": {"cwd": "/tmp"},
+        "involved_classes": ["fs"],
+        "question": [[{"role": "user", "content": "Open docs"}]],
+    }
+    all_tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "cd",
+                "description": "change directory",
+                "parameters": {"type": "object", "properties": {"folder": {"type": "string"}}},
+            },
+        }
+    ]
+
+    turn_results, timing = generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_base",
+        all_tools,
+        fc_mode="xlam",
+    )
+
+    assert turn_results == [[["cd(folder='docs')"]]]
+    assert "tools" not in payloads[0]
+    assert "tool_choice" not in payloads[0]
+    assert payloads[0]["messages"][0]["role"] == "system"
+    system = payloads[0]["messages"][0]["content"]
+    assert "expert in composing functions" in system
+    assert '"tool_calls"' in system
+    assert "cd" in system
+    assert "expert in function calling" not in system
+
+    followup = payloads[1]["messages"]
+    assert followup[-2]["role"] == "assistant"
+    assert followup[-1]["role"] == "user"
+    assert "tool-result" in followup[-1]["content"]
+    assert '"tool_calls"' in followup[-1]["content"]
+    assert "function_name" not in followup[-1]["content"]
+    assert not any(m.get("role") == "tool" for m in followup)
+    assert executed[0]["func_call_list"] == ["cd(folder='docs')"]
+    assert timing["id"] == "xlam-1"
+    assert timing["api_calls"] == 2
+    assert timing["flags"] == ""
+
+
+def test_generate_for_entry_nfc_ignores_xlam_json_in_content(monkeypatch):
+    """NFC only executes message.tool_calls — Run 19 collapse stays NFC-only."""
+    payloads: list[dict] = []
+    responses = iter(
+        [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"tool_calls": [{"name": "cd", '
+                                '"arguments": {"folder": "docs"}}]}'
+                            )
+                        }
+                    }
+                ],
+                "timings": _timings(),
+            },
+        ]
+    )
+
+    def fake_post(url, json, timeout):  # noqa: A002
+        payloads.append(copy.deepcopy(json))
+        return _FakeResponse(next(responses))
+
+    monkeypatch.setattr(generate_multi_turn.requests, "post", fake_post)
+    monkeypatch.setattr(
+        generate_multi_turn,
+        "execute_multi_turn_func_call",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("NFC must not execute content JSON")),
+    )
+
+    entry = {
+        "id": "nfc-xlam-content",
+        "initial_config": {},
+        "involved_classes": [],
+        "question": [[{"role": "user", "content": "Open docs"}]],
+    }
+    all_tools = [
+        {"type": "function", "function": {"name": "cd"}},
+    ]
+
+    turn_results, timing = generate_multi_turn.generate_for_entry(
+        entry,
+        "multi_turn_base",
+        all_tools,
+        fc_mode="nfc",
+    )
+
+    assert turn_results == [[]]
+    assert payloads[0]["tools"] == all_tools
+    assert payloads[0]["tool_choice"] == "auto"
+    assert timing["api_calls"] == 1
+    assert timing["flags"] == ""
+
+
 def _cd_tool():
     return {
         "type": "function",
@@ -367,6 +518,8 @@ def test_maybe_strip_empty_assistant_is_noop_for_nfc_and_cd():
     assert history[-1]["content"] == "[]"
     generate_multi_turn._maybe_strip_trailing_empty_assistant(history, "gst", True)
     assert history[-1]["content"] == "[]"
+    generate_multi_turn._maybe_strip_trailing_empty_assistant(history, "xlam", True)
+    assert history[-1]["content"] == "[]"
     generate_multi_turn._maybe_strip_trailing_empty_assistant(history, "iffc", True)
     assert history[-1]["role"] == "user"
     for mode in ("iffc-state", "iffc-state-bon"):
@@ -435,6 +588,7 @@ def test_build_chat_payload_nfc_and_gst_keep_tools_iffc_cd_and_iffc_state_omit_t
     cd = generate_multi_turn._build_chat_payload(history, tools, "cd")
     iffc_state = generate_multi_turn._build_chat_payload(history, tools, "iffc-state")
     bon = generate_multi_turn._build_chat_payload(history, tools, "iffc-state-bon")
+    xlam = generate_multi_turn._build_chat_payload(history, tools, "xlam")
     assert nfc["tools"] == tools
     assert nfc["tool_choice"] == "auto"
     assert nfc["temperature"] == 0.0
@@ -453,6 +607,9 @@ def test_build_chat_payload_nfc_and_gst_keep_tools_iffc_cd_and_iffc_state_omit_t
     assert "tools" not in bon
     assert "tool_choice" not in bon
     assert bon["temperature"] == 0.7
+    assert "tools" not in xlam
+    assert "tool_choice" not in xlam
+    assert xlam["temperature"] == 0.0
 
 
 def test_generate_for_entry_cd_two_pass_no_native_tools(monkeypatch):

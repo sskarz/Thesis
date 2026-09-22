@@ -21,6 +21,7 @@ Thesis/
 │   ├── generate_responses.py          # Send BFCL tests → save responses + timings to DB
 │   ├── generate_multi_turn.py         # Multi-turn tool execution loop → DB
 │   ├── iffc.py                        # IFFC Appendix B prompt + JSON-in-text parser
+│   ├── xlam.py                        # xLAM JSON-in-text ({"tool_calls":[...]} ) prompt
 │   ├── cd.py                          # TagDispatch-style CD (name GBNF + per-tool json_schema)
 │   ├── gst.py                         # GST 7-step curriculum (arXiv:2509.18076) on NFC tools
 │   ├── iffc_state.py                  # IFFC+STATE overlay (harness-written working memory)
@@ -174,9 +175,11 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-t
 # uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v4 --only-multi-turn \
 #   --categories multi_turn_base --fc-mode iffc
 # xLAM-1b-fc-r (PLAN Tier 1 §3): registry key `xlam-1b` exists ([PR #41](https://github.com/sskarz/Thesis/pull/41));
-# Run 19 NFC already scored 0/200 = 0.0% — do not overwrite.
-# uv run python -m benchmark.run_all --model xlam-1b --only-multi-turn \
-#   --categories multi_turn_base --fc-mode nfc
+# Run 19 NFC already scored 0/200 = 0.0% (format-channel collapse — NFC never
+# parses assistant content). Do not overwrite. Fair baseline is --fc-mode xlam.
+# Do not invent a Run 20 score; do not claim published ~78.94% parity.
+# uv run python -m benchmark.run_all --model xlam-1b --fc-mode xlam \
+#   --only-multi-turn --categories multi_turn_base
 ```
 
 ### Query the database
@@ -230,7 +233,7 @@ cd /home/sanskar/Documents/Github/Thesis/llama.cpp
 
 ### Start xLAM-1b-fc-r server
 
-Published fine-tuned SLM baseline (PLAN Tier 1 §3 / METHODS §15). Use `--model xlam-1b` for scoring identity so results do not overwrite other models. **Run 19 already scored `--fc-mode nfc` at 0/200 = 0.0%** (format-channel collapse on this harness — **not** published overall BFCL ~78.94%; **not** an ability floor). Do **not** overwrite.
+Published fine-tuned SLM baseline (PLAN Tier 1 §3 / METHODS §15). Use `--model xlam-1b` for scoring identity so results do not overwrite other models. **Run 19 already scored `--fc-mode nfc` at 0/200 = 0.0%** (format-channel collapse on this harness — all "Model response list is empty for turn 0"; JSON in `content`, not OpenAI `tool_calls`; **not** published overall BFCL ~78.94%; **not** an ability floor). Do **not** overwrite. Fair baseline is `--fc-mode xlam`. **Do not invent a Run 20 score; do not claim published ~78.94% parity.**
 
 ```bash
 cd /path/to/Thesis/llama.cpp
@@ -238,6 +241,13 @@ cd /path/to/Thesis/llama.cpp
   -hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M \
   --host 0.0.0.0 --port 8080 -ngl 99 -c 16384 --temp 0.0 \
   -np 4 -cb -ub 1024
+```
+
+Then score:
+
+```bash
+uv run python -m benchmark.run_all --model xlam-1b --fc-mode xlam \
+  --only-multi-turn --categories multi_turn_base
 ```
 
 **Note:** llama.cpp `-hf user/repo:quant` is case-insensitive regex `Q4_K_M[.-]` (not bartowski-only). The Salesforce file is `xLAM-1b-fc-r.Q4_K_M.gguf` (dot before the quant), which still matches. If selection fails, override with `--hf-file xLAM-1b-fc-r.Q4_K_M.gguf`. Native context is 16k.

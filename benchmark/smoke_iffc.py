@@ -81,6 +81,21 @@ def run_fixture_checks() -> None:
     assert try_parse_iffc_response("not json at all") is None
     assert parse_iffc_response("not json at all") == []
 
+    xlam_wrap = parse_iffc_response(
+        '{"tool_calls": [{"name": "get_weather", '
+        '"arguments": {"location": "New York", "unit": "fahrenheit"}}]}'
+    )
+    assert xlam_wrap == [
+        {
+            "function_name": "get_weather",
+            "parameters": {"location": "New York", "unit": "fahrenheit"},
+        }
+    ]
+    assert parse_iffc_response('{"tool_calls": []}') == []
+    assert parse_iffc_response(
+        '{"function_calls": [{"function_name": "ls", "parameters": {}}]}'
+    ) == [{"function_name": "ls", "parameters": {}}]
+
 
 class _ScriptedChatHandler(BaseHTTPRequestHandler):
     """Minimal OpenAI-compatible chat completions endpoint with scripted replies."""
