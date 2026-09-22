@@ -40,8 +40,9 @@ These directly support the thesis claim of "optimization" and are required for t
 
 - **What:** Run existing pipeline on `Salesforce/xLAM-1b-fc-r-gguf` — zero code change
 - **Why:** Provides a fine-tuned SLM comparison point. Answers: "how far can inference-time methods close the gap toward a purpose-built model?"
-- **Expected score:** ~78.94% overall (published BFCL result)
-- **Effort:** Low (just add to config.py model registry, run benchmark)
+- **Registry:** key `xlam-1b` is in `benchmark/config.py` (`hf_repo` `Salesforce/xLAM-1b-fc-r-gguf`, `quant` `Q4_K_M`, distinct `api_name` / `slug`). **No BFCL score claimed yet** (run not done). Do not invent one.
+- **Expected score:** ~78.94% overall (published BFCL result; not a score from this pipeline)
+- **Effort:** Low (registry done; remaining work is serve + `run_all`)
 - **Source:** Zhang et al., "xLAM: Large Action Models," arXiv:2409.03215
 
 ### 4. MLX LoRA SFT of Gemma-4-E2B (METHODS — Experiment: MLX SFT)
@@ -117,7 +118,7 @@ This answers the central question from METHODS.md: **does fine-tuning or inferen
 
 1. Guided-Structured Templates (prompt change only)
 2. Run multi-turn evaluation (pipeline exists)
-3. Add xLAM-1b-fc-r to model registry and benchmark
+3. Add xLAM-1b-fc-r to model registry and benchmark — **registry key `xlam-1b` exists**; benchmark run not done; **do not claim a score**
 4. Best-of-N majority voting wrapper
 5. Context compression for multi-turn
 6. Parallel calling grammar investigation

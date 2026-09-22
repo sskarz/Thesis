@@ -167,6 +167,9 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-t
 # do not BoN this ckpt; do not more-epochs the v5 mix; next prepare is --recipe v6.
 # uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v4 --only-multi-turn \
 #   --categories multi_turn_base --fc-mode iffc
+# xLAM-1b-fc-r (PLAN Tier 1 §3): registry key `xlam-1b` exists; no BFCL score yet.
+# uv run python -m benchmark.run_all --model xlam-1b --only-multi-turn \
+#   --categories multi_turn_base
 ```
 
 ### Query the database
@@ -217,6 +220,20 @@ cd /home/sanskar/Documents/Github/Thesis/llama.cpp
 ```
 
 **Note:** FunctionGemma uses a non-standard output format (`<start_function_call>call:name{args}<end_function_call>`) that llama-server cannot parse into OpenAI-style `tool_calls`. The custom parser in `benchmark/parse_functiongemma.py` post-processes the raw `content` field into the `[{"func": {args}}]` format expected by the BFCL evaluator. This is called automatically by `generate_responses.py`.
+
+### Start xLAM-1b-fc-r server
+
+Published fine-tuned SLM baseline (PLAN Tier 1 §3 / METHODS §15). Use `--model xlam-1b` for scoring identity so results do not overwrite other models. **No BFCL score claimed yet.**
+
+```bash
+cd /path/to/Thesis/llama.cpp
+./build/bin/llama-server --jinja -fa on \
+  -hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 16384 --temp 0.0 \
+  -np 4 -cb -ub 1024
+```
+
+**Note:** llama.cpp `-hf user/repo:quant` is case-insensitive regex `Q4_K_M[.-]` (not bartowski-only). The Salesforce file is `xLAM-1b-fc-r.Q4_K_M.gguf` (dot before the quant), which still matches. If selection fails, override with `--hf-file xLAM-1b-fc-r.Q4_K_M.gguf`. Native context is 16k.
 
 ### Start SFT Gemma (Mac-local GGUF)
 

@@ -172,6 +172,43 @@ def test_sft_iffc_v6_model_is_distinct_from_v1_v2_v4_v5_and_base():
         config.select_model(previous)
 
 
+def test_xlam_1b_model_is_distinct_from_other_registry_keys():
+    key = "xlam-1b"
+    assert key in config.MODELS
+
+    xlam = config.MODELS[key]
+    gemma = config.MODELS["gemma4-e2b"]
+    fg = config.MODELS["functiongemma-270m"]
+    qwen = config.MODELS["qwen2.5-3b"]
+    assert xlam["hf_repo"] == "Salesforce/xLAM-1b-fc-r-gguf"
+    assert xlam["quant"] == "Q4_K_M"
+    assert xlam["api_name"] == "xlam-1b"
+    assert xlam["display"] == "xLAM-1b-fc-r (Q4_K_M)"
+    assert xlam["slug"] == "xLAM-1b-fc-r-Q4_K_M"
+    assert xlam["api_name"] != gemma["api_name"]
+    assert xlam["slug"] != gemma["slug"]
+    assert xlam["display"] != gemma["display"]
+    assert xlam["api_name"] != fg["api_name"]
+    assert xlam["slug"] != fg["slug"]
+    assert xlam["api_name"] != qwen["api_name"]
+    assert xlam["slug"] != qwen["slug"]
+
+    previous = config.DEFAULT_MODEL
+    try:
+        config.select_model(key)
+        assert config.MODEL_NAME == "xlam-1b"
+        assert config.MODEL_DISPLAY == "xLAM-1b-fc-r (Q4_K_M)"
+        assert config.MODEL_SLUG == "xLAM-1b-fc-r-Q4_K_M"
+        assert config.MODEL_HF_REPO == "Salesforce/xLAM-1b-fc-r-gguf"
+        assert config.MODEL_QUANT == "Q4_K_M"
+        assert config.MODEL_RESULTS_DIR == config.RESULTS_DIR / xlam["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / gemma["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / fg["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / qwen["slug"]
+    finally:
+        config.select_model(previous)
+
+
 def test_iffc_strip_empty_assistant_nests_figures_without_changing_model_key():
     previous = config.DEFAULT_MODEL
     try:
