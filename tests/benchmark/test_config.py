@@ -130,6 +130,48 @@ def test_sft_iffc_v5_model_is_distinct_from_v1_v2_v4_and_base():
         config.select_model(previous)
 
 
+def test_sft_iffc_v6_model_is_distinct_from_v1_v2_v4_v5_and_base():
+    key = "gemma4-e2b-sft-iffc-v6"
+    assert key in config.MODELS
+
+    v6 = config.MODELS[key]
+    v5 = config.MODELS["gemma4-e2b-sft-iffc-v5"]
+    v4 = config.MODELS["gemma4-e2b-sft-iffc-v4"]
+    v2 = config.MODELS["gemma4-e2b-sft-iffc-v2"]
+    v1 = config.MODELS["gemma4-e2b-sft-iffc"]
+    base = config.MODELS["gemma4-e2b"]
+    assert v6["api_name"] == "gemma4-e2b-sft-iffc-v6"
+    assert v6["display"] == "Gemma-4-E2B-it SFT-IFFC-v6 (Q4_K_M)"
+    assert v6["slug"] == "Gemma-4-E2B-it-SFT-IFFC-v6-Q4_K_M"
+    assert v6["gguf_path"] == "sft/fused/gemma-4-e2b-it-iffc-v6-best1800-Q4_K_M.gguf"
+    assert v6["api_name"] != v5["api_name"]
+    assert v6["slug"] != v5["slug"]
+    assert v6["display"] != v5["display"]
+    assert v6["api_name"] != v4["api_name"]
+    assert v6["slug"] != v4["slug"]
+    assert v6["api_name"] != v2["api_name"]
+    assert v6["slug"] != v2["slug"]
+    assert v6["api_name"] != v1["api_name"]
+    assert v6["slug"] != v1["slug"]
+    assert v6["api_name"] != base["api_name"]
+    assert v6["slug"] != base["slug"]
+
+    previous = config.DEFAULT_MODEL
+    try:
+        config.select_model(key)
+        assert config.MODEL_NAME == "gemma4-e2b-sft-iffc-v6"
+        assert config.MODEL_DISPLAY == "Gemma-4-E2B-it SFT-IFFC-v6 (Q4_K_M)"
+        assert config.MODEL_SLUG == "Gemma-4-E2B-it-SFT-IFFC-v6-Q4_K_M"
+        assert config.MODEL_RESULTS_DIR == config.RESULTS_DIR / v6["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v5["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v4["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v2["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v1["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / base["slug"]
+    finally:
+        config.select_model(previous)
+
+
 def test_iffc_strip_empty_assistant_nests_figures_without_changing_model_key():
     previous = config.DEFAULT_MODEL
     try:
