@@ -4,7 +4,10 @@ Run 15 (v4) largely fixed empty-``[]`` self-conditioning (2 empty-turn
 primaries / 170 failures) but left **state_mismatch ~64%** and
 **under_calling ~35% (mostly turn 0)**. v5 does **not** add epochs on the
 v4 mix, does **not** treat BoN as the win, and does **not** copy BFCL
-``multi_turn_base`` prompts into train.
+``multi_turn_base`` prompts into train. **Run 17 scored v5 IFFC 23/200 =
+11.5%** (regression vs Run 15): synthetic complete turn-0 is the suspected
+harm. Recipe **v6** reuses only ``is_state_inconsistent_continue`` from this
+module (underspecified drop and complete-turn0 synth stay off).
 
 Verified data gaps (not assumed root causes):
 
@@ -18,7 +21,9 @@ Verified data gaps (not assumed root causes):
   after-exec calls that use a user-named entity the observation never
   confirmed teach state mismatch.
 
-v5 (on top of v4 empty-target drops + recovery-after-``[]``):
+v5 (on top of v4 empty-target drops + recovery-after-``[]``). v6 keeps
+item 2 only (``drop_state_inconsistent``) and leaves items 1's turn-0
+rewrites off:
 
 1. **Turn-0 call-set completeness**
    * xLAM / first-call underspec: drop when the opening user text mentions

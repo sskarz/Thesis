@@ -98,7 +98,7 @@ CHAT_FORMAT = "iffc"
 THESIS_TEST = "BFCL v4 multi_turn_base (never in train/val/corpus_test)"
 
 # IDs / sources that must never appear in the SFT mix.
-# Checked at split time and again when unrolling mlx rows (SFT v5).
+# Checked at split time and again when unrolling mlx rows (SFT v5 default; v6 selectable).
 BFCL_FORBIDDEN_ID_PATTERNS = (
     "bfcl_v",
     "bfcl-v",

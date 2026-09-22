@@ -484,8 +484,9 @@ def unroll_conversation(record: dict) -> list[dict]:
     This helper is unfiltered. ``sft.train_mlx.prepare_mlx_data`` runs
     ``sft.filter_empty_after_exec`` (SFT v5 by default): v4 empty-after-exec
     drop + recovery + first-assistant / clarifying ``[]`` drops, plus turn-0
-    completeness and env-state consistency. Recovery history-only ``[]``
-    insertion is unchanged.
+    completeness and env-state consistency. Pass ``recipe="v6"`` for v4
+    empty/recovery plus only ``drop_state_inconsistent``. Recovery
+    history-only ``[]`` insertion is unchanged.
     """
     messages = record.get("messages") or []
     rows: list[dict] = []
@@ -514,7 +515,8 @@ def unroll_records(records: list[dict]) -> list[dict]:
     """Unroll every assistant turn with **no** empty-after-exec filter.
 
     Training data should go through ``sft.filter_empty_after_exec.unroll_and_filter``
-    (used by ``sft.train_mlx.prepare_mlx_data``; SFT v5 default).
+    (used by ``sft.train_mlx.prepare_mlx_data``; SFT v5 default, or
+    ``recipe="v6"``).
     """
     out: list[dict] = []
     for rec in records:
