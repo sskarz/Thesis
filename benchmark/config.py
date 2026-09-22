@@ -55,9 +55,12 @@ MODELS: dict[str, dict[str, str]] = {
     },
     # PLAN Tier 1 §3 / METHODS §15: published xLAM-1b-fc-r GGUF as a
     # fine-tuned SLM baseline. Distinct api_name/slug so results do not
-    # overwrite other models. Registry only — no BFCL score claimed yet.
-    # Serve with `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M` (HF file is
-    # `xLAM-1b-fc-r.Q4_K_M.gguf`; llama.cpp :quant matches `Q4_K_M[.-]`).
+    # overwrite other models. Run 19 NFC scored 0/200 = 0.0% on
+    # multi_turn_base (format-channel collapse on this harness — not
+    # published overall BFCL ~78.94%; not an ability floor). Do not
+    # overwrite. Serve with `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M`
+    # (HF file is `xLAM-1b-fc-r.Q4_K_M.gguf`; llama.cpp :quant matches
+    # `Q4_K_M[.-]`).
     "xlam-1b": {
         "hf_repo": "Salesforce/xLAM-1b-fc-r-gguf",
         "quant": "Q4_K_M",
