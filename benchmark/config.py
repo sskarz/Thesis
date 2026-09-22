@@ -53,6 +53,18 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Gemma-4-E2B-it (Q4_K_M)",
         "slug": "Gemma-4-E2B-it-Q4_K_M",
     },
+    # PLAN Tier 1 §3 / METHODS §15: published xLAM-1b-fc-r GGUF as a
+    # fine-tuned SLM baseline. Distinct api_name/slug so results do not
+    # overwrite other models. Registry only — no BFCL score claimed yet.
+    # Serve with `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M` (HF file is
+    # `xLAM-1b-fc-r.Q4_K_M.gguf`; llama.cpp :quant matches `Q4_K_M[.-]`).
+    "xlam-1b": {
+        "hf_repo": "Salesforce/xLAM-1b-fc-r-gguf",
+        "quant": "Q4_K_M",
+        "api_name": "xlam-1b",
+        "display": "xLAM-1b-fc-r (Q4_K_M)",
+        "slug": "xLAM-1b-fc-r-Q4_K_M",
+    },
     # Mac-local MLX LoRA SFT (IFFC mix, best val @ iter 1000). Not on HuggingFace.
     # llama-server is started with `-m <local.gguf>` (see CLAUDE.md / sft/README.md);
     # `--model gemma4-e2b-sft-iffc` is scoring identity only — do not reuse gemma4-e2b.
