@@ -1,10 +1,11 @@
 """Thin wrapper around ``mlx_lm.lora`` for the IFFC SFT mix.
 
 Unrolls conversation-level splits so ``--mask-prompt`` trains every assistant
-turn, then applies the SFT v5 curriculum (v4 empty-after-exec + recovery +
-first-assistant / clarifying ``[]`` drops, plus turn-0 completeness and
-env-state consistency; see ``sft.filter_empty_after_exec``). Does **not**
-run training in CI; on Linux this prints the command.
+turn, then applies the SFT v5 curriculum by default (v4 empty-after-exec +
+recovery + first-assistant / clarifying ``[]`` drops, plus turn-0 completeness
+and env-state consistency; see ``sft.filter_empty_after_exec``). Pass
+``--recipe v6`` for v4 empty/recovery plus only ``drop_state_inconsistent``.
+Does **not** run training in CI; on Linux this prints the command.
 """
 
 from __future__ import annotations
@@ -39,11 +40,7 @@ from sft.config import (
     VALID_JSONL,
 )
 from sft.filter_empty_after_exec import (
-    RECIPE_V1,
-    RECIPE_V2,
-    RECIPE_V3,
-    RECIPE_V4,
-    RECIPE_V5,
+    RECIPE_IDS,
     RECIPES_WITH_RECOVERY,
     compare_recipe_unroll,
     format_recipe_comparison,
@@ -79,8 +76,9 @@ def prepare_mlx_data(
 
     Default SFT v5 keeps the v4 empty-after-exec drop + recovery curriculum
     and first-assistant / clarifying ``[]`` drops, then adds turn-0
-    completeness and env-state consistency. Conversation-level splits are
-    unchanged.
+    completeness and env-state consistency. Pass ``recipe="v6"`` for v4
+    empty/recovery plus only ``drop_state_inconsistent``. Conversation-level
+    splits are unchanged.
     """
     if recipe is None:
         recipe = infer_recipe(
@@ -252,13 +250,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--recipe",
-        choices=[RECIPE_V1, RECIPE_V2, RECIPE_V3, RECIPE_V4, RECIPE_V5],
+        choices=list(RECIPE_IDS),
         default=None,
-        help="Unroll recipe id. Default v5. v4/v3/v2/v1 are ablations.",
+        help="Unroll recipe id. Default v5. v6/v4/v3/v2/v1 are ablations.",
     )
     parser.add_argument(
         "--compare-recipe",
-        choices=[RECIPE_V1, RECIPE_V2, RECIPE_V3, RECIPE_V4, RECIPE_V5],
+        choices=list(RECIPE_IDS),
         default=None,
         help="Also unroll under this baseline and print row deltas (e.g. v4).",
     )
@@ -300,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "Do not insert a history-only [] after tool results on the next "
-            "user→call unroll row (v3/v4/v5 default inserts it)."
+            "user→call unroll row (v3/v4/v5/v6 default inserts it)."
         ),
     )
     parser.add_argument(
@@ -325,7 +323,9 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Do not merge independently-knowable later first-episode calls "
             "into the first nonempty gold. Incomplete first-turns are dropped "
-            "instead. Pass with both v5 keep-flags for v4."
+            "instead. Pass with --keep-underspecified-turn0 for v6 "
+            "(state-inconsistent drop only); pass with both v5 keep-flags "
+            "for v4."
         ),
     )
     args = parser.parse_args(argv)

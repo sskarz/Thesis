@@ -1,10 +1,10 @@
-# SFT v5 — MLX LoRA on Gemma-4-E2B (IFFC JSON-in-text)
+# SFT v5 default / v6 selectable — MLX LoRA on Gemma-4-E2B (IFFC JSON-in-text)
 
 Frozen data mix and split for supervised fine-tuning of **Gemma-4-E2B-it** on Apple Silicon with [mlx-lm](https://github.com/ml-explore/mlx-lm) LoRA. Training targets match the existing `--fc-mode iffc` harness (`benchmark/iffc.py`): assistant turns are a JSON list of `{"function_name", "parameters"}`; tool results are user-role observations. Native `tool_calls` are **not** mixed into this adapter dataset.
 
-This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored the v1 mix as a negative: 1/200 = 0.5%** on BFCL v4 `multi_turn_base` (`gemma4-e2b-sft-iffc`, fused Q4_K_M best@1000). Root cause is ToolACE stop-after-tools `[]` targets (5520 empty assistant turns; 78.1% of post-tool-result targets are `[]`), **not** the IFFC parser (zero `iffc_unparseable`). **Run 13 scored the v2 filtered non-terminal-`[]` mix as the same collapse: 1/200 = 0.5%** (`gemma4-e2b-sft-iffc-v2`, LoRA best@2000 `val=0.211`; only `multi_turn_base_50`; correct-set overlap identical with Run 12). PR #24 dropped 334 mid-trajectory empty-after-exec (non-terminal 334→0) and still kept 552 terminal; the filter did **not** recover. **Run 14** (`--iffc-strip-empty-assistant` on the same v2 GGUF) scored **4/200 = 2.0%** as a **DIAGNOSTIC** history-bookkeeping ablation — did **not** rescue the never-start collapse; **do not present 2% as a method win**. **Run 15 scored SFT-IFFC-v4 LoRA best@1600 as a recovery: 30/200 = 15.0%** (`gemma4-e2b-sft-iffc-v4`, `val=0.196`) — empty-`[]` largely fixed (2/170 empty errors), still **below IFFC 30.5% and below NFC 27.0%**. **Do not present 15% as beating IFFC.** **Run 16 scored IFFC+STATE on that same v4 GGUF as a negative/null overlay: 26/200 = 13.0%** (−2.0 pp vs Run 15). STATE helps base Gemma, not this checkpoint. **Do not propose BoN as the next win on this ckpt.** **Run 17 scored SFT-IFFC-v5 LoRA best@1800 as a regression: 23/200 = 11.5%** (`gemma4-e2b-sft-iffc-v5`, `val=0.147`) — **−3.5 pp / −7 vs Run 15**, also below Run 16 13.0%. Empty-`[]` fully suppressed (0 empty errors); residual state_mismatch 133 / under_call 44. **Do not present 11.5% as a method win.** **No BoN on this ckpt; no more epochs on the v5 mix.** v4 IFFC 15% remains best SFT recovery. Do **not** train more epochs on v1 or the v2 mix, run BoN/STATE on those collapsed checkpoints, or claim the v2 `[]` filter fixed SFT.
+This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored the v1 mix as a negative: 1/200 = 0.5%** on BFCL v4 `multi_turn_base` (`gemma4-e2b-sft-iffc`, fused Q4_K_M best@1000). Root cause is ToolACE stop-after-tools `[]` targets (5520 empty assistant turns; 78.1% of post-tool-result targets are `[]`), **not** the IFFC parser (zero `iffc_unparseable`). **Run 13 scored the v2 filtered non-terminal-`[]` mix as the same collapse: 1/200 = 0.5%** (`gemma4-e2b-sft-iffc-v2`, LoRA best@2000 `val=0.211`; only `multi_turn_base_50`; correct-set overlap identical with Run 12). PR #24 dropped 334 mid-trajectory empty-after-exec (non-terminal 334→0) and still kept 552 terminal; the filter did **not** recover. **Run 14** (`--iffc-strip-empty-assistant` on the same v2 GGUF) scored **4/200 = 2.0%** as a **DIAGNOSTIC** history-bookkeeping ablation — did **not** rescue the never-start collapse; **do not present 2% as a method win**. **Run 15 scored SFT-IFFC-v4 LoRA best@1600 as a recovery: 30/200 = 15.0%** (`gemma4-e2b-sft-iffc-v4`, `val=0.196`) — empty-`[]` largely fixed (2/170 empty errors), still **below IFFC 30.5% and below NFC 27.0%**. **Do not present 15% as beating IFFC.** **Run 16 scored IFFC+STATE on that same v4 GGUF as a negative/null overlay: 26/200 = 13.0%** (−2.0 pp vs Run 15). STATE helps base Gemma, not this checkpoint. **Do not propose BoN as the next win on this ckpt.** **Run 17 scored SFT-IFFC-v5 LoRA best@1800 as a regression: 23/200 = 11.5%** (`gemma4-e2b-sft-iffc-v5`, `val=0.147`) — **−3.5 pp / −7 vs Run 15**, also below Run 16 13.0% (state_mismatch 109→133, under_call 59→44, empty 2→0, avg api_calls/entry 17.3→40.3; lost corrects heavily TradingBot). Hypothesis: v5 **synthetic complete turn-0** taught parallel call dumps that desync observe→act APIs. **Do not present 11.5% as a method win.** **No BoN on this ckpt; no more epochs on the v5 mix.** v4 IFFC 15% remains best SFT recovery. Next: **recipe v6** (v4 empty/recovery + only `drop_state_inconsistent`; turn-0 rewrites off). Do **not** train more epochs on v1/v2/v4/v5, run BoN/STATE on those checkpoints, or claim the v2 `[]` filter fixed SFT.
 
-**SFT v3** (PR #29) dropped **all** empty-after-exec `[]` targets including terminal and kept / synthesized **recovery_after_empty**. Prepare: empty-after-exec targets = 0; `recovery_after_empty` ≈ 397. Recovery-after-`[]` already PASSes. **SFT v4** (PR #31, Run 15 **30/200 = 15.0%**) extends that curriculum without weakening it: leftover ToolACE empties after ordinary (non-exec) user messages (~2471 clarifying / chitchat `[]`) and first-assistant-in-prefix `[]` (~1859 rows, ~5.7%) still taught turn-0 never-start. v4 drops those first-assistant-empty and clarifying empty-after-user **targets**. Empty-`[]` self-conditioning is largely fixed (2 empty-turn primaries); residual on Run 15 is **state_mismatch ~64%** and **under_calling ~35% (mostly turn 0)**. **SFT v5** (default `sft.train_mlx --prepare-only`) keeps every v4 empty-target drop and the recovery-after-`[]` curriculum, then adds **turn-0 call-set completeness** (underspecified xLAM / incomplete first-episode ToolACE) and **env-state consistency** (drop continue-after-exec that uses a user-named entity the observation never confirmed). Conversation-level ToolACE+xLAM splits stay frozen; BFCL `multi_turn_base` stays held out. **Run 17 scored this mix: 23/200 = 11.5%** — a **scored regression vs v4 15.0%**. **Do not present as a method win.** Details in `THESIS.md` / `METHODS.md`.
+**SFT v3** (PR #29) dropped **all** empty-after-exec `[]` targets including terminal and kept / synthesized **recovery_after_empty**. Prepare: empty-after-exec targets = 0; `recovery_after_empty` ≈ 397. Recovery-after-`[]` already PASSes. **SFT v4** (PR #31, Run 15 **30/200 = 15.0%**) extends that curriculum without weakening it: leftover ToolACE empties after ordinary (non-exec) user messages (~2471 clarifying / chitchat `[]`) and first-assistant-in-prefix `[]` (~1859 rows, ~5.7%) still taught turn-0 never-start. v4 drops those first-assistant-empty and clarifying empty-after-user **targets**. Empty-`[]` self-conditioning is largely fixed (2 empty-turn primaries); residual on Run 15 is **state_mismatch ~64%** and **under_calling ~35% (mostly turn 0)**. **SFT v5** (default `sft.train_mlx --prepare-only`, PR #35, Run 17 **23/200 = 11.5%**) keeps every v4 empty-target drop and the recovery-after-`[]` curriculum, then adds **turn-0 call-set completeness** (underspecified xLAM / incomplete first-episode ToolACE, including **synthetic complete turn-0**) and **env-state consistency**. **Scored regression vs v4.** **SFT v6** (`--recipe v6`) is **not** a v4 relabel: same v4 empty/recovery filters, **plus only** `drop_state_inconsistent=True`. v5’s harmful turn-0 rewrites stay **off** (`drop_underspecified_turn0=False`, `synthesize_complete_turn0=False`). Conversation-level ToolACE+xLAM splits stay frozen; BFCL `multi_turn_base` stays held out. **No BFCL score is claimed for v6.** Details in `THESIS.md` / `METHODS.md`.
 
 ## Locked mix (do not reopen)
 
@@ -27,7 +27,7 @@ This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored th
 - key: `gemma4-e2b-sft-iffc` — Mac-local MLX LoRA SFT v1 (IFFC mix, best val @ iter 1000). Run 12 scored **1/200 = 0.5%**. Distinct `api_name` / `slug` so BFCL results do **not** overwrite base Gemma. Serve with `llama-server -m <local.gguf>` (not `-hf`).
 - key: `gemma4-e2b-sft-iffc-v2` — filtered-mix SFT v2 (drop non-terminal `[]` after tool-exec, LoRA best@2000 val 0.211, PR #24). Distinct `api_name` / `slug` so Run 13 does **not** overwrite Run 12. Run 13 scored **1/200 = 0.5%** (same collapse). Figures: `benchmark/results/Gemma-4-E2B-it-SFT-IFFC-v2-Q4_K_M/figures`. Serve with `llama-server -m <local.gguf>` (not `-hf`).
 - key: `gemma4-e2b-sft-iffc-v4` — SFT v4 (v3 empty-after-exec + drop first-assistant-empty and clarifying `[]`, LoRA best@1600 val 0.196, PR #31). Distinct `api_name` / `slug` so Run 15 does **not** overwrite Runs 12–14. Run 15 scored **30/200 = 15.0%** (scored recovery, still below IFFC/NFC). Run 16 scored **26/200 = 13.0%** under `--fc-mode iffc-state` on the same GGUF (null/negative vs Run 15). Serve with `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v4-best1600-Q4_K_M.gguf` (not `-hf`).
-- key: `gemma4-e2b-sft-iffc-v5` — SFT v5 (PR #35: v4 empty-recovery + turn-0 completeness + env-state consistency; LoRA best@1800 val 0.147). Distinct `api_name` / `slug` so Run 17 does **not** overwrite Runs 12–16. Serve with `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v5-best1800-Q4_K_M.gguf` (not `-hf`). Run 17 scored **23/200 = 11.5%** under `--fc-mode iffc` (**scored regression vs Run 15 15.0%**). **Do not present as a method win.** Do **not** overwrite. **No BoN / no more epochs on this mix.**
+- key: `gemma4-e2b-sft-iffc-v5` — SFT v5 (PR #35: v4 empty-recovery + turn-0 completeness + env-state consistency; LoRA best@1800 val 0.147). Distinct `api_name` / `slug` so Run 17 does **not** overwrite Runs 12–16. Serve with `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v5-best1800-Q4_K_M.gguf` (not `-hf`). Run 17 scored **23/200 = 11.5%** under `--fc-mode iffc` (**scored regression vs Run 15 15.0%**). **Do not present as a method win.** Do **not** overwrite. **No BoN / no more epochs on this mix.** Next prepare is `--recipe v6`.
 
 Instruct weights: **`google/gemma-4-e2b-it`** (gated; HuggingFace token required).
 
@@ -100,7 +100,7 @@ python -m mlx_lm.fuse \
 #    see [Eval](#eval-bfcl-v4-multi_turn_base) (separate MODELS key, not gemma4-e2b).
 ```
 
-`--mask-prompt` only backprops the **last** chat message. `sft.train_mlx` unrolls each conversation so every assistant turn is a row ending on that turn (split membership stays at conversation id), then applies the [SFT v5 unroll recipe](#unroll-filter-sft-v5-turn-0-completeness--env-state-consistency).
+`--mask-prompt` only backprops the **last** chat message. `sft.train_mlx` unrolls each conversation so every assistant turn is a row ending on that turn (split membership stays at conversation id), then applies the [SFT v5 unroll recipe](#unroll-filter-sft-v5-turn-0-completeness--env-state-consistency) by default, or `--recipe v6` for [v4 + state-inconsistent only](#unroll-filter-sft-v6-v4--state-inconsistent-only).
 
 Dry-run (Linux/CI): `uv run python -m sft.train_mlx --smoke` prints the command and writes unrolled JSONL without calling mlx-lm.
 
@@ -175,7 +175,7 @@ Confirm a v4 prepare log: `recipe=v4`, `first_turn_empty` after ≈ 0, `clarifyi
 
 ## Unroll filter (SFT v5: turn-0 completeness + env-state consistency)
 
-v4 recovered calling (Run 15 15.0%) by dropping empty-`[]` teachers. Residual on that checkpoint: **state_mismatch ~64%** (VehicleControl / Travel / TradingBot / GFS) and **under_calling ~35%**, **mostly turn 0**. IFFC+STATE on the same GGUF did not help (Run 16 **26/200 = 13.0%**, scored negative/null vs Run 15). Recipe v5 (Run 17) is a **scored regression** at **11.5%**. Do **not** add epochs on the v4 or v5 mix; do **not** design BoN as the win for a still-below-IFFC ckpt.
+v4 recovered calling (Run 15 15.0%) by dropping empty-`[]` teachers. Residual on that checkpoint: **state_mismatch ~64%** (VehicleControl / Travel / TradingBot / GFS) and **under_calling ~35%**, **mostly turn 0**. IFFC+STATE on the same GGUF did not help (Run 16 **26/200 = 13.0%**, scored negative/null vs Run 15). Recipe v5 (Run 17) is a **scored regression** at **11.5%**. Do **not** add epochs on the v4 or v5 mix; do **not** design BoN as the win for a still-below-IFFC ckpt. Prefer `--recipe v6` for the next Mac prepare.
 
 Verified data gaps (inspect `sft/format_iffc.py`, not a guessed root cause):
 
@@ -194,16 +194,18 @@ Verified data gaps (inspect `sft/format_iffc.py`, not a guessed root cause):
 
 | Flag | Recipe | Behavior |
 |---|---|---|
-| *(default)* / `--recipe v5` | **v5** | v4 + underspecified drop + complete-turn0 synth + state-inconsistent drop |
-| `--recipe v4` | v4 | Empty-target curriculum only (Run 15 mix) |
+| *(default)* / `--recipe v5` | **v5** | v4 + underspecified drop + complete-turn0 synth + state-inconsistent drop. **Run 17 scored 11.5%** (regression vs v4). |
+| `--recipe v6` | **v6** | v4 empty/recovery + **only** `drop_state_inconsistent`. Turn-0 rewrites **off**. Distinct from v4. |
+| `--recipe v4` | v4 | Empty-target curriculum only (Run 15 mix, 15.0%) |
 | `--keep-underspecified-turn0` **and** `--keep-state-inconsistent` **and** `--no-synthetic-complete-turn0` | v4 | Same as `--recipe v4` |
+| `--keep-underspecified-turn0` **and** `--no-synthetic-complete-turn0` | v6 | Same as `--recipe v6` |
 | `--no-synthetic-complete-turn0` | v5 minus synth | Incomplete first-turns are **dropped** instead of rewritten |
 | `--keep-underspecified-turn0` | v5 minus xLAM underspec | Still merges ToolACE first-episode extras / drops state-inconsistent |
 | `--keep-state-inconsistent` | v5 minus state drop | Still drops underspecified and merges complete turn-0 |
 | `--recipe v3` / both v4 keep-flags | v3 | Empty-after-exec + recovery only |
 | `--keep-terminal-empty-after-exec` | v2 | Drop non-terminal empty-after-exec only |
 | `--keep-nonterminal-empty-after-exec` | v1 | Keep every assistant turn |
-| `--no-synthetic-recovery` | v5/v4/v3 minus synth `[]` | Still apply the active drops; do not insert history-only `[]` |
+| `--no-synthetic-recovery` | v5/v6/v4/v3 minus synth `[]` | Still apply the active drops; do not insert history-only `[]` |
 
 ```bash
 # Already have formatted ToolACE + xLAM and frozen splits? Re-unroll mlx train/val (v5 default):
@@ -212,6 +214,11 @@ uv run python -m sft.train_mlx --prepare-only
 uv run python -m sft.train_mlx --prepare-only --compare-recipe v4
 # equivalent audit (prints stats; does not write mlx/ unless --out):
 uv run python -m sft.filter_empty_after_exec --splits-dir sft/data/splits --compare-recipe v4
+
+# Next Mac prepare (v6 = v4 + state-inconsistent only; expect train size
+# ≈ v4 minus state-inconsistent continues, closer to ~31232 than v5’s ~29850):
+uv run python -m sft.train_mlx --prepare-only --recipe v6 --compare-recipe v4
+uv run python -m sft.filter_empty_after_exec --splits-dir sft/data/splits --recipe v6 --compare-recipe v4
 
 # v4 / v3 / v2 / v1 ablations (same frozen splits, different mlx unroll):
 uv run python -m sft.train_mlx --prepare-only --recipe v4
@@ -222,28 +229,41 @@ uv run python -m sft.train_mlx --prepare-only --keep-nonterminal-empty-after-exe
 # Full regenerate from formatted sources (splits stay conversation-level; mlx changes):
 uv run python -m sft.format_iffc          # only if raw → formatted is stale
 uv run python -m sft.split_data           # optional; seed=42, same conversation ids
-uv run python -m sft.train_mlx --prepare-only --compare-recipe v4
-# then train as usual: ./sft/train_mlx.sh --full --run
+uv run python -m sft.train_mlx --prepare-only --recipe v6 --compare-recipe v4
+# then train as usual: ./sft/train_mlx.sh --full --run --recipe v6
 ```
 
 **Expected prepare stats** (exact N is the Mac `--compare-recipe v4` log; this cloud checkout has no frozen splits):
 
-| Signal | v4 (Mac mix, PR #31) | v5 (this recipe) |
-|---|---|---|
-| empty-after-exec after | 0 | 0 (unchanged) |
-| first_turn_empty after | 0 | 0 (unchanged) |
-| clarifying_empty after | 0 | 0 (unchanged) |
-| recovery_after_empty after | ≈ 397 | ≈ same (not weakened) |
-| underspecified_turn0 | kept | dropped (mostly xLAM) |
-| incomplete first-episode | kept as under-call teacher | rewritten to the full independent call set |
-| state_inconsistent continue-after-exec | kept | dropped |
-| synthetic_complete_turn0 | 0 | > 0 when ToolACE first-episode has confirmed independent extras |
+| Signal | v4 (Mac mix, PR #31) | v5 (Run 17) | v6 (this recipe) |
+|---|---|---|---|
+| empty-after-exec after | 0 | 0 (unchanged) | 0 (unchanged) |
+| first_turn_empty after | 0 | 0 (unchanged) | 0 (unchanged) |
+| clarifying_empty after | 0 | 0 (unchanged) | 0 (unchanged) |
+| recovery_after_empty after | ≈ 397 | ≈ same (not weakened) | ≈ same (not weakened) |
+| underspecified_turn0 | kept | dropped (mostly xLAM) | **kept** (v5 drop off) |
+| incomplete first-episode | kept as under-call teacher | rewritten to the full independent call set | **kept sequential** (synth off) |
+| state_inconsistent continue-after-exec | kept | dropped | **dropped** (the one keep from v5) |
+| synthetic_complete_turn0 | 0 | > 0 (Run 17 hypothesis: harmful) | **0** |
+| train rows (Mac, approx.) | > ~31232 | ~29850 | **~31232** (v4 minus state-inconsistent continues) |
 
-Confirm the prepare log: `recipe=v5`, `first_turn_empty` after ≈ 0, `clarifying_empty` after ≈ 0, empty-after-exec after ≈ 0, `recovery_after_empty` after > 0, plus the v5 lines (`underspecified_turn0`, `incomplete_turn0`, `state_inconsistent`). Do **not** add BFCL `multi_turn_base` ids or prompts to these JSONL files. **Run 17 already scored this mix at 11.5% (regression vs v4). Do not claim v5 beat IFFC or v4.**
+Confirm a v5 prepare log: `recipe=v5`, `first_turn_empty` after ≈ 0, `clarifying_empty` after ≈ 0, empty-after-exec after ≈ 0, `recovery_after_empty` after > 0, plus the v5 lines (`underspecified_turn0`, `incomplete_turn0`, `state_inconsistent`). Confirm a v6 prepare log: `recipe=v6`, `drop_underspecified_turn0=False`, `synthetic_complete_turn0=False`, `drop_state_inconsistent=True`, empty-after-exec / first_turn_empty / clarifying after ≈ 0, `recovery_after_empty` after > 0. Do **not** add BFCL `multi_turn_base` ids or prompts to these JSONL files. **Run 17 already scored the v5 mix at 11.5% (regression vs v4). Do not claim v5 or v6 beat IFFC or v4.**
+
+## Unroll filter (SFT v6: v4 + state-inconsistent only)
+
+**Run 17 scored v5 IFFC 23/200 = 11.5%** vs Run 15 v4 IFFC **15.0%**. Diagnosis: state_mismatch 109→133, under_call 59→44, empty 2→0, avg api_calls/entry **17.3→40.3**. Lost corrects heavily TradingBot. v5’s **synthetic complete turn-0** is the suspected harm (parallel call dumps that desync observe→act APIs). The underspecified-turn0 drop helped only modestly. **`drop_state_inconsistent` is the one keep.**
+
+**v6 policy (selectable `--recipe v6`, drop not rewrite):**
+
+1. All of **v4**: empty-after-exec (terminal + non-terminal), first-assistant-empty, clarifying empty-after-user, recovery-after-`[]` teaching (including synthetic history-only `[]`).
+2. **Drop state-inconsistent continue-after-exec** (same detector as v5 / `sft.curriculum_v5.is_state_inconsistent_continue`).
+3. **Off:** `drop_underspecified_turn0=False`, `synthesize_complete_turn0=False` (must be off), and therefore no absorbed-followup drop.
+
+Distinct recipe id `v6` — **do not** re-label identical v4. No BoN, no more-epoch trainers, no BFCL harness changes. Rebuild mlx JSONL with `--recipe v6 --compare-recipe v4`. Expected train size ≈ v4 minus state-inconsistent continues (closer to **~31232** than v5’s **~29850**). **No BFCL score claimed.** See `METHODS.md`.
 
 ## Eval (BFCL v4 `multi_turn_base`)
 
-Thesis test is **`multi_turn_base` only**. Best val checkpoint for v1 is **iter 1000**. Fuse that adapter (not necessarily the last iter), convert to Q4_K_M GGUF, serve with `-m`, then score under `--model gemma4-e2b-sft-iffc` so results land in a new folder / DB key. **Run 12 already scored this v1 GGUF: 1/200 = 0.5%** (scored negative; do not overwrite that `runs` row). **Run 13 already scored the v2 filtered-[] GGUF: 1/200 = 0.5%** (`gemma4-e2b-sft-iffc-v2`, LoRA best@2000; do not overwrite). **Run 15 already scored the v4 GGUF: 30/200 = 15.0%** (`gemma4-e2b-sft-iffc-v4`, LoRA best@1600; scored recovery, still below IFFC/NFC — do not overwrite). **Run 16 already scored `--fc-mode iffc-state` on that same v4 GGUF: 26/200 = 13.0%** (null/negative vs Run 15 — do not overwrite; do **not** BoN this ckpt). **Run 17 already scored the v5 GGUF: 23/200 = 11.5%** (`gemma4-e2b-sft-iffc-v5`, LoRA best@1800 val 0.147, PR #35; **scored regression vs Run 15** — do not overwrite; do **not** present as a method win; do **not** BoN / more-epochs this mix). Do **not** `--fc-mode iffc-state` or BoN on the collapsed v1/v2 checkpoints. Do **not** claim the v2 `[]` filter fixed SFT. Paths may vary slightly.
+Thesis test is **`multi_turn_base` only**. Best val checkpoint for v1 is **iter 1000**. Fuse that adapter (not necessarily the last iter), convert to Q4_K_M GGUF, serve with `-m`, then score under `--model gemma4-e2b-sft-iffc` so results land in a new folder / DB key. **Run 12 already scored this v1 GGUF: 1/200 = 0.5%** (scored negative; do not overwrite that `runs` row). **Run 13 already scored the v2 filtered-[] GGUF: 1/200 = 0.5%** (`gemma4-e2b-sft-iffc-v2`, LoRA best@2000; do not overwrite). **Run 15 already scored the v4 GGUF: 30/200 = 15.0%** (`gemma4-e2b-sft-iffc-v4`, LoRA best@1600; scored recovery, still below IFFC/NFC — do not overwrite). **Run 16 already scored `--fc-mode iffc-state` on that same v4 GGUF: 26/200 = 13.0%** (null/negative vs Run 15 — do not overwrite; do **not** BoN this ckpt). **Run 17 already scored the v5 GGUF: 23/200 = 11.5%** (`gemma4-e2b-sft-iffc-v5`, LoRA best@1800 val 0.147, PR #35; **scored regression vs Run 15** — do not overwrite; do **not** present as a method win; do **not** BoN / more-epochs this mix). v5 fused GGUF is `sft/fused/gemma-4-e2b-it-iffc-v5-best1800-Q4_K_M.gguf`. Next Mac prepare is `--recipe v6 --compare-recipe v4`. **No BFCL score claimed for v6 yet.** Do **not** `--fc-mode iffc-state` or BoN on the collapsed v1/v2 checkpoints. Do **not** claim the v2 `[]` filter fixed SFT. Paths may vary slightly.
 
 ```bash
 # Fuse best@1000 (mlx-lm adapter filename is often 0001000_adapters.safetensors;
@@ -282,7 +302,8 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn
 # 26/200 = 13.0% (null/negative vs Run 15; do not overwrite; do not BoN this ckpt).
 # Run 17 already scored SFT-IFFC-v5 best@1800 at 23/200 = 11.5%
 # (scored regression vs Run 15 15.0%; do not overwrite; do not present as a
-# method win; do not BoN this ckpt; do not more-epochs the v5 mix).
+# method win; do not BoN this ckpt; do not more-epochs the v5 mix;
+# next prepare is --recipe v6).
 # uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-turn \
 #   --categories multi_turn_base --fc-mode iffc --iffc-strip-empty-assistant \
 #   --notes "DIAGNOSTIC: strip trailing IFFC assistant [] vs Run 13 0.5%"
@@ -342,8 +363,8 @@ sft/
 ├── config.py                 # seed, paths, model ids
 ├── download_datasets.py
 ├── format_iffc.py            # reuses benchmark.iffc
-├── filter_empty_after_exec.py  # v5 default: v4 recovery + turn-0 / state filters
-├── curriculum_v5.py            # turn-0 completeness + env-state detectors
+├── filter_empty_after_exec.py  # v5 default; --recipe v6 = v4 + state-inconsistent
+├── curriculum_v5.py            # turn-0 completeness + env-state detectors (v6 reuses state drop)
 ├── split_data.py
 ├── train_mlx.py              # unroll + filter + mlx_lm.lora wrapper
 ├── train_mlx.sh

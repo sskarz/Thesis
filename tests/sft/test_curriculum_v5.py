@@ -18,6 +18,7 @@ from sft.curriculum_v5 import (
 from sft.filter_empty_after_exec import (
     RECIPE_V4,
     RECIPE_V5,
+    RECIPE_V6,
     compare_recipe_unroll,
     flags_for_recipe,
     main as filter_main,
@@ -462,3 +463,260 @@ def test_train_mlx_prepare_v5_compare_log(tmp_path: Path, capsys):
     ]
     assert any(row.get("synthetic_complete_turn0") for row in train_rows)
     assert any(row.get("recovery_after_empty") for row in train_rows)
+
+
+def test_v6_flags_are_v4_plus_state_inconsistent_only():
+    v4 = flags_for_recipe(RECIPE_V4)
+    v5 = flags_for_recipe(RECIPE_V5)
+    v6 = flags_for_recipe(RECIPE_V6)
+    assert v6["recipe"] == RECIPE_V6
+    assert v6 != v4
+    assert v6 != v5
+    shared = (
+        "drop_nonterminal_empty_after_exec",
+        "drop_terminal_empty_after_exec",
+        "drop_first_assistant_empty",
+        "drop_clarifying_empty_after_user",
+        "synthesize_recovery_stop",
+    )
+    for key in shared:
+        assert v6[key] is True
+        assert v6[key] == v4[key] == v5[key]
+    assert v6["drop_underspecified_turn0"] is False
+    assert v6["synthesize_complete_turn0"] is False
+    assert v6["drop_absorbed_independent_followup"] is False
+    assert v6["drop_state_inconsistent"] is True
+    assert v4["drop_state_inconsistent"] is False
+    assert v5["drop_underspecified_turn0"] is True
+    assert v5["synthesize_complete_turn0"] is True
+    assert v5["drop_state_inconsistent"] is True
+
+
+def test_v6_keeps_underspecified_turn0_like_v4():
+    rec = _xlam_underspecified()
+    kept_v6, stats_v6 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V6))
+    kept_v4, stats_v4 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V4))
+    kept_v5, stats_v5 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V5))
+    assert stats_v6.recipe == RECIPE_V6
+    assert stats_v6.dropped_underspecified_turn0 == 0
+    assert stats_v4.dropped_underspecified_turn0 == 0
+    assert stats_v5.dropped_underspecified_turn0 == 1
+    assert len(kept_v6) == len(kept_v4) == 1
+    assert kept_v5 == []
+    assert json.loads(kept_v6[0]["messages"][-1]["content"])[0][
+        "function_name"
+    ] == "math_toolkit.sum_of_multiples"
+
+
+def test_v6_does_not_synthesize_complete_turn0():
+    rec = _incomplete_first_episode()
+    kept_v6, stats_v6 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V6))
+    kept_v4, stats_v4 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V4))
+    kept_v5, stats_v5 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V5))
+    assert stats_v6.synthetic_complete_turn0 == 0
+    assert stats_v4.synthetic_complete_turn0 == 0
+    assert stats_v5.synthetic_complete_turn0 == 1
+    assert stats_v6.dropped_absorbed_followup == 0
+    assert stats_v6.dropped_incomplete_turn0 == 0
+    names_v6 = [
+        parse_iffc_response(row["messages"][-1]["content"])[0]["function_name"]
+        for row in kept_v6
+    ]
+    names_v4 = [
+        parse_iffc_response(row["messages"][-1]["content"])[0]["function_name"]
+        for row in kept_v4
+    ]
+    assert names_v6 == names_v4 == ["ls", "cp"]
+    assert all(not row.get("synthetic_complete_turn0") for row in kept_v6)
+
+
+def test_v6_drops_state_inconsistent_unlike_v4():
+    rec = _state_inconsistent_cd()
+    kept_v6, stats_v6 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V6))
+    kept_v4, stats_v4 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V4))
+    kept_v5, stats_v5 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V5))
+    assert stats_v6.dropped_state_inconsistent == 1
+    assert stats_v5.dropped_state_inconsistent == 1
+    assert stats_v4.dropped_state_inconsistent == 0
+    assert stats_v6.synthetic_complete_turn0 == 0
+    names_v6 = [
+        parse_iffc_response(r["messages"][-1]["content"])[0]["function_name"]
+        for r in kept_v6
+    ]
+    names_v4 = [
+        parse_iffc_response(r["messages"][-1]["content"])[0]["function_name"]
+        for r in kept_v4
+        if parse_iffc_response(r["messages"][-1]["content"])
+    ]
+    assert names_v6 == ["ls"]
+    assert "cd" in names_v4
+    assert [
+        parse_iffc_response(r["messages"][-1]["content"])[0]["function_name"]
+        for r in kept_v5
+    ] == ["ls"]
+
+
+def test_v6_keeps_state_consistent_continue_without_merging():
+    rec = _state_consistent_cd()
+    kept_v6, stats_v6 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V6))
+    kept_v5, stats_v5 = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V5))
+    assert stats_v6.dropped_state_inconsistent == 0
+    assert stats_v6.synthetic_complete_turn0 == 0
+    assert stats_v6.dropped_absorbed_followup == 0
+    assert stats_v5.synthetic_complete_turn0 == 1
+    names_v6 = [
+        parse_iffc_response(row["messages"][-1]["content"])[0]["function_name"]
+        for row in kept_v6
+    ]
+    assert names_v6 == ["ls", "cd"]
+    gold_v5 = parse_iffc_response(kept_v5[0]["messages"][-1]["content"])
+    assert [c["function_name"] for c in gold_v5] == ["ls", "cd"]
+
+
+def test_v6_does_not_weaken_recovery_or_v4_empty_drops():
+    rec = _recovery_after_empty()
+    kept, stats = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V6))
+    assert stats.recipe == RECIPE_V6
+    assert stats.empty_after_exec_after == 0
+    assert stats.first_turn_empty_after == 0
+    assert stats.clarifying_empty_after == 0
+    assert stats.recovery_after_empty_after == 1
+    assert stats.dropped_underspecified_turn0 == 0
+    assert stats.synthetic_complete_turn0 == 0
+    recovery = next(row for row in kept if row.get("recovery_after_empty"))
+    assert parse_iffc_response(recovery["messages"][-1]["content"])[0][
+        "function_name"
+    ] == "ls"
+    assert any(
+        m["role"] == "assistant" and m["content"] == "[]"
+        for m in recovery["messages"][:-1]
+    )
+
+
+def test_v6_vs_v4_compare_only_drops_state_inconsistent():
+    records = [
+        _xlam_underspecified(),
+        _incomplete_first_episode(),
+        _state_inconsistent_cd(),
+        _recovery_after_empty(),
+    ]
+    delta = compare_recipe_unroll(records, recipe=RECIPE_V6, baseline=RECIPE_V4)
+    assert delta["recipe"] == RECIPE_V6
+    assert delta["baseline"] == RECIPE_V4
+    assert delta["dropped_underspecified_turn0"] == 0
+    assert delta["dropped_incomplete_turn0"] == 0
+    assert delta["synthetic_complete_turn0"] == 0
+    assert delta["dropped_absorbed_followup"] == 0
+    assert delta["dropped_state_inconsistent"] == 1
+    assert delta["recovery_after_empty_after"] == delta["baseline_recovery_after_empty_after"]
+    assert delta["empty_after_exec_after"] == 0
+    assert delta["baseline_empty_after_exec_after"] == 0
+    assert delta["total_after"] == delta["baseline_total_after"] - 1
+    assert delta["delta_dropped"] == 1
+
+
+def test_v6_vs_v5_keeps_underspec_and_skips_turn0_rewrites():
+    records = [
+        _xlam_underspecified(),
+        _incomplete_first_episode(),
+        _state_inconsistent_cd(),
+        _recovery_after_empty(),
+    ]
+    delta = compare_recipe_unroll(records, recipe=RECIPE_V6, baseline=RECIPE_V5)
+    assert delta["recipe"] == RECIPE_V6
+    assert delta["baseline"] == RECIPE_V5
+    assert delta["dropped_underspecified_turn0"] == 0
+    assert delta["synthetic_complete_turn0"] == 0
+    assert delta["dropped_state_inconsistent"] == 1
+    # v6 keeps the underspecified xLAM row and the sequential cp that v5 absorbs.
+    assert delta["total_after"] > delta["baseline_total_after"]
+
+
+def test_filter_cli_recipe_v6_and_compare(tmp_path: Path, capsys):
+    src = tmp_path / "train.jsonl"
+    out = tmp_path / "unrolled.jsonl"
+    recs = [_xlam_underspecified(), _state_inconsistent_cd(), _recovery_after_empty()]
+    src.write_text("".join(json.dumps(r) + "\n" for r in recs))
+    assert (
+        filter_main(
+            [
+                "--input",
+                str(src),
+                "--out",
+                str(out),
+                "--recipe",
+                "v6",
+                "--compare-recipe",
+                "v4",
+            ]
+        )
+        == 0
+    )
+    logged = capsys.readouterr().out
+    assert "recipe=v6" in logged
+    assert "drop_underspecified_turn0=False" in logged
+    assert "drop_state_inconsistent=True" in logged
+    assert "synthetic_complete_turn0=False" in logged
+    assert "recipe compare" in logged
+    assert "v6 vs v4" in logged
+    rows = [json.loads(line) for line in out.read_text().splitlines() if line]
+    names = [
+        parse_iffc_response(row["messages"][-1]["content"])[0]["function_name"]
+        for row in rows
+        if parse_iffc_response(row["messages"][-1]["content"])
+    ]
+    assert "math_toolkit.sum_of_multiples" in names
+    assert "cd" not in names
+    assert all("multi_turn_base" not in row["id"] for row in rows)
+
+
+def test_train_mlx_prepare_v6_compare_log(tmp_path: Path, capsys):
+    from sft.train_mlx import main as train_main
+
+    splits = tmp_path / "splits"
+    mlx = tmp_path / "mlx"
+    recs = [
+        _incomplete_first_episode(),
+        _state_inconsistent_cd(),
+        _recovery_after_empty(),
+    ]
+    splits.mkdir()
+    (splits / "train.jsonl").write_text("".join(json.dumps(r) + "\n" for r in recs))
+    (splits / "valid.jsonl").write_text(json.dumps(recs[2]) + "\n")
+    assert (
+        train_main(
+            [
+                "--prepare-only",
+                "--recipe",
+                "v6",
+                "--splits-dir",
+                str(splits),
+                "--mlx-dir",
+                str(mlx),
+                "--compare-recipe",
+                "v4",
+            ]
+        )
+        == 0
+    )
+    logged = capsys.readouterr().out
+    assert "recipe=v6" in logged
+    assert "drop_state_inconsistent=True" in logged
+    assert "synthesize_complete_turn0=False" in logged
+    assert "drop_underspecified_turn0=False" in logged
+    assert "recipe compare (train)" in logged
+    train_rows = [
+        json.loads(line)
+        for line in (mlx / "train.jsonl").read_text().splitlines()
+        if line
+    ]
+    assert not any(row.get("synthetic_complete_turn0") for row in train_rows)
+    assert any(row.get("recovery_after_empty") for row in train_rows)
+    names = [
+        parse_iffc_response(row["messages"][-1]["content"])[0]["function_name"]
+        for row in train_rows
+        if parse_iffc_response(row["messages"][-1]["content"])
+    ]
+    assert "cd" not in names
+    assert "ls" in names
+    assert "cp" in names
