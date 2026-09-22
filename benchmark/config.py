@@ -87,7 +87,9 @@ MODELS: dict[str, dict[str, str]] = {
     },
     # SFT v5 (PR #35 unroll: v4 empty-recovery + turn-0 completeness +
     # env-state consistency). LoRA best@1800 val 0.147. Distinct api_name/slug
-    # so Run 17 does not overwrite Runs 12–16. No BFCL score claimed here.
+    # so Run 17 does not overwrite Runs 12–16. Run 17 scored 23/200 = 11.5%
+    # (scored regression vs Run 15 15.0%). Do not overwrite; do not present
+    # as a method win; no BoN / no more epochs on this mix.
     "gemma4-e2b-sft-iffc-v5": {
         "hf_repo": "",  # serve with -m, not -hf
         "gguf_path": "sft/fused/gemma-4-e2b-it-iffc-v5-best1800-Q4_K_M.gguf",

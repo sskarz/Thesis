@@ -58,7 +58,8 @@ pdflatex main.tex
 - **SFT Runs 12–13 scored negatives** (0.5%); ToolACE `[]` stop-after-tools is the documented root cause.
 - **SFT Run 15 (v4) = scored recovery 15.0%**, still below IFFC 30.5% and NFC 27.0%; **not a win over IFFC**.
 - **SFT-v4+STATE Run 16 = scored negative/null overlay 13.0%** vs Run 15 15.0%; STATE helps base Gemma, not this ckpt. **Do not BoN this checkpoint as the next win.**
+- **SFT-v5 Run 17 = scored regression 11.5%** vs Run 15 15.0% (−3.5 pp / −7). Empty still 0. **Do not present as a method win.** No BoN / no more epochs on this ckpt. v4 IFFC 15% remains best SFT recovery; BoN 36.5% best inference on base Gemma.
 
 ## TODOs still open in the draft
 
-Parallel / `parallel_multiple` re-run after the llama-server tools GBNF truncation fix; multi-turn evaluation for Qwen / Llama / FunctionGemma; NVIDIA Jetson Orin Nano Super replication; dual-model IFFC (paper Algorithm 1); SFT recipe v5 (turn-0 completeness + env-state consistency; keep v4 empty-recovery). IFFC+STATE on the SFT-v4 GGUF is scored (Run 16, 13.0%, null/negative).
+Parallel / `parallel_multiple` re-run after the llama-server tools GBNF truncation fix; multi-turn evaluation for Qwen / Llama / FunctionGemma; NVIDIA Jetson Orin Nano Super replication; dual-model IFFC (paper Algorithm 1). SFT recipe v5 is scored (Run 17, 11.5%, regression vs v4 15.0%); next SFT lever TBD — not BoN on v5, not more epochs on the v5 mix. IFFC+STATE on the SFT-v4 GGUF is scored (Run 16, 13.0%, null/negative).

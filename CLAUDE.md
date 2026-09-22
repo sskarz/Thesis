@@ -162,6 +162,9 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-t
 # still below IFFC 30.5% and NFC 27.0%; do not overwrite; do not present as beating IFFC.
 # Run 16 already scored SFT-v4 + IFFC+STATE: 26/200 = 13.0% — null/negative vs Run 15;
 # do not overwrite; do not propose BoN as the next win on this ckpt.
+# Run 17 already scored SFT-IFFC-v5 best@1800: 23/200 = 11.5% — scored regression vs
+# Run 15 15.0% (−3.5 pp / −7); do not overwrite; do not present as a method win;
+# do not BoN this ckpt; do not more-epochs the v5 mix.
 # uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v4 --only-multi-turn \
 #   --categories multi_turn_base --fc-mode iffc
 ```
