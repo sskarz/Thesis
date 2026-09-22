@@ -107,12 +107,20 @@ Multi-turn function-calling mode and category filter:
 - `--fc-mode gst`: Guided-Structured Templates ([arXiv:2509.18076](https://arxiv.org/abs/2509.18076)) on the NFC channel — 7-step `[GST]` scaffold in content, native `tool_calls` still executed. Prompt-only; not GBNF. See METHODS.md.
 - `--fc-mode iffc-state`: IFFC JSON-in-text plus a harness-written `[STATE]` snapshot from **actual** tool execution results (METHODS §5 working memory). Same checker as IFFC. **Not** GST, **not** CD/GBNF, **not** LLM summarization. See METHODS.md.
 - `--fc-mode iffc-state-bon`: Best-of-N majority voting overlay on **IFFC+STATE** (METHODS §4; Snell et al. arXiv:2408.03314). Sample N=5 (configurable `--bon-n`) at `temperature=0.7`, vote per step, execute the winner once. **~N× latency.** **Not** NFC/GST/CD. See METHODS.md.
+- `--fc-mode xlam`: Salesforce xLAM JSON-in-text (`{"tool_calls":[{name, arguments}]}` in assistant content). Does **not** send `tools`/`tool_choice`. Empty `{"tool_calls": []}` ends the turn. Fair channel for `--model xlam-1b` (Run 19 NFC 0/200 was format-channel collapse). **Do not claim published ~78.94% parity.** See METHODS.md.
 - `--iffc-strip-empty-assistant`: **diagnostic-only** IFFC history bookkeeping — omit trailing assistant `[]` stop turns from `chat_history` before the next BFCL user turn (and right after the within-turn stop). Default **off** (Run 5–13 IFFC unchanged). **Not** a training method and **not** a claim that standard IFFC improved. Notes record `iffc_strip_empty_assistant=1`; figures nest under `iffc-strip-empty-assistant/`. **Run 14 already scored this on `gemma4-e2b-sft-iffc-v2`: 4/200 = 2.0%** — did **not** rescue the never-start collapse; **do not present 2% as a method win** (see `THESIS.md`).
 - `--categories multi_turn_base`: run only that multi-turn split (skip miss_func / miss_param / long_context)
 
 ```bash
 uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --categories multi_turn_base --fc-mode iffc
+```
+
+xLAM-1b-fc-r JSON-in-text adapter (serve command in `CLAUDE.md`). Run 19 NFC scored **0/200** (format-channel collapse). Fair baseline is `--fc-mode xlam`. **Do not invent a Run 20 score; do not claim published ~78.94% parity.**
+
+```bash
+uv run python -m benchmark.run_all --model xlam-1b --fc-mode xlam \
+  --only-multi-turn --categories multi_turn_base
 ```
 
 Gemma CD vs the scored NFC 27.0% / IFFC 30.5% `multi_turn_base` baselines (do not update THESIS.md tables until this run is scored):
@@ -166,7 +174,7 @@ Gemma SFT-IFFC vs the scored NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5% / IFF
 
 **Run 18 already scored** SFT-IFFC-v6 (`--model gemma4-e2b-sft-iffc-v6 --fc-mode iffc`, LoRA best@1800): **26/200 = 13.0%**. **Scored miss vs v4** (−4 / −2.0 pp vs Run 15 15.0%; modest +3 / +1.5 pp vs Run 17; ties Run 16 13.0%). Empty still essentially 1 (`_43`); residual state_mismatch 118 + under_call 55; avg api_calls/entry **13.34** (fixed v5’s 40.3 churn). **Do not present 13.0% as a method win.** **No BoN on this ckpt; no more epochs on the v6 mix.** Do **not** overwrite Run 18. v4 IFFC 15% remains best SFT recovery; BoN 36.5% remains best inference on **base** Gemma. Next SFT lever TBD (likely not another thin filter on the same family).
 
-**Run 19 already scored** xLAM-1b-fc-r NFC (`--model xlam-1b --fc-mode nfc`, published `Salesforce/xLAM-1b-fc-r-gguf` Q4_K_M, registry [PR #41](https://github.com/sskarz/Thesis/pull/41)): **0/200 = 0.0%**. **Scored format-channel collapse** on this multi_turn NFC harness (all 200 `Model response list is empty for turn 0`). Wall **13.55 min**; finished `2026-09-22T14:26:42Z`. Avg `api_calls` **3.63**; gen_tps_mean ≈ **196.7** — **not** a dead server. Same-harness contrast: Gemma NFC Run 4 = **27.0%**. **Do not** claim xLAM scores 0 on BFCL overall; **do not** equate to published ~78.94%; **do not** present as a method win or ability floor. IFFC / format-aware diagnostic is **not** claimed. Do **not** overwrite Run 19.
+**Run 19 already scored** xLAM-1b-fc-r NFC (`--model xlam-1b --fc-mode nfc`, published `Salesforce/xLAM-1b-fc-r-gguf` Q4_K_M, registry [PR #41](https://github.com/sskarz/Thesis/pull/41)): **0/200 = 0.0%**. **Scored format-channel collapse** on this multi_turn NFC harness (all 200 `Model response list is empty for turn 0`). Wall **13.55 min**; finished `2026-09-22T14:26:42Z`. Avg `api_calls` **3.63**; gen_tps_mean ≈ **196.7** — **not** a dead server. Same-harness contrast: Gemma NFC Run 4 = **27.0%**. **Do not** claim xLAM scores 0 on BFCL overall; **do not** equate to published ~78.94%; **do not** present as a method win or ability floor. Fair channel is `--fc-mode xlam` (unscored). **Do not invent a Run 20 score.** Do **not** overwrite Run 19.
 
 ```bash
 uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-turn \
@@ -344,12 +352,13 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn
 #   --categories multi_turn_base --fc-mode iffc
 
 # xLAM-1b NFC (Run 19 already scored 0.0% format-channel collapse — do not overwrite;
-# do not claim published overall BFCL ~78.94%; do not present as an ability floor)
+# do not claim published overall BFCL ~78.94%; do not present as an ability floor).
+# Fair baseline is --fc-mode xlam (do not invent a Run 20 score).
 # ./llama.cpp/build/bin/llama-server --jinja -fa on \
 #   -hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M \
 #   --host 0.0.0.0 --port 8080 -ngl 99 -c 16384 --temp 0.0 -np 4
-# uv run python -m benchmark.run_all --model xlam-1b --only-multi-turn \
-#   --categories multi_turn_base --fc-mode nfc
+# uv run python -m benchmark.run_all --model xlam-1b --fc-mode xlam \
+#   --only-multi-turn --categories multi_turn_base
 ```
 
 To add a new model, add an entry to the `MODELS` dict in `benchmark/config.py`.
