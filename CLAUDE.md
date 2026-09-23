@@ -170,16 +170,20 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-t
 # Run 15 15.0% (−2.0 pp / −4); do not overwrite; do not present as a method win;
 # do not BoN this ckpt; do not more-epochs the v6 mix.
 # Run 19 already scored xLAM-1b NFC: 0/200 = 0.0% — format-channel collapse
-# on this harness (not published overall BFCL ~78.94%; not an ability floor);
+# on this harness (not published overall BFCL ~78.94%; not a method win);
 # do not overwrite; do not present as a method win.
+# Run 20 already scored xLAM-1b --fc-mode xlam: 6/200 = 3.0% — format-fixed
+# fair channel (tools actually ran; still very low; not a method win;
+# not published ~78.94%; still below CD 10.5%); do not overwrite.
 # uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v4 --only-multi-turn \
-#   --categories multi_turn_base --fc-mode iffc
+# --categories multi_turn_base --fc-mode iffc
 # xLAM-1b-fc-r (PLAN Tier 1 §3): registry key `xlam-1b` exists ([PR #41](https://github.com/sskarz/Thesis/pull/41));
 # Run 19 NFC already scored 0/200 = 0.0% (format-channel collapse — NFC never
-# parses assistant content). Do not overwrite. Fair baseline is --fc-mode xlam.
-# Do not invent a Run 20 score; do not claim published ~78.94% parity.
+# parses assistant content). Run 20 --fc-mode xlam already scored 6/200 = 3.0%
+# (PR #42 adapter; fair channel; still very low). Do not overwrite.
+# Do not claim published ~78.94% parity.
 # uv run python -m benchmark.run_all --model xlam-1b --fc-mode xlam \
-#   --only-multi-turn --categories multi_turn_base
+# --only-multi-turn --categories multi_turn_base
 ```
 
 ### Query the database
@@ -233,7 +237,7 @@ cd /home/sanskar/Documents/Github/Thesis/llama.cpp
 
 ### Start xLAM-1b-fc-r server
 
-Published fine-tuned SLM baseline (PLAN Tier 1 §3 / METHODS §15). Use `--model xlam-1b` for scoring identity so results do not overwrite other models. **Run 19 already scored `--fc-mode nfc` at 0/200 = 0.0%** (format-channel collapse on this harness — all "Model response list is empty for turn 0"; JSON in `content`, not OpenAI `tool_calls`; **not** published overall BFCL ~78.94%; **not** an ability floor). Do **not** overwrite. Fair baseline is `--fc-mode xlam`. **Do not invent a Run 20 score; do not claim published ~78.94% parity.**
+Published fine-tuned SLM baseline (PLAN Tier 1 §3 / METHODS §15). Use `--model xlam-1b` for scoring identity so results do not overwrite other models. **Run 19 already scored `--fc-mode nfc` at 0/200 = 0.0%** (format-channel collapse on this harness — all "Model response list is empty for turn 0"; JSON in `content`, not OpenAI `tool_calls`; **not** published overall BFCL ~78.94%). **Run 20 already scored `--fc-mode xlam` at 6/200 = 3.0%** (PR #42 adapter; format-fixed fair channel; tools actually ran, avg `api_calls` 50.47; still **very low**; **not** a method win; **not** published ~78.94%; still **below CD 10.5%**). Do **not** overwrite either run. **Do not claim published ~78.94% parity.**
 
 ```bash
 cd /path/to/Thesis/llama.cpp
