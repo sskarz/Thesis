@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 from sft.config import (
     ADAPTER_DIR,
@@ -79,6 +80,8 @@ def prepare_mlx_data(
     synthesize_recovery_stop: bool = True,
     recipe: str | None = None,
     compare_recipe: str | None = None,
+    max_seq_length: int = LORA_MAX_SEQ_LENGTH,
+    budget_tokenizer: Any | None = None,
 ) -> Path:
     """Unroll train/valid conversations into mlx-lm ``{train,valid}.jsonl``.
 
@@ -87,7 +90,8 @@ def prepare_mlx_data(
     completeness and env-state consistency. Pass ``recipe="v6"`` for v4
     empty/recovery plus only ``drop_state_inconsistent``. Pass ``recipe="v7"``
     for the APIGen-MT mix (v4 empty/recovery on filler; no complete-turn0;
-    then cap non-tool unrolls — splits-v7 conversations stay full).
+    then cap non-tool unrolls and hard-gate token-budgeted targets — splits-v7
+    conversations stay full).
     Conversation-level splits are unchanged.
     """
     if recipe is None:
@@ -166,6 +170,21 @@ def prepare_mlx_data(
     if smoke:
         train_u = train_u[:smoke_train_rows]
         valid_u = valid_u[:smoke_valid_rows]
+    if recipe == RECIPE_V7:
+        from sft.budget_seq import budget_unrolled_rows, format_budget_report
+
+        train_u, train_budget = budget_unrolled_rows(
+            train_u,
+            max_seq_length=max_seq_length,
+            tokenizer=budget_tokenizer,
+        )
+        valid_u, valid_budget = budget_unrolled_rows(
+            valid_u,
+            max_seq_length=max_seq_length,
+            tokenizer=budget_tokenizer,
+        )
+        print(format_budget_report(train_budget, "v7 train"))
+        print(format_budget_report(valid_budget, "v7 valid"))
     if mlx_dir.exists():
         shutil.rmtree(mlx_dir)
     mlx_dir.mkdir(parents=True, exist_ok=True)
@@ -419,6 +438,7 @@ def main(argv: list[str] | None = None) -> int:
         synthesize_recovery_stop=synthesize,
         recipe=recipe,
         compare_recipe=args.compare_recipe,
+        max_seq_length=args.max_seq_length,
     )
 
     if args.rank != LORA_RANK:

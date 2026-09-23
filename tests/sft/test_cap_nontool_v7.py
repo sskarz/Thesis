@@ -242,13 +242,27 @@ def test_build_mix_v7_writes_high_unrolled_nontool_conversations(tmp_path: Path)
 def test_prepare_mlx_v7_writes_capped_rows(tmp_path: Path, capsys):
     from sft.train_mlx import prepare_mlx_data
 
+    class _TestTokenizer:
+        def apply_chat_template(
+            self, messages, *, add_generation_prompt=False, return_dict=False
+        ):
+            length = sum(len(str(m.get("content", ""))) + 2 for m in messages)
+            if add_generation_prompt:
+                length += 2
+            return list(range(length))
+
     rec = _mt_convo("apigen_mt-prep", n_tools=20, n_clarify=10, n_final=10, n_irr=5)
     splits = tmp_path / "splits"
     mlx = tmp_path / "mlx-v7"
     splits.mkdir()
     (splits / "train.jsonl").write_text(json.dumps(rec) + "\n")
     (splits / "valid.jsonl").write_text(json.dumps(rec) + "\n")
-    prepare_mlx_data(splits_dir=splits, mlx_dir=mlx, recipe=RECIPE_V7)
+    prepare_mlx_data(
+        splits_dir=splits,
+        mlx_dir=mlx,
+        recipe=RECIPE_V7,
+        budget_tokenizer=_TestTokenizer(),
+    )
     train_rows = [
         json.loads(line)
         for line in (mlx / "train.jsonl").read_text().splitlines()
@@ -264,6 +278,7 @@ def test_prepare_mlx_v7_writes_capped_rows(tmp_path: Path, capsys):
     assert len(tools) == 20
     logged = capsys.readouterr().out
     assert "v7 non-tool unroll cap" in logged
+    assert "token budget (v7 train)" in logged
     assert "v7_nontool_cap=on" in logged
 
 
