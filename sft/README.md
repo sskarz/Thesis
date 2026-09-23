@@ -32,18 +32,24 @@ uv run python -m sft.format_iffc --apigen-mt
 # optional filler refresh: uv run python -m sft.format_iffc --all-v7
 
 # 2) Mix → sft/data/splits-v7/ (seed 47; refuses to overwrite sft/data/splits/)
+#    Conversation-level gates only (pct_apigen ≥ 0.5, irrelevance caps).
+#    Full APIGen trajs are stored; do not expect unrolled pct_nontool here.
 uv run python -m sft.build_mix_v7 --out sft/data/splits-v7
 uv run python -m sft.mix_stats_v7 --splits sft/data/splits-v7 --gate
 
 # 3) Unroll (recipe v7: v4 empty/recovery on ToolACE/xLAM filler;
-#    light empty-after-exec on apigen_mt; NO v5 synthetic complete-turn0)
+#    light empty-after-exec on apigen_mt; NO v5 synthetic complete-turn0;
+#    then cap non-tool unrolls so mlx-v7 pct_nontool is ~15%, seed 47).
+#    Splits-v7 conversations stay full. Never map NL finals to [].
 uv run python -m sft.train_mlx --prepare-only --recipe v7 \
   --splits-dir sft/data/splits-v7 --mlx-dir sft/data/mlx-v7
+uv run python -m sft.mix_stats_v7 --splits sft/data/splits-v7 \
+  --mlx-dir sft/data/mlx-v7 --gate
 ./sft/train_mlx.sh --smoke --run --recipe v7 \
   --mlx-dir sft/data/mlx-v7 --adapter-path sft/adapters-v7-smoke
 ```
 
-Converter (`sft/format_apigen_mt.py`): ShareGPT `human`→user, `function_call`→IFFC JSON, `observation`→`format_iffc_execution_user_message`, `gpt`→assistant **natural language**. **Never** auto-map NL done to `[]`. Student-aware filter is a stub (`python -m sft.student_filter_v7 --help`). Registry key: `gemma4-e2b-sft-iffc-v7` (GGUF path TBD after fuse).
+Converter (`sft/format_apigen_mt.py`): ShareGPT `human`→user, `function_call`→IFFC JSON, `observation`→`format_iffc_execution_user_message`, `gpt`→assistant **natural language**. **Never** auto-map NL done to `[]`. Unrolled non-tool share is capped at prepare (`sft/cap_nontool_v7.py`, seed 47): keep every `tool_call` row; downsample clarify / final / irrelevance so mlx-v7 `pct_nontool` is in `[0.10, 0.20]` (target ~0.15). Student-aware filter is a stub (`python -m sft.student_filter_v7 --help`). Registry key: `gemma4-e2b-sft-iffc-v7` (GGUF path TBD after fuse).
 
 **Splits** (by conversation / example id, never by turn): `seed=42`; stratify on `source`, `is_multi_turn`, `n_tools_in_gold` (1 vs ≥2); ~90% train / ~5% val / ~5% corpus_test → about **Train 32.7k / Val 1.8k / Corpus-test 1.8k**.
 
@@ -228,7 +234,7 @@ Verified data gaps (inspect `sft/format_iffc.py`, not a guessed root cause):
 |---|---|---|
 | *(default)* / `--recipe v5` | **v5** | v4 + underspecified drop + complete-turn0 synth + state-inconsistent drop. **Run 17 scored 11.5%** (regression vs v4). |
 | `--recipe v6` | **v6** | v4 empty/recovery + **only** `drop_state_inconsistent`. Turn-0 rewrites **off**. Distinct from v4. **Run 18 scored 13.0%** (miss vs v4). |
-| `--recipe v7` | **v7** | New mix (APIGen-MT core). v4 empty/recovery on ToolACE/xLAM filler; light empty-after-exec on `apigen_mt`; **no** v5 complete-turn0. **Unscored.** |
+| `--recipe v7` | **v7** | New mix (APIGen-MT core). v4 empty/recovery on ToolACE/xLAM filler; light empty-after-exec on `apigen_mt`; **no** v5 complete-turn0; then cap non-tool unrolls (~15%). **Unscored.** |
 | `--recipe v4` | v4 | Empty-target curriculum only (Run 15 mix, 15.0%) |
 | `--keep-underspecified-turn0` **and** `--keep-state-inconsistent` **and** `--no-synthetic-complete-turn0` | v4 | Same as `--recipe v4` |
 | `--keep-underspecified-turn0` **and** `--no-synthetic-complete-turn0` | v6 | Same as `--recipe v6` |
@@ -401,6 +407,7 @@ sft/
 ├── format_apigen_mt.py       # ShareGPT function_call/observation/gpt → IFFC
 ├── filter_empty_after_exec.py  # v5 default; --recipe v7 = APIGen-MT mix unroll
 ├── curriculum_v5.py            # turn-0 completeness + env-state detectors (v6 reuses state drop)
+├── cap_nontool_v7.py         # v7: downsample non-tool unrolls to ~15% (mlx-v7)
 ├── mix_stats_v7.py           # v7 taxonomy / source / empty-after-exec CLI
 ├── build_mix_v7.py           # assemble splits-v7 (seed 47; NC license in MANIFEST)
 ├── student_filter_v7.py      # Phase 3 stub (MLX Jaccard loop not in this PR)
