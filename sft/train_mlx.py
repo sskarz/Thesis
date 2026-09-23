@@ -5,7 +5,10 @@ turn, then applies the SFT v5 curriculum by default (v4 empty-after-exec +
 recovery + first-assistant / clarifying ``[]`` drops, plus turn-0 completeness
 and env-state consistency; see ``sft.filter_empty_after_exec``). Pass
 ``--recipe v6`` for v4 empty/recovery plus only ``drop_state_inconsistent``.
-Does **not** run training in CI; on Linux this prints the command.
+Pass ``--recipe v7`` for the APIGen-MT mix (defaults ``splits-v7`` /
+``mlx-v7`` / ``adapters-v7``; v4 empty/recovery on filler, no v5
+complete-turn0). Does **not** run training in CI; on Linux this prints the
+command.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from pathlib import Path
 
 from sft.config import (
     ADAPTER_DIR,
+    ADAPTER_DIR_V7,
     FUSED_DIR,
     HF_INSTRUCT_ID,
     LORA_BATCH_SIZE,
@@ -32,15 +36,18 @@ from sft.config import (
     MLX_CONVERT_HINT,
     MLX_CONVERT_QLORA_HINT,
     MLX_DATA_DIR,
+    MLX_DATA_DIR_V7,
     MLX_MODEL_DIR,
     SMOKE_TRAIN_ROWS,
     SMOKE_VALID_ROWS,
     SPLITS_DIR,
+    SPLITS_DIR_V7,
     TRAIN_JSONL,
     VALID_JSONL,
 )
 from sft.filter_empty_after_exec import (
     RECIPE_IDS,
+    RECIPE_V7,
     RECIPES_WITH_RECOVERY,
     compare_recipe_unroll,
     format_recipe_comparison,
@@ -77,8 +84,9 @@ def prepare_mlx_data(
     Default SFT v5 keeps the v4 empty-after-exec drop + recovery curriculum
     and first-assistant / clarifying ``[]`` drops, then adds turn-0
     completeness and env-state consistency. Pass ``recipe="v6"`` for v4
-    empty/recovery plus only ``drop_state_inconsistent``. Conversation-level
-    splits are unchanged.
+    empty/recovery plus only ``drop_state_inconsistent``. Pass ``recipe="v7"``
+    for the APIGen-MT mix (v4 empty/recovery on filler; no complete-turn0).
+    Conversation-level splits are unchanged.
     """
     if recipe is None:
         recipe = infer_recipe(
@@ -252,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
         "--recipe",
         choices=list(RECIPE_IDS),
         default=None,
-        help="Unroll recipe id. Default v5. v6/v4/v3/v2/v1 are ablations.",
+        help="Unroll recipe id. Default v5. v7/v6/v4/v3/v2/v1 are other recipes.",
     )
     parser.add_argument(
         "--compare-recipe",
@@ -330,17 +338,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if not (args.splits_dir / TRAIN_JSONL.name).exists():
-        parser.error(
-            f"Missing {args.splits_dir / TRAIN_JSONL.name}. "
-            "Run download → format → split first (see sft/README.md)."
-        )
-
-    smoke = args.smoke and not args.full
-    iters = args.iters
-    if iters is None:
-        iters = LORA_ITERS_SMOKE if smoke else LORA_ITERS_FULL
-
     recipe = resolve_recipe(
         keep_nonterminal_empty_after_exec=args.keep_nonterminal_empty_after_exec,
         keep_terminal_empty_after_exec=args.keep_terminal_empty_after_exec,
@@ -351,6 +348,30 @@ def main(argv: list[str] | None = None) -> int:
         no_synthetic_complete_turn0=args.no_synthetic_complete_turn0,
         recipe=args.recipe,
     )
+    splits_dir = args.splits_dir
+    mlx_dir = args.mlx_dir
+    adapter_path = args.adapter_path
+    if recipe == RECIPE_V7:
+        if splits_dir == SPLITS_DIR:
+            splits_dir = SPLITS_DIR_V7
+        if mlx_dir == MLX_DATA_DIR:
+            mlx_dir = MLX_DATA_DIR_V7
+        if adapter_path == ADAPTER_DIR:
+            adapter_path = ADAPTER_DIR_V7
+
+    if not (splits_dir / TRAIN_JSONL.name).exists():
+        parser.error(
+            f"Missing {splits_dir / TRAIN_JSONL.name}. "
+            "Run download → format → split first (see sft/README.md). "
+            "For v7: download --apigen-mt-only, format --apigen-mt, "
+            "build_mix_v7 → sft/data/splits-v7."
+        )
+
+    smoke = args.smoke and not args.full
+    iters = args.iters
+    if iters is None:
+        iters = LORA_ITERS_SMOKE if smoke else LORA_ITERS_FULL
+
     drop_nt, drop_t = recipe_drop_flags(recipe)
     drop_first, drop_clarify = recipe_v4_drop_flags(recipe)
     drop_u, drop_s, synth_c, _drop_abs = recipe_v5_flags(recipe)
@@ -366,8 +387,8 @@ def main(argv: list[str] | None = None) -> int:
         synth_c = False
     synthesize = recipe in RECIPES_WITH_RECOVERY and not args.no_synthetic_recovery
     data_dir = prepare_mlx_data(
-        splits_dir=args.splits_dir,
-        mlx_dir=args.mlx_dir,
+        splits_dir=splits_dir,
+        mlx_dir=mlx_dir,
         smoke=smoke,
         drop_nonterminal_empty_after_exec=drop_nt,
         drop_terminal_empty_after_exec=drop_t,
@@ -400,7 +421,7 @@ def main(argv: list[str] | None = None) -> int:
     cmd = build_lora_command(
         model=model,
         data_dir=data_dir,
-        adapter_path=args.adapter_path,
+        adapter_path=adapter_path,
         config_path=LORA_CONFIG_PATH,
         iters=iters,
         batch_size=args.batch_size,
@@ -409,8 +430,11 @@ def main(argv: list[str] | None = None) -> int:
     print("train command:")
     print(" ", " ".join(cmd))
 
-    fused = FUSED_DIR / "gemma-4-e2b-it-iffc"
-    fuse_cmd = fuse_command(model, args.adapter_path, fused)
+    fused_name = (
+        "gemma-4-e2b-it-iffc-v7" if recipe == RECIPE_V7 else "gemma-4-e2b-it-iffc"
+    )
+    fused = FUSED_DIR / fused_name
+    fuse_cmd = fuse_command(model, adapter_path, fused)
     print("fuse command:")
     print(" ", " ".join(fuse_cmd))
 
@@ -425,7 +449,7 @@ def main(argv: list[str] | None = None) -> int:
         print("SFT_SKIP_MLX=1; not executing mlx_lm")
         return 0
 
-    args.adapter_path.mkdir(parents=True, exist_ok=True)
+    adapter_path.mkdir(parents=True, exist_ok=True)
     print("running mlx_lm.lora …")
     subprocess.run(cmd, check=True)
     if args.fuse:

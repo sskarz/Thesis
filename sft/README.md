@@ -15,6 +15,36 @@ This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored th
 
 **Skipped for v1:** APIGen-MT-5k (NC license), Glaive, Hermes (Hermes is an optional backup only if a source disappears — not in this pipeline).
 
+## SFT v7 (APIGen-MT core — scaffolding, **unscored**)
+
+New experiment id `sft-v7`. **Do not invent a v7 BFCL score.** Distinct from the frozen v1 ToolACE+xLAM splits (`sft/data/splits/`, seed 42) and from v4–v6 adapters.
+
+**License / Hub gate:** [Salesforce/APIGen-MT-5k](https://huggingface.co/datasets/Salesforce/APIGen-MT-5k) is **CC-BY-NC-4.0** and Hub-gated. Cite Prabhakar et al., *APIGen-MT: Agentic Pipeline for Multi-Turn Data Generation via Simulated Agent-Human Interplay*, arXiv:2504.03601, 2025. Thesis academic use only — not for competing with OpenAI. **Sanskar must Accept the Hub license before download.** Do not commit raw/formatted dataset files (already gitignored under `sft/data/`).
+
+```bash
+# 0) Hub Accept + token (required before any APIGen-MT download)
+huggingface-cli login
+# Open https://huggingface.co/datasets/Salesforce/APIGen-MT-5k and click Agree
+
+# 1) Ingest + format (does not run in CI)
+uv run python -m sft.download_datasets --apigen-mt-only
+uv run python -m sft.format_iffc --apigen-mt
+# optional filler refresh: uv run python -m sft.format_iffc --all-v7
+
+# 2) Mix → sft/data/splits-v7/ (seed 47; refuses to overwrite sft/data/splits/)
+uv run python -m sft.build_mix_v7 --out sft/data/splits-v7
+uv run python -m sft.mix_stats_v7 --splits sft/data/splits-v7 --gate
+
+# 3) Unroll (recipe v7: v4 empty/recovery on ToolACE/xLAM filler;
+#    light empty-after-exec on apigen_mt; NO v5 synthetic complete-turn0)
+uv run python -m sft.train_mlx --prepare-only --recipe v7 \
+  --splits-dir sft/data/splits-v7 --mlx-dir sft/data/mlx-v7
+./sft/train_mlx.sh --smoke --run --recipe v7 \
+  --mlx-dir sft/data/mlx-v7 --adapter-path sft/adapters-v7-smoke
+```
+
+Converter (`sft/format_apigen_mt.py`): ShareGPT `human`→user, `function_call`→IFFC JSON, `observation`→`format_iffc_execution_user_message`, `gpt`→assistant **natural language**. **Never** auto-map NL done to `[]`. Student-aware filter is a stub (`python -m sft.student_filter_v7 --help`). Registry key: `gemma4-e2b-sft-iffc-v7` (GGUF path TBD after fuse).
+
 **Splits** (by conversation / example id, never by turn): `seed=42`; stratify on `source`, `is_multi_turn`, `n_tools_in_gold` (1 vs ≥2); ~90% train / ~5% val / ~5% corpus_test → about **Train 32.7k / Val 1.8k / Corpus-test 1.8k**.
 
 **Thesis test:** BFCL v4 `multi_turn_base` only. Do not add BFCL prompts or past scored responses to these JSONL files.
@@ -29,6 +59,7 @@ This folder prepares data and prints/runs the mlx-lm command. **Run 12 scored th
 - key: `gemma4-e2b-sft-iffc-v4` — SFT v4 (v3 empty-after-exec + drop first-assistant-empty and clarifying `[]`, LoRA best@1600 val 0.196, PR #31). Distinct `api_name` / `slug` so Run 15 does **not** overwrite Runs 12–14. Run 15 scored **30/200 = 15.0%** (scored recovery, still below IFFC/NFC). Run 16 scored **26/200 = 13.0%** under `--fc-mode iffc-state` on the same GGUF (null/negative vs Run 15). Serve with `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v4-best1600-Q4_K_M.gguf` (not `-hf`).
 - key: `gemma4-e2b-sft-iffc-v5` — SFT v5 (PR #35: v4 empty-recovery + turn-0 completeness + env-state consistency; LoRA best@1800 val 0.147). Distinct `api_name` / `slug` so Run 17 does **not** overwrite Runs 12–16. Serve with `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v5-best1800-Q4_K_M.gguf` (not `-hf`). Run 17 scored **23/200 = 11.5%** under `--fc-mode iffc` (**scored regression vs Run 15 15.0%**). **Do not present as a method win.** Do **not** overwrite. **No BoN / no more epochs on this mix.**
 - key: `gemma4-e2b-sft-iffc-v6` — SFT v6 (PR #38: v4 empty/recovery + `drop_state_inconsistent` only; turn-0 rewrites off; LoRA best@1800 val 0.142). Distinct `api_name` / `slug` so Run 18 does **not** overwrite Runs 12–17. Serve with `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v6-best1800-Q4_K_M.gguf` (not `-hf`). Run 18 scored **26/200 = 13.0%** under `--fc-mode iffc` (**scored miss vs Run 15 15.0%**). **Do not present as a method win.** Do **not** overwrite. **No BoN / no more epochs on this mix.**
+- key: `gemma4-e2b-sft-iffc-v7` — SFT v7 (APIGen-MT-5k core; IFFC JSON-in-text). Distinct `api_name` / `slug`. GGUF path **TBD** after fuse — do not invent a best@XXXX file. **Unscored. Do not invent a v7 BFCL number.** Serve later with `llama-server -m <fused-v7.gguf>` (not `-hf`).
 
 Instruct weights: **`google/gemma-4-e2b-it`** (gated; HuggingFace token required).
 
@@ -197,6 +228,7 @@ Verified data gaps (inspect `sft/format_iffc.py`, not a guessed root cause):
 |---|---|---|
 | *(default)* / `--recipe v5` | **v5** | v4 + underspecified drop + complete-turn0 synth + state-inconsistent drop. **Run 17 scored 11.5%** (regression vs v4). |
 | `--recipe v6` | **v6** | v4 empty/recovery + **only** `drop_state_inconsistent`. Turn-0 rewrites **off**. Distinct from v4. **Run 18 scored 13.0%** (miss vs v4). |
+| `--recipe v7` | **v7** | New mix (APIGen-MT core). v4 empty/recovery on ToolACE/xLAM filler; light empty-after-exec on `apigen_mt`; **no** v5 complete-turn0. **Unscored.** |
 | `--recipe v4` | v4 | Empty-target curriculum only (Run 15 mix, 15.0%) |
 | `--keep-underspecified-turn0` **and** `--keep-state-inconsistent` **and** `--no-synthetic-complete-turn0` | v4 | Same as `--recipe v4` |
 | `--keep-underspecified-turn0` **and** `--no-synthetic-complete-turn0` | v6 | Same as `--recipe v6` |
@@ -366,8 +398,12 @@ sft/
 ├── config.py                 # seed, paths, model ids
 ├── download_datasets.py
 ├── format_iffc.py            # reuses benchmark.iffc
-├── filter_empty_after_exec.py  # v5 default; --recipe v6 = v4 + state-inconsistent
+├── format_apigen_mt.py       # ShareGPT function_call/observation/gpt → IFFC
+├── filter_empty_after_exec.py  # v5 default; --recipe v7 = APIGen-MT mix unroll
 ├── curriculum_v5.py            # turn-0 completeness + env-state detectors (v6 reuses state drop)
+├── mix_stats_v7.py           # v7 taxonomy / source / empty-after-exec CLI
+├── build_mix_v7.py           # assemble splits-v7 (seed 47; NC license in MANIFEST)
+├── student_filter_v7.py      # Phase 3 stub (MLX Jaccard loop not in this PR)
 ├── split_data.py
 ├── train_mlx.py              # unroll + filter + mlx_lm.lora wrapper
 ├── train_mlx.sh
@@ -375,8 +411,10 @@ sft/
 └── data/                     # gitignored artifacts
     ├── raw/
     ├── formatted/
-    ├── splits/               # train.jsonl, valid.jsonl, corpus_test.jsonl, MANIFEST.json
-    └── mlx/                  # unrolled train/valid for mlx_lm.lora
+    ├── splits/               # v1 train.jsonl, valid.jsonl, corpus_test.jsonl, MANIFEST.json
+    ├── splits-v7/            # v7 mix (do not overwrite splits/)
+    ├── mlx/                  # unrolled train/valid for mlx_lm.lora
+    └── mlx-v7/
 ```
 
 ## Tests

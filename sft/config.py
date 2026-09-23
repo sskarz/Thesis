@@ -30,8 +30,19 @@ MANIFEST_PATH = SPLITS_DIR / "MANIFEST.json"
 
 RAW_TOOLACE = RAW_DIR / "toolace.jsonl"
 RAW_XLAM = RAW_DIR / "xlam.jsonl"
+RAW_APIGEN_MT = RAW_DIR / "apigen_mt.jsonl"
 FORMATTED_TOOLACE = FORMATTED_DIR / "toolace.jsonl"
 FORMATTED_XLAM = FORMATTED_DIR / "xlam.jsonl"
+FORMATTED_APIGEN_MT = FORMATTED_DIR / "apigen_mt.jsonl"
+
+# SFT v7 experiment dirs — do **not** reuse frozen v1 ``splits/`` or v4–v6 adapters.
+SPLITS_DIR_V7 = DATA_DIR / "splits-v7"
+MLX_DATA_DIR_V7 = DATA_DIR / "mlx-v7"
+ADAPTER_DIR_V7 = SFT_ROOT / "adapters-v7"
+TRAIN_JSONL_V7 = SPLITS_DIR_V7 / "train.jsonl"
+VALID_JSONL_V7 = SPLITS_DIR_V7 / "valid.jsonl"
+CORPUS_TEST_JSONL_V7 = SPLITS_DIR_V7 / "corpus_test.jsonl"
+MANIFEST_PATH_V7 = SPLITS_DIR_V7 / "MANIFEST.json"
 
 LORA_CONFIG_PATH = SFT_ROOT / "lora_config.yaml"
 
@@ -42,6 +53,25 @@ TOOLACE_HF_ID = "Team-ACE/ToolACE"
 XLAM_HF_ID = "Salesforce/xlam-function-calling-60k"
 SOURCE_TOOLACE = "toolace"
 SOURCE_XLAM = "xlam"
+FILLER_SOURCES = frozenset({SOURCE_TOOLACE, SOURCE_XLAM})
+
+# Salesforce/APIGen-MT-5k — v7 mix core (not v1).
+# License: CC-BY-NC-4.0 + Hub gated acknowledgment. Card notes the GPT-4-
+# generated portion must not be used to compete with OpenAI. Thesis academic
+# use is the intended path — Sanskar must click Agree on the Hub page, set
+# HF_TOKEN, and cite Prabhakar et al. Do **not** commit raw/formatted JSONL.
+# Cite: Prabhakar et al., "APIGen-MT: Agentic Pipeline for Multi-Turn Data
+# Generation via Simulated Agent-Human Interplay," arXiv:2504.03601, 2025
+# (NeurIPS). Official Hub only — do not use Beryex/APIGen-MT-5k-sharegpt.
+APIGEN_MT_HF_ID = "Salesforce/APIGen-MT-5k"
+APIGEN_MT_LICENSE = "CC-BY-NC-4.0"
+APIGEN_MT_CITATION = (
+    "Prabhakar et al., APIGen-MT: Agentic Pipeline for Multi-Turn Data "
+    "Generation via Simulated Agent-Human Interplay, arXiv:2504.03601, 2025."
+)
+APIGEN_MT_CONFIG_NAME = "dataset"  # Hub config; download falls back to default
+SOURCE_APIGEN_MT = "apigen_mt"
+APIGEN_MT_POLICY_MAX_CHARS = 2000
 
 # ---------------------------------------------------------------------------
 # Locked split / sample policy (SFT v1)
@@ -53,6 +83,22 @@ VAL_FRAC = 0.05
 CORPUS_TEST_FRAC = 0.05
 N_TOOLS_BIN_SINGLE = "1"  # n_tools_in_gold <= 1
 N_TOOLS_BIN_PARALLEL = "ge2"  # n_tools_in_gold >= 2
+
+# ---------------------------------------------------------------------------
+# SFT v7 mix (new experiment id; seed 47; do not reopen v1 seed-42 splits)
+# ---------------------------------------------------------------------------
+SEED_V7 = 47
+V7_TARGET_APIGEN_FRAC = 0.55
+V7_MIN_APIGEN_FRAC = 0.50
+V7_TARGET_MID_FC_FRAC = 0.15
+V7_TARGET_CLARIFY_FRAC = 0.10
+V7_TARGET_IRRELEVANCE_FRAC = 0.09
+V7_MAX_IRRELEVANCE_FRAC = 0.10
+V7_ABORT_IRRELEVANCE_FRAC = 0.12
+V7_TARGET_FINAL_FRAC = 0.05
+V7_NONTOOL_MIN = 0.10
+V7_NONTOOL_MAX = 0.20
+V7_EXPERIMENT = "sft-v7"
 
 # ---------------------------------------------------------------------------
 # Base model (matches benchmark/config.py gemma4-e2b GGUF lineage)
@@ -122,7 +168,8 @@ BFCL_FORBIDDEN_CONTENT_PATTERNS = (
     "gorillafilesystem",
 )
 
-# Skipped for v1 (docs only).
+# Skipped for v1 (docs only). v7 **explicitly uses** APIGen-MT-5k under the
+# CC-BY-NC Hub gate (see APIGEN_MT_* above). Glaive / Hermes stay skipped.
 SKIPPED_DATASETS_V1 = (
     "Salesforce/APIGen-MT-5k (NC license)",
     "glaiveai/glaive-function-calling-v2",

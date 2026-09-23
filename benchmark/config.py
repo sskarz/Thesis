@@ -127,6 +127,18 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Gemma-4-E2B-it SFT-IFFC-v6 (Q4_K_M)",
         "slug": "Gemma-4-E2B-it-SFT-IFFC-v6-Q4_K_M",
     },
+    # SFT v7 (APIGen-MT-5k core + ToolACE/xLAM filler; IFFC JSON-in-text).
+    # Fused GGUF path TBD after smoke+full train — do not invent a best@XXXX.
+    # Distinct api_name/slug so a future Run 21 will not overwrite Runs 12–20.
+    # Unscored; do not present a v7 BFCL number.
+    "gemma4-e2b-sft-iffc-v7": {
+        "hf_repo": "",  # serve with -m, not -hf
+        "gguf_path": "",  # TBD after fuse; not a fake best@XXXX GGUF
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-sft-iffc-v7",
+        "display": "Gemma-4-E2B-it SFT-IFFC-v7 (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-SFT-IFFC-v7-Q4_K_M",
+    },
     "functiongemma-270m": {
         "hf_repo": "ggml-org/functiongemma-270m-it-GGUF",
         "quant": "",
