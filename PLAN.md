@@ -40,11 +40,12 @@ These directly support the thesis claim of "optimization" and are required for t
 
 - **What:** Score published `Salesforce/xLAM-1b-fc-r-gguf` as a fine-tuned SLM baseline on BFCL v4 `multi_turn_base`
 - **Why:** Provides a fine-tuned SLM comparison point. Answers: "how far can inference-time methods close the gap toward a purpose-built model?"
-- **Registry:** key `xlam-1b` is in `benchmark/config.py` (`hf_repo` `Salesforce/xLAM-1b-fc-r-gguf`, `quant` `Q4_K_M`, distinct `api_name` / `slug`). Merged [PR #41](https://github.com/sskarz/Thesis/pull/41).
+- **Registry:** key `xlam-1b` is in `benchmark/config.py` (`hf_repo` `Salesforce/xLAM-1b-fc-r-gguf`, `quant` `Q4_K_M`, distinct `api_name` / `slug`). Merged [PR #41](https://github.com/sskarz/Thesis/pull/41). JSON-in-text adapter `--fc-mode xlam` merged [PR #42](https://github.com/sskarz/Thesis/pull/42).
 - **Measured (`multi_turn_base`, `--fc-mode nfc`):** Run 19 **0/200 = 0.0%** (Mac `run_id=19`; wall **13.55 min**; finished `2026-09-22T14:26:42Z` ≈ 10:26 AM ET). **All 200** eval errors: `Model response list is empty for turn 0`. Shapes: 196/200 all-empty `[[],…]`; 4/200 (`_33,_35,_36,_37`) have `["ERROR: "]` cells but still turn-0 empty. Avg `api_calls` **3.63**; gen_tps_mean ≈ **196.7** — **not** a dead server; model generated tokens; NFC harness recorded **no tool calls**. Same-harness contrast: Gemma NFC Run 4 = **54/200 = 27.0%**.
-- **Framing:** **scored channel/format collapse on our multi_turn NFC harness** — useful **negative external baseline**, **not** a training target and **not** an ability floor. **Do not** claim xLAM scores 0 on BFCL overall. **Do not** equate to published Salesforce overall BFCL ~**78.94%** (different metric / suite aggregation). **Do not** present as a method win. Fair channel is `--fc-mode xlam` (no native tools; parse JSON-in-text `{"tool_calls":[...]}` in `content`). **Do not invent a Run 20 score. Do not claim `--fc-mode xlam` parity with published ~78.94%.**
+- **Measured (`multi_turn_base`, `--fc-mode xlam`):** Run 20 **6/200 = 3.0%** (Mac `run_id=20`; wall **~13.28 h**; `2026-09-22T15:28:35Z` → `2026-09-23T04:45:30Z` ≈ 11:28 AM ET Tue → 12:45 AM ET Wed). **Format-fixed fair-channel** after Run 19 NFC collapse. Smoke extracted calls (5/5). Full score still **very low**. 194/200 eval errors; `state_mismatch` **128**; under_call/missing exec **46**; empty_turn **20**. Flags: `hit_step_limit` **171/200**; `xlam_unparseable` **111/200**; `context_overflow` **42/200**. Avg `api_calls` **50.47** (min 2, max 101) — tools actually ran vs Run 19 **3.63**. gen_tps_mean ≈ **91.6** (n=50). Correct: `multi_turn_base_{50,119,133,139,144,161}`. Example: `_51` VehicleControl `lockDoors` loop; `_0` vs Run 19 empties is 20× GFS `cd`/`grep`/`sort` loops.
+- **Framing:** Run 19 = **scored channel/format collapse** (NFC never parses `content`). Run 20 = **format-fixed fair-channel external baseline**, still **3.0%** — **not** a method win, **not** a training target, still **below CD 10.5%** and all Gemma/SFT/BoN. **Do not** claim xLAM scores 0 on BFCL overall. **Do not** equate 0.0% or 3.0% to published Salesforce overall BFCL ~**78.94%** (different metric / suite aggregation). Do **not** overwrite Run 19 or Run 20.
 - **Published overall (not this pipeline):** ~78.94% on the BFCL leaderboard (Zhang et al.) — **keep as citation only**; do **not** write that this repo reproduced or refuted it.
-- **Effort:** Registry + NFC run done; adapter is `--fc-mode xlam`; remaining work is serve + `run_all --model xlam-1b --fc-mode xlam --only-multi-turn --categories multi_turn_base`
+- **Effort:** Registry + NFC + `--fc-mode xlam` **scored**. Tier-1 fair baseline is **closed at 3.0%**.
 - **Source:** Zhang et al., "xLAM: Large Action Models," arXiv:2409.03215
 
 ### 4. MLX LoRA SFT of Gemma-4-E2B (METHODS — Experiment: MLX SFT)
@@ -112,6 +113,7 @@ Baseline (current)    ->  Inference-time optimized  ->  Fine-tuned
 Qwen2.5-3B: 76%        + templates + voting: ??%    QLoRA: ??%
 Qwen3.5-4B: 82%        + templates + voting: ??%    QLoRA: ??%
 xLAM-1b NFC (this harness, Run 19): 0.0%  ← format-channel collapse; NOT published ~78.94%
+xLAM-1b --fc-mode xlam (Run 20): 3.0%  ← fair channel; still very low; NOT a method win; NOT ~78.94%
 ```
 
 This answers the central question from METHODS.md: **does fine-tuning or inference-time optimization close the SLM-to-cloud-model gap more effectively for tool calling on edge devices?**
@@ -120,7 +122,7 @@ This answers the central question from METHODS.md: **does fine-tuning or inferen
 
 1. Guided-Structured Templates (prompt change only)
 2. Run multi-turn evaluation (pipeline exists)
-3. Add xLAM-1b-fc-r to model registry and benchmark — **registry key `xlam-1b` exists** ([PR #41](https://github.com/sskarz/Thesis/pull/41)); **Run 19 NFC scored 0/200 = 0.0%** (format-channel collapse on this harness; **not** published overall ~78.94%; **not** an ability floor). Do **not** overwrite. Fair baseline is `--fc-mode xlam`; **do not invent a Run 20 score**; **do not claim published ~78.94% parity**
+3. Add xLAM-1b-fc-r to model registry and benchmark — **registry key `xlam-1b` exists** ([PR #41](https://github.com/sskarz/Thesis/pull/41)); **Run 19 NFC scored 0/200 = 0.0%** (format-channel collapse; **not** published overall ~78.94%). **Run 20 `--fc-mode xlam` scored 6/200 = 3.0%** (fair channel after [PR #42](https://github.com/sskarz/Thesis/pull/42); still **very low**; **not** a method win; still **below CD 10.5%**). Do **not** overwrite. **Do not claim published ~78.94% parity**
 4. Best-of-N majority voting wrapper
 5. Context compression for multi-turn
 6. Parallel calling grammar investigation

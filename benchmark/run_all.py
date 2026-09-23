@@ -15,7 +15,9 @@ Function-calling modes (``--fc-mode``):
   (METHODS §4; default N=5, temperature=0.7). Not NFC/GST/CD.
 - ``xlam``: Salesforce xLAM JSON-in-text (``{"tool_calls":[{name, arguments}]}``);
   used by multi-turn generation only. No native tools. Fair channel for
-  ``xlam-1b`` (Run 19 NFC 0/200 was format-channel collapse).
+  ``xlam-1b`` (Run 19 NFC 0/200 was format-channel collapse; Run 20
+  ``--fc-mode xlam`` scored 6/200 = 3.0% --- still very low, not published
+  ~78.94%).
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits
 trailing IFFC assistant ``[]`` from ``chat_history`` before the next BFCL
