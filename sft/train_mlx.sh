@@ -57,4 +57,4 @@ if [[ ! -f "$SPLITS_FILE" ]]; then
   exit 1
 fi
 
-exec uv run python -m sft.train_mlx "$MODE" "${RUN[@]}" "${EXTRA[@]}"
+exec uv run python -m sft.train_mlx "$MODE" ${RUN[@]+"${RUN[@]}"} ${EXTRA[@]+"${EXTRA[@]}"}
