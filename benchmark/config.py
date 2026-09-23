@@ -57,9 +57,10 @@ MODELS: dict[str, dict[str, str]] = {
     # fine-tuned SLM baseline. Distinct api_name/slug so results do not
     # overwrite other models. Run 19 NFC scored 0/200 = 0.0% on
     # multi_turn_base (format-channel collapse on this harness — not
-    # published overall BFCL ~78.94%; not an ability floor). Do not
-    # overwrite. Fair channel is `--fc-mode xlam` (no native tools).
-    # Do not invent a Run 20 score. Serve with
+    # published overall BFCL ~78.94%). Run 20 --fc-mode xlam scored
+    # 6/200 = 3.0% (fair channel after PR #42; still very low; not a
+    # method win; not published ~78.94%; still below CD 10.5%). Do not
+    # overwrite either run. Serve with
     # `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M`
     # (HF file is `xLAM-1b-fc-r.Q4_K_M.gguf`; llama.cpp :quant matches
     # `Q4_K_M[.-]`).
@@ -242,7 +243,9 @@ MULTI_TURN_MAX_STEPS = 20
 # xlam = Salesforce xLAM JSON-in-text ({"tool_calls":[{name, arguments}]}).
 #        Do not send tools/tool_choice. Parse assistant content. Empty
 #        {"tool_calls": []} ends the turn. Fair channel for xlam-1b
-#        (Run 19 NFC 0/200 was format-channel collapse, not a model score).
+#        (Run 19 NFC 0/200 was format-channel collapse; Run 20
+#        --fc-mode xlam scored 6/200 = 3.0% — still very low, not a
+#        method win, not published ~78.94%).
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"

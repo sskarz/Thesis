@@ -18,8 +18,10 @@ returns prose and the NFC harness stores empty turn lists (BFCL Run 19:
   ``tool_calls`` the same way it already accepts ``function_calls``)
 * executes mapped calls; empty list ends the turn
 
-This is a format adapter, **not** a claim of published BFCL ~78.94% parity
-and **not** a scored Run 20 result.
+This is a format adapter, **not** a claim of published BFCL ~78.94% parity.
+Run 19 NFC on this harness scored 0/200 (format-channel collapse).
+Run 20 ``--fc-mode xlam`` scored 6/200 = 3.0% (fair channel; still very
+low; not a method win).
 """
 
 from __future__ import annotations

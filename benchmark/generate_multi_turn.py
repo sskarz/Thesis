@@ -19,7 +19,7 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
 - ``xlam``: Salesforce xLAM JSON-in-text (``{"tool_calls":[{name, arguments}]}``).
   Never sends ``tools``/``tool_choice``. Parse assistant text; empty
   ``{"tool_calls": []}`` ends the turn. Fair channel for ``xlam-1b``
-  (Run 19 NFC 0/200 was format-channel collapse).
+  (Run 19 NFC 0/200 was format-channel collapse; Run 20 scored 6/200 = 3.0%).
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits trailing
 IFFC assistant ``[]`` stop turns from ``chat_history`` before the next BFCL
