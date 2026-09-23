@@ -5,15 +5,20 @@ Target (conversation-level starting point):
 * ≥55% APIGen-MT (abort if ``pct_apigen_mt < 50``)
 * ~15% mid-diff function-calling filler (xLAM / nonempty ToolACE)
 * ~10% clarify
-* ≤10% irrelevance_[] (abort if unrolled share > 0.12)
+* ≤10% irrelevance_[] (abort if conversation share > 0.12)
 * ~5% final-answer NL (not ``[]``)
 
 Writes ``train.jsonl`` / ``valid.jsonl`` / ``corpus_test.jsonl`` plus
 ``MANIFEST.json`` with ``experiment: sft-v7``. RNG seed **47**. Never overwrites
 frozen v1 ``sft/data/splits/``.
 
+Full conversations are stored in splits-v7 (including APIGen clarify/final
+turns). Unrolled ``pct_nontool`` is **not** a splits gate — ``sft.cap_nontool_v7``
+downsamples non-tool assistant rows at unroll → mlx-v7 time. Gate that band
+with ``mix_stats_v7 --mlx-dir ... --gate`` after prepare.
+
 Student-aware filter (Phase 3) is a stub — this builder samples the formatted
-pools directly. Hard abort if mix gates fail after at most two filler resamples.
+pools directly. Hard abort (nonzero exit) if conversation mix gates fail.
 """
 
 from __future__ import annotations
@@ -75,8 +80,8 @@ BUCKET_IRRELEVANCE = "irrelevance_[]"
 BUCKET_FINAL = "final_answer"
 
 
-class MixAbort(SystemExit):
-    """Hard abort: mix gates failed."""
+class MixAbort(Exception):
+    """Hard abort: conversation mix gates failed. ``main`` exits 1."""
 
 
 def _sorted_shuffle(rows: list[dict], rng: random.Random) -> list[dict]:
@@ -228,9 +233,21 @@ def build_v7_manifest(
             "max_irrelevance_[]": V7_MAX_IRRELEVANCE_FRAC,
             "abort_irrelevance_[]": V7_ABORT_IRRELEVANCE_FRAC,
             "final_answer": V7_TARGET_FINAL_FRAC,
+            "unrolled_pct_nontool": (
+                "deferred to sft.cap_nontool_v7 at unroll → mlx-v7 "
+                "(not a splits-v7 conversation gate)"
+            ),
         },
         "student_filter": (
             "stub — sft.student_filter_v7 Phase 3 not applied in this PR"
+        ),
+        "nontool_unroll_cap": (
+            "splits-v7 stores full conversations. "
+            "sft.cap_nontool_v7 (seed 47) downsamples clarify/final/"
+            "irrelevance_[] assistant unrolls after empty-after-exec so "
+            "mlx-v7 pct_nontool is in [0.10, 0.20] (target ~0.15). "
+            "Keep all tool_call unrolls. Never map NL finals to []. "
+            "mix_stats_v7 --gate --mlx-dir evaluates the capped rows."
         ),
         "mix_stats": mix_stats,
         "counts": counts,
@@ -289,7 +306,7 @@ def _try_assemble(
         apigen, toolace, xlam, seed=seed, extra_mid_fc=extra_mid_fc
     )
     stats = collect_stats(pool)
-    return pool, stats, gate_reasons(stats)
+    return pool, stats, gate_reasons(stats, require_unrolled_nontool=False)
 
 
 def build_v7_mix(
@@ -301,38 +318,26 @@ def build_v7_mix(
     seed: int = SEED_V7,
     skip_gates: bool = False,
 ) -> dict[str, Any]:
-    extra = 0
-    pool: list[dict] = []
-    stats: dict[str, Any] = {}
-    reasons: list[str] = ["not run"]
-    for attempt in range(3):
-        pool, stats, reasons = _try_assemble(
-            apigen, toolace, xlam, seed=seed + attempt, extra_mid_fc=extra
-        )
-        if not reasons:
-            break
-        nontool_fail = any("pct_nontool" in r for r in reasons)
-        if nontool_fail:
-            extra += max(8, len(apigen) // 5)
-            continue
-        break
+    pool, stats, reasons = _try_assemble(
+        apigen, toolace, xlam, seed=seed, extra_mid_fc=0
+    )
     if reasons and not skip_gates:
         raise MixAbort(
-            "v7 mix gates failed after resamples:\n  - "
+            "v7 mix gates failed:\n  - "
             + "\n  - ".join(reasons)
             + "\n"
-            + format_report(stats)
+            + format_report(stats, require_unrolled_nontool=False)
         )
 
     splits = stratified_split(pool, seed=seed)
     train_stats = collect_stats(splits["train"])
-    train_reasons = gate_reasons(train_stats)
+    train_reasons = gate_reasons(train_stats, require_unrolled_nontool=False)
     if train_reasons and not skip_gates:
         raise MixAbort(
             "v7 train-split gates failed:\n  - "
             + "\n  - ".join(train_reasons)
             + "\n"
-            + format_report(train_stats)
+            + format_report(train_stats, require_unrolled_nontool=False)
         )
 
     pool_counts = {
@@ -354,7 +359,7 @@ def build_v7_mix(
         pool_counts=pool_counts,
         mix_stats=mix_stats,
     )
-    print(format_report(train_stats))
+    print(format_report(train_stats, require_unrolled_nontool=False))
     print(
         "v7 splits: "
         f"train={len(splits['train'])} "
@@ -374,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skip-gates",
         action="store_true",
-        help="Write splits even if taxonomy gates fail (debug only).",
+        help="Write splits even if conversation-level taxonomy gates fail (debug only).",
     )
     args = parser.parse_args(argv)
 

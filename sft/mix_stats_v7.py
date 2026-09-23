@@ -10,6 +10,8 @@ Deterministic labels (no LLM):
 CLI::
 
     uv run python -m sft.mix_stats_v7 --splits sft/data/splits-v7 --gate
+    uv run python -m sft.mix_stats_v7 --splits sft/data/splits-v7 \\
+        --mlx-dir sft/data/mlx-v7 --gate
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from typing import Any, Iterable
 
 from benchmark.iffc import parse_iffc_response
 
+from sft.cap_nontool_v7 import cap_nontool_unrolls, format_cap_report
 from sft.config import (
     SOURCE_APIGEN_MT,
     SPLITS_DIR_V7,
@@ -146,19 +149,52 @@ def collect_stats(
     *,
     unrolled: list[dict] | None = None,
     unroll_recipe: str = RECIPE_V7,
+    cap_nontool: bool | None = None,
 ) -> dict[str, Any]:
+    """Conversation stats plus unrolled assistant-target stats.
+
+    When ``unrolled`` is omitted and ``unroll_recipe`` is v7, the same
+    ``sft.cap_nontool_v7`` downsample the trainer applies is used so the
+    report matches mlx-v7. Pass ``unrolled=`` from ``--mlx-dir`` (already
+    capped by prepare) and leave ``cap_nontool`` off so we do not cap twice.
+    """
     conv = scan_conversations(conversations)
     rows = unrolled
+    from_mlx = unrolled is not None
+    cap_stats: dict[str, Any] | None = None
+    apply_cap = cap_nontool
+    if apply_cap is None:
+        apply_cap = unroll_recipe == RECIPE_V7 and not from_mlx
     if rows is None:
         rows, _stats = unroll_and_filter(
             conversations, check_bfcl_leak=False, **flags_for_recipe(unroll_recipe)
         )
+    if apply_cap:
+        rows, cap_stats = cap_nontool_unrolls(rows)
     unr = scan_unrolled(rows)
-    return {"conversations": conv, "unrolled": unr, "recipe": unroll_recipe}
+    return {
+        "conversations": conv,
+        "unrolled": unr,
+        "recipe": unroll_recipe,
+        "unroll_capped": bool(apply_cap or from_mlx),
+        "unroll_from_mlx": from_mlx,
+        "nontool_cap": cap_stats,
+    }
 
 
-def gate_reasons(stats: dict[str, Any]) -> list[str]:
-    """Hard mix constraints from the v7 plan. Empty list = pass."""
+def gate_reasons(
+    stats: dict[str, Any],
+    *,
+    require_unrolled_nontool: bool = False,
+) -> list[str]:
+    """Hard mix constraints from the v7 plan. Empty list = pass.
+
+    Conversation-level (``--splits`` without ``--mlx-dir``): ``pct_apigen_mt``,
+    conversation irrelevance share, and (if unrolled stats are present)
+    empty-after-exec / unrolled irrelevance. Does **not** require unrolled
+    ``pct_nontool`` in ``[0.1, 0.2]`` unless ``require_unrolled_nontool``
+    (``--mlx-dir`` after prepare, which must already be capped).
+    """
     reasons: list[str] = []
     conv = stats.get("conversations") or {}
     unr = stats.get("unrolled") or {}
@@ -167,30 +203,52 @@ def gate_reasons(stats: dict[str, Any]) -> list[str]:
         reasons.append(
             f"pct_apigen_mt={pct_apigen:.3f} < {V7_MIN_APIGEN_FRAC} (conversation)"
         )
-    pct_nontool = float(unr.get("pct_nontool") or 0.0)
-    if not (V7_NONTOOL_MIN <= pct_nontool <= V7_NONTOOL_MAX):
+    n_conv = int(conv.get("n") or 0)
+    n_irr_conv = int((conv.get("stop_label") or {}).get(STOP_IRRELEVANCE, 0))
+    irr_conv = _pct(n_irr_conv, n_conv)
+    if irr_conv > V7_ABORT_IRRELEVANCE_FRAC:
         reasons.append(
-            f"pct_nontool={pct_nontool:.3f} outside [{V7_NONTOOL_MIN}, {V7_NONTOOL_MAX}] "
-            "(unrolled assistant targets)"
+            f"conversation irrelevance_[] share={irr_conv:.3f} > "
+            f"{V7_ABORT_IRRELEVANCE_FRAC}"
         )
-    n_unr = int(unr.get("n") or 0)
-    n_irr = int((unr.get("stop_label") or {}).get(STOP_IRRELEVANCE, 0))
-    irr_share = _pct(n_irr, n_unr)
-    if irr_share > V7_ABORT_IRRELEVANCE_FRAC:
-        reasons.append(
-            f"irrelevance_[] row share={irr_share:.3f} > {V7_ABORT_IRRELEVANCE_FRAC}"
-        )
-    empty_after = int(unr.get("empty_after_exec") or 0)
-    if empty_after > 0:
-        reasons.append(
-            f"empty-after-exec targets after recipe={empty_after} (must be 0)"
-        )
+    if unr:
+        n_unr = int(unr.get("n") or 0)
+        n_irr = int((unr.get("stop_label") or {}).get(STOP_IRRELEVANCE, 0))
+        irr_share = _pct(n_irr, n_unr)
+        if irr_share > V7_ABORT_IRRELEVANCE_FRAC:
+            reasons.append(
+                f"irrelevance_[] row share={irr_share:.3f} > {V7_ABORT_IRRELEVANCE_FRAC}"
+            )
+        empty_after = int(unr.get("empty_after_exec") or 0)
+        if empty_after > 0:
+            reasons.append(
+                f"empty-after-exec targets after recipe={empty_after} (must be 0)"
+            )
+        if require_unrolled_nontool:
+            pct_nontool = float(unr.get("pct_nontool") or 0.0)
+            if not (V7_NONTOOL_MIN <= pct_nontool <= V7_NONTOOL_MAX):
+                reasons.append(
+                    f"pct_nontool={pct_nontool:.3f} outside "
+                    f"[{V7_NONTOOL_MIN}, {V7_NONTOOL_MAX}] "
+                    "(unrolled assistant targets; run prepare cap)"
+                )
     return reasons
 
 
-def format_report(stats: dict[str, Any]) -> str:
+def format_report(
+    stats: dict[str, Any],
+    *,
+    require_unrolled_nontool: bool = False,
+) -> str:
     conv = stats["conversations"]
     unr = stats["unrolled"]
+    cap = stats.get("nontool_cap")
+    if stats.get("unroll_from_mlx"):
+        unroll_note = "from --mlx-dir (prepare must already have capped)"
+    elif cap:
+        unroll_note = "projected capped unroll (same as trainer mlx-v7)"
+    else:
+        unroll_note = "uncapped unroll"
     lines = [
         f"sft-v7 mix stats (recipe={stats.get('recipe')})",
         "conversations:",
@@ -199,7 +257,7 @@ def format_report(stats: dict[str, Any]) -> str:
         f"mean_tool_calls={conv['mean_tool_calls']:.3f}",
         f"  by_source={conv['by_source']}",
         f"  stop_label={conv['stop_label']}  pct={conv['stop_label_pct']}",
-        "unrolled assistant targets:",
+        f"unrolled assistant targets ({unroll_note}):",
         f"  n={unr['n']}  pct_apigen_mt={unr['pct_apigen_mt']:.4f}  "
         f"pct_nontool={unr['pct_nontool']:.4f}",
         f"  empty_after_exec={unr['empty_after_exec']}  "
@@ -207,12 +265,19 @@ def format_report(stats: dict[str, Any]) -> str:
         f"  by_source={unr['by_source']}",
         f"  stop_label={unr['stop_label']}  pct={unr['stop_label_pct']}",
     ]
-    reasons = gate_reasons(stats)
+    if cap:
+        lines.append(format_cap_report(cap))
+    reasons = gate_reasons(stats, require_unrolled_nontool=require_unrolled_nontool)
+    gate_kind = (
+        "conversation + capped unroll"
+        if require_unrolled_nontool
+        else "conversation-level (unrolled pct_nontool deferred to prepare / --mlx-dir)"
+    )
     if reasons:
-        lines.append("gates: FAIL")
+        lines.append(f"gates ({gate_kind}): FAIL")
         lines.extend(f"  - {r}" for r in reasons)
     else:
-        lines.append("gates: PASS")
+        lines.append(f"gates ({gate_kind}): PASS")
     return "\n".join(lines)
 
 
@@ -241,12 +306,20 @@ def main(argv: list[str] | None = None) -> int:
         "--mlx-dir",
         type=Path,
         default=None,
-        help="Optional already-unrolled mlx JSONL dir (skips in-memory unroll).",
+        help=(
+            "Optional already-unrolled mlx JSONL dir (skips in-memory unroll). "
+            "Must be the capped prepare output. With --gate, also requires "
+            "unrolled pct_nontool in [0.1, 0.2]."
+        ),
     )
     parser.add_argument(
         "--gate",
         action="store_true",
-        help="Exit 1 if hard mix constraints fail.",
+        help=(
+            "Exit 1 if hard mix constraints fail. Without --mlx-dir this is "
+            "conversation-level only (pct_apigen, irrelevance). Pass --mlx-dir "
+            "to gate the capped unroll the trainer will see."
+        ),
     )
     parser.add_argument("--json", action="store_true", help="Dump stats as JSON.")
     args = parser.parse_args(argv)
@@ -262,12 +335,13 @@ def main(argv: list[str] | None = None) -> int:
             f = args.mlx_dir / name
             if f.exists():
                 unrolled.extend(read_jsonl(f))
+    require_unrolled = args.mlx_dir is not None
     stats = collect_stats(conversations, unrolled=unrolled)
-    print(format_report(stats))
+    print(format_report(stats, require_unrolled_nontool=require_unrolled))
     if args.json:
         print(json.dumps(stats, indent=2, ensure_ascii=False))
     if args.gate:
-        reasons = gate_reasons(stats)
+        reasons = gate_reasons(stats, require_unrolled_nontool=require_unrolled)
         if reasons:
             print("mix_stats_v7: abort", file=sys.stderr)
             return 1

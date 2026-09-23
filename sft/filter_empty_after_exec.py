@@ -28,8 +28,10 @@ SFT v7 (``--recipe v7``) is a **new mix** (APIGen-MT core + ToolACE/xLAM
 filler), not another flag on the frozen ToolACE+xLAM unroll. Unroll policy:
 v4 empty-after-exec + recovery on filler; **no** v5 synthetic complete-turn0;
 on ``source=apigen_mt`` only light empty-after-exec drops (the converter
-keeps gpt finals as NL, never auto-``[]``). Unscored — do not invent a
-v7 BFCL number.
+keeps gpt finals as NL, never auto-``[]``). After that filter, ``sft.cap_nontool_v7``
+downsamples clarify / final / irrelevance unrolls so mlx-v7 ``pct_nontool``
+is ~15% (full conversations stay in ``splits-v7``). Unscored — do not invent
+a v7 BFCL number.
 """
 
 from __future__ import annotations
@@ -1112,7 +1114,10 @@ def main(argv: list[str] | None = None) -> int:
         "--recipe",
         choices=list(RECIPE_IDS),
         default=None,
-        help="Unroll recipe id. Default v5. v7/v6/v4/v3/v2/v1 are other recipes.",
+        help=(
+            "Unroll recipe id. Default v5. v7 applies empty-after-exec then "
+            "the non-tool cap (sft.cap_nontool_v7) when writing rows."
+        ),
     )
     parser.add_argument(
         "--compare-recipe",
@@ -1246,6 +1251,11 @@ def main(argv: list[str] | None = None) -> int:
                 synthesize_complete_turn0=synth_c,
             )
         )
+        if recipe == RECIPE_V7:
+            from sft.cap_nontool_v7 import cap_nontool_unrolls, format_cap_report
+
+            rows, cap_stats = cap_nontool_unrolls(rows)
+            print(format_cap_report(cap_stats))
         if args.compare_recipe:
             delta = compare_recipe_unroll(
                 recs,
