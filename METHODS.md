@@ -261,7 +261,7 @@ The most recent ~10% of the context window is preserved verbatim as active worki
 - **BFCL categories:** `multi_turn_base` first (Gemma-4-E2B-it BoN Run 11 **73/200 = 36.5%** on IFFC+STATE, +2.5 pp vs Run 10 **68/200 = 34.0%** at ~7× wall; vs NFC 27.0% / IFFC 30.5% / GST 30.5% / CD 10.5%); also `multi_turn_miss_func`, `multi_turn_miss_param`, `multi_turn_long_context`. The current `generate_multi_turn.py` appends every tool call and result to `chat_history` indefinitely. By turn 4–5 with multiple tool calls per turn, this can exceed 8192 tokens (triggering the `context_overflow` flag).
 - **Implementation:** The multi-turn ablation is `--fc-mode iffc-state` (IFFC JSON-in-text plus a harness-written STATE snapshot from actual tool execution results; see [Experiment: IFFC + harness STATE](#experiment-iffc--harness-state---fc-mode-iffc-state)). Keep the last 2 turns verbatim; older raw dumps are dropped in favor of the compact STATE block. **Not** LLM summarization, **not** GST, **not** CD/GBNF.
 - **Complexity:** Medium (sliding window: Low)
-- **Caveat:** Summarization itself requires an LLM call. For SLMs, the summarization quality may be poor. A simpler structured state tracker (explicit key-value record of tool results) avoids this — that is what `--fc-mode iffc-state` implements. On **base** Gemma `multi_turn_base`, STATE **beat IFFC** but did **not** cut state mismatch (60→64); BoN on that channel then cut state 64→53 at ~7× wall (see `THESIS.md`). On **SFT-v4** the same overlay is a **scored negative** (Run 16 13.0% vs Run 15 15.0%). Recipe v5 on a new mix is a **scored regression** (Run 17 11.5% vs Run 15 15.0%). Recipe v6 (v4 empty/recovery + only `drop_state_inconsistent`; turn-0 rewrites off) is a **scored miss vs v4** (Run 18 13.0% vs Run 15 15.0%). Next leverage is **TBD** (likely not another thin filter on the same family), not BoN-on-v4/v5/v6 and not more empty-only prompts / more epochs on v5/v6.
+- **Caveat:** Summarization itself requires an LLM call. For SLMs, the summarization quality may be poor. A simpler structured state tracker (explicit key-value record of tool results) avoids this — that is what `--fc-mode iffc-state` implements. On **base** Gemma `multi_turn_base`, STATE **beat IFFC** but did **not** cut state mismatch (60→64); BoN on that channel then cut state 64→53 at ~7× wall (see `THESIS.md`). On **SFT-v4** the same overlay is a **scored negative** (Run 16 13.0% vs Run 15 15.0%). Recipe v5 on a new mix is a **scored regression** (Run 17 11.5% vs Run 15 15.0%). Recipe v6 (v4 empty/recovery + only `drop_state_inconsistent`; turn-0 rewrites off) is a **scored miss vs v4** (Run 18 13.0% vs Run 15 15.0%). Next leverage is SFT **v7** (planned, **not scored** — not another thin filter on the same family), not BoN-on-v4/v5/v6 and not more empty-only prompts / more epochs on v5/v6. **SFT path locked 2026-09-23** as the main path.
 
 ### Sources
 
@@ -908,7 +908,22 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 ## Experiment: MLX SFT (Gemma-4-E2B, IFFC mix)
 
-Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both scored negative** on BFCL v4 `multi_turn_base`. Run 14 is a **DIAGNOSTIC** history-bookkeeping ablation on the same v2 GGUF (`--iffc-strip-empty-assistant`): **4/200 = 2.0%** — did **not** rescue the never-start collapse. **Do not present 2% as a method win.** **v4 (Run 15) is a scored recovery: 30/200 = 15.0%** — empty-`[]` largely fixed, still **below IFFC 30.5% and below NFC 27.0%**. **Do not present 15% as beating IFFC.** **Run 16 (IFFC+STATE on that same v4 GGUF) is a scored negative/null overlay: 26/200 = 13.0%** (−2.0 pp vs Run 15). STATE helps **base** Gemma, not this SFT-v4 checkpoint. **Do not propose BoN as the next win on this ckpt.** **v5 (Run 17) is a scored regression: 23/200 = 11.5%** (−3.5 pp / −7 vs Run 15; state_mismatch 109→133, under_call 59→44, empty 2→0, avg api_calls/entry 17.3→40.3). Hypothesis: synthetic complete turn-0 taught parallel call dumps. **Do not present 11.5% as a method win.** **No BoN on this ckpt; no more epochs on the v5 mix.** **v6 (Run 18) is a scored miss vs v4: 26/200 = 13.0%** (−2.0 pp / −4 vs Run 15; +1.5 pp / +3 vs Run 17; ties Run 16). Recipe ([PR #38](https://github.com/sskarz/Thesis/pull/38)): v4 empty/recovery + only `drop_state_inconsistent`; turn-0 underspec/synth **off**. Model key [PR #39](https://github.com/sskarz/Thesis/pull/39). Empty still 1 (`_43`); residual state_mismatch 118 + under_call 55; avg api_calls **13.34** (fixed v5’s 40.3 churn). **Do not present 13.0% as a method win.** **No BoN on this ckpt; no more epochs on the v6 mix.** v4 IFFC 15% remains best SFT recovery. Next training lever: **TBD** (likely not another thin filter on the same family). Inference-time baselines unchanged: BoN 36.5% best **on base Gemma**; IFFC+STATE 34.0%; IFFC 30.5%. Full audit: `THESIS.md`.
+Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both scored negative** on BFCL v4 `multi_turn_base`. Run 14 is a **DIAGNOSTIC** history-bookkeeping ablation on the same v2 GGUF (`--iffc-strip-empty-assistant`): **4/200 = 2.0%** — did **not** rescue the never-start collapse. **Do not present 2% as a method win.** **v4 (Run 15) is a scored recovery: 30/200 = 15.0%** — empty-`[]` largely fixed, still **below IFFC 30.5% and below NFC 27.0%**. **Do not present 15% as beating IFFC.** **Run 16 (IFFC+STATE on that same v4 GGUF) is a scored negative/null overlay: 26/200 = 13.0%** (−2.0 pp vs Run 15). STATE helps **base** Gemma, not this SFT-v4 checkpoint. **Do not propose BoN as the next win on this ckpt.** **v5 (Run 17) is a scored regression: 23/200 = 11.5%** (−3.5 pp / −7 vs Run 15; state_mismatch 109→133, under_call 59→44, empty 2→0, avg api_calls/entry 17.3→40.3). Hypothesis: synthetic complete turn-0 taught parallel call dumps. **Do not present 11.5% as a method win.** **No BoN on this ckpt; no more epochs on the v5 mix.** **v6 (Run 18) is a scored miss vs v4: 26/200 = 13.0%** (−2.0 pp / −4 vs Run 15; +1.5 pp / +3 vs Run 17; ties Run 16). Recipe ([PR #38](https://github.com/sskarz/Thesis/pull/38)): v4 empty/recovery + only `drop_state_inconsistent`; turn-0 underspec/synth **off**. Model key [PR #39](https://github.com/sskarz/Thesis/pull/39). Empty still 1 (`_43`); residual state_mismatch 118 + under_call 55; avg api_calls **13.34** (fixed v5’s 40.3 churn). **Do not present 13.0% as a method win.** **No BoN on this ckpt; no more epochs on the v6 mix.** v4 IFFC 15% remains best SFT recovery. **SFT path locked 2026-09-23** as the main path (inference wrappers secondary). Next training lever: SFT **v7** (planned, **not scored**). Inference-time baselines unchanged: BoN 36.5% best **on base Gemma**; IFFC+STATE 34.0%; IFFC 30.5%. Full audit: `THESIS.md`.
+
+### Decision: SFT path locked (2026-09-23)
+
+**TRAINING (SFT) is the locked main path.** Inference wrappers (BoN / STATE / GST / CD) are secondary, not the primary next bet. Best measured inference remains BoN **36.5%** (Run 11, base Gemma). Best measured SFT remains v4 IFFC **15.0%** (Run 15). v5 / v6 are **closed** as below v4 (Run 17 **11.5%** / Run 18 **13.0%**). xLAM Runs 19–20 are **negative external baselines** (NFC **0.0%**; `--fc-mode xlam` **3.0%**) — not Tier-1 wins.
+
+**Lit review:** [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md) (12-source synthesis for v7 planning; vault owns the deep note — may land in a parallel vault PR before it is on `main`). Do **not** paste the full review here.
+
+**Next intended method — SFT v7 (planned, not scored; do not invent results):**
+
+1. MT-native verified trajs core (**≥50%**) — APIGen-MT-5k → IFFC JSON-in-text, assistant-only loss
+2. Rebalance stop taxonomy — tool / clarify / final / irrelevance `[]` at **~12–15%** non-tool
+3. Student-aware mid-difficulty filter (ToolACE-R-lite)
+4. Optional post-SFT: Hammer masking + RPO/mDPO **only after** a healthy (non-collapsed, not below-IFFC) SFT
+
+Planning with Sanskar next. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
 **v1 (Run 12):** Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`.
 
@@ -1010,7 +1025,7 @@ Mac `run_id=17`, `--model gemma4-e2b-sft-iffc-v5 --fc-mode iffc`. Recipe is [PR 
 
 ### Run 18: SFT-IFFC-v6 best@1800 (scored miss vs v4)
 
-Mac `run_id=18`, `--model gemma4-e2b-sft-iffc-v6 --fc-mode iffc`. Recipe is [PR #38](https://github.com/sskarz/Thesis/pull/38) v6 unroll (v4 empty/recovery + only `drop_state_inconsistent`; turn-0 underspec/synth **off**); LoRA best@1800 `val=0.142`; fused `sft/fused/gemma-4-e2b-it-iffc-v6-best1800-Q4_K_M.gguf`; model key [PR #39](https://github.com/sskarz/Thesis/pull/39). **26/200 = 13.0%** (−4 / −2.0 pp vs Run 15; +3 / +1.5 pp vs Run 17). Empty_turn **1** (`_43` turn 2) / state_mismatch **118** / under_call **55** (turn0=38). Overlap vs Run 15: both 18 / only18 8 (`_42,_47,_102,_144,_161,_169,_186,_192`) / lost 12 (`_52,_64,_78,_105,_106,_107,_109,_114,_129,_136,_159,_166`). Overlap vs Run 17: both 15 / only18 11 / only17 8. Wall ~70.8 min; avg `api_calls` **13.34** (fixed v5’s 40.3); gen_tps_mean ≈ 103.1. Lost vs v4 mostly TradingBot/VehicleControl state_mismatch plus turn-0 under_call `_105,_114,_159,_166`. **Scored miss vs v4 recovery. Do not present as a method win. No BoN / no more epochs on this mix.** Next SFT lever TBD (likely not another thin filter on the same family). Full writeup: `THESIS.md` Run 18 subsection.
+Mac `run_id=18`, `--model gemma4-e2b-sft-iffc-v6 --fc-mode iffc`. Recipe is [PR #38](https://github.com/sskarz/Thesis/pull/38) v6 unroll (v4 empty/recovery + only `drop_state_inconsistent`; turn-0 underspec/synth **off**); LoRA best@1800 `val=0.142`; fused `sft/fused/gemma-4-e2b-it-iffc-v6-best1800-Q4_K_M.gguf`; model key [PR #39](https://github.com/sskarz/Thesis/pull/39). **26/200 = 13.0%** (−4 / −2.0 pp vs Run 15; +3 / +1.5 pp vs Run 17). Empty_turn **1** (`_43` turn 2) / state_mismatch **118** / under_call **55** (turn0=38). Overlap vs Run 15: both 18 / only18 8 (`_42,_47,_102,_144,_161,_169,_186,_192`) / lost 12 (`_52,_64,_78,_105,_106,_107,_109,_114,_129,_136,_159,_166`). Overlap vs Run 17: both 15 / only18 11 / only17 8. Wall ~70.8 min; avg `api_calls` **13.34** (fixed v5’s 40.3); gen_tps_mean ≈ 103.1. Lost vs v4 mostly TradingBot/VehicleControl state_mismatch plus turn-0 under_call `_105,_114,_159,_166`. **Scored miss vs v4 recovery. Do not present as a method win. No BoN / no more epochs on this mix.** Next SFT lever is **v7** (planned, **not scored**; not another thin filter on the same family). Full writeup: `THESIS.md` Run 18 subsection.
 
 ### Anti-recommendations
 
@@ -1018,10 +1033,10 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 
 ### Next (Sanskar decides)
 
-1. **SFT lever TBD** (not more epochs on v4/v5/v6; not BoN on those ckpts). Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is likely exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery.
+1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. Center on APIGen-MT verified multi-turn trajs (≥50% MT-native) + calibrated stop/clarify (~12–15% non-tool) + ToolACE-R-lite student-aware filter; optional Hammer/RPO only after a healthy SFT. **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
-4. Stay on the inference ladder for **base** Gemma (BoN **36.5%** is still the best measured result). Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
+4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
 
 `--fc-mode iffc --iffc-strip-empty-assistant` on `--model gemma4-e2b-sft-iffc-v2` is **scored** as Run 14: **4/200 = 2.0%** (**DIAGNOSTIC**; did **not** rescue). Do **not** re-run to overwrite that `runs` row. Default remains **off** for standard IFFC (Run 5–18 bookkeeping unchanged unless the diagnostic flag is set).
 
@@ -1030,9 +1045,12 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 ### Sources
 
 - Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920.
+- Zeng et al. ToolACE-R. arXiv:2504.01400. (v7 student-aware filter; **not scored**)
+- Prabhakar et al. APIGen-MT. arXiv:2504.03601. (v7 planned mix core; **not scored**)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
 - IFFC Appendix B: arXiv:2608.22472
+- Vault lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md)
 
 ---
 
@@ -1044,7 +1062,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 |----------|-----------|----------------|-----------------|--------|
 | 1 | **`tool_choice=required` + `parallel_tool_calls`** | Parallel calling (0%) | Potentially unlocks parallel | Low |
 | 2 | **Guided-Structured Templates (`--fc-mode gst`)** | Gemma `multi_turn_base` vs NFC/IFFC/CD | **Measured** Run 9: 61/200 = 30.5% (ties IFFC, does not beat it) | Done (prompt-only) |
-| 3 | **IFFC + harness STATE (`--fc-mode iffc-state`)** | Gemma `multi_turn_base` vs IFFC/GST 30.5% | **Measured** Run 10 (base): 68/200 = 34.0% (beats IFFC; first above 30.5%). **Measured** Run 16 (SFT-v4): 26/200 = 13.0% (**null/negative vs Run 15 15.0%**). Empty 41→31 on base; state 60→64 (did not improve). On SFT-v4 residual stays state 112 / under-call 59. **Measured** Run 17 (SFT-v5 IFFC): 23/200 = 11.5% (**regression vs Run 15**). **Measured** Run 18 (SFT-v6 IFFC): 26/200 = 13.0% (**miss vs Run 15**). Next: TBD, **not** BoN-on-v4/v5/v6. | Done (harness + scores) |
+| 3 | **IFFC + harness STATE (`--fc-mode iffc-state`)** | Gemma `multi_turn_base` vs IFFC/GST 30.5% | **Measured** Run 10 (base): 68/200 = 34.0% (beats IFFC; first above 30.5%). **Measured** Run 16 (SFT-v4): 26/200 = 13.0% (**null/negative vs Run 15 15.0%**). Empty 41→31 on base; state 60→64 (did not improve). On SFT-v4 residual stays state 112 / under-call 59. **Measured** Run 17 (SFT-v5 IFFC): 23/200 = 11.5% (**regression vs Run 15**). **Measured** Run 18 (SFT-v6 IFFC): 26/200 = 13.0% (**miss vs Run 15**). Next training path is SFT **v7** (planned, **not scored**), **not** BoN-on-v4/v5/v6. | Done (harness + scores) |
 | 4 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
 | 5 | **Best-of-N majority voting (`--fc-mode iffc-state-bon`)** | Gemma `multi_turn_base` vs IFFC+STATE 34.0% | **Measured** Run 11: 73/200 = 36.5% (beats STATE by +5 / +2.5 pp). State 64→53; empty 31→36; under-call flat. ~7× wall / ~8.8× decode — modest lift, **not free**. | Done (harness + live score) |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level | Medium |
@@ -1670,7 +1688,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 
 | Priority | Technique | Target Problem | Expected Impact | Effort |
 |----------|-----------|----------------|-----------------|--------|
-| 1 | **SFT lever TBD (recipe v6 is closed)** | Gemma `multi_turn_base` after Run 18 scored v6 as a **miss vs v4** (26/200 = 13.0% vs Run 15 15.0%, −2.0 pp / −4). Modest +1.5 pp vs Run 17 11.5%. Empty 1; state 118 / under-call 55; avg api_calls 13.34. | **Do not** BoN v6; **do not** more-epochs the v6 mix. Thin filter on this family is likely exhausted. v4 IFFC 15% remains best SFT recovery. Do **not** present 13.0% as a method win. | TBD |
+| 1 | **SFT v7 (planned, not scored; recipe v6 is closed)** | Gemma `multi_turn_base` after Run 18 scored v6 as a **miss vs v4** (26/200 = 13.0% vs Run 15 15.0%, −2.0 pp / −4). Modest +1.5 pp vs Run 17 11.5%. Empty 1; state 118 / under-call 55; avg api_calls 13.34. **SFT path locked 2026-09-23.** | APIGen-MT verified MT trajs (≥50%) + stop/clarify ~12–15% non-tool + ToolACE-R-lite. **Do not** invent a v7 score. **Do not** BoN v6; **do not** more-epochs the v6 mix. Thin filter on this family is exhausted. v4 IFFC 15% remains best SFT recovery. Do **not** present 13.0% as a method win. | Planned (unscored) |
 | 2 | **Optional ablation: ToolACE-only vs xLAM-only (small scale)** | Isolate 5520 ToolACE `[]` targets (xLAM 0%) | Diagnose mix vs format | Medium |
 | 3 | **Function masking augmentation (Hammer)** | Generalization, irrelevance | Robust to unseen APIs; +irrelevance | Medium |
 | 4 | **Add xLAM-1b-fc-r as benchmark baseline** | Comparison point. Run 19 NFC **0/200 = 0.0%** was format-channel collapse (JSON in `content`, not `tool_calls`). Fair path `--fc-mode xlam` is **scored**. | **Scored NFC:** 0.0% format-channel collapse. **Scored `--fc-mode xlam`:** Run 20 **6/200 = 3.0%** (fair channel; still **very low**; tools actually ran, avg `api_calls` **50.47**). **Not** published overall ~78.94%. **Not** a method win. Still **below CD 10.5%**. Registry [PR #41](https://github.com/sskarz/Thesis/pull/41); adapter [PR #42](https://github.com/sskarz/Thesis/pull/42). Do **not** overwrite Run 19 or 20. | **Done** (NFC + fair-channel scored) |
@@ -1713,7 +1731,10 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
       Empty still 1 (_43); state 118 / under-call 55; avg api_calls 13.34
       (fixed v5's 40.3 churn). Do NOT present as a method win.
       Do NOT BoN this ckpt; do NOT more-epochs the v6 mix.
-    ↓ Next SFT lever TBD (likely not another thin filter on same family).
+    ↓ Next: SFT v7 (planned, NOT scored) — APIGen-MT verified MT trajs
+      + calibrated stop/clarify + student-aware filter.
+      SFT path locked 2026-09-23 as the main path; inference wrappers secondary.
+      Not another thin filter on the same family.
       BoN 36.5% still best on base Gemma.
       v4 IFFC 15.0% remains best SFT recovery.
     ↓ Frozen split seed=42 (~90/5/5 train/val/corpus_test); BFCL multi_turn_base held out
