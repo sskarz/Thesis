@@ -1,7 +1,11 @@
-"""Download ToolACE + xLAM-60k to ``sft/data/raw/``.
+"""Download ToolACE + xLAM-60k (+ optional APIGen-MT-5k) to ``sft/data/raw/``.
 
-xLAM is gated: set ``HF_TOKEN`` / ``HUGGING_FACE_HUB_TOKEN`` or run
-``huggingface-cli login`` first.
+xLAM and APIGen-MT are Hub-gated: set ``HF_TOKEN`` / ``HUGGING_FACE_HUB_TOKEN``
+or run ``huggingface-cli login`` first.
+
+APIGen-MT-5k is **CC-BY-NC-4.0**. Sanskar must Accept the Hub license on
+``Salesforce/APIGen-MT-5k`` before ``--apigen-mt`` / ``--apigen-mt-only``.
+Cite Prabhakar et al. (APIGen-MT, arXiv:2504.03601). Do not commit the JSONL.
 """
 
 from __future__ import annotations
@@ -12,6 +16,10 @@ from pathlib import Path
 from typing import Any
 
 from sft.config import (
+    APIGEN_MT_CONFIG_NAME,
+    APIGEN_MT_HF_ID,
+    APIGEN_MT_LICENSE,
+    RAW_APIGEN_MT,
     RAW_DIR,
     RAW_TOOLACE,
     RAW_XLAM,
@@ -58,23 +66,44 @@ def download_hf_split(
     split: str = "train",
     token: str | None = None,
     gated: bool = False,
+    config_name: str | None = None,
+    config_name_fallback: str | None = None,
 ) -> int:
     load_dataset = _require_datasets()
     kwargs: dict[str, Any] = {"split": split}
     if token:
         kwargs["token"] = token
-    try:
-        ds = load_dataset(hf_id, **kwargs)
-    except Exception as exc:
+
+    def _load(name: str | None):
+        if name:
+            return load_dataset(hf_id, name, **kwargs)
+        return load_dataset(hf_id, **kwargs)
+
+    names: list[str | None] = [config_name]
+    if config_name_fallback and config_name_fallback != config_name:
+        names.append(config_name_fallback)
+
+    last_exc: Exception | None = None
+    ds = None
+    for name in names:
+        try:
+            ds = _load(name)
+            last_exc = None
+            break
+        except Exception as exc:
+            last_exc = exc
+    if ds is None:
+        extra = f" Tried configs {names!r}."
         if gated:
             raise SystemExit(
-                f"Failed to download gated dataset {hf_id}.\n"
+                f"Failed to download gated dataset {hf_id}.{extra}\n"
                 "Pass a HuggingFace token via HF_TOKEN or run:\n"
                 "  huggingface-cli login\n"
-                "then accept the dataset license on the Hub page.\n"
-                f"Original error: {exc}"
-            ) from exc
-        raise SystemExit(f"Failed to download {hf_id}: {exc}") from exc
+                "then accept the dataset license on the Hub page "
+                f"({APIGEN_MT_LICENSE} for APIGen-MT).\n"
+                f"Original error: {last_exc}"
+            ) from last_exc
+        raise SystemExit(f"Failed to download {hf_id}:{extra} {last_exc}") from last_exc
 
     rows = [_row_to_dict(ds[i], i) for i in range(len(ds))]
     n = write_jsonl(out_path, rows)
@@ -82,9 +111,24 @@ def download_hf_split(
     return n
 
 
+def _download_apigen_mt(out_dir: Path, token: str | None) -> int:
+    return download_hf_split(
+        APIGEN_MT_HF_ID,
+        out_dir / RAW_APIGEN_MT.name,
+        token=token,
+        gated=True,
+        config_name=None,
+        config_name_fallback=APIGEN_MT_CONFIG_NAME,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Download ToolACE + xLAM-60k into sft/data/raw/."
+        description=(
+            "Download ToolACE + xLAM-60k into sft/data/raw/. "
+            "Add --apigen-mt / --apigen-mt-only for Salesforce/APIGen-MT-5k "
+            f"({APIGEN_MT_LICENSE}, Hub gated)."
+        )
     )
     parser.add_argument(
         "--out-dir",
@@ -102,11 +146,28 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Skip Salesforce/xlam-function-calling-60k",
     )
+    parser.add_argument(
+        "--apigen-mt",
+        action="store_true",
+        help=(
+            f"Also download {APIGEN_MT_HF_ID} ({APIGEN_MT_LICENSE}, Hub gated). "
+            "Accept the Hub license first."
+        ),
+    )
+    parser.add_argument(
+        "--apigen-mt-only",
+        action="store_true",
+        help=f"Only download {APIGEN_MT_HF_ID} (skip ToolACE and xLAM).",
+    )
     args = parser.parse_args(argv)
 
     out_dir: Path = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     token = _hf_token()
+
+    if args.apigen_mt_only:
+        _download_apigen_mt(out_dir, token)
+        return 0
 
     if not args.skip_toolace:
         download_hf_split(
@@ -122,6 +183,8 @@ def main(argv: list[str] | None = None) -> int:
             token=token,
             gated=True,
         )
+    if args.apigen_mt:
+        _download_apigen_mt(out_dir, token)
     return 0
 
 

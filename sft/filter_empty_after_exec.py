@@ -23,6 +23,13 @@ rewrites stay off (``drop_underspecified_turn0=False``,
 ``synthesize_complete_turn0=False``). Distinct recipe id — not a v4
 relabel. Select with ``--recipe v6``. Do **not** BoN this ckpt; do **not**
 add epochs on v4/v5. v6 does **not** claim a BFCL score.
+
+SFT v7 (``--recipe v7``) is a **new mix** (APIGen-MT core + ToolACE/xLAM
+filler), not another flag on the frozen ToolACE+xLAM unroll. Unroll policy:
+v4 empty-after-exec + recovery on filler; **no** v5 synthetic complete-turn0;
+on ``source=apigen_mt`` only light empty-after-exec drops (the converter
+keeps gpt finals as NL, never auto-``[]``). Unscored — do not invent a
+v7 BFCL number.
 """
 
 from __future__ import annotations
@@ -34,6 +41,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from benchmark.iffc import parse_iffc_response
+from sft.config import SOURCE_APIGEN_MT
 from sft.curriculum_v5 import (
     is_absorbed_independent_followup,
     is_incomplete_turn0,
@@ -57,9 +65,18 @@ RECIPE_V3 = "v3"
 RECIPE_V4 = "v4"
 RECIPE_V5 = "v5"
 RECIPE_V6 = "v6"
-RECIPE_IDS = (RECIPE_V1, RECIPE_V2, RECIPE_V3, RECIPE_V4, RECIPE_V5, RECIPE_V6)
-RECIPES_WITH_RECOVERY = (RECIPE_V3, RECIPE_V4, RECIPE_V5, RECIPE_V6)
-RECIPES_WITH_V4_EMPTY = (RECIPE_V4, RECIPE_V5, RECIPE_V6)
+RECIPE_V7 = "v7"
+RECIPE_IDS = (
+    RECIPE_V1,
+    RECIPE_V2,
+    RECIPE_V3,
+    RECIPE_V4,
+    RECIPE_V5,
+    RECIPE_V6,
+    RECIPE_V7,
+)
+RECIPES_WITH_RECOVERY = (RECIPE_V3, RECIPE_V4, RECIPE_V5, RECIPE_V6, RECIPE_V7)
+RECIPES_WITH_V4_EMPTY = (RECIPE_V4, RECIPE_V5, RECIPE_V6, RECIPE_V7)
 
 EMPTY_IFFC_TARGET = "[]"
 
@@ -187,6 +204,7 @@ def resolve_recipe(
     v6: v4 empty/recovery plus only ``drop_state_inconsistent`` (no
     underspecified drop, no complete-turn0 synth).
     v4: all three v5 keep/no-synth flags (empty-target curriculum only).
+    v7: explicit ``recipe="v7"`` only (not inferred from keep-flags).
     v3: both ``--keep-first-assistant-empty`` and
     ``--keep-clarifying-empty-after-user`` (empty-after-exec + recovery only).
     v2: ``--keep-terminal-empty-after-exec`` (drop non-terminal only).
@@ -226,7 +244,8 @@ def recipe_drop_flags(recipe: str) -> tuple[bool, bool]:
 def recipe_v4_drop_flags(recipe: str) -> tuple[bool, bool]:
     """Return ``(drop_first_assistant_empty, drop_clarifying_empty_after_user)``.
 
-    v4, v5, and v6 turn these on. v1/v2/v3 keep first-turn and clarifying
+    v4, v5, v6, and v7 turn these on (v7 then disables them per-row for
+    ``source=apigen_mt``). v1/v2/v3 keep first-turn and clarifying
     ``[]`` so those ablations stay comparable to scored Run 12 / 13 / v3
     prepare.
     """
@@ -240,7 +259,9 @@ def recipe_v5_flags(recipe: str) -> tuple[bool, bool, bool, bool]:
 
     v5: all four on.
     v6: only state-inconsistent (v4 empty/recovery + ``drop_state_inconsistent``).
-    v4 and earlier: all off so Run 15's mix stays reproducible.
+    v7 / v4 and earlier: all off so v7 does **not** apply v5 synthetic
+    complete-turn0. v7 additionally special-cases ``source=apigen_mt`` inside
+    ``unroll_and_filter``.
     """
     if recipe == RECIPE_V5:
         return True, True, True, True
@@ -719,7 +740,9 @@ class EmptyAfterExecFilterStats:
             )
         synth = True if synthesize_recovery_stop is None else synthesize_recovery_stop
         sources = sorted(
-            set(self.by_source_before) | set(self.by_source_after) | {"toolace", "xlam"}
+            set(self.by_source_before)
+            | set(self.by_source_after)
+            | {"toolace", "xlam", SOURCE_APIGEN_MT}
         )
         lines = [
             f"empty-after-exec filter ({label}): recipe={recipe_id} "
@@ -805,9 +828,11 @@ def unroll_and_filter(
     clarifying ``[]`` drops, plus turn-0 completeness and env-state
     consistency. Pass ``recipe="v6"`` for v4 empty/recovery plus only
     ``drop_state_inconsistent`` (no underspecified drop, no complete-turn0
-    synth). Pass ``recipe="v4"`` (or all three v5 flags off) to ablate back
-    to v4. ``None`` v4/v5 flags follow the inferred recipe so v1/v2 kwargs
-    do not silently gain later drops.
+    synth). Pass ``recipe="v7"`` for v4 empty/recovery on ToolACE/xLAM
+    filler and light empty-after-exec drops on APIGen-MT (no v5 synth
+    complete-turn0). Pass ``recipe="v4"`` (or all three v5 flags off) to
+    ablate back to v4. ``None`` v4/v5 flags follow the inferred recipe so
+    v1/v2 kwargs do not silently gain later drops.
     """
     recs = list(records)
     if check_bfcl_leak:
@@ -846,6 +871,24 @@ def unroll_and_filter(
             idx = len(row.get("messages") or []) - 1
             kind = classify_assistant_turn(messages, idx)
             source = _source_of(row, rec)
+            drop_first_row = drop_first_assistant_empty
+            drop_clarify_row = drop_clarifying_empty_after_user
+            drop_u_row = drop_underspecified_turn0
+            drop_s_row = drop_state_inconsistent
+            synth_c_row = synthesize_complete_turn0
+            drop_abs_row = drop_absorbed_independent_followup
+            synth_rec_row = synthesize_recovery_stop
+            if recipe == RECIPE_V7:
+                # Filler: v4 empty + recovery. APIGen-MT: light empty-after-exec
+                # only. Never apply v5 synthetic complete-turn0.
+                drop_u_row = False
+                drop_s_row = False
+                synth_c_row = False
+                drop_abs_row = False
+                if source == SOURCE_APIGEN_MT:
+                    drop_first_row = False
+                    drop_clarify_row = False
+                    synth_rec_row = False
             prefix = list(row.get("messages") or [])
             recovery_before = is_recovery_after_empty(prefix)
             first_turn = is_first_assistant_empty_target(messages, idx)
@@ -868,8 +911,8 @@ def unroll_and_filter(
                 idx,
                 drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
                 drop_terminal_empty_after_exec=drop_terminal_empty_after_exec,
-                drop_first_assistant_empty=drop_first_assistant_empty,
-                drop_clarifying_empty_after_user=drop_clarifying_empty_after_user,
+                drop_first_assistant_empty=drop_first_row,
+                drop_clarifying_empty_after_user=drop_clarify_row,
             ):
                 stats.note_dropped(
                     source,
@@ -877,20 +920,20 @@ def unroll_and_filter(
                     clarifying_empty=clarifying,
                 )
                 continue
-            if drop_underspecified_turn0 and underspec:
+            if drop_u_row and underspec:
                 stats.note_dropped(source, underspecified_turn0=True)
                 continue
             if (
                 incomplete
-                and not synthesize_complete_turn0
-                and drop_underspecified_turn0
+                and not synth_c_row
+                and drop_u_row
             ):
                 stats.note_dropped(source, incomplete_turn0=True)
                 continue
-            if drop_state_inconsistent and state_bad:
+            if drop_s_row and state_bad:
                 stats.note_dropped(source, state_inconsistent=True)
                 continue
-            if drop_absorbed_independent_followup and is_absorbed_independent_followup(
+            if drop_abs_row and is_absorbed_independent_followup(
                 messages, idx, plan.absorbed_keys
             ):
                 stats.note_dropped(source, absorbed_followup=True)
@@ -898,7 +941,7 @@ def unroll_and_filter(
             completed = False
             incomplete_after = incomplete
             if (
-                synthesize_complete_turn0
+                synth_c_row
                 and idx == plan.first_nonempty_idx
                 and plan.merged_gold
             ):
@@ -911,7 +954,7 @@ def unroll_and_filter(
                 incomplete_after = False
                 underspec = False
             injected = False
-            if synthesize_recovery_stop:
+            if synth_rec_row:
                 prefix, injected = inject_recovery_stop(prefix)
                 if injected:
                     row = {**row, "messages": prefix}
@@ -1041,7 +1084,9 @@ def main(argv: list[str] | None = None) -> int:
             "v4 empty-after-exec + recovery curriculum and first-assistant / "
             "clarifying [] drops, then adds turn-0 call-set completeness and "
             "env-state consistency. v6 is v4 empty/recovery + only "
-            "drop_state_inconsistent (no turn-0 rewrites). v4/v3/v2/v1 remain "
+            "drop_state_inconsistent (no turn-0 rewrites). v7 is v4 "
+            "empty/recovery on ToolACE/xLAM filler and light empty-after-exec "
+            "on APIGen-MT (no v5 complete-turn0). v4/v3/v2/v1 remain "
             "behind --recipe / keep-flags."
         )
     )
@@ -1067,7 +1112,7 @@ def main(argv: list[str] | None = None) -> int:
         "--recipe",
         choices=list(RECIPE_IDS),
         default=None,
-        help="Unroll recipe id. Default v5. v6/v4/v3/v2/v1 are ablations.",
+        help="Unroll recipe id. Default v5. v7/v6/v4/v3/v2/v1 are other recipes.",
     )
     parser.add_argument(
         "--compare-recipe",

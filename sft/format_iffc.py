@@ -29,11 +29,14 @@ from benchmark.iffc import (
 
 from sft.config import (
     CHAT_FORMAT,
+    FORMATTED_APIGEN_MT,
     FORMATTED_DIR,
     FORMATTED_TOOLACE,
     FORMATTED_XLAM,
+    RAW_APIGEN_MT,
     RAW_TOOLACE,
     RAW_XLAM,
+    SOURCE_APIGEN_MT,
     SOURCE_TOOLACE,
     SOURCE_XLAM,
 )
@@ -464,7 +467,14 @@ def format_rows(
     """Format a list of raw rows. Returns ``(records, n_skipped)``."""
     out: list[dict] = []
     skipped = 0
-    formatter = format_toolace_row if source == SOURCE_TOOLACE else format_xlam_row
+    if source == SOURCE_APIGEN_MT:
+        from sft.format_apigen_mt import format_apigen_mt_row
+
+        formatter = format_apigen_mt_row
+    elif source == SOURCE_TOOLACE:
+        formatter = format_toolace_row
+    else:
+        formatter = format_xlam_row
     for i, row in enumerate(rows):
         rec = formatter(row, i)
         if rec is None:
@@ -485,8 +495,9 @@ def unroll_conversation(record: dict) -> list[dict]:
     ``sft.filter_empty_after_exec`` (SFT v5 by default): v4 empty-after-exec
     drop + recovery + first-assistant / clarifying ``[]`` drops, plus turn-0
     completeness and env-state consistency. Pass ``recipe="v6"`` for v4
-    empty/recovery plus only ``drop_state_inconsistent``. Recovery
-    history-only ``[]`` insertion is unchanged.
+    empty/recovery plus only ``drop_state_inconsistent``. Pass ``recipe="v7"``
+    for v4 empty/recovery on ToolACE/xLAM filler and light empty-after-exec
+    drops on ``source=apigen_mt`` (no v5 synthetic complete-turn0).
     """
     messages = record.get("messages") or []
     rows: list[dict] = []
@@ -516,7 +527,7 @@ def unroll_records(records: list[dict]) -> list[dict]:
 
     Training data should go through ``sft.filter_empty_after_exec.unroll_and_filter``
     (used by ``sft.train_mlx.prepare_mlx_data``; SFT v5 default, or
-    ``recipe="v6"``).
+    ``recipe="v6"`` / ``recipe="v7"``).
     """
     out: list[dict] = []
     for rec in records:
@@ -530,46 +541,83 @@ def unroll_records(records: list[dict]) -> list[dict]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Format ToolACE + xLAM raw JSONL into IFFC chat JSONL."
+        description=(
+            "Format ToolACE + xLAM raw JSONL into IFFC chat JSONL. "
+            "Add --apigen-mt / --apigen-mt-only / --all-v7 for APIGen-MT-5k."
+        )
     )
     parser.add_argument("--raw-dir", type=str, default=None)
     parser.add_argument("--out-dir", type=str, default=None)
+    parser.add_argument(
+        "--apigen-mt",
+        action="store_true",
+        help="Also format sft/data/raw/apigen_mt.jsonl → formatted/apigen_mt.jsonl",
+    )
+    parser.add_argument(
+        "--apigen-mt-only",
+        action="store_true",
+        help="Only format APIGen-MT (skip ToolACE and xLAM).",
+    )
+    parser.add_argument(
+        "--all-v7",
+        action="store_true",
+        help="Format ToolACE + xLAM + APIGen-MT (v7 sources).",
+    )
     args = parser.parse_args(argv)
 
     raw_toolace = RAW_TOOLACE
     raw_xlam = RAW_XLAM
+    raw_apigen = RAW_APIGEN_MT
     out_toolace = FORMATTED_TOOLACE
     out_xlam = FORMATTED_XLAM
+    out_apigen = FORMATTED_APIGEN_MT
     if args.raw_dir:
         raw_root = Path(args.raw_dir)
         raw_toolace = raw_root / "toolace.jsonl"
         raw_xlam = raw_root / "xlam.jsonl"
+        raw_apigen = raw_root / "apigen_mt.jsonl"
     if args.out_dir:
         out_root = Path(args.out_dir)
         out_toolace = out_root / "toolace.jsonl"
         out_xlam = out_root / "xlam.jsonl"
+        out_apigen = out_root / "apigen_mt.jsonl"
     else:
         FORMATTED_DIR.mkdir(parents=True, exist_ok=True)
 
-    if not raw_toolace.exists() and not raw_xlam.exists():
-        parser.error(
-            f"No raw files at {raw_toolace} or {raw_xlam}. "
-            "Run: uv run python -m sft.download_datasets"
-        )
+    do_apigen = args.apigen_mt or args.apigen_mt_only or args.all_v7
+    do_toolace_xlam = not args.apigen_mt_only
 
-    if raw_toolace.exists():
-        recs, skipped = format_rows(read_jsonl(raw_toolace), SOURCE_TOOLACE)
-        write_jsonl(out_toolace, recs)
-        print(f"ToolACE: wrote {len(recs)} → {out_toolace} (skipped {skipped})")
-    else:
-        print(f"skip ToolACE (missing {raw_toolace})")
+    if do_toolace_xlam and not raw_toolace.exists() and not raw_xlam.exists():
+        if not do_apigen:
+            parser.error(
+                f"No raw files at {raw_toolace} or {raw_xlam}. "
+                "Run: uv run python -m sft.download_datasets"
+            )
 
-    if raw_xlam.exists():
-        recs, skipped = format_rows(read_jsonl(raw_xlam), SOURCE_XLAM)
-        write_jsonl(out_xlam, recs)
-        print(f"xLAM: wrote {len(recs)} → {out_xlam} (skipped {skipped})")
-    else:
-        print(f"skip xLAM (missing {raw_xlam})")
+    if do_toolace_xlam:
+        if raw_toolace.exists():
+            recs, skipped = format_rows(read_jsonl(raw_toolace), SOURCE_TOOLACE)
+            write_jsonl(out_toolace, recs)
+            print(f"ToolACE: wrote {len(recs)} → {out_toolace} (skipped {skipped})")
+        else:
+            print(f"skip ToolACE (missing {raw_toolace})")
+
+        if raw_xlam.exists():
+            recs, skipped = format_rows(read_jsonl(raw_xlam), SOURCE_XLAM)
+            write_jsonl(out_xlam, recs)
+            print(f"xLAM: wrote {len(recs)} → {out_xlam} (skipped {skipped})")
+        else:
+            print(f"skip xLAM (missing {raw_xlam})")
+
+    if do_apigen:
+        if not raw_apigen.exists():
+            parser.error(
+                f"Missing {raw_apigen}. Accept the Hub gate on Salesforce/APIGen-MT-5k "
+                "then: uv run python -m sft.download_datasets --apigen-mt-only"
+            )
+        recs, skipped = format_rows(read_jsonl(raw_apigen), SOURCE_APIGEN_MT)
+        write_jsonl(out_apigen, recs)
+        print(f"APIGen-MT: wrote {len(recs)} → {out_apigen} (skipped {skipped})")
     return 0
 
 

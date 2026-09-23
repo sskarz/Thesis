@@ -187,6 +187,8 @@ frontend/dist/
 benchmark/results/
 sft/data/
 sft/adapters/
+sft/adapters-v7/
+sft/adapters-v7-smoke/
 sft/fused/
 sft/models/
 uv.lock
