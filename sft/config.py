@@ -98,6 +98,7 @@ V7_ABORT_IRRELEVANCE_FRAC = 0.12
 V7_TARGET_FINAL_FRAC = 0.05
 V7_NONTOOL_MIN = 0.10
 V7_NONTOOL_MAX = 0.20
+V7_NONTOOL_TARGET = 0.15  # unroll → mlx-v7 cap; conversations in splits-v7 stay full
 V7_EXPERIMENT = "sft-v7"
 
 # ---------------------------------------------------------------------------

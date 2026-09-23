@@ -7,7 +7,8 @@ and env-state consistency; see ``sft.filter_empty_after_exec``). Pass
 ``--recipe v6`` for v4 empty/recovery plus only ``drop_state_inconsistent``.
 Pass ``--recipe v7`` for the APIGen-MT mix (defaults ``splits-v7`` /
 ``mlx-v7`` / ``adapters-v7``; v4 empty/recovery on filler, no v5
-complete-turn0). Does **not** run training in CI; on Linux this prints the
+complete-turn0, then ``sft.cap_nontool_v7`` so mlx-v7 ``pct_nontool`` is
+~15%). Does **not** run training in CI; on Linux this prints the
 command.
 """
 
@@ -85,7 +86,8 @@ def prepare_mlx_data(
     and first-assistant / clarifying ``[]`` drops, then adds turn-0
     completeness and env-state consistency. Pass ``recipe="v6"`` for v4
     empty/recovery plus only ``drop_state_inconsistent``. Pass ``recipe="v7"``
-    for the APIGen-MT mix (v4 empty/recovery on filler; no complete-turn0).
+    for the APIGen-MT mix (v4 empty/recovery on filler; no complete-turn0;
+    then cap non-tool unrolls — splits-v7 conversations stay full).
     Conversation-level splits are unchanged.
     """
     if recipe is None:
@@ -126,6 +128,12 @@ def prepare_mlx_data(
     valid = read_jsonl(splits_dir / VALID_JSONL.name)
     train_u, train_stats = unroll_and_filter(train, **filter_kwargs)
     valid_u, valid_stats = unroll_and_filter(valid, **filter_kwargs)
+    train_cap = valid_cap = None
+    if recipe == RECIPE_V7:
+        from sft.cap_nontool_v7 import cap_nontool_unrolls, format_cap_report
+
+        train_u, train_cap = cap_nontool_unrolls(train_u)
+        valid_u, valid_cap = cap_nontool_unrolls(valid_u)
     format_kwargs = dict(
         recipe=recipe,
         drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
@@ -139,6 +147,9 @@ def prepare_mlx_data(
     )
     print(train_stats.format("train", **format_kwargs))
     print(valid_stats.format("valid", **format_kwargs))
+    if train_cap is not None:
+        print(format_cap_report(train_cap))
+        print(format_cap_report(valid_cap))
     if compare_recipe:
         print(format_recipe_comparison(
             compare_recipe_unroll(
@@ -171,7 +182,15 @@ def prepare_mlx_data(
         f"drop_underspecified_turn0={drop_underspecified_turn0}; "
         f"drop_state_inconsistent={drop_state_inconsistent}; "
         f"synthesize_complete_turn0={synthesize_complete_turn0}; "
-        f"synthesize_recovery_stop={synthesize_recovery_stop})"
+        f"synthesize_recovery_stop={synthesize_recovery_stop}"
+        + (
+            f"; v7_nontool_cap=on pct_nontool "
+            f"{(train_cap or {}).get('pct_nontool_before')}→"
+            f"{(train_cap or {}).get('pct_nontool_after')}"
+            if train_cap is not None
+            else ""
+        )
+        + ")"
     )
     return mlx_dir
 
