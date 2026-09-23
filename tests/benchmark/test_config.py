@@ -172,6 +172,53 @@ def test_sft_iffc_v6_model_is_distinct_from_v1_v2_v4_v5_and_base():
         config.select_model(previous)
 
 
+def test_sft_iffc_v7_model_is_distinct_from_prior_sft_keys_and_base():
+    key = "gemma4-e2b-sft-iffc-v7"
+    assert key in config.MODELS
+
+    v7 = config.MODELS[key]
+    v6 = config.MODELS["gemma4-e2b-sft-iffc-v6"]
+    v5 = config.MODELS["gemma4-e2b-sft-iffc-v5"]
+    v4 = config.MODELS["gemma4-e2b-sft-iffc-v4"]
+    v2 = config.MODELS["gemma4-e2b-sft-iffc-v2"]
+    v1 = config.MODELS["gemma4-e2b-sft-iffc"]
+    base = config.MODELS["gemma4-e2b"]
+    assert v7["api_name"] == "gemma4-e2b-sft-iffc-v7"
+    assert v7["display"] == "Gemma-4-E2B-it SFT-IFFC-v7 (Q4_K_M)"
+    assert v7["slug"] == "Gemma-4-E2B-it-SFT-IFFC-v7-Q4_K_M"
+    # Path TBD until fuse; do not invent a fake best@XXXX GGUF.
+    assert v7["gguf_path"] == ""
+    assert v7["api_name"] != v6["api_name"]
+    assert v7["slug"] != v6["slug"]
+    assert v7["display"] != v6["display"]
+    assert v7["api_name"] != v5["api_name"]
+    assert v7["slug"] != v5["slug"]
+    assert v7["api_name"] != v4["api_name"]
+    assert v7["slug"] != v4["slug"]
+    assert v7["api_name"] != v2["api_name"]
+    assert v7["slug"] != v2["slug"]
+    assert v7["api_name"] != v1["api_name"]
+    assert v7["slug"] != v1["slug"]
+    assert v7["api_name"] != base["api_name"]
+    assert v7["slug"] != base["slug"]
+
+    previous = config.DEFAULT_MODEL
+    try:
+        config.select_model(key)
+        assert config.MODEL_NAME == "gemma4-e2b-sft-iffc-v7"
+        assert config.MODEL_DISPLAY == "Gemma-4-E2B-it SFT-IFFC-v7 (Q4_K_M)"
+        assert config.MODEL_SLUG == "Gemma-4-E2B-it-SFT-IFFC-v7-Q4_K_M"
+        assert config.MODEL_RESULTS_DIR == config.RESULTS_DIR / v7["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v6["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v5["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v4["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v2["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v1["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / base["slug"]
+    finally:
+        config.select_model(previous)
+
+
 def test_xlam_1b_model_is_distinct_from_other_registry_keys():
     key = "xlam-1b"
     assert key in config.MODELS

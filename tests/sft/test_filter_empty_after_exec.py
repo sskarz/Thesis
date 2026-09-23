@@ -17,6 +17,7 @@ from sft.filter_empty_after_exec import (
     RECIPE_V4,
     RECIPE_V5,
     RECIPE_V6,
+    RECIPE_V7,
     classify_assistant_turn,
     flags_for_recipe,
     infer_recipe,
@@ -625,6 +626,8 @@ def test_recipe_flags_v1_v2_v3_v4_v5_v6():
     )
     assert resolve_recipe(recipe=RECIPE_V4) == RECIPE_V4
     assert resolve_recipe(recipe=RECIPE_V6) == RECIPE_V6
+    assert resolve_recipe(recipe=RECIPE_V7) == RECIPE_V7
+    assert recipe_drop_flags(RECIPE_V7) == (True, True)
     assert recipe_drop_flags(RECIPE_V6) == (True, True)
     assert recipe_drop_flags(RECIPE_V5) == (True, True)
     assert recipe_drop_flags(RECIPE_V4) == (True, True)
@@ -632,14 +635,17 @@ def test_recipe_flags_v1_v2_v3_v4_v5_v6():
     assert recipe_drop_flags(RECIPE_V2) == (True, False)
     assert recipe_drop_flags(RECIPE_V1) == (False, False)
     assert recipe_v4_drop_flags(RECIPE_V6) == (True, True)
+    assert recipe_v4_drop_flags(RECIPE_V7) == (True, True)
     assert recipe_v4_drop_flags(RECIPE_V5) == (True, True)
     assert recipe_v4_drop_flags(RECIPE_V4) == (True, True)
     assert recipe_v4_drop_flags(RECIPE_V3) == (False, False)
     assert recipe_v4_drop_flags(RECIPE_V2) == (False, False)
     assert recipe_v5_flags(RECIPE_V5) == (True, True, True, True)
     assert recipe_v5_flags(RECIPE_V6) == (False, True, False, False)
+    assert recipe_v5_flags(RECIPE_V7) == (False, False, False, False)
     assert recipe_v5_flags(RECIPE_V4) == (False, False, False, False)
     assert recipe_v5_flags(RECIPE_V6) != recipe_v5_flags(RECIPE_V4)
+    assert recipe_v5_flags(RECIPE_V7) == recipe_v5_flags(RECIPE_V4)
     assert infer_recipe(
         drop_nonterminal_empty_after_exec=True,
         drop_terminal_empty_after_exec=True,
@@ -1049,3 +1055,108 @@ def test_train_mlx_v3_ablation_flags(tmp_path: Path, capsys):
     logged = capsys.readouterr().out
     assert "recipe=v3" in logged
     assert "drop_first_assistant_empty=False" in logged
+
+
+def test_v7_drops_apigen_empty_after_exec_keeps_nl_final():
+    apigen_empty = _record(
+        "apigen_mt-empty-after",
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "list files"},
+            {"role": "assistant", "content": _call("ls")},
+            {"role": "user", "content": _exec_obs("ls()", {"files": ["a"]})},
+            {"role": "assistant", "content": "[]"},
+        ],
+        source="apigen_mt",
+        n_tools=1,
+    )
+    apigen_nl = _record(
+        "apigen_mt-nl-final",
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "list files"},
+            {"role": "assistant", "content": _call("ls")},
+            {"role": "user", "content": _exec_obs("ls()", {"files": ["a"]})},
+            {"role": "assistant", "content": "Here are the files."},
+        ],
+        source="apigen_mt",
+        n_tools=1,
+    )
+    kept, stats = unroll_and_filter(
+        [apigen_empty, apigen_nl], **flags_for_recipe(RECIPE_V7)
+    )
+    assert stats.recipe == RECIPE_V7
+    assert stats.synthetic_complete_turn0 == 0
+    golds = [row["messages"][-1]["content"] for row in kept]
+    assert "[]" not in golds
+    assert "Here are the files." in golds
+    assert any(row["messages"][-1]["content"] == _call("ls") for row in kept)
+
+
+def test_v7_filler_keeps_v4_empty_drops_and_recovery():
+    records = [
+        _mid_trajectory_empty_after_exec(),
+        _terminal_empty_after_exec(),
+        _clarifying_empty_then_call(),
+        _exec_then_new_user_then_call(),
+    ]
+    kept, stats = unroll_and_filter(records, **flags_for_recipe(RECIPE_V7))
+    assert stats.recipe == RECIPE_V7
+    assert stats.empty_after_exec_after == 0
+    assert stats.first_turn_empty_after == 0
+    assert stats.clarifying_empty_after == 0
+    assert stats.synthetic_complete_turn0 == 0
+    assert stats.synthetic_recovery_inserted >= 1
+    assert all(row["messages"][-1]["content"] != "[]" for row in kept)
+
+
+def test_v7_does_not_drop_apigen_first_assistant_empty():
+    rec = _record(
+        "apigen_mt-first-empty",
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "[]"},
+        ],
+        source="apigen_mt",
+        n_tools=0,
+    )
+    kept, stats = unroll_and_filter([rec], **flags_for_recipe(RECIPE_V7))
+    assert stats.recipe == RECIPE_V7
+    assert len(kept) == 1
+    assert kept[0]["messages"][-1]["content"] == "[]"
+
+
+def test_train_mlx_prepare_recipe_v7(tmp_path: Path, capsys):
+    from sft.train_mlx import main as train_main
+
+    splits = tmp_path / "splits"
+    mlx = tmp_path / "mlx"
+    rec = _terminal_empty_after_exec()
+    splits.mkdir()
+    (splits / "train.jsonl").write_text(json.dumps(rec) + "\n")
+    (splits / "valid.jsonl").write_text(json.dumps(rec) + "\n")
+    assert (
+        train_main(
+            [
+                "--prepare-only",
+                "--recipe",
+                "v7",
+                "--splits-dir",
+                str(splits),
+                "--mlx-dir",
+                str(mlx),
+            ]
+        )
+        == 0
+    )
+    logged = capsys.readouterr().out
+    assert "recipe=v7" in logged
+    assert "synthesize_complete_turn0=False" in logged
+    rows = [
+        json.loads(line)
+        for line in (mlx / "train.jsonl").read_text().splitlines()
+        if line
+    ]
+    assert all(row["messages"][-1]["content"] != "[]" for row in rows)
+
