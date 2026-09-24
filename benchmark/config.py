@@ -128,12 +128,12 @@ MODELS: dict[str, dict[str, str]] = {
         "slug": "Gemma-4-E2B-it-SFT-IFFC-v6-Q4_K_M",
     },
     # SFT v7 (APIGen-MT-5k core + ToolACE/xLAM filler; IFFC JSON-in-text).
-    # Fused GGUF path TBD after smoke+full train — do not invent a best@XXXX.
+    # LoRA best@1800 val 0.197 (APIGen-MT mix; fuse locked with Codex).
     # Distinct api_name/slug so a future Run 21 will not overwrite Runs 12–20.
     # Unscored; do not present a v7 BFCL number.
     "gemma4-e2b-sft-iffc-v7": {
         "hf_repo": "",  # serve with -m, not -hf
-        "gguf_path": "",  # TBD after fuse; not a fake best@XXXX GGUF
+        "gguf_path": "sft/fused/gemma-4-e2b-it-iffc-v7-best1800-Q4_K_M.gguf",
         "quant": "Q4_K_M",
         "api_name": "gemma4-e2b-sft-iffc-v7",
         "display": "Gemma-4-E2B-it SFT-IFFC-v7 (Q4_K_M)",
