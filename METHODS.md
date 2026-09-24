@@ -1,6 +1,6 @@
 # Methods for Improving SLM Tool Calling
 
-A survey of techniques to improve small language model (SLM, <5B parameter) performance on agentic multi-step tool calling — specifically on the BFCL v4 benchmark. Part I covers inference-time methods (prompt engineering, structured decoding, retrieval augmentation, context management, compute scaling). Part II covers training-time methods (supervised fine-tuning, reinforcement learning, knowledge distillation, synthetic data generation).
+A survey of techniques to improve small language model (SLM, <5B parameter) performance on agentic multi-step tool calling — specifically on the BFCL v4 benchmark. Part I covers inference-time methods (prompt engineering, structured decoding, retrieval augmentation, tool-interface design, context management, compute scaling). Part II covers training-time methods (supervised fine-tuning, reinforcement learning, knowledge distillation, synthetic data generation).
 
 # Part I: Inference-Time Methods
 
@@ -11,6 +11,7 @@ Each method in this section operates at inference time without modifying model w
 - [1. Guided-Structured Templates](#1-guided-structured-templates)
 - [2. Constrained Decoding and Grammar-Guided Generation](#2-constrained-decoding-and-grammar-guided-generation)
 - [3. RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval)
+- [3a. Tool-Interface Granularity (MCP-GRANITE)](#3a-tool-interface-granularity-mcp-granite)
 - [4. Inference-Time Compute Scaling](#4-inference-time-compute-scaling)
 - [5. Context Compression for Multi-Turn](#5-context-compression-for-multi-turn)
 - [6. ReAct and ReWOO Planning Patterns](#6-react-and-rewoo-planning-patterns)
@@ -167,6 +168,7 @@ RAG-MCP triples tool selection accuracy and cuts prompt tokens by over 50%. Test
 - **Thesis contribution:** Demonstrate the crossover point — at what tool count does RAG start providing benefit for 3B models? Create an extended benchmark by padding BFCL tool sets with distractor tools (20, 50, 100) and measuring accuracy with and without retrieval.
 - **Implementation:** Embed BFCL function descriptions with a small embedding model (e.g., `all-MiniLM-L6-v2`, ~22M params, <50MB, runs on CPU in <5ms per query). Build a FAISS index. Add a retrieval step in `_load_func_docs()` before calling llama-server.
 - **Complexity:** Medium
+- **Complement:** Retrieving a subset of tools is one knob. **How the same capability set is split into tools** is another — see [§3a Tool-Interface Granularity (MCP-GRANITE)](#3a-tool-interface-granularity-mcp-granite). That paper is **not** a scored thesis experiment.
 
 ### Sources
 
@@ -175,6 +177,50 @@ RAG-MCP triples tool selection accuracy and cuts prompt tokens by over 50%. Test
 - Qin, Y., et al. "ToolLLM: Facilitating Large Language Models to Master 16000+ Real-world APIs." ICLR 2024, arXiv:2307.16789. https://arxiv.org/abs/2307.16789
 - Yuan, S., et al. "CRAFT: Customizing LLMs by Creating and Retrieving from Specialized Toolsets." arXiv:2309.17428, 2024. https://arxiv.org/abs/2309.17428
 - Hao, S., et al. "ToolkenGPT: Augmenting Frozen Language Models with Massive Tools via Tool Embeddings." NeurIPS 2023, arXiv:2305.11554. https://arxiv.org/abs/2305.11554
+
+---
+
+## 3a. Tool-Interface Granularity (MCP-GRANITE)
+
+### Overview
+
+How the **same capability set** is split into tools is a design knob. MCP leaves interface design unspecified; MCP-GRANITE holds capabilities fixed and varies only the granularity of the tool schema. For edge SLMs this is complementary to tool RAG: retrieval chooses *which* tools to show; granularity chooses *how many* tools the capability set is carved into.
+
+**Not a scored thesis experiment.** Do not invent a `multi_turn_base` number for this method. Paper numbers below are theirs.
+
+### Mechanism
+
+Four interface levels over an identical capability set:
+
+| Level | Split | Typical tool count |
+|-------|-------|--------------------|
+| L4 | Fine-grained primitives | 8–10 tools |
+| L3 | Task-class | ~**4** tools |
+| L2 | Read / write | 2 tools |
+| L1 | Monolith | 1 tool |
+
+The benchmark: **81** scenarios × **9** edge/IoT domains × **9** local models (**268M–20.9B**) × **8,748** trials.
+
+### Evidence
+
+Paper results (Paschalides et al., 2026; cite as theirs, not ours):
+
+- **L3 (~4 task-class tools)** is the best trade-off: task completion **+16.4%** vs L4 fine-grained and **+33.6%** vs L1 monolith. Argument accuracy nearly doubles from L4→L3 (**0.20 → 0.40**).
+- L1 over-consolidation: **28.2%** zero-tool-call rate.
+- Model size is weakly correlated with task completion (ρ≈**0.285**) and strongly with latency (ρ≈**0.946**).
+- A **3.2B** model (Llama 3.2) at the right granularity outperforms a mismatched **20.9B** (GPT-OSS) on the paper’s TC/efficiency trade-off narrative.
+
+### Applicability
+
+- **BFCL categories:** System-design knob, not a generation-loop ablation. Relevant whenever the harness exposes a class of APIs (multi-turn function docs, padded tool sets, production MCP catalogs). Complements [§3 RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval): do not only retrieve; also redesign API-surface cardinality.
+- **Edge SLM relevance:** High. Moderate ~4 task-class tools beat both a fine-grained dump and a single monolith on their suite.
+- **Implementation:** Redesign how BFCL / production tools are grouped (task-class wrappers vs primitive APIs). No weight change. No `--fc-mode`.
+- **Complexity:** Medium (schema / catalog design, not a decode-time trick)
+- **Limitation:** Paper suite is MCP edge/IoT, **not** our BFCL v4 `multi_turn_base`. Do **not** equate +16.4% / +33.6% TC to a thesis harness score. Unscored.
+
+### Source
+
+Paschalides, D., Symeonides, M., Pallis, G., & Dikaiakos, M. D. "MCP-GRANITE Benchmark: GRANularity Interface TEsting for MCP-Based LLM Agents." arXiv:2609.24161, 2026. https://arxiv.org/abs/2609.24161
 
 ---
 
@@ -923,6 +969,11 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 3. Student-aware mid-difficulty filter (ToolACE-R-lite)
 4. Optional post-SFT: Hammer masking + RPO/mDPO **only after** a healthy (non-collapsed, not below-IFFC) SFT
 
+**Related options (logged 2026-09-24, both unscored; do not invent scores):**
+
+- **Data Turnstile** ([§24](#24-data-turnstile-open-function-calling-data-generation)) — optional **open** data-gen complement to Hub-gated APIGen-MT for v7+ mixes (API specs → DAG-role multi-turn FC SFT). Paper BFCL is **single-turn**; τ² Telecom ≠ our `multi_turn_base`.
+- **Critical-State RL** ([§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls)) — optional **post-healthy-SFT** occurrence-local RL (nested sampling on the trainable turn). Distinct from blanket GRPO. **Do not** unlock GRPO as the main path.
+
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
 **v1 (Run 12):** Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`.
@@ -1033,7 +1084,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 
 ### Next (Sanskar decides)
 
-1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. Center on APIGen-MT verified multi-turn trajs (≥50% MT-native) + calibrated stop/clarify (~12–15% non-tool) + ToolACE-R-lite student-aware filter; optional Hammer/RPO only after a healthy SFT. **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
+1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. Center on APIGen-MT verified multi-turn trajs (≥50% MT-native) + calibrated stop/clarify (~12–15% non-tool) + ToolACE-R-lite student-aware filter; optional Hammer/RPO only after a healthy SFT. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
@@ -1047,6 +1098,8 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920.
 - Zeng et al. ToolACE-R. arXiv:2504.01400. (v7 student-aware filter; **not scored**)
 - Prabhakar et al. APIGen-MT. arXiv:2504.03601. (v7 planned mix core; **not scored**)
+- Ramakrishnan & Sharma. Data Turnstile. arXiv:2607.29250. (optional open data-gen complement for v7+; **not scored**)
+- Chen, Zhao, et al. Critical-State RL. arXiv:2609.24985. (post-healthy-SFT occurrence-local RL; **not scored**; not blanket GRPO)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
 - IFFC Appendix B: arXiv:2608.22472
@@ -1066,7 +1119,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 4 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
 | 5 | **Best-of-N majority voting (`--fc-mode iffc-state-bon`)** | Gemma `multi_turn_base` vs IFFC+STATE 34.0% | **Measured** Run 11: 73/200 = 36.5% (beats STATE by +5 / +2.5 pp). State 64→53; empty 31→36; under-call flat. ~7× wall / ~8.8× decode — modest lift, **not free**. | Done (harness + live score) |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level | Medium |
-| 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale | Medium |
+| 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale. Complements [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite): retrieve tools **and** redesign API-surface cardinality (~4 task-class tools in that paper). **Unscored** on this harness. | Medium |
 | 8 | **Schema-based verification loop** | Argument errors across categories | +3–10% with retries | Medium |
 | 9 | **DSPy prompt optimization** | Model-specific prompt tuning | Auto-discovered improvements | High |
 
@@ -1133,6 +1186,7 @@ The first four are directly measurable on BFCL v4 without changes to the benchma
 27. Yan, F., et al. "Berkeley Function Calling Leaderboard." arXiv:2402.15491, 2024.
 28. Yao, S., et al. "ReAct: Synergizing Reasoning and Acting in Language Models." ICLR 2023. arXiv:2210.03629.
 29. Yuan, S., et al. "CRAFT: Customizing LLMs by Creating and Retrieving from Specialized Toolsets." arXiv:2309.17428, 2024.
+29a. Paschalides, D., et al. "MCP-GRANITE Benchmark: GRANularity Interface TEsting for MCP-Based LLM Agents." arXiv:2609.24161, 2026.
 
 ---
 
@@ -1144,12 +1198,14 @@ Each method in this section involves modifying model weights — via supervised 
 
 - [12. Supervised Fine-Tuning with Synthetic Data](#12-supervised-fine-tuning-with-synthetic-data)
 - [13. ToolACE: Automated Training Data Generation](#13-toolace-automated-training-data-generation)
+- [24. Data Turnstile: Open Function-Calling Data Generation](#24-data-turnstile-open-function-calling-data-generation)
 - [14. Hammer: Function Masking for Robust Tool Calling](#14-hammer-function-masking-for-robust-tool-calling)
 - [15. xLAM: Large Action Models](#15-xlam-large-action-models)
 - [16. FunctionGemma: Specialist Fine-Tuning from Base Models](#16-functiongemma-specialist-fine-tuning-from-base-models)
 - [17. Structured Pruning + Fine-Tuning for Edge Deployment](#17-structured-pruning--fine-tuning-for-edge-deployment)
 - [18. Parameter-Efficient Fine-Tuning (LoRA / QLoRA)](#18-parameter-efficient-fine-tuning-lora--qlora)
 - [19. Reinforcement Learning with Verifiable Rewards (GRPO)](#19-reinforcement-learning-with-verifiable-rewards-grpo)
+- [25. Critical-State RL: Diagnosing Trainable Multi-Turn Calls](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
 - [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling)
@@ -1241,11 +1297,49 @@ ToolACE-8B (LLaMA-3.1-8B fine-tuned with LoRA rank 16, alpha 32) on BFCL:
 - **For this thesis:** The ToolACE pipeline could generate synthetic training data in the BFCL v4 format to fine-tune the existing 3B models (Qwen2.5-3B, Llama-3.2-3B). The dual-layer verification ensures data quality without human annotation.
 - **Dataset availability:** The xlam-function-calling-60k dataset (derived from ToolBench, used by both ToolACE and xLAM) is publicly available on HuggingFace.
 - **Complexity:** High for building the full pipeline; medium if using the existing public datasets.
+- **Related (unscored):** [§24 Data Turnstile](#24-data-turnstile-open-function-calling-data-generation) is an **open** API-spec → multi-turn FC SFT generator (DAG roles + schema validation). Frame as an alternative / complement to Hub-gated APIGen-MT for **v7+ mixes**, not a scored thesis run.
 
 ### Sources
 
 - Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920. https://arxiv.org/abs/2409.00920
 - Salesforce. "xlam-function-calling-60k." HuggingFace Datasets. https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k
+
+---
+
+## 24. Data Turnstile: Open Function-Calling Data Generation
+
+### Overview
+
+Data Turnstile is an **open** framework that turns user-defined API specs into multi-turn function-calling SFT data. It is a training-time data generator (Amazon Science, Jul 2026), not an inference-time `--fc-mode`. Frame as an **alternative / complement to Hub-gated APIGen-MT** for **v7+ mixes** — **unscored** in this thesis. Do **not** invent a `multi_turn_base` number.
+
+### Mechanism
+
+The pipeline generates trajectories as a **DAG of typed roles**: USER / THINKING / API_CALL / API_OBS / ASSISTANT. Per-role generation uses **schema validation** and **error-feedback retries** (validate-before-generate; early abort). Diversity is template-controlled, with dynamic perturbations (execution failures, incomplete information / clarify). Generation is **execution-free** (unlike APIGen backends). The paper used an open-weight teacher (Qwen2.5-32B). Code and a public synthetic dump exist (`amazon-science/data-turnstile`; HuggingFace `amazon/Turnstile-Synthetic-Domains`, ~100K interactions, 1K+ APIs).
+
+### Evidence
+
+Paper results (Ramakrishnan & Sharma, 2026; cite as **theirs**, not ours):
+
+- **BFCL single-turn:** Qwen3-0.6B Turnstile SFT **no-think** → **75.9%** overall (Turnstile-OOD+ID) vs base 0.6B **think** 67.4% / **no-think** 58.2%. Approaches Qwen3-1.7B think **78.4%** and 4B think **79.9%**.
+- **Methodology ablation (same APIs):** Turnstile-OS **70.4%** vs Raw-OS **55.1%** (**+15.3 pp**).
+- **τ²-bench Telecom (multi-turn, pass^1)** with Turnstile + tool-call-weighted SFT: Qwen3-1.7B **31.1%** (base 6.6%, ~4.7×); Qwen3-0.6B **24.6%** (base 3.5%, ~7×). At 1.7B, the paper table beats Qwen2.5-32B-Instruct **27.4%**.
+- **CoT finding (their ablations):** chain-of-thought helps multi-turn agentic work and can **hurt** single-turn.
+
+**Metric mismatch:** paper BFCL **single-turn** overall and τ²-bench Telecom ≠ this repo's BFCL v4 `multi_turn_base` execution score. Do **not** equate 75.9% / 31.1% / 24.6% to a thesis harness result.
+
+### Applicability
+
+- **Thesis role:** Optional **open data-gen complement** to Hub-gated APIGen-MT for SFT **v7+** mixes. Logged 2026-09-24; **not scored**. Does not unlock a new mix or change the locked SFT path (v4 IFFC **15.0%** remains best SFT recovery; v7 remains **unscored**).
+- **Why it is interesting here:** Generates multi-turn FC SFT from **custom API specs** with schema-validated roles — a way to source MT-native trajs without relying only on Hub Accept datasets. Complements [§13 ToolACE](#13-toolace-automated-training-data-generation) (closed pipeline / public dumps) rather than replacing the v7 APIGen-MT core.
+- **BFCL categories:** Paper evidence is single-turn BFCL + τ² Telecom. Relevance to `multi_turn_base` / `miss_func` / `miss_param` is **hypothesis only** until scored. Empty-`[]` / stop-taxonomy control still matters (v1–v6 lesson).
+- **Complexity:** Medium–high to run their generator; low to *cite* as a v7-related option.
+- **Limitation:** Open teacher + synthetic domains are not BFCL GorillaFileSystem / VehicleControl transcripts. Schema-valid calls can still be state-wrong.
+
+### Sources
+
+- Ramakrishnan, G. & Sharma, M. "Data Turnstile: A Scalable Open Framework for Function-Calling Data Generation." arXiv:2607.29250, 2026. https://arxiv.org/abs/2607.29250
+- Code: https://github.com/amazon-science/data-turnstile
+- Dataset: https://huggingface.co/datasets/amazon/Turnstile-Synthetic-Domains
 
 ---
 
@@ -1489,12 +1583,53 @@ For tool calling, the reward function checks:
 - **Hardware requirement:** GRPO training requires sampling N responses per prompt, making it more compute-intensive than SFT. For 3B models with N=4, the RTX 4090 (24GB) is sufficient.
 - **Frameworks:** OpenRLHF, VeRL, TRL all support GRPO training.
 - **Complexity:** High. Requires setting up the RL training loop, reward function, and careful hyperparameter tuning.
+- **Not the main training path:** Blanket GRPO on full trajectories is **not** unlocked as the next bet. SFT remains locked (2026-09-23). See [§25 Critical-State RL](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) for occurrence-local RL on a diagnosed turn only — an **unscored** research option **after healthy SFT**, distinct from this section.
 
 ### Sources
 
 - Shao, Z., et al. "DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models." arXiv:2402.03300, 2024. https://arxiv.org/abs/2402.03300
 - Qian, C., et al. "ToolRL: Reward is All You Need for Tool Learning." 2025.
 - Li, B., et al. "ToRL: Scaling Tool-Integrated RL." 2025.
+
+---
+
+## 25. Critical-State RL: Diagnosing Trainable Multi-Turn Calls
+
+### Overview
+
+Critical-State RL (Salesforce, Sep 2026) diagnoses **which** multi-turn tool call is actually trainable, then runs **occurrence-local** RL on that turn only. Trajectory-level reward variation is **not** the same as trainability. Distinct from [§19 blanket GRPO](#19-reinforcement-learning-with-verifiable-rewards-grpo) / always-decision / always-recovery fixed-role rules.
+
+**Not a scored thesis experiment.** Do not invent a `multi_turn_base` number. Do **not** unlock GRPO as the main path. SFT remains locked (2026-09-23); this is an **unscored** research option **after healthy SFT**.
+
+### Mechanism
+
+1. **Task-defined candidate calls** plus local rewards.
+2. **Nested sampling** at a fixed prefix: sample actions, hold an action fixed, resample continuations — separates **action-dependent** reward variance from continuation noise.
+3. **Occurrence-local RL** (contextual bandit) **only** on the selected call. Surrounding turns provide context and reward but receive **no gradient**.
+
+Relevant to this harness's **empty-`[]` / recovery** failure modes and to BFCL multi-turn `miss_func` / `miss_param` structure (tool appears later; argument arrives later).
+
+### Evidence
+
+Paper BFCL v4 results (Gemma **four-cell study in the paper**, cite as **theirs**, not our Runs 4–18):
+
+- **`miss_func`:** diagnostic selects the **recovery** turn (after the tool becomes available): **0.14 → 0.283 ± 0.015** ≈ **+14.3 pp**. Training the **decision** alternative instead: 0.14 → 0.095 (**−4.5 pp**).
+- **`miss_param`:** diagnostic selects the **decision** turn (before the missing argument arrives): **0.435 → 0.473 ± 0.010** ≈ **+3.8 pp**. Recovery alternative ≈ flat (**+1 pp**).
+- **Nemotron `miss_func` application:** trains **decision** *before* tool availability (**+4.4 pt**) — location is **model/task-specific**.
+
+Do **not** write these as thesis harness scores on `multi_turn_base`. Our measured Gemma `multi_turn_base` ladder is unchanged (BoN **36.5%** best inference; SFT-v4 **15.0%** best SFT recovery).
+
+### Applicability
+
+- **Thesis role:** Post-healthy-SFT **local RL** research option. Logged 2026-09-24; **unscored**. Not a substitute for SFT v7. Not BoN-on-collapsed-SFT. Not more epochs on v5/v6.
+- **Why it is interesting here:** v4 restored calling (empty-`[]` largely fixed) but residual is state mismatch / under-call / never-start recovery. Nested sampling asks *which turn* to train rather than GRPO-ing the whole trajectory.
+- **BFCL categories:** Paper cells are `miss_func` and `miss_param` (train splits in their study). Our primary thesis slice remains `multi_turn_base`; `miss_func` / `miss_param` stay secondary stress tests until someone scores them.
+- **Complexity:** High (nested sampling + local RL loop). Higher than SFT mix work; not the next default after v7 scaffolding.
+- **Limitation:** Requires a **healthy** SFT checkpoint. Applying local RL to v1/v2 collapse or below-IFFC v4–v6 adapters is out of scope.
+
+### Source
+
+Chen, Z., Zhao, W., et al. "Critical-State RL: Diagnosing Trainable States for Multi-Turn Tool Use." arXiv:2609.24985, 2026. https://arxiv.org/abs/2609.24985
 
 ---
 
@@ -1688,11 +1823,11 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 
 | Priority | Technique | Target Problem | Expected Impact | Effort |
 |----------|-----------|----------------|-----------------|--------|
-| 1 | **SFT v7 (planned, not scored; recipe v6 is closed)** | Gemma `multi_turn_base` after Run 18 scored v6 as a **miss vs v4** (26/200 = 13.0% vs Run 15 15.0%, −2.0 pp / −4). Modest +1.5 pp vs Run 17 11.5%. Empty 1; state 118 / under-call 55; avg api_calls 13.34. **SFT path locked 2026-09-23.** | APIGen-MT verified MT trajs (≥50%) + stop/clarify ~12–15% non-tool + ToolACE-R-lite. **Do not** invent a v7 score. **Do not** BoN v6; **do not** more-epochs the v6 mix. Thin filter on this family is exhausted. v4 IFFC 15% remains best SFT recovery. Do **not** present 13.0% as a method win. | Planned (unscored) |
+| 1 | **SFT v7 (planned, not scored; recipe v6 is closed)** | Gemma `multi_turn_base` after Run 18 scored v6 as a **miss vs v4** (26/200 = 13.0% vs Run 15 15.0%, −2.0 pp / −4). Modest +1.5 pp vs Run 17 11.5%. Empty 1; state 118 / under-call 55; avg api_calls 13.34. **SFT path locked 2026-09-23.** | APIGen-MT verified MT trajs (≥50%) + stop/clarify ~12–15% non-tool + ToolACE-R-lite. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (**unscored**). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (**unscored**; not blanket GRPO). **Do not** invent a v7 score. **Do not** BoN v6; **do not** more-epochs the v6 mix. Thin filter on this family is exhausted. v4 IFFC 15% remains best SFT recovery. Do **not** present 13.0% as a method win. | Planned (unscored) |
 | 2 | **Optional ablation: ToolACE-only vs xLAM-only (small scale)** | Isolate 5520 ToolACE `[]` targets (xLAM 0%) | Diagnose mix vs format | Medium |
 | 3 | **Function masking augmentation (Hammer)** | Generalization, irrelevance | Robust to unseen APIs; +irrelevance | Medium |
 | 4 | **Add xLAM-1b-fc-r as benchmark baseline** | Comparison point. Run 19 NFC **0/200 = 0.0%** was format-channel collapse (JSON in `content`, not `tool_calls`). Fair path `--fc-mode xlam` is **scored**. | **Scored NFC:** 0.0% format-channel collapse. **Scored `--fc-mode xlam`:** Run 20 **6/200 = 3.0%** (fair channel; still **very low**; tools actually ran, avg `api_calls` **50.47**). **Not** published overall ~78.94%. **Not** a method win. Still **below CD 10.5%**. Registry [PR #41](https://github.com/sskarz/Thesis/pull/41); adapter [PR #42](https://github.com/sskarz/Thesis/pull/42). Do **not** overwrite Run 19 or 20. | **Done** (NFC + fair-channel scored) |
-| 5 | **GRPO post-SFT with BFCL checker as reward** | All categories, esp. multi-turn | +5–15pp on top of a *fixed* mix — not on Run 12 or Run 13 | High |
+| 5 | **GRPO post-SFT with BFCL checker as reward** | All categories, esp. multi-turn | **Not the main path.** Logged alternative after healthy SFT is [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (occurrence-local; **unscored**) — distinct from blanket GRPO on the full trajectory. Do **not** unlock GRPO as the next bet. Paper-style +5–15pp claims are **not** a thesis harness score. | High |
 | 6 | **DiaTool-DPO for multi-turn** | Multi-turn categories | Better dialogue flow + rejection | High |
 | 7 | **FunctionGemma domain fine-tuning** | FunctionGemma-270M scores | 58% → 85% on domain tasks | Medium |
 | 8 | **Structured pruning (Phi-3 style)** | Edge size reduction | 3B → 1.8B with maintained accuracy | Very High |
@@ -1733,6 +1868,9 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
       Do NOT BoN this ckpt; do NOT more-epochs the v6 mix.
     ↓ Next: SFT v7 (planned, NOT scored) — APIGen-MT verified MT trajs
       + calibrated stop/clarify + student-aware filter.
+      Optional open data-gen complement: Data Turnstile (§24; unscored).
+      Optional post-healthy-SFT local RL: Critical-State RL (§25; unscored;
+      not blanket GRPO). Do NOT unlock GRPO as the main path.
       SFT path locked 2026-09-23 as the main path; inference wrappers secondary.
       Not another thin filter on the same family.
       BoN 36.5% still best on base Gemma.
@@ -1771,3 +1909,5 @@ This pipeline answers the central thesis question: **does fine-tuning or inferen
 40. Wang, K., et al. "Agent-R1: Training Powerful LLM Agents with End-to-End Reinforcement Learning." arXiv:2511.14460, 2025.
 41. Ye, L., et al. "Hammer: Robust Function-Calling for On-Device Language Models via Function Masking." ICLR 2025. arXiv:2410.04587.
 42. Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
+43. Ramakrishnan, G. & Sharma, M. "Data Turnstile: A Scalable Open Framework for Function-Calling Data Generation." arXiv:2607.29250, 2026.
+44. Chen, Z., Zhao, W., et al. "Critical-State RL: Diagnosing Trainable States for Multi-Turn Tool Use." arXiv:2609.24985, 2026.
