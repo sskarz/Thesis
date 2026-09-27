@@ -186,8 +186,7 @@ def test_sft_iffc_v7_model_is_distinct_from_prior_sft_keys_and_base():
     assert v7["api_name"] == "gemma4-e2b-sft-iffc-v7"
     assert v7["display"] == "Gemma-4-E2B-it SFT-IFFC-v7 (Q4_K_M)"
     assert v7["slug"] == "Gemma-4-E2B-it-SFT-IFFC-v7-Q4_K_M"
-    # Path TBD until fuse; do not invent a fake best@XXXX GGUF.
-    assert v7["gguf_path"] == ""
+    assert v7["gguf_path"] == "sft/fused/gemma-4-e2b-it-iffc-v7-best1800-Q4_K_M.gguf"
     assert v7["api_name"] != v6["api_name"]
     assert v7["slug"] != v6["slug"]
     assert v7["display"] != v6["display"]
