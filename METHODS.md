@@ -10,9 +10,11 @@ Each method in this section operates at inference time without modifying model w
 
 - [1. Guided-Structured Templates](#1-guided-structured-templates)
 - [2. Constrained Decoding and Grammar-Guided Generation](#2-constrained-decoding-and-grammar-guided-generation)
+- [27. PTC-Decoder: Plan-to-Act plus Tool-Name DFA](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa)
 - [3. RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval)
 - [3a. Tool-Interface Granularity (MCP-GRANITE)](#3a-tool-interface-granularity-mcp-granite)
 - [4. Inference-Time Compute Scaling](#4-inference-time-compute-scaling)
+- [28. Looped Language Models for Compositional Tool Calling](#28-looped-language-models-for-compositional-tool-calling)
 - [5. Context Compression for Multi-Turn](#5-context-compression-for-multi-turn)
 - [6. ReAct and ReWOO Planning Patterns](#6-react-and-rewoo-planning-patterns)
 - [7. Prompt-Only Tool Calling](#7-prompt-only-tool-calling)
@@ -127,6 +129,48 @@ llama.cpp optionally supports LLGuidance (`-DLLAMA_LLGUIDANCE=ON`), a Rust-based
 - Jain, N., et al. "Lost in Space: Optimizing Tokens for Grammar-Constrained Decoding." arXiv:2502.14969, 2025. https://arxiv.org/abs/2502.14969
 - llama.cpp GBNF documentation: https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md
 - llama.cpp LLGuidance documentation: https://github.com/ggml-org/llama.cpp/blob/master/docs/llguidance.md
+- **Related (unscored, 2026-09-28):** [§27 PTC-Decoder](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa) — training-free Plan-to-Act + tool-name DFA (args free). Closest inference peer to GBNF / LLGuidance name constraints. Paper numbers are theirs (not BFCL `multi_turn_base`).
+
+---
+
+## 27. PTC-Decoder: Plan-to-Act plus Tool-Name DFA
+
+### Overview
+
+PTC-Decoder (Yu, Mu, & Wu, 2026) is a **training-free** decoder for offline resource-constrained edge SLMs. It combines **Plan-to-Act** (plan as a forced first tool) with a **TC-Decoder** DFA that hard-constrains **tool names** only (arguments remain free). The paper evaluates edge SLMs including **Gemma-4-2B Q4** on Jetson Orin NX in an offline satellite-agent setting. llama.cpp GBNF / LLGuidance is the natural integration hypothesis for this repo.
+
+**Train vs infer: inference-only** (plug-and-play; no retraining). **Not a scored thesis experiment.** Do not invent a `multi_turn_base` number. Do **not** claim Jetson / satellite results transfer to this Mac harness.
+
+### Mechanism
+
+1. **Plan-to-Act:** elevate planning to an atomic tool and force its invocation at the first inference step. The paper finds that prompt-only plan-then-execute is what their SLMs almost entirely disregard.
+2. **TC-Decoder:** a deterministic finite automaton that imposes token-level hard constraints on **tool names** while leaving parameter generation unconstrained, so the model still chooses argument values.
+
+Complements, does not replace, IFFC / stop-repeat. Closest peer to [§2 Constrained Decoding](#2-constrained-decoding-and-grammar-guided-generation) and `--fc-mode cd` name-GBNF.
+
+### Evidence
+
+Paper results (Yu, Mu, & Wu, 2026; cite as **theirs**, not ours):
+
+- **7 SLMs × 200** remote-sensing tasks. Mean Overall LLM-judge **+1.21** (p<0.01).
+- Gemma-4-2B(Q4) F1 baseline **0.279 → PTC 0.359**.
+- Ablation: Plan without TC-Decoder is much weaker; **TC-Decoder is the primary driver**.
+- Token overhead ~**2.07×**. R.A. remains the weakest dimension.
+- Also ToolAlpaca / Seal-Tools / API-Bank F1 gains.
+
+**Not** BFCL `multi_turn_base`. Do **not** equate +1.21 / 0.359 F1 to a thesis harness score.
+
+### Applicability
+
+- **Thesis role:** Logged 2026-09-28; **unscored**. Closest inference peer to constrained tool-name decode already in the thesis orbit.
+- **BFCL categories:** Hypothesis for name-constrained decode on `multi_turn_base` / `parallel`. Untested here.
+- **Complexity:** Medium (DFA / GBNF over live tool names; plan-as-first-tool prompt).
+- **Limitation:** Paper setting is offline satellite / Jetson Orin NX with LLM-judge overall + F1 — not our execution checker. Token overhead ~2×.
+
+### Sources
+
+- Yu, M., Mu, K., & Wu, G. "PTC-Decoder: Towards Intelligent SLMs on Offline Resource-Constrained Edge Devices." arXiv:2609.30836, 2026. https://arxiv.org/abs/2609.30836
+- Code: https://github.com/yuminghui/llm-tool-constrained-decoder
 
 ---
 
@@ -219,6 +263,7 @@ Paper results (Paschalides et al., 2026; cite as theirs, not ours):
 - **Implementation:** Redesign how BFCL / production tools are grouped (task-class wrappers vs primitive APIs). No weight change. No `--fc-mode`.
 - **Complexity:** Medium (schema / catalog design, not a decode-time trick)
 - **Limitation:** Paper suite is MCP edge/IoT, **not** our BFCL v4 `multi_turn_base`. Do **not** equate +16.4% / +33.6% TC to a thesis harness score. Unscored.
+- **Complement (unscored, 2026-09-28):** [§30 HyperTool](#30-hypertool-code-block-execution-granularity) changes **execution granularity** (code-block folds multi-tool chains into one outer call) rather than schema cardinality. MCP-Universe numbers are **theirs**; not BFCL `multi_turn_base`.
 
 ### Source
 
@@ -264,6 +309,38 @@ A large-scale study spanning 30B+ generated tokens across 8 open-source LLMs (7B
 - Qu, C., et al. "The Art of Scaling Test-Time Compute for Large Language Models." arXiv:2512.02008, 2025. https://arxiv.org/abs/2512.02008
 - Wang, X., et al. "Self-Consistency Improves Chain of Thought Reasoning in Language Models." ICLR 2023, arXiv:2203.11171. https://arxiv.org/abs/2203.11171
 - Brown, B., et al. "Inference Scaling Laws: An Empirical Analysis of Compute-Optimal Inference for Problem-Solving with Language Models." ICLR 2025, arXiv:2408.00724. https://arxiv.org/abs/2408.00724
+- **Related (unscored, 2026-09-28):** [§28 Looped Language Models](#28-looped-language-models-for-compositional-tool-calling) — recurrent latent depth as a test-time compute knob for compositional tool calling. Paper BFCL is static single-turn AST (live/multi-turn left future); not our `multi_turn_base`.
+
+---
+
+## 28. Looped Language Models for Compositional Tool Calling
+
+### Overview
+
+Popescu, Sáez de Ocáriz Borde, and Liò (2026) study **recurrent latent depth** for compositional / dependency-aware tool use. Native **Ouro 1.4B/2.6B** or retrofit Llama-3.2-1B / OLMo-2-1B. Helps compositional tool use (BFCL parallel/nested + NESTful); smaller gains on isolated API-Bank. Adaptive exit improves the compute–performance trade-off.
+
+**Train vs infer: mostly inference / test-time compute** (fixed or adaptive recurrent depth). The paper uses matched SFT recipes so looped vs non-looped is a fair architecture comparison — natively looped ≫ retrofit on nested workflows. **Not a scored thesis experiment.** Do not invent a `multi_turn_base` number.
+
+### Mechanism
+
+Instead of a single forward pass, the model repeatedly refines latent representations before emitting each token (recurrent depth). Depth can be fixed or stopped adaptively. This is a test-time compute knob, orthogonal to decode heuristics (IFFC / CD / stop-repeat / BoN) and to [§4 majority-vote scaling](#4-inference-time-compute-scaling).
+
+### Evidence
+
+Paper results (Popescu et al., 2026; cite as **theirs**, not ours): BFCL AST / NESTful Win Rate / API-Bank under matched SFT. Accuracy on multi-step generally rises with recurrent depth; adaptive stopping matches deep fixed depth at lower average iterations.
+
+**Limitation (paper):** static single-turn BFCL categories in the main study; live/multi-turn BFCL left as future work. Do **not** invent our MT scores.
+
+### Applicability
+
+- **Thesis role:** Logged 2026-09-28; **unscored**. Would need a looped backbone or retrofit recipe this repo does not currently run.
+- **BFCL categories:** Paper is compositional single-turn AST / nested workflows, **not** our `multi_turn_base` execution slice.
+- **Complexity:** High (architecture / pretrain; not a `--fc-mode`).
+- **Limitation:** No looped Gemma-4-E2B in this harness. Retrofit ≠ native Ouro on nested workflows.
+
+### Source
+
+Popescu, A. C., Sáez de Ocáriz Borde, H., & Liò, P. "Looped Language Models Improve Compositional Tool Calling." arXiv:2608.18171, 2026. https://arxiv.org/abs/2608.18171
 
 ---
 
@@ -1029,6 +1106,15 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 - **Critical-State RL** ([§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls)) — optional **post-healthy-SFT** occurrence-local RL (nested sampling on the trainable turn). Distinct from blanket GRPO. **Do not** unlock GRPO as the main path.
 - **MCP-GRANITE** ([§3a](#3a-tool-interface-granularity-mcp-granite)) — optional composites if the tool list is huge. **Unscored.** Cross-link only; see Post–Run27 ranking item 7.
 
+**Related options (logged 2026-09-28, all unscored; paper numbers are theirs; do not invent `multi_turn_base` scores):**
+
+- **OODA-Tool** ([§26](#26-ooda-tool-typed-observe-orient-decide-act)) — typed Observe→Orient→Decide→Act; **train + infer**. Prefer Joint **one-pass** over Specialized ~2.4× at edge. Cross-link Post–Run27 (do not duplicate ranking).
+- **PTC-Decoder** ([§27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa)) — **inference-only** Plan-to-Act + tool-name DFA. Not our Mac harness / not BFCL `multi_turn_base`.
+- **Looped LMs** ([§28](#28-looped-language-models-for-compositional-tool-calling)) — mostly **inference / test-time compute**. Needs a looped backbone we do not run.
+- **PARL-MT / PROGRA** ([§29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling)) — **training-time** progress-aware PAG-RL. Logged research option after healthy SFT; **do not** unlock GRPO as the main path.
+- **HyperTool** ([§30](#30-hypertool-code-block-execution-granularity)) — **train + infer** code-block execution granularity. Complements MCP-GRANITE §3a. Not MCP-Universe ≡ BFCL.
+- **RC-GRPO** ([§31](#31-rc-grpo-reward-conditioned-grpo)) — **training-time** reward-conditioned GRPO. RL-stabilization if we ever GRPO; **do not** unlock GRPO as the main path.
+
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
 **v1 (Run 12):** Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`.
@@ -1139,7 +1225,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 
 ### Next (Sanskar decides)
 
-1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Still trying tightened stop-repeat first** vs IFFC **30.5%**. **If** that fails, follow the dated ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; action-class quotas + GAR; Magnet/Critical-State contrast then mDPO; **not** decode bans). Center on APIGen-MT verified multi-turn trajs (≥50% MT-native) + calibrated stop/clarify (~12–15% non-tool) + ToolACE-R-lite student-aware filter; optional Hammer/RPO only after a healthy SFT. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
+1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Still trying tightened stop-repeat first** vs IFFC **30.5%**. **If** that fails, follow the dated ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; action-class quotas + GAR; Magnet/Critical-State contrast then mDPO; **not** decode bans). Center on APIGen-MT verified multi-turn trajs (≥50% MT-native) + calibrated stop/clarify (~12–15% non-tool) + ToolACE-R-lite student-aware filter; optional Hammer/RPO only after a healthy SFT. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)) is **logged / unscored** (OODA one-pass preferred; PTC / Looped LMs inference; PARL-MT / RC-GRPO training-time, **not** a GRPO unlock). **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
@@ -1156,6 +1242,12 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Prabhakar et al. "APIGen-MT." NeurIPS 2025 D&B. arXiv:2504.03601. https://arxiv.org/abs/2504.03601 (v7 planned mix core; **not scored**; paper MT 1B/3B/8B 43/56/69% — **not** our harness)
 - Ramakrishnan, G. & Sharma, M. (Amazon AGI). Data Turnstile. arXiv:2607.29250. https://arxiv.org/abs/2607.29250 (optional open data-gen complement for v7+; **not scored**; same paper as [§24](#24-data-turnstile-open-function-calling-data-generation))
 - Chen et al. (Salesforce). Critical-State RL. arXiv:2609.24985. https://arxiv.org/abs/2609.24985 (post-healthy-SFT occurrence-local RL; **not scored**; not blanket GRPO)
+- Guo et al. OODA-Tool. arXiv:2608.24368. https://arxiv.org/abs/2608.24368 ([§26](#26-ooda-tool-typed-observe-orient-decide-act); **not scored**; prefer one-pass)
+- Yu, Mu, & Wu. PTC-Decoder. arXiv:2609.30836. https://arxiv.org/abs/2609.30836 ([§27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa); inference-only; **not scored**)
+- Popescu et al. Looped LMs. arXiv:2608.18171. https://arxiv.org/abs/2608.18171 ([§28](#28-looped-language-models-for-compositional-tool-calling); **not scored**)
+- Chai et al. PARL-MT. arXiv:2509.23206. https://arxiv.org/abs/2509.23206 ([§29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling); **not scored**; not a GRPO unlock)
+- Du, Zhou, et al. HyperTool. arXiv:2606.13663. https://arxiv.org/abs/2606.13663 ([§30](#30-hypertool-code-block-execution-granularity); **not scored**)
+- Zhong et al. RC-GRPO. arXiv:2602.03025. https://arxiv.org/abs/2602.03025 ([§31](#31-rc-grpo-reward-conditioned-grpo); **not scored**; not a GRPO unlock)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
@@ -1176,10 +1268,11 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 4 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
 | 5 | **Best-of-N majority voting (`--fc-mode iffc-state-bon`)** | Gemma `multi_turn_base` vs IFFC+STATE 34.0% | **Measured** Run 11: 73/200 = 36.5% (beats STATE by +5 / +2.5 pp). State 64→53; empty 31→36; under-call flat. ~7× wall / ~8.8× decode — modest lift, **not free**. | Done (harness + live score) |
 | 5a | **IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)** | Collapsed over-call vs healthy-base IFFC | **Measured** Run 27 on **BASE** Gemma: 54/200 = 27.0% (`scores.id=20`; **200/200 responses**). **Miss vs Run 5 IFFC 30.5%** (−3.5 pp; −9.5 pp vs BoN). Same accuracy level as Run 4 NFC 27.0% — **not** an identical method. Stop flags **37/200**, all failures (**0 stopped and correct**). VehicleControlAPI **22→33** vs Run 5. 10-ID smoke81 probe cut avg api 21.3→6.3, but that is **not** a full-200 win. **Thursday lock:** tradeoff for **loop-dominated cases only**; **not** a method improvement. Best still BoN **36.5%** / IFFC Run 5 **30.5%**. Harness [PR #54](https://github.com/sskarz/Thesis/pull/54). | Done (harness + live score; scored miss) |
-| 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level | Medium |
-| 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale. Complements [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite): retrieve tools **and** redesign API-surface cardinality (~4 task-class tools in that paper). **Unscored** on this harness. | Medium |
+| 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level. Complements [PTC-Decoder §27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa) (training-free tool-name DFA; **unscored**; not our harness). | Medium |
+| 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale. Complements [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite): retrieve tools **and** redesign API-surface cardinality (~4 task-class tools in that paper). Complements [HyperTool §30](#30-hypertool-code-block-execution-granularity) (execution granularity / code-block; **unscored**; MCP-Universe ≠ BFCL). **Unscored** on this harness. | Medium |
 | 8 | **Schema-based verification loop** | Argument errors across categories | +3–10% with retries | Medium |
 | 9 | **DSPy prompt optimization** | Model-specific prompt tuning | Auto-discovered improvements | High |
+| 10 | **Looped LMs (logged, unscored)** | Compositional / nested tool calling | [§28](#28-looped-language-models-for-compositional-tool-calling) recurrent latent depth. Paper BFCL is static single-turn; **not** our `multi_turn_base`. Needs a looped backbone we do not run. | High (architecture) |
 
 The first four are directly measurable on BFCL v4 without changes to the benchmark format, making them strong thesis contributions. The key narrative: **inference-time techniques can close the gap between SLMs and cloud-scale models without fine-tuning.**
 
@@ -1248,6 +1341,8 @@ The first four are directly measurable on BFCL v4 without changes to the benchma
 28. Yao, S., et al. "ReAct: Synergizing Reasoning and Acting in Language Models." ICLR 2023. arXiv:2210.03629.
 29. Yuan, S., et al. "CRAFT: Customizing LLMs by Creating and Retrieving from Specialized Toolsets." arXiv:2309.17428, 2024.
 29a. Paschalides, D., et al. "MCP-GRANITE Benchmark: GRANularity Interface TEsting for MCP-Based LLM Agents." arXiv:2609.24161, 2026.
+29b. Yu, M., Mu, K., & Wu, G. "PTC-Decoder: Towards Intelligent SLMs on Offline Resource-Constrained Edge Devices." arXiv:2609.30836, 2026. https://arxiv.org/abs/2609.30836
+29c. Popescu, A. C., Sáez de Ocáriz Borde, H., & Liò, P. "Looped Language Models Improve Compositional Tool Calling." arXiv:2608.18171, 2026. https://arxiv.org/abs/2608.18171
 
 ---
 
@@ -1267,6 +1362,10 @@ Each method in this section involves modifying model weights — via supervised 
 - [18. Parameter-Efficient Fine-Tuning (LoRA / QLoRA)](#18-parameter-efficient-fine-tuning-lora--qlora)
 - [19. Reinforcement Learning with Verifiable Rewards (GRPO)](#19-reinforcement-learning-with-verifiable-rewards-grpo)
 - [25. Critical-State RL: Diagnosing Trainable Multi-Turn Calls](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls)
+- [26. OODA-Tool: Typed Observe-Orient-Decide-Act](#26-ooda-tool-typed-observe-orient-decide-act)
+- [29. PARL-MT: Progress Awareness for Multi-Turn Function Calling](#29-parl-mt-progress-awareness-for-multi-turn-function-calling)
+- [30. HyperTool: Code-Block Execution Granularity](#30-hypertool-code-block-execution-granularity)
+- [31. RC-GRPO: Reward-Conditioned GRPO](#31-rc-grpo-reward-conditioned-grpo)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
 - [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling)
@@ -1648,7 +1747,7 @@ For tool calling, the reward function checks:
 - **Hardware requirement:** GRPO training requires sampling N responses per prompt, making it more compute-intensive than SFT. For 3B models with N=4, the RTX 4090 (24GB) is sufficient.
 - **Frameworks:** OpenRLHF, VeRL, TRL all support GRPO training.
 - **Complexity:** High. Requires setting up the RL training loop, reward function, and careful hyperparameter tuning.
-- **Not the main training path:** Blanket GRPO on full trajectories is **not** unlocked as the next bet. SFT remains locked (2026-09-23). See [§25 Critical-State RL](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) for occurrence-local RL on a diagnosed turn only — an **unscored** research option **after healthy SFT**, distinct from this section.
+- **Not the main training path:** Blanket GRPO on full trajectories is **not** unlocked as the next bet. SFT remains locked (2026-09-23). See [§25 Critical-State RL](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) for occurrence-local RL on a diagnosed turn only — an **unscored** research option **after healthy SFT**, distinct from this section. Logged 2026-09-28 GRPO-family options (still **not** a main-path unlock): [§29 PARL-MT](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) (progress-aware PAG-RL) and [§31 RC-GRPO](#31-rc-grpo-reward-conditioned-grpo) (reward-token variance restoration).
 
 ### Sources
 
@@ -1695,6 +1794,141 @@ Do **not** write these as thesis harness scores on `multi_turn_base`. Our measur
 ### Source
 
 Chen, Z., Zhao, W., et al. (Salesforce). "Critical-State RL: Diagnosing Trainable States for Multi-Turn Tool Use." arXiv:2609.24985, 2026. https://arxiv.org/abs/2609.24985
+
+---
+
+## 26. OODA-Tool: Typed Observe-Orient-Decide-Act
+
+### Overview
+
+OODA-Tool (Guo et al., 2026) is a typed Observe→Orient→Decide→Act controller with central-controller checks. It targets **state–action competition**: the pressure to emit the next call overwrites accumulated state (`state_mismatch`-like failures). Biggest paper gains are on **Qwen3 0.6B–4B**.
+
+**Train vs infer: both** — stage LoRAs (Joint / Shared / Specialized) plus optional multi-pass inference. **Not a scored thesis experiment.** Do not invent a `multi_turn_base` number. Cross-link [Post–Run27 consensus](#post-run27-consensus-2026-09-28) (do not duplicate a second ranking). Prefer **Joint typed CoT / one-pass** over Specialized ~2.4× multi-pass at edge.
+
+### Mechanism
+
+Inspired by Boyd’s Observe–Orient–Decide–Act cycle:
+
+1. **Observe** reconstructs a provenance-aware task state.
+2. **Orient** gates whether execution is warranted.
+3. **Decide** forms an admissible action structure.
+4. **Act** realizes a schema-valid tool call or authorized user-facing response.
+
+A central controller checks each handoff. Training variants: Joint (typed CoT in one pass), Shared, Specialized (four-call loop). Specialized is the paper’s strongest Task Success variant and the expensive one.
+
+### Evidence
+
+Paper ToolDial Task Success, Specialized OODA vs Direct-LoRA (Guo et al., 2026; cite as **theirs**, not ours): **+6.86 / +6.79 / +6.99 / +5.94 / +4.48 pp** at 0.6B / 1.7B / 4B / 8B / 14B. Gains concentrate on state-intensive slices; smaller on parallel calls. Transfer: FAIL-TaLMs, MTU-Bench, BFCL (margin shrinks with scale; smaller on BFCL Multi-turn). Specialized ≈ **2.36×** latency vs Direct-LoRA at 1.7B in their ToolDial study.
+
+Do **not** paste these as thesis `multi_turn_base` scores. Our measured ladder is unchanged (BoN **36.5%** best inference; IFFC Run 5 **30.5%**; SFT-v4 **15.0%** best SFT; Run 27 **27.0%** scored miss).
+
+### Applicability
+
+- **Thesis role:** Logged 2026-09-28 as a full section (was a light Post–Run27 cite). **Unscored.** Complements Post–Run27 “lightweight state prefix in **one pass**” — prefer Joint typed CoT over Specialized 4-call loop at edge. Relevant to VehicleControl / `state_mismatch`.
+- **BFCL categories:** Paper transfer includes BFCL Multi-turn (their suite). Relevance to our `multi_turn_base` is **hypothesis only** until scored.
+- **Complexity:** Medium for Joint one-pass typed CoT; high for Specialized multi-pass + stage LoRAs.
+- **Limitation:** Specialized latency (~2.4×) is a poor edge default. Direct-LoRA remains cheaper when one-pass latency is the constraint.
+
+### Source
+
+Guo, R., Huang, Y., Wu, Y., Zhong, M., Chen, Y., Tang, M., Long, T., & Hu, V. T. "From State to Action: OODA-Tool for Reliable Multi-Turn Tool Use." arXiv:2608.24368, 2026. https://arxiv.org/abs/2608.24368
+
+---
+
+## 29. PARL-MT: Progress Awareness for Multi-Turn Function Calling
+
+### Overview
+
+PARL-MT (Chai et al., ACL 2026 Findings; also styled **PROGRA** in notes) trains **progress awareness** = history summary + future plan. **PAG** synthesizes awareness data; **PAG-RL** (progress-awareness–guided GRPO) conditions rollouts on awareness to cut context redundancy and fight loops / lost global task. Eval: BFCL multi-turn + τ-bench; includes **xLAM-2-3B / 8B**.
+
+**Train vs infer: training-time** (SFT warm-up on awareness + PAG-RL / GRPO). **Not a scored thesis experiment.** Do **not** unlock GRPO as the main path. SFT remains locked (2026-09-23). Analogous to [§25 Critical-State](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) framing — a logged research option, not the next default bet.
+
+### Mechanism
+
+1. **PAG:** synthesize (history summary, future plan) awareness pairs.
+2. **SFT warm-up** on that awareness data.
+3. **PAG-RL:** GRPO rollouts conditioned on awareness so local actions stay aligned with the global task and redundant context is compressed.
+
+### Evidence
+
+Paper Table 1 (Chai et al., 2025; cite as **theirs**, not ours) — e.g. Qwen2.5-7B BFCL Overall **8.25→10.33**; xLAM-2-3B τ-Bench Overall **25.45→31.52**; xLAM-2-8B **46.70→51.85**. Ablations: both PAG and PAG-RL needed.
+
+**Metric mismatch:** their BFCL multi-turn executable accuracy / τ-bench ≠ our `multi_turn_base`-only sheet. Do **not** equate 10.33 / 31.52 / 51.85 to a thesis harness result.
+
+### Applicability
+
+- **Thesis role:** Logged 2026-09-28; **unscored**. Aligns with Post–Run27 anti-loop / progress theme and Magnet / Critical-State contrast. Optional **post-healthy-SFT** progress-aware RL — **not** blanket GRPO, **not** a substitute for SFT v7.
+- **BFCL categories:** Paper is BFCL multi-turn overall + τ-bench. Hypothesis for our loop / `state_mismatch` residuals only until scored.
+- **Complexity:** High (synthetic PAG + GRPO loop). Extra inference cost per action during RL rollout (paper limitation).
+- **Limitation:** Does not unlock GRPO as the main path. Requires a healthy SFT checkpoint first.
+
+### Source
+
+Chai, H., Cao, Z., Ran, M., Yang, Y., Lin, J., Peng, X., Wang, H., Ding, R., Wan, Z., Wen, M., Liu, W., Zhang, W., Huang, F., & Wen, Y. "PARL-MT: Learning to Call Functions in Multi-Turn Conversation with Progress Awareness." ACL 2026 Findings. arXiv:2509.23206, 2025. https://arxiv.org/abs/2509.23206
+
+---
+
+## 30. HyperTool: Code-Block Execution Granularity
+
+### Overview
+
+HyperTool (Du*, Zhou*, et al., 2026) is an MCP-style **code-block** interface that folds deterministic multi-tool chains into **one outer call** (local vars / filter / aggregate inside the block). It attacks consecutive-call **context pressure** and reasoning fragmentation from atomic step-wise MCP. SFT on verified HyperTool trajectories in real MCP environments.
+
+**Train vs infer: both** — new executable interface at inference + SFT on HyperTool-format trajectories. **Not a scored thesis experiment.** Complements [§3a MCP-GRANITE](#3a-tool-interface-granularity-mcp-granite) (schema cardinality) with **execution granularity** (what the model sees per turn).
+
+### Mechanism
+
+The model emits a code block that can call existing tools through their original schemas, store intermediates locally, and return only the task-relevant result. Deterministic subroutines stay out of the main trace. Supervision is SFT on execution-verified HyperTool trajectories, not atomic ReAct traces.
+
+### Evidence
+
+Paper MCP-Universe Avg Acc (Du, Zhou, et al., 2026; cite as **theirs**, not ours): Qwen3-8B **9.93%→33.33%**; Qwen3-32B **15.69%→35.29%** (their HyperTool-SFT). Beats same-backbone ReAct-SFT / CodeAct / AgentFold etc.
+
+**Not** BFCL `multi_turn_base`. Do **not** equate 33.33% / 35.29% to a thesis harness score. Needs a sandbox for code execution (security limitation).
+
+### Applicability
+
+- **Thesis role:** Logged 2026-09-28; **unscored**. Relevant if consecutive multi-call context bloat dominates. BFCL harness is **not** MCP-Universe.
+- **BFCL categories:** Hypothesis only for long multi-call traces. No `--fc-mode`.
+- **Complexity:** High (sandbox + trajectory SFT in a new action space).
+- **Limitation:** Code execution sandbox / security. Paper env is MCP-Universe, not GorillaFileSystem / VehicleControl.
+
+### Source
+
+Du, Y., Zhou, Y., Ge, Y., Wang, J., Pang, X., Tang, S., Zheng, T., Dai, B., Yang, J., & Chen, S. "HyperTool: Beyond Step-Wise Tool Calls for Tool-Augmented Agents." arXiv:2606.13663, 2026. https://arxiv.org/abs/2606.13663
+
+---
+
+## 31. RC-GRPO: Reward-Conditioned GRPO
+
+### Overview
+
+RC-GRPO (Zhong et al., 2026) addresses a GRPO pathology after strong SFT: groups can be all-0 or all-1 → vanishing group-normalized advantage. **RCTP** SFT on mixed-quality trajectories with discrete reward tokens (`<|high_reward|>` / `<|low_reward|>`); **RC-GRPO** samples diverse reward tokens inside each GRPO group to restore within-group variance. Evaluated on BFCLv4 multi-turn tool agents.
+
+**Train vs infer: training-time** (RCTP-FT then RC-GRPO). Inference conditions on the high-reward token. **Not a scored thesis experiment.** Do **not** unlock GRPO as the main path. Log next to [§19 GRPO](#19-reinforcement-learning-with-verifiable-rewards-grpo) / [§25 Critical-State](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) as an RL-stabilization technique for multi-turn binary rewards.
+
+### Mechanism
+
+1. **RCTP-FT:** SFT on mixed-quality trajectories with a discrete reward token in the prompt so the policy can emit distinct quality on demand.
+2. **RC-GRPO:** inside each GRPO group, sample diverse reward tokens and condition rollouts on them — restoring advantage signal when vanilla GRPO groups collapse to all-success or all-fail.
+3. **Inference:** condition on `<|high_reward|>`.
+
+### Evidence
+
+Paper BFCLv4 multi-turn validation (Zhong et al., 2026; cite as **theirs**, not ours): Qwen2.5-7B RCTP-FT+RC-GRPO **85.00%** overall vs SFT+GRPO **48.75%** / RCTP+GRPO **73.75%**; LLaMA-3.1-8B **48.75%**. Their Qwen result exceeds listed closed API baselines in their table.
+
+**Metric mismatch:** their BFCLv4 multi-turn validation split / categories ≠ our `multi_turn_base` 200-entry Mac harness. Do **not** write 85% as a thesis score. Our measured highs stay BoN **36.5%** / IFFC **30.5%** / SFT-v4 **15.0%** / Run 27 **27.0%**.
+
+### Applicability
+
+- **Thesis role:** Logged 2026-09-28; **unscored**. Addresses a real pathology **if** we ever do GRPO post-SFT. Still **do not unlock GRPO as the main path**.
+- **BFCL categories:** Paper is BFCLv4 multi-turn validation overall — not our 200-entry `multi_turn_base` sheet.
+- **Complexity:** High (mixed-quality RCTP + GRPO). Higher than SFT mix work.
+- **Limitation:** Requires strong SFT first. Not a substitute for v7. Not BoN-on-collapsed-SFT.
+
+### Source
+
+Zhong, H., Zhai, J., Song, L., Bian, J., Liu, Q., & Tan, T. "RC-GRPO: Reward-Conditioned Group Relative Policy Optimization for Multi-Turn Tool Calling Agents." arXiv:2602.03025, 2026. https://arxiv.org/abs/2602.03025
 
 ---
 
@@ -1892,7 +2126,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 2 | **Optional ablation: ToolACE-only vs xLAM-only (small scale)** | Isolate 5520 ToolACE `[]` targets (xLAM 0%) | Diagnose mix vs format | Medium |
 | 3 | **Function masking augmentation (Hammer)** | Generalization, irrelevance | Robust to unseen APIs; +irrelevance | Medium |
 | 4 | **Add xLAM-1b-fc-r as benchmark baseline** | Comparison point. Run 19 NFC **0/200 = 0.0%** was format-channel collapse (JSON in `content`, not `tool_calls`). Fair path `--fc-mode xlam` is **scored**. | **Scored NFC:** 0.0% format-channel collapse. **Scored `--fc-mode xlam`:** Run 20 **6/200 = 3.0%** (fair channel; still **very low**; tools actually ran, avg `api_calls` **50.47**). **Not** published overall ~78.94%. **Not** a method win. Still **below CD 10.5%**. Registry [PR #41](https://github.com/sskarz/Thesis/pull/41); adapter [PR #42](https://github.com/sskarz/Thesis/pull/42). Do **not** overwrite Run 19 or 20. | **Done** (NFC + fair-channel scored) |
-| 5 | **GRPO post-SFT with BFCL checker as reward** | All categories, esp. multi-turn | **Not the main path.** Logged alternative after healthy SFT is [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (occurrence-local; **unscored**) — distinct from blanket GRPO on the full trajectory. Do **not** unlock GRPO as the next bet. Paper-style +5–15pp claims are **not** a thesis harness score. | High |
+| 5 | **GRPO post-SFT with BFCL checker as reward** | All categories, esp. multi-turn | **Not the main path.** Logged alternatives after healthy SFT: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (occurrence-local; **unscored**); [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) (progress-aware PAG-RL; **unscored**); [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo) (reward-token variance; **unscored**). Distinct from blanket GRPO on the full trajectory. Do **not** unlock GRPO as the next bet. Paper-style +5–15pp / 85% claims are **not** a thesis harness score. | High |
 | 6 | **DiaTool-DPO for multi-turn** | Multi-turn categories | Better dialogue flow + rejection | High |
 | 7 | **FunctionGemma domain fine-tuning** | FunctionGemma-270M scores | 58% → 85% on domain tasks | Medium |
 | 8 | **Structured pruning (Phi-3 style)** | Edge size reduction | 3B → 1.8B with maintained accuracy | Very High |
@@ -1940,6 +2174,9 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
       Optional open data-gen complement: Data Turnstile (§24; unscored).
       Optional post-healthy-SFT local RL: Critical-State RL (§25; unscored;
       not blanket GRPO). Do NOT unlock GRPO as the main path.
+      2026-09-28 methods sweep (§26–§31; unscored): OODA one-pass preferred;
+      PTC / Looped LMs inference; PARL-MT / RC-GRPO training-time (not a
+      GRPO unlock); HyperTool execution granularity.
       SFT path locked 2026-09-23 as the main path; inference wrappers secondary.
       Not another thin filter on the same family. Not decode bans as the win.
       BoN 36.5% still best on base Gemma.
@@ -1991,7 +2228,12 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 | Magnet (mDPO) | Yin et al. 2025, ACL 2025, [arXiv:2503.07826](https://arxiv.org/abs/2503.07826) | Qwen2.5-Coder-14B; 34k SFT + ~4.5k pos/neg → mDPO |
 | GAR / Calibration is the Bottleneck | Zhao et al. 2026, [arXiv:2609.00949](https://arxiv.org/abs/2609.00949) | 4-class tool_call / ask / refuse / confirm; Acc ≤ GAR; SRI/CRI can hurt Acc — aligns with stop-repeat |
 | Critical-State RL | Chen et al. (Salesforce) 2026, [arXiv:2609.24985](https://arxiv.org/abs/2609.24985) — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) | Already logged; **unscored**. Occurrence-local RL after healthy SFT. **Not** blanket GRPO |
-| OODA-Tool | Guo et al. 2026, [arXiv:2608.24368](https://arxiv.org/abs/2608.24368) | Qwen3 0.6–14B; typed OODA; largest gains on smallest (~+7 pp ≤4B); latency ~2.4× — prefer joint typed CoT **one-pass** at edge |
+| OODA-Tool | Guo et al. 2026, [arXiv:2608.24368](https://arxiv.org/abs/2608.24368) — [§26](#26-ooda-tool-typed-observe-orient-decide-act) | Full section 2026-09-28; **unscored**. Qwen3 0.6–14B; typed OODA; largest gains on smallest (~+7 pp ≤4B); Specialized ≈ 2.36× — prefer Joint typed CoT **one-pass** at edge |
+| PTC-Decoder | Yu, Mu, & Wu 2026, [arXiv:2609.30836](https://arxiv.org/abs/2609.30836) — [§27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa) | Logged 2026-09-28; **unscored**. **Inference-only** Plan-to-Act + tool-name DFA. Jetson/satellite LLM-judge; **not** our `multi_turn_base` |
+| Looped LMs | Popescu et al. 2026, [arXiv:2608.18171](https://arxiv.org/abs/2608.18171) — [§28](#28-looped-language-models-for-compositional-tool-calling) | Logged 2026-09-28; **unscored**. Mostly test-time compute. Paper BFCL static single-turn; live/MT left future |
+| PARL-MT / PROGRA | Chai et al. ACL 2026 Findings, [arXiv:2509.23206](https://arxiv.org/abs/2509.23206) — [§29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) | Logged 2026-09-28; **unscored**. **Training-time** PAG + PAG-RL. **Not** a GRPO unlock |
+| HyperTool | Du*, Zhou*, et al. 2026, [arXiv:2606.13663](https://arxiv.org/abs/2606.13663) — [§30](#30-hypertool-code-block-execution-granularity) | Logged 2026-09-28; **unscored**. **Train + infer** code-block granularity. MCP-Universe ≠ BFCL |
+| RC-GRPO | Zhong et al. 2026, [arXiv:2602.03025](https://arxiv.org/abs/2602.03025) — [§31](#31-rc-grpo-reward-conditioned-grpo) | Logged 2026-09-28; **unscored**. **Training-time** reward-conditioned GRPO. Paper BFCLv4 val ≠ our 200-entry sheet. **Not** a GRPO unlock |
 | MCP-GRANITE | Paschalides et al. 2026, [arXiv:2609.24161](https://arxiv.org/abs/2609.24161) — [§3a](#3a-tool-interface-granularity-mcp-granite) | Already logged; **unscored**. Optional if the tool list is huge |
 | Data Turnstile | Ramakrishnan & Sharma (Amazon AGI) 2026, [arXiv:2607.29250](https://arxiv.org/abs/2607.29250) — [§24](#24-data-turnstile-open-function-calling-data-generation) | Already logged (same paper as §24); **unscored**. Harness ID/mask note, not the primary SFT-loop fix |
 | When2Call | Ross et al. 2025, NAACL 2025, [arXiv:2504.18851](https://arxiv.org/abs/2504.18851) | Light pointer: 4-way when-to-call |
@@ -2004,9 +2246,9 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 1. **APIGen-MT-5k + ToolACE / ToolACE-MT-style MT + single-turn FC** (~30–50% MT). Gemma template. **Mask user/tool; train assistant only.**
 2. **Action-class quotas** (final-after-success-obs, ask, refuse/defer, irrelevance) and **measure GAR per class**.
 3. **Anti-loop contrast:** Magnet-style pos/neg or Critical-State labels; mDPO / small preference **after** SFT ≫ decode bans.
-4. **Lightweight state prefix** (goal / slots / last fact / next mode) in **one pass** (OODA-Tool latency cost → not a 2.4× multi-pass at edge).
+4. **Lightweight state prefix** (goal / slots / last fact / next mode) in **one pass** ([OODA-Tool §26](#26-ooda-tool-typed-observe-orient-decide-act) latency cost → not a 2.4× multi-pass at edge).
 5. **Hold decode stops on the scored base.** Optional soft max-N identical successful signatures, then force answer.
-6. **Occurrence-local RL** only if SFT plateaus — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), **not** [§19 blanket GRPO](#19-reinforcement-learning-with-verifiable-rewards-grpo).
+6. **Occurrence-local RL** only if SFT plateaus — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), **not** [§19 blanket GRPO](#19-reinforcement-learning-with-verifiable-rewards-grpo). [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) / [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo) remain logged research options; **do not** unlock GRPO as the main path.
 7. **Optional MCP-GRANITE composites** if the tool list is huge — [§3a](#3a-tool-interface-granularity-mcp-granite).
 
 ### Anti-patterns
@@ -2015,7 +2257,7 @@ Teacher loop-filter-only; stop-on-repeat / CRI-like decode; recovery-targeted SF
 
 ### Already-logged options (cross-link, do not duplicate)
 
-[Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite), [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation), [APIGen-MT / xLAM §15](#15-xlam-large-action-models), [ToolACE §13](#13-toolace-automated-training-data-generation). All three first-named remain **unscored** research options.
+[Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), [OODA-Tool §26](#26-ooda-tool-typed-observe-orient-decide-act), [PTC-Decoder §27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa), [Looped LMs §28](#28-looped-language-models-for-compositional-tool-calling), [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling), [HyperTool §30](#30-hypertool-code-block-execution-granularity), [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo), [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite), [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation), [APIGen-MT / xLAM §15](#15-xlam-large-action-models), [ToolACE §13](#13-toolace-automated-training-data-generation). Sweep entries remain **unscored** research options. Paper numbers are **theirs**.
 
 ---
 
@@ -2041,9 +2283,14 @@ Teacher loop-filter-only; stop-on-repeat / CRI-like decode; recovery-targeted SF
 47. Xu et al. "FunReason-MT." arXiv:2510.24645, 2025. https://arxiv.org/abs/2510.24645 (paper BFCL-v3; **not** our harness)
 48. Yin et al. "Magnet" (mDPO). ACL 2025. arXiv:2503.07826. https://arxiv.org/abs/2503.07826
 49. Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949, 2026. https://arxiv.org/abs/2609.00949
-50. Guo et al. "OODA-Tool." arXiv:2608.24368, 2026. https://arxiv.org/abs/2608.24368
+50. Guo, R., Huang, Y., Wu, Y., Zhong, M., Chen, Y., Tang, M., Long, T., & Hu, V. T. "From State to Action: OODA-Tool for Reliable Multi-Turn Tool Use." arXiv:2608.24368, 2026. https://arxiv.org/abs/2608.24368
 51. Paschalides, D., et al. "MCP-GRANITE Benchmark: GRANularity Interface TEsting for MCP-Based LLM Agents." arXiv:2609.24161, 2026. https://arxiv.org/abs/2609.24161
 52. Ross et al. "When2Call." NAACL 2025. arXiv:2504.18851. https://arxiv.org/abs/2504.18851
 53. Huang et al. "MetaTool." ICLR 2024. arXiv:2310.03128. https://arxiv.org/abs/2310.03128
 54. Patil et al. "Berkeley Function Calling Leaderboard." ICML 2025. https://proceedings.mlr.press/v267/patil25a.html
 55. Chen et al. "BUTTON." ICLR 2025. arXiv:2410.12952. https://arxiv.org/abs/2410.12952
+56. Yu, M., Mu, K., & Wu, G. "PTC-Decoder: Towards Intelligent SLMs on Offline Resource-Constrained Edge Devices." arXiv:2609.30836, 2026. https://arxiv.org/abs/2609.30836
+57. Popescu, A. C., Sáez de Ocáriz Borde, H., & Liò, P. "Looped Language Models Improve Compositional Tool Calling." arXiv:2608.18171, 2026. https://arxiv.org/abs/2608.18171
+58. Chai, H., et al. "PARL-MT: Learning to Call Functions in Multi-Turn Conversation with Progress Awareness." ACL 2026 Findings. arXiv:2509.23206, 2025. https://arxiv.org/abs/2509.23206
+59. Du, Y., Zhou, Y., et al. "HyperTool: Beyond Step-Wise Tool Calls for Tool-Augmented Agents." arXiv:2606.13663, 2026. https://arxiv.org/abs/2606.13663
+60. Zhong, H., Zhai, J., Song, L., Bian, J., Liu, Q., & Tan, T. "RC-GRPO: Reward-Conditioned Group Relative Policy Optimization for Multi-Turn Tool Calling Agents." arXiv:2602.03025, 2026. https://arxiv.org/abs/2602.03025
