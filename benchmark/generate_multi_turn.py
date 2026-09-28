@@ -20,6 +20,10 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
   Never sends ``tools``/``tool_choice``. Parse assistant text; empty
   ``{"tool_calls": []}`` ends the turn. Fair channel for ``xlam-1b``
   (Run 19 NFC 0/200 was format-channel collapse; Run 20 scored 6/200 = 3.0%).
+- ``iffc-stop-repeat``: IFFC JSON-in-text plus harness force-stop after a tool
+  observation when the proposed call set is a subset of already-executed
+  calls, or equals the previous assistant call set. Baseline ``iffc`` is
+  unchanged. Decode/harness lever only.
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits trailing
 IFFC assistant ``[]`` stop turns from ``chat_history`` before the next BFCL
@@ -39,6 +43,7 @@ from . import cd as cd_mode
 from . import config, db
 from . import gst as gst_mode
 from . import iffc_state as iffc_state_mode
+from . import stop_on_repeat
 from . import xlam as xlam_mode
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
 from .iffc import (
@@ -142,8 +147,12 @@ def _resolve_strip_empty_assistant(
 
 
 def _iffc_family_mode(fc_mode: str) -> bool:
-    """Plain IFFC plus iffc-state overlays (same JSON-in-text ``[]`` stop)."""
-    return fc_mode == config.FC_IFFC or fc_mode in config.FC_IFFC_STATE_MODES
+    """Plain IFFC plus iffc-state / stop-repeat overlays (same ``[]`` stop)."""
+    return (
+        fc_mode == config.FC_IFFC
+        or fc_mode == config.FC_IFFC_STOP_REPEAT
+        or fc_mode in config.FC_IFFC_STATE_MODES
+    )
 
 
 def _maybe_strip_trailing_empty_assistant(
@@ -274,6 +283,18 @@ def _decide_assistant_step(
         content = assistant_text(message)
         parsed = try_parse_iffc_response(content)
         if parsed:
+            if fc_mode == config.FC_IFFC_STOP_REPEAT:
+                reason = stop_on_repeat.force_stop_reason(chat_history, content)
+                if reason is not None:
+                    # Force a clean [] stop; do not re-execute the looped calls.
+                    chat_history.append({"role": "assistant", "content": "[]"})
+                    return (
+                        "end_turn",
+                        None,
+                        None,
+                        IFFC_PARSE_RETRIES,
+                        f"stop_on_repeat_{reason}",
+                    )
             func_strings = iffc_calls_to_func_strings(parsed)
             chat_history.append({"role": "assistant", "content": content})
             return "execute", func_strings, None, IFFC_PARSE_RETRIES, None
