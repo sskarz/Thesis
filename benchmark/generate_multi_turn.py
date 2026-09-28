@@ -21,9 +21,11 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
   ``{"tool_calls": []}`` ends the turn. Fair channel for ``xlam-1b``
   (Run 19 NFC 0/200 was format-channel collapse; Run 20 scored 6/200 = 3.0%).
 - ``iffc-stop-repeat``: IFFC JSON-in-text plus harness force-stop after a tool
-  observation when the proposed call set is a subset of already-executed
-  calls, or equals the previous assistant call set. Baseline ``iffc`` is
-  unchanged. Decode/harness lever only.
+  observation when the proposed call set equals the previous assistant set
+  (immediate), or is a subset of already-executed calls **after**
+  ``OBSERVE_SAME_MIN_ASSISTANT_TOOL_TURNS`` (6) assistant tool-turns in the
+  current BFCL ask. Short VehicleControl re-calls are not truncated.
+  Baseline ``iffc`` is unchanged. Decode/harness lever only.
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits trailing
 IFFC assistant ``[]`` stop turns from ``chat_history`` before the next BFCL
