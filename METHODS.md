@@ -900,7 +900,7 @@ Aggregated: state mismatch **75**, empty **40**, missing GT exec **31** (146/146
 
 Best inference remains BoN **36.5%** (base Gemma). Best IFFC remains Run 5 **30.5%**. Best SFT remains v4 IFFC **15.0%**. Details: `THESIS.md`. Do **not** overwrite Run 27. Do **not** make `iffc-stop-repeat` the default on base.
 
-**GAR framing (lit, not a new score):** Calibration bottleneck / GAR ([arXiv:2609.00949](https://arxiv.org/abs/2609.00949)) — Acc ≤ GAR; SRI/CRI-like decode can **hurt Acc**. That aligns with this scored miss: a CRI-adjacent force-stop cut Acc **30.5% → 27.0%** on healthy base (VehicleControl **22→33**). Evidence writeup: [PR #55](https://github.com/sskarz/Thesis/pull/55). **Still trying tightened stop-repeat first.** Ranked next SFT **if** that fails vs IFFC 30.5%: [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28). Do **not** invent a new `multi_turn_base` number.
+**GAR framing (lit, not a new score):** Zhao et al., *Calibration is the Bottleneck*, [arXiv:2609.00949](https://arxiv.org/abs/2609.00949) (2026) — Acc ≤ GAR; SRI/CRI-like decode can **hurt Acc**. That aligns with this scored miss: a CRI-adjacent force-stop cut Acc **30.5% → 27.0%** on healthy base (VehicleControl **22→33**). Evidence writeup: [PR #55](https://github.com/sskarz/Thesis/pull/55). **Still trying tightened stop-repeat first.** Ranked next SFT **if** that fails vs IFFC 30.5%: [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28). Do **not** invent a new `multi_turn_base` number.
 
 ### How to run
 
@@ -1150,13 +1150,13 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 
 ### Sources
 
-- Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920.
+- Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920. https://arxiv.org/abs/2409.00920
 - Zeng et al. ToolACE-R. arXiv:2504.01400. (v7 student-aware filter; **not scored**)
-- Zeng et al. ToolACE-MT. arXiv:2508.12685. (paper BFCL-v3 MT 9.25%→40.25%; **not** our harness)
-- Prabhakar et al. APIGen-MT. arXiv:2504.03601. (v7 planned mix core; **not scored**; paper MT 1B/3B/8B 43/56/69% — **not** our harness)
-- Ramakrishnan & Sharma. Data Turnstile. arXiv:2607.29250. (optional open data-gen complement for v7+; **not scored**)
-- Chen, Zhao, et al. Critical-State RL. arXiv:2609.24985. (post-healthy-SFT occurrence-local RL; **not scored**; not blanket GRPO)
-- Calibration bottleneck / GAR. arXiv:2609.00949. (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27)
+- Zeng et al. "ToolACE-MT." ICLR 2026. arXiv:2508.12685. https://arxiv.org/abs/2508.12685 (paper BFCL-v3 MT 9.25%→40.25%; **not** our harness)
+- Prabhakar et al. "APIGen-MT." NeurIPS 2025 D&B. arXiv:2504.03601. https://arxiv.org/abs/2504.03601 (v7 planned mix core; **not scored**; paper MT 1B/3B/8B 43/56/69% — **not** our harness)
+- Ramakrishnan, G. & Sharma, M. (Amazon AGI). Data Turnstile. arXiv:2607.29250. https://arxiv.org/abs/2607.29250 (optional open data-gen complement for v7+; **not scored**; same paper as [§24](#24-data-turnstile-open-function-calling-data-generation))
+- Chen et al. (Salesforce). Critical-State RL. arXiv:2609.24985. https://arxiv.org/abs/2609.24985 (post-healthy-SFT occurrence-local RL; **not scored**; not blanket GRPO)
+- Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
 - IFFC Appendix B: arXiv:2608.22472
@@ -1193,14 +1193,14 @@ The first four are directly measurable on BFCL v4 without changes to the benchma
 
 - **APIGen** (Liu et al., 2024): Automated dataset generation for tool calling. Error taxonomy for <7B models: 32% type mismatch, 24% missing required arguments, 18% wrong function selection, 15% hallucinated arguments. Confirms that type coercion addresses the #1 error category. arXiv:2406.18518. https://arxiv.org/abs/2406.18518
 - **ToolSandbox** (Lu et al., 2024): Stateful multi-turn tool evaluation. Shows state management is the primary bottleneck for multi-turn, not individual tool call accuracy. Explicit state injection improves multi-turn success by 15–25%. https://arxiv.org/abs/2408.04682
-- **BFCL** (Yan et al., 2024): Berkeley Function Calling Leaderboard. Identified structured output formatting as the primary failure mode for open-source models. arXiv:2402.15491. https://arxiv.org/abs/2402.15491
+- **BFCL** (Patil et al., ICML 2025): Berkeley Function Calling Leaderboard. https://proceedings.mlr.press/v267/patil25a.html. Gorilla: arXiv:2305.15334. https://arxiv.org/abs/2305.15334. Leaderboard: https://gorilla.cs.berkeley.edu/leaderboard.html
 
 ### Model-Specific Tool Calling Techniques
 
 - **Granite Function Calling** (IBM, 2024): Decomposes function calling into granular subtasks: function name detection, parameter extraction, value extraction. Even without fine-tuning, prompting for subtasks sequentially improves SLM accuracy. arXiv:2407.00121. https://arxiv.org/abs/2407.00121
 - **NexusRaven-V2** (Nexusflow, 2024): Tool description formatting matters more than model size. Adding usage examples within tool descriptions significantly boosts accuracy.
 - **Octopus v2** (Chen et al., 2024): 2B on-device function calling model using functional tokens — a single special token per tool, reducing generation length to 1 token for tool selection. arXiv:2404.01744. https://arxiv.org/abs/2404.01744
-- **ToolACE** (Liu et al., 2024): Including parameter constraints (min/max values, enum lists) in tool descriptions improves accuracy significantly. arXiv:2409.00920. https://arxiv.org/abs/2409.00920
+- **ToolACE** (Liu et al., ICLR 2025): Including parameter constraints (min/max values, enum lists) in tool descriptions improves accuracy significantly. arXiv:2409.00920. https://arxiv.org/abs/2409.00920
 
 ### Structured Decoding Libraries
 
@@ -1230,7 +1230,8 @@ The first four are directly measurable on BFCL v4 without changes to the benchma
 11. Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." arXiv:2409.00920, 2024.
 12. Lu, J., et al. "ToolSandbox: A Stateful, Conversational, Interactive Evaluation Framework for LLM Tool Use Capabilities." arXiv:2408.04682, 2024.
 13. Madaan, A., et al. "Self-Refine: Iterative Refinement with Self-Feedback." NeurIPS 2023. arXiv:2303.17651.
-14. Patil, S., et al. "Gorilla: Large Language Model Connected with Massive APIs." arXiv:2305.15334, 2023.
+14. Patil, S., et al. "Gorilla: Large Language Model Connected with Massive APIs." arXiv:2305.15334, 2023. https://arxiv.org/abs/2305.15334
+14a. Patil et al. "Berkeley Function Calling Leaderboard." ICML 2025. https://proceedings.mlr.press/v267/patil25a.html. Leaderboard: https://gorilla.cs.berkeley.edu/leaderboard.html
 15. Qin, Y., et al. "ToolLLM: Facilitating Large Language Models to Master 16000+ Real-world APIs." ICLR 2024. arXiv:2307.16789.
 16. Qu, C., et al. "The Art of Scaling Test-Time Compute for Large Language Models." arXiv:2512.02008, 2025.
 17. Rubin, O., et al. "Learning To Retrieve Prompts for In-Context Learning." NAACL 2022. arXiv:2112.08633.
@@ -1359,7 +1360,7 @@ ToolACE-8B (LLaMA-3.1-8B fine-tuned with LoRA rank 16, alpha 32) on BFCL:
 - **Dataset availability:** The xlam-function-calling-60k dataset (derived from ToolBench, used by both ToolACE and xLAM) is publicly available on HuggingFace.
 - **Complexity:** High for building the full pipeline; medium if using the existing public datasets.
 - **Related (unscored):** [§24 Data Turnstile](#24-data-turnstile-open-function-calling-data-generation) is an **open** API-spec → multi-turn FC SFT generator (DAG roles + schema validation). Frame as an alternative / complement to Hub-gated APIGen-MT for **v7+ mixes**, not a scored thesis run.
-- **Related (paper suite, not our harness):** **ToolACE-MT** (Zeng et al., ICLR’26, [arXiv:2508.12685](https://arxiv.org/abs/2508.12685)) — non-AR skeleton → mask-fill → offline verify. Paper: Llama-3.1-8B MT **9.25%→40.25%** on **BFCL-v3** (vs MAS 31.38%). Do **not** write 40.25% as a thesis `multi_turn_base` score. Cross-link: [Post–Run27 consensus](#post-run27-consensus-2026-09-28).
+- **Related (paper suite, not our harness):** **ToolACE-MT** (Zeng et al. 2025, ICLR 2026, [arXiv:2508.12685](https://arxiv.org/abs/2508.12685)) — non-AR skeleton → mask-fill → offline verify. Paper: Llama-3.1-8B MT **9.25%→40.25%** on **BFCL-v3** (vs MAS 31.38%). Do **not** write 40.25% as a thesis `multi_turn_base` score. Cross-link: [Post–Run27 consensus](#post-run27-consensus-2026-09-28).
 
 ### Sources
 
@@ -1400,7 +1401,7 @@ Paper results (Ramakrishnan & Sharma, 2026; cite as **theirs**, not ours):
 
 ### Sources
 
-- Ramakrishnan, G. & Sharma, M. "Data Turnstile: A Scalable Open Framework for Function-Calling Data Generation." arXiv:2607.29250, 2026. https://arxiv.org/abs/2607.29250
+- Ramakrishnan, G. & Sharma, M. (Amazon AGI). "Data Turnstile: A Scalable Open Framework for Function-Calling Data Generation." arXiv:2607.29250, 2026. https://arxiv.org/abs/2607.29250
 - Code: https://github.com/amazon-science/data-turnstile
 - Dataset: https://huggingface.co/datasets/amazon/Turnstile-Synthetic-Domains
 
@@ -1471,12 +1472,13 @@ On τ-bench (agentic evaluation), xLAM-2-70b-fc-r achieves 56.2% success rate, o
 
 - **xLAM-1b-fc-r** is directly relevant to edge deployment — at 1B parameters it fits comfortably on all target hardware. GGUF versions are published on HuggingFace (`Salesforce/xLAM-1b-fc-r-gguf`).
 - **As a benchmark model:** Registry key `xlam-1b` is in `benchmark/config.py` (`Salesforce/xLAM-1b-fc-r-gguf`, Q4_K_M; distinct `api_name` / `slug` so results do not overwrite other models). Serve with `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M`. **Run 19 already scored `--fc-mode nfc` on BFCL v4 `multi_turn_base`: 0/200 = 0.0%** (Mac `run_id=19`; wall **13.55 min**; finished `2026-09-22T14:26:42Z`). This is a **channel/format collapse on our multi_turn NFC harness** (NFC never parses `content`). **All 200** eval errors: `Model response list is empty for turn 0`. Avg `api_calls` **3.63**; gen_tps_mean ≈ **196.7**. **Run 20 already scored `--fc-mode xlam` on the same GGUF / slice: 6/200 = 3.0%** (Mac `run_id=20`; wall **~13.28 h**; `2026-09-22T15:28:35Z` → `2026-09-23T04:45:30Z`). Adapter [PR #42](https://github.com/sskarz/Thesis/pull/42): no native tools payload; Salesforce-style JSON-in-text prompt; parse `content`. Smoke extracted calls (5/5). Full score is still **very low**. 194/200 eval errors; `state_mismatch` **128**; under_call/missing exec **46**; empty_turn **20**. Flags: `hit_step_limit` **171/200**; `xlam_unparseable` **111/200**; `context_overflow` **42/200**. Avg `api_calls` **50.47** (min 2, max 101) — tools actually ran vs Run 19 empty channel. gen_tps_mean ≈ **91.6** (n=50). Correct: `multi_turn_base_{50,119,133,139,144,161}`. Same-harness contrast: Gemma NFC Run 4 **27.0%**; CD **10.5%**. **Do not** claim xLAM scores 0 on BFCL overall. **Do not** equate 0.0% or 3.0% to published overall ~78.94%. **Do not** present 3.0% as a method win. Registry: [PR #41](https://github.com/sskarz/Thesis/pull/41). Full writeup: `THESIS.md`.
-- **Training data:** The xlam-function-calling-60k dataset used for training is publicly available. **APIGen-MT → xLAM-2-fc-r** (already the v7 mix core; **unscored** here): blueprint ground truth; **mask user/tool, train assistant only**; open [APIGen-MT-5k](https://huggingface.co/datasets/Salesforce/APIGen-MT-5k). Paper MT (Prabhakar et al.; **theirs**, not this pipeline): **1B 43% / 3B 56% / 8B 69%**. Do **not** equate those % to Run 19/20 or Gemma `multi_turn_base`. Cross-link: [Post–Run27 consensus](#post-run27-consensus-2026-09-28).
+- **Training data:** The xlam-function-calling-60k dataset used for training is publicly available. **APIGen-MT → xLAM-2-fc-r** (Prabhakar et al. 2025, NeurIPS 2025 D&B, [arXiv:2504.03601](https://arxiv.org/abs/2504.03601); already the v7 mix core; **unscored** here): blueprint ground truth; **mask user/tool, train assistant only**; open [APIGen-MT-5k](https://huggingface.co/datasets/Salesforce/APIGen-MT-5k). Paper MT (**theirs**, not this pipeline): **1B 43% / 3B 56% / 8B 69%**. Do **not** equate those % to Run 19/20 or Gemma `multi_turn_base`. Cross-link: [Post–Run27 consensus](#post-run27-consensus-2026-09-28).
 - **No new method.** Run 19 is stock `--fc-mode nfc` on a published GGUF (format-channel collapse). Run 20 is the **already-merged** `--fc-mode xlam` format adapter ([PR #42](https://github.com/sskarz/Thesis/pull/42)) on that same GGUF — a **measured fair-channel baseline at 3.0%**, not a new training or inference-time method. **Do not claim published ~78.94% overall as a score from this pipeline.**
 
 ### Sources
 
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024. https://arxiv.org/abs/2409.03215
+- Prabhakar et al. "APIGen-MT: Agentic Pipeline for Multi-Turn Data Generation via Simulated Agent-Human Interplay." NeurIPS 2025 D&B. arXiv:2504.03601. https://arxiv.org/abs/2504.03601
 - Salesforce. "xLAM-1b-fc-r." HuggingFace. https://huggingface.co/Salesforce/xLAM-1b-fc-r
 
 ---
@@ -1692,7 +1694,7 @@ Do **not** write these as thesis harness scores on `multi_turn_base`. Our measur
 
 ### Source
 
-Chen, Z., Zhao, W., et al. "Critical-State RL: Diagnosing Trainable States for Multi-Turn Tool Use." arXiv:2609.24985, 2026. https://arxiv.org/abs/2609.24985
+Chen, Z., Zhao, W., et al. (Salesforce). "Critical-State RL: Diagnosing Trainable States for Multi-Turn Tool Use." arXiv:2609.24985, 2026. https://arxiv.org/abs/2609.24985
 
 ---
 
@@ -1976,26 +1978,26 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 
 ### Theme
 
-**Verified multi-turn trajectories + action-class balance beat decode heuristics.** GAR explains the Run 27 Acc regress: Acc ≤ GAR; SRI/CRI-like decode can **hurt Acc** even when it looks calibrated ([Calibration bottleneck](https://arxiv.org/abs/2609.00949)). Force-stop on repeat is CRI-adjacent; on a healthy IFFC channel it cut Acc **30.5% → 27.0%** while VehicleControl state mismatch rose.
+**Verified multi-turn trajectories + action-class balance beat decode heuristics.** GAR explains the Run 27 Acc regress: Acc ≤ GAR; SRI/CRI-like decode can **hurt Acc** even when it looks calibrated (Zhao et al., *Calibration is the Bottleneck*, [arXiv:2609.00949](https://arxiv.org/abs/2609.00949), 2026). Force-stop on repeat is CRI-adjacent; on a healthy IFFC channel it cut Acc **30.5% → 27.0%** while VehicleControl state mismatch rose.
 
 ### Cite map (paper suite ≠ our harness)
 
 | Work | Cite | Notes (theirs, not ours) |
 |------|------|--------------------------|
-| ToolACE | ICLR’25, [arXiv:2409.00920](https://arxiv.org/abs/2409.00920) — [§13](#13-toolace-automated-training-data-generation) | ~26.5k APIs; non-tool ask/decline |
-| ToolACE-MT | ICLR’26, [arXiv:2508.12685](https://arxiv.org/abs/2508.12685) | Non-AR skeleton → mask-fill → offline verify. Paper: Llama-3.1-8B MT **9.25%→40.25%** BFCL-v3 (vs MAS 31.38%) |
-| APIGen-MT → xLAM-2-fc-r | [arXiv:2504.03601](https://arxiv.org/abs/2504.03601); [§15](#15-xlam-large-action-models) | Blueprint GT; **mask user/tool, train assistant only**; open APIGen-MT-5k. Paper MT **1B 43% / 3B 56% / 8B 69%** |
-| FunReason-MT | [arXiv:2510.24645](https://arxiv.org/abs/2510.24645) | Qwen3-4B SFT MT **15.75→46.90**; **+RL →57.75** BFCL-v3. Cite as paper; **not** a GRPO unlock here |
-| Magnet + mDPO | ACL’25, [arXiv:2503.07826](https://arxiv.org/abs/2503.07826) | Qwen2.5-Coder-14B; 34k SFT + ~4.5k pos/neg → mDPO |
-| GAR / Calibration bottleneck | [arXiv:2609.00949](https://arxiv.org/abs/2609.00949) | 4-class tool_call / ask / refuse / confirm; Acc ≤ GAR; SRI/CRI can hurt Acc — aligns with stop-repeat |
-| Critical-State RL | [arXiv:2609.24985](https://arxiv.org/abs/2609.24985) — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) | Already logged; **unscored**. Occurrence-local RL after healthy SFT. **Not** blanket GRPO |
-| OODA-Tool | [arXiv:2608.24368](https://arxiv.org/abs/2608.24368) | Qwen3 0.6–14B; typed OODA; largest gains on smallest (~+7 pp ≤4B); latency ~2.4× — prefer joint typed CoT **one-pass** at edge |
-| MCP-GRANITE | [arXiv:2609.24161](https://arxiv.org/abs/2609.24161) — [§3a](#3a-tool-interface-granularity-mcp-granite) | Already logged; **unscored**. Optional if the tool list is huge |
-| Data Turnstile | [arXiv:2607.29250](https://arxiv.org/abs/2607.29250) — [§24](#24-data-turnstile-open-function-calling-data-generation) | Already logged; **unscored**. Harness ID/mask note, not the primary SFT-loop fix |
-| When2Call / MetaTool | related 2025 | Light pointer: 4-way when-to-call |
-| BFCL / Gorilla multi-turn | ICML’25 / [Gorilla blog](https://gorilla.cs.berkeley.edu/blogs/13_bfcl_v3_multi_turn.html); [arXiv:2402.15491](https://arxiv.org/abs/2402.15491) | Light pointer: state + response checkers; empty gold turns matter |
-
-Room for extra URLs later without inventing numbers.
+| ToolACE | Liu et al. 2025, ICLR 2025, [arXiv:2409.00920](https://arxiv.org/abs/2409.00920) — [§13](#13-toolace-automated-training-data-generation) | ~26.5k APIs; non-tool ask/decline |
+| ToolACE-MT | Zeng et al. 2025, ICLR 2026, [arXiv:2508.12685](https://arxiv.org/abs/2508.12685) | Non-AR skeleton → mask-fill → offline verify. Paper: Llama-3.1-8B MT **9.25%→40.25%** BFCL-v3 (vs MAS 31.38%) |
+| APIGen-MT → xLAM-2-fc-r | Prabhakar et al. 2025, NeurIPS 2025 D&B, [arXiv:2504.03601](https://arxiv.org/abs/2504.03601); [§15](#15-xlam-large-action-models) | Blueprint GT; **mask user/tool, train assistant only**; open APIGen-MT-5k. Paper MT **1B 43% / 3B 56% / 8B 69%** |
+| FunReason-MT | Xu et al. 2025, [arXiv:2510.24645](https://arxiv.org/abs/2510.24645) | Qwen3-4B SFT MT **15.75→46.90**; **+RL →57.75** BFCL-v3. Cite as paper; **not** a GRPO unlock here |
+| Magnet (mDPO) | Yin et al. 2025, ACL 2025, [arXiv:2503.07826](https://arxiv.org/abs/2503.07826) | Qwen2.5-Coder-14B; 34k SFT + ~4.5k pos/neg → mDPO |
+| GAR / Calibration is the Bottleneck | Zhao et al. 2026, [arXiv:2609.00949](https://arxiv.org/abs/2609.00949) | 4-class tool_call / ask / refuse / confirm; Acc ≤ GAR; SRI/CRI can hurt Acc — aligns with stop-repeat |
+| Critical-State RL | Chen et al. (Salesforce) 2026, [arXiv:2609.24985](https://arxiv.org/abs/2609.24985) — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) | Already logged; **unscored**. Occurrence-local RL after healthy SFT. **Not** blanket GRPO |
+| OODA-Tool | Guo et al. 2026, [arXiv:2608.24368](https://arxiv.org/abs/2608.24368) | Qwen3 0.6–14B; typed OODA; largest gains on smallest (~+7 pp ≤4B); latency ~2.4× — prefer joint typed CoT **one-pass** at edge |
+| MCP-GRANITE | Paschalides et al. 2026, [arXiv:2609.24161](https://arxiv.org/abs/2609.24161) — [§3a](#3a-tool-interface-granularity-mcp-granite) | Already logged; **unscored**. Optional if the tool list is huge |
+| Data Turnstile | Ramakrishnan & Sharma (Amazon AGI) 2026, [arXiv:2607.29250](https://arxiv.org/abs/2607.29250) — [§24](#24-data-turnstile-open-function-calling-data-generation) | Already logged (same paper as §24); **unscored**. Harness ID/mask note, not the primary SFT-loop fix |
+| When2Call | Ross et al. 2025, NAACL 2025, [arXiv:2504.18851](https://arxiv.org/abs/2504.18851) | Light pointer: 4-way when-to-call |
+| MetaTool | Huang et al. 2024, ICLR 2024, [arXiv:2310.03128](https://arxiv.org/abs/2310.03128) | Light pointer: 4-way when-to-call |
+| BFCL / Gorilla multi-turn | Patil et al. 2025, [ICML 2025](https://proceedings.mlr.press/v267/patil25a.html); Gorilla [arXiv:2305.15334](https://arxiv.org/abs/2305.15334); [leaderboard](https://gorilla.cs.berkeley.edu/leaderboard.html) | Light pointer: state + response checkers; empty gold turns matter |
+| BUTTON | Chen et al., ICLR 2025, [arXiv:2410.12952](https://arxiv.org/abs/2410.12952) | Light pointer only; do **not** duplicate a full section |
 
 ### Ranked next SFT (if tightened stop-repeat fails vs 30.5%)
 
@@ -2025,19 +2027,23 @@ Teacher loop-filter-only; stop-on-repeat / CRI-like decode; recovery-targeted SF
 33. Gu, Y., et al. "MiniLLM: Knowledge Distillation of Large Language Models." ICLR 2024. arXiv:2306.08543.
 34. Hu, E., et al. "LoRA: Low-Rank Adaptation of Large Language Models." ICLR 2022. arXiv:2106.09685.
 35. Jung, S., et al. "DiaTool-DPO: Multi-Turn Direct Preference Optimization for Tool-Augmented Large Language Models." SIGdial 2025. arXiv:2504.02882.
-36. Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920.
+36. Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920. https://arxiv.org/abs/2409.00920
 37. Qin, Y., et al. "Confucius: Iterative Tool Learning from Introspection Feedback." arXiv:2308.14034, 2024.
 38. Shao, Z., et al. "DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models." arXiv:2402.03300, 2024.
 39. Sun, Y., et al. "VerlTool: Towards Holistic Agentic Reinforcement Learning with Tool Use." arXiv:2509.01055, 2025.
 40. Wang, K., et al. "Agent-R1: Training Powerful LLM Agents with End-to-End Reinforcement Learning." arXiv:2511.14460, 2025.
 41. Ye, L., et al. "Hammer: Robust Function-Calling for On-Device Language Models via Function Masking." ICLR 2025. arXiv:2410.04587.
 42. Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
-43. Ramakrishnan, G. & Sharma, M. "Data Turnstile: A Scalable Open Framework for Function-Calling Data Generation." arXiv:2607.29250, 2026.
-44. Chen, Z., Zhao, W., et al. "Critical-State RL: Diagnosing Trainable States for Multi-Turn Tool Use." arXiv:2609.24985, 2026.
-45. Zeng et al. "ToolACE-MT." ICLR 2026. arXiv:2508.12685.
-46. Prabhakar et al. "APIGen-MT: Agentic Pipeline for Multi-Turn Data Generation via Simulated Agent-Human Interplay." arXiv:2504.03601, 2025.
-47. FunReason-MT. arXiv:2510.24645. (paper BFCL-v3; **not** our harness)
-48. Magnet + mDPO. ACL 2025. arXiv:2503.07826.
-49. Calibration bottleneck / GAR. arXiv:2609.00949.
-50. OODA-Tool. arXiv:2608.24368.
-51. Paschalides, D., et al. "MCP-GRANITE Benchmark: GRANularity Interface TEsting for MCP-Based LLM Agents." arXiv:2609.24161, 2026.
+43. Ramakrishnan, G. & Sharma, M. (Amazon AGI). "Data Turnstile: A Scalable Open Framework for Function-Calling Data Generation." arXiv:2607.29250, 2026. https://arxiv.org/abs/2607.29250
+44. Chen, Z., Zhao, W., et al. (Salesforce). "Critical-State RL: Diagnosing Trainable States for Multi-Turn Tool Use." arXiv:2609.24985, 2026. https://arxiv.org/abs/2609.24985
+45. Zeng et al. "ToolACE-MT." ICLR 2026. arXiv:2508.12685. https://arxiv.org/abs/2508.12685
+46. Prabhakar et al. "APIGen-MT: Agentic Pipeline for Multi-Turn Data Generation via Simulated Agent-Human Interplay." NeurIPS 2025 D&B. arXiv:2504.03601. https://arxiv.org/abs/2504.03601
+47. Xu et al. "FunReason-MT." arXiv:2510.24645, 2025. https://arxiv.org/abs/2510.24645 (paper BFCL-v3; **not** our harness)
+48. Yin et al. "Magnet" (mDPO). ACL 2025. arXiv:2503.07826. https://arxiv.org/abs/2503.07826
+49. Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949, 2026. https://arxiv.org/abs/2609.00949
+50. Guo et al. "OODA-Tool." arXiv:2608.24368, 2026. https://arxiv.org/abs/2608.24368
+51. Paschalides, D., et al. "MCP-GRANITE Benchmark: GRANularity Interface TEsting for MCP-Based LLM Agents." arXiv:2609.24161, 2026. https://arxiv.org/abs/2609.24161
+52. Ross et al. "When2Call." NAACL 2025. arXiv:2504.18851. https://arxiv.org/abs/2504.18851
+53. Huang et al. "MetaTool." ICLR 2024. arXiv:2310.03128. https://arxiv.org/abs/2310.03128
+54. Patil et al. "Berkeley Function Calling Leaderboard." ICML 2025. https://proceedings.mlr.press/v267/patil25a.html
+55. Chen et al. "BUTTON." ICLR 2025. arXiv:2410.12952. https://arxiv.org/abs/2410.12952
