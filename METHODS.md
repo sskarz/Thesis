@@ -869,11 +869,13 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 This is the **harness force-stop** ablation on the IFFC JSON-in-text channel ([PR #54](https://github.com/sskarz/Thesis/pull/54), commit `5b49d7a`). After a tool-exec observation, if the proposed IFFC call set is a **subset of already-executed** calls, the harness force-stops the turn (`[]`, do not re-execute). It also breaks **consecutive identical** assistant call sets (still only after an exec observation, so a fresh BFCL user ask is not blocked). Baseline `--fc-mode iffc` is **unchanged**. **Not** NFC, **not** GST, **not** CD/GBNF, **not** STATE, **not** BoN, **not** a retrain.
 
-**Measured on BASE Gemma-4-E2B-it Q4_K_M** `multi_turn_base` (Mac `run_id=27`, `scores.id=20`, overnight 2026-09-28, `-np 4 -c 65536`, `temp=0`, 200 entries): **54/200 = 27.0%**. Versus Run 5 IFFC **61/200 = 30.5%**: **−3.5 pp / −7 entries**. Versus BoN Run 11 **36.5%**: **−9.5 pp**. Count-ties NFC Run 4 **27.0%** (do **not** claim the same 54 entries). **Scored miss vs plain IFFC. Not a method win.**
+**Measured on BASE Gemma-4-E2B-it Q4_K_M** `multi_turn_base` (Mac `run_id=27`, `scores.id=20`, overnight 2026-09-28, `-np 4 -c 65536`, `temp=0`, **200/200 responses** complete): **54/200 = 27.0%**. Versus Run 5 IFFC **61/200 = 30.5%**: **−3.5 pp / −7 entries**. Versus BoN Run 11 **36.5%**: **−9.5 pp**. Run 4 NFC is also **54/200 = 27.0%** — **same accuracy level, not an identical method**. **Scored miss vs plain IFFC. Not a method win.**
 
 **Not** smoke81 / v7 / v8 SFT / BoN. Full LoRA on failed v8 mixes is **not started**. Accuracy row is authoritative; do **not** invent tok/s.
 
-A 10-ID smoke probe on **collapsed smoke81** passed the over-call gate (avg `api_calls` 21.3→6.3; `hit_step_limit` 4→0). That probe is **not** a `multi_turn_base` score. On **healthy base Gemma**, stop-on-repeat did **not** improve vs IFFC. Teacher-side anti-loop on v8/v8.1 is exhausted as a story; this harness lever is **not a free win** on base.
+A 10-ID smoke probe on **collapsed smoke81** passed the over-call gate (avg `api_calls` 21.3→6.3; `hit_step_limit` 4→0). That probe is **not** a `multi_turn_base` score. On **healthy base Gemma**, stop-on-repeat did **not** improve vs IFFC. Teacher-side anti-loop on v8/v8.1 is exhausted as a story; this harness lever is **not a free win** on base. **Thursday lock:** tradeoff for **loop-dominated cases only**; **not** a method improvement. Best remains BoN **36.5%** / IFFC Run 5 **30.5%**.
+
+Stop flags: **37/200**. All 37 are among the 146 failures — **0 stopped and correct**.
 
 ### Failure modes (Run 27, 146 `eval_errors`)
 
@@ -881,7 +883,7 @@ State mismatch + empty/under-call dominate — **not** primarily unconstrained d
 
 | Bucket | Count |
 |--------|-------|
-| VehicleControlAPI state mismatch | 33 |
+| VehicleControlAPI state mismatch | **33** (Run 5: **22→33**) |
 | GorillaFileSystem state mismatch | 19 |
 | empty response list turn1 | 18 |
 | missing GT exec turn0 | 17 |
@@ -893,9 +895,9 @@ State mismatch + empty/under-call dominate — **not** primarily unconstrained d
 | missing GT exec turn1 | 6 |
 | TicketAPI state mismatch | 4 |
 
-Aggregated: state mismatch **75**, empty **40**, missing GT exec **31** (146/146). Examples: empty turn1 `multi_turn_base_121` / `_125` / `_126`; VehicleControl `multi_turn_base_51` / `_52` / `_53`.
+Aggregated: state mismatch **75**, empty **40**, missing GT exec **31** (146/146). VehicleControlAPI state mismatch **rose vs Run 5 (22→33)**. Examples: empty turn1 `multi_turn_base_121` / `_125` / `_126`; VehicleControl `multi_turn_base_51` / `_52` / `_53`.
 
-Best inference remains BoN **36.5%** (base Gemma). Best SFT remains v4 IFFC **15.0%**. Details: `THESIS.md`. Do **not** overwrite Run 27. Do **not** make `iffc-stop-repeat` the default on base.
+Best inference remains BoN **36.5%** (base Gemma). Best IFFC remains Run 5 **30.5%**. Best SFT remains v4 IFFC **15.0%**. Details: `THESIS.md`. Do **not** overwrite Run 27. Do **not** make `iffc-stop-repeat` the default on base.
 
 ### How to run
 
@@ -1165,7 +1167,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 3 | **IFFC + harness STATE (`--fc-mode iffc-state`)** | Gemma `multi_turn_base` vs IFFC/GST 30.5% | **Measured** Run 10 (base): 68/200 = 34.0% (beats IFFC; first above 30.5%). **Measured** Run 16 (SFT-v4): 26/200 = 13.0% (**null/negative vs Run 15 15.0%**). Empty 41→31 on base; state 60→64 (did not improve). On SFT-v4 residual stays state 112 / under-call 59. **Measured** Run 17 (SFT-v5 IFFC): 23/200 = 11.5% (**regression vs Run 15**). **Measured** Run 18 (SFT-v6 IFFC): 26/200 = 13.0% (**miss vs Run 15**). Next training path is SFT **v7** (planned, **not scored**), **not** BoN-on-v4/v5/v6. | Done (harness + scores) |
 | 4 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
 | 5 | **Best-of-N majority voting (`--fc-mode iffc-state-bon`)** | Gemma `multi_turn_base` vs IFFC+STATE 34.0% | **Measured** Run 11: 73/200 = 36.5% (beats STATE by +5 / +2.5 pp). State 64→53; empty 31→36; under-call flat. ~7× wall / ~8.8× decode — modest lift, **not free**. | Done (harness + live score) |
-| 5a | **IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)** | Collapsed over-call vs healthy-base IFFC | **Measured** Run 27 on **BASE** Gemma: 54/200 = 27.0% (**miss vs Run 5 IFFC 30.5%**, −3.5 pp; −9.5 pp vs BoN). 10-ID smoke81 probe cut avg api 21.3→6.3, but that is **not** a full-200 win. Residual on base: state mismatch + empty/under-call (VehicleControl 33, GFS 19, empty turn1 18). **Not** a free win on healthy base. **Not** smoke81 / v7 / v8. Harness [PR #54](https://github.com/sskarz/Thesis/pull/54). | Done (harness + live score; scored miss) |
+| 5a | **IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)** | Collapsed over-call vs healthy-base IFFC | **Measured** Run 27 on **BASE** Gemma: 54/200 = 27.0% (`scores.id=20`; **200/200 responses**). **Miss vs Run 5 IFFC 30.5%** (−3.5 pp; −9.5 pp vs BoN). Same accuracy level as Run 4 NFC 27.0% — **not** an identical method. Stop flags **37/200**, all failures (**0 stopped and correct**). VehicleControlAPI **22→33** vs Run 5. 10-ID smoke81 probe cut avg api 21.3→6.3, but that is **not** a full-200 win. **Thursday lock:** tradeoff for **loop-dominated cases only**; **not** a method improvement. Best still BoN **36.5%** / IFFC Run 5 **30.5%**. Harness [PR #54](https://github.com/sskarz/Thesis/pull/54). | Done (harness + live score; scored miss) |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level | Medium |
 | 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale. Complements [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite): retrieve tools **and** redesign API-surface cardinality (~4 task-class tools in that paper). **Unscored** on this harness. | Medium |
 | 8 | **Schema-based verification loop** | Argument errors across categories | +3–10% with retries | Medium |
