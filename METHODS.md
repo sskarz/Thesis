@@ -24,6 +24,7 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: TagDispatch-style CD (`--fc-mode cd`)](#experiment-tagdispatch-style-cd---fc-mode-cd)
 - [Experiment: Guided-Structured Templates (`--fc-mode gst`)](#experiment-guided-structured-templates---fc-mode-gst)
 - [Experiment: IFFC + harness STATE (`--fc-mode iffc-state`)](#experiment-iffc--harness-state---fc-mode-iffc-state)
+- [Experiment: IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)](#experiment-iffc-stop-on-repeat---fc-mode-iffc-stop-repeat)
 - [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
 - [Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)](#experiment-mlx-sft-v1-gemma-4-e2b-iffc-mix)
 - [Prioritized Recommendations](#prioritized-recommendations)
@@ -649,7 +650,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
 ```
 
-Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%; BoN N=5 Run 11 = 73/200 = 36.5%; SFT-IFFC LoRA best@1000 Run 12 = 1/200 = 0.5% (scored negative); SFT-IFFC-v2 filtered-[] LoRA best@2000 Run 13 = 1/200 = 0.5% (same collapse; filter insufficient); SFT-IFFC-v2 + strip trailing `[]` Run 14 = 4/200 = 2.0% (**DIAGNOSTIC** history bookkeeping — **not** a method win); SFT-IFFC-v4 LoRA best@1600 Run 15 = 30/200 = 15.0% (**scored recovery** from collapse, still **below IFFC 30.5% and below NFC 27.0%** — **do not present as beating IFFC**); SFT-IFFC-v4 + IFFC+STATE Run 16 = 26/200 = 13.0% (**scored negative/null overlay** vs Run 15 — **do not propose BoN on this ckpt**); SFT-IFFC-v5 LoRA best@1800 Run 17 = 23/200 = 11.5% (**scored regression vs Run 15** — **do not present as a method win**; **no BoN / no more epochs on this mix**); SFT-IFFC-v6 LoRA best@1800 Run 18 = 26/200 = 13.0% (**scored miss vs Run 15 15.0%** — **do not present as a method win**; **no BoN / no more epochs on v6**); xLAM-1b-fc-r NFC Run 19 = 0/200 = 0.0% (**scored format-channel collapse** on this multi_turn NFC harness — **not** published overall BFCL ~78.94%; **not** an ability floor; **not** a method win; gen_tps_mean ≈ **196.7**; avg `api_calls` **3.63**); xLAM-1b-fc-r `--fc-mode xlam` Run 20 = 6/200 = 3.0% (**format-fixed fair-channel** after [PR #42](https://github.com/sskarz/Thesis/pull/42) — tools actually ran, avg `api_calls` **50.47**; still **very low**; **not** a method win; **not** published ~78.94%; still **below CD 10.5%**; gen_tps_mean ≈ **91.6**).
+Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%; BoN N=5 Run 11 = 73/200 = 36.5%; SFT-IFFC LoRA best@1000 Run 12 = 1/200 = 0.5% (scored negative); SFT-IFFC-v2 filtered-[] LoRA best@2000 Run 13 = 1/200 = 0.5% (same collapse; filter insufficient); SFT-IFFC-v2 + strip trailing `[]` Run 14 = 4/200 = 2.0% (**DIAGNOSTIC** history bookkeeping — **not** a method win); SFT-IFFC-v4 LoRA best@1600 Run 15 = 30/200 = 15.0% (**scored recovery** from collapse, still **below IFFC 30.5% and below NFC 27.0%** — **do not present as beating IFFC**); SFT-IFFC-v4 + IFFC+STATE Run 16 = 26/200 = 13.0% (**scored negative/null overlay** vs Run 15 — **do not propose BoN on this ckpt**); SFT-IFFC-v5 LoRA best@1800 Run 17 = 23/200 = 11.5% (**scored regression vs Run 15** — **do not present as a method win**; **no BoN / no more epochs on this mix**); SFT-IFFC-v6 LoRA best@1800 Run 18 = 26/200 = 13.0% (**scored miss vs Run 15 15.0%** — **do not present as a method win**; **no BoN / no more epochs on v6**); xLAM-1b-fc-r NFC Run 19 = 0/200 = 0.0% (**scored format-channel collapse** on this multi_turn NFC harness — **not** published overall BFCL ~78.94%; **not** an ability floor; **not** a method win; gen_tps_mean ≈ **196.7**; avg `api_calls` **3.63**); xLAM-1b-fc-r `--fc-mode xlam` Run 20 = 6/200 = 3.0% (**format-fixed fair-channel** after [PR #42](https://github.com/sskarz/Thesis/pull/42) — tools actually ran, avg `api_calls` **50.47**; still **very low**; **not** a method win; **not** published ~78.94%; still **below CD 10.5%**; gen_tps_mean ≈ **91.6**); IFFC-stop-repeat Run 27 = 54/200 = 27.0% (**BASE** Gemma harness lever, [PR #54](https://github.com/sskarz/Thesis/pull/54) — **scored miss vs IFFC 30.5%** (−3.5 pp); **not** smoke81 / v7 / v8 SFT / BoN; **not** a method win; do **not** invent tok/s).
 
 ### Pause / resume (kill overnight, continue the same run)
 
@@ -861,6 +862,52 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 - Xu, Z., et al. "ACON: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025. https://arxiv.org/abs/2510.00615
 - Instruction-Followed Function Calling: arXiv:2608.22472 Appendix B (the IFFC channel this overlay sits on)
+
+---
+
+## Experiment: IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)
+
+This is the **harness force-stop** ablation on the IFFC JSON-in-text channel ([PR #54](https://github.com/sskarz/Thesis/pull/54), commit `5b49d7a`). After a tool-exec observation, if the proposed IFFC call set is a **subset of already-executed** calls, the harness force-stops the turn (`[]`, do not re-execute). It also breaks **consecutive identical** assistant call sets (still only after an exec observation, so a fresh BFCL user ask is not blocked). Baseline `--fc-mode iffc` is **unchanged**. **Not** NFC, **not** GST, **not** CD/GBNF, **not** STATE, **not** BoN, **not** a retrain.
+
+**Measured on BASE Gemma-4-E2B-it Q4_K_M** `multi_turn_base` (Mac `run_id=27`, `scores.id=20`, overnight 2026-09-28, `-np 4 -c 65536`, `temp=0`, 200 entries): **54/200 = 27.0%**. Versus Run 5 IFFC **61/200 = 30.5%**: **−3.5 pp / −7 entries**. Versus BoN Run 11 **36.5%**: **−9.5 pp**. Count-ties NFC Run 4 **27.0%** (do **not** claim the same 54 entries). **Scored miss vs plain IFFC. Not a method win.**
+
+**Not** smoke81 / v7 / v8 SFT / BoN. Full LoRA on failed v8 mixes is **not started**. Accuracy row is authoritative; do **not** invent tok/s.
+
+A 10-ID smoke probe on **collapsed smoke81** passed the over-call gate (avg `api_calls` 21.3→6.3; `hit_step_limit` 4→0). That probe is **not** a `multi_turn_base` score. On **healthy base Gemma**, stop-on-repeat did **not** improve vs IFFC. Teacher-side anti-loop on v8/v8.1 is exhausted as a story; this harness lever is **not a free win** on base.
+
+### Failure modes (Run 27, 146 `eval_errors`)
+
+State mismatch + empty/under-call dominate — **not** primarily unconstrained decode loops.
+
+| Bucket | Count |
+|--------|-------|
+| VehicleControlAPI state mismatch | 33 |
+| GorillaFileSystem state mismatch | 19 |
+| empty response list turn1 | 18 |
+| missing GT exec turn0 | 17 |
+| empty response list other turn | 14 |
+| TravelAPI state mismatch | 12 |
+| missing GT exec other | 8 |
+| empty response list turn0 | 8 |
+| Other API state mismatch | 7 |
+| missing GT exec turn1 | 6 |
+| TicketAPI state mismatch | 4 |
+
+Aggregated: state mismatch **75**, empty **40**, missing GT exec **31** (146/146). Examples: empty turn1 `multi_turn_base_121` / `_125` / `_126`; VehicleControl `multi_turn_base_51` / `_52` / `_53`.
+
+Best inference remains BoN **36.5%** (base Gemma). Best SFT remains v4 IFFC **15.0%**. Details: `THESIS.md`. Do **not** overwrite Run 27. Do **not** make `iffc-stop-repeat` the default on base.
+
+### How to run
+
+Harness lives in [PR #54](https://github.com/sskarz/Thesis/pull/54) (`benchmark/stop_on_repeat.py`). Serve **base** Gemma (not an SFT GGUF):
+
+```bash
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc-stop-repeat \
+  --notes "BASE gemma4-e2b iffc-stop-repeat vs Run5 IFFC 30.5%; NOT smoke81/v7/v8"
+```
+
+Already scored (do not overwrite): Run 27 = 54/200 = 27.0%.
 
 ---
 
@@ -1118,6 +1165,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 3 | **IFFC + harness STATE (`--fc-mode iffc-state`)** | Gemma `multi_turn_base` vs IFFC/GST 30.5% | **Measured** Run 10 (base): 68/200 = 34.0% (beats IFFC; first above 30.5%). **Measured** Run 16 (SFT-v4): 26/200 = 13.0% (**null/negative vs Run 15 15.0%**). Empty 41→31 on base; state 60→64 (did not improve). On SFT-v4 residual stays state 112 / under-call 59. **Measured** Run 17 (SFT-v5 IFFC): 23/200 = 11.5% (**regression vs Run 15**). **Measured** Run 18 (SFT-v6 IFFC): 26/200 = 13.0% (**miss vs Run 15**). Next training path is SFT **v7** (planned, **not scored**), **not** BoN-on-v4/v5/v6. | Done (harness + scores) |
 | 4 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
 | 5 | **Best-of-N majority voting (`--fc-mode iffc-state-bon`)** | Gemma `multi_turn_base` vs IFFC+STATE 34.0% | **Measured** Run 11: 73/200 = 36.5% (beats STATE by +5 / +2.5 pp). State 64→53; empty 31→36; under-call flat. ~7× wall / ~8.8× decode — modest lift, **not free**. | Done (harness + live score) |
+| 5a | **IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)** | Collapsed over-call vs healthy-base IFFC | **Measured** Run 27 on **BASE** Gemma: 54/200 = 27.0% (**miss vs Run 5 IFFC 30.5%**, −3.5 pp; −9.5 pp vs BoN). 10-ID smoke81 probe cut avg api 21.3→6.3, but that is **not** a full-200 win. Residual on base: state mismatch + empty/under-call (VehicleControl 33, GFS 19, empty turn1 18). **Not** a free win on healthy base. **Not** smoke81 / v7 / v8. Harness [PR #54](https://github.com/sskarz/Thesis/pull/54). | Done (harness + live score; scored miss) |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level | Medium |
 | 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale. Complements [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite): retrieve tools **and** redesign API-surface cardinality (~4 task-class tools in that paper). **Unscored** on this harness. | Medium |
 | 8 | **Schema-based verification loop** | Argument errors across categories | +3–10% with retries | Medium |
