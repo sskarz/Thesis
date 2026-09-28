@@ -32,6 +32,12 @@ keeps gpt finals as NL, never auto-``[]``). After that filter, ``sft.cap_nontool
 downsamples clarify / final / irrelevance unrolls so mlx-v7 ``pct_nontool``
 is ~15% (full conversations stay in ``splits-v7``). Unscored — do not invent
 a v7 BFCL number.
+
+SFT v8 (``--recipe v8``) is lever 1 on that same APIGen-MT mix: v4
+empty/recovery like v7 (still **no** v5 complete-turn0), plus drop gold
+assistant turns identical to the previous assistant **call**, then cap
+non-tool unrolls to ~30% (band [0.25, 0.35], seed 48). Run 21 collapsed on
+v7 identical-call loops — do not finish-200 / BoN that mix. Unscored.
 """
 
 from __future__ import annotations
@@ -68,6 +74,7 @@ RECIPE_V4 = "v4"
 RECIPE_V5 = "v5"
 RECIPE_V6 = "v6"
 RECIPE_V7 = "v7"
+RECIPE_V8 = "v8"
 RECIPE_IDS = (
     RECIPE_V1,
     RECIPE_V2,
@@ -76,9 +83,18 @@ RECIPE_IDS = (
     RECIPE_V5,
     RECIPE_V6,
     RECIPE_V7,
+    RECIPE_V8,
 )
-RECIPES_WITH_RECOVERY = (RECIPE_V3, RECIPE_V4, RECIPE_V5, RECIPE_V6, RECIPE_V7)
-RECIPES_WITH_V4_EMPTY = (RECIPE_V4, RECIPE_V5, RECIPE_V6, RECIPE_V7)
+RECIPES_WITH_RECOVERY = (
+    RECIPE_V3,
+    RECIPE_V4,
+    RECIPE_V5,
+    RECIPE_V6,
+    RECIPE_V7,
+    RECIPE_V8,
+)
+RECIPES_WITH_V4_EMPTY = (RECIPE_V4, RECIPE_V5, RECIPE_V6, RECIPE_V7, RECIPE_V8)
+RECIPES_APIGEN_MIX = (RECIPE_V7, RECIPE_V8)
 
 EMPTY_IFFC_TARGET = "[]"
 
@@ -207,6 +223,8 @@ def resolve_recipe(
     underspecified drop, no complete-turn0 synth).
     v4: all three v5 keep/no-synth flags (empty-target curriculum only).
     v7: explicit ``recipe="v7"`` only (not inferred from keep-flags).
+    v8: explicit ``recipe="v8"`` only (v7 unroll + identical-call drop at
+    prepare; not inferred from keep-flags).
     v3: both ``--keep-first-assistant-empty`` and
     ``--keep-clarifying-empty-after-user`` (empty-after-exec + recovery only).
     v2: ``--keep-terminal-empty-after-exec`` (drop non-terminal only).
@@ -261,9 +279,9 @@ def recipe_v5_flags(recipe: str) -> tuple[bool, bool, bool, bool]:
 
     v5: all four on.
     v6: only state-inconsistent (v4 empty/recovery + ``drop_state_inconsistent``).
-    v7 / v4 and earlier: all off so v7 does **not** apply v5 synthetic
-    complete-turn0. v7 additionally special-cases ``source=apigen_mt`` inside
-    ``unroll_and_filter``.
+    v7 / v8 / v4 and earlier: all off so v7/v8 do **not** apply v5 synthetic
+    complete-turn0. v7/v8 additionally special-case ``source=apigen_mt``
+    inside ``unroll_and_filter``.
     """
     if recipe == RECIPE_V5:
         return True, True, True, True
@@ -830,9 +848,11 @@ def unroll_and_filter(
     clarifying ``[]`` drops, plus turn-0 completeness and env-state
     consistency. Pass ``recipe="v6"`` for v4 empty/recovery plus only
     ``drop_state_inconsistent`` (no underspecified drop, no complete-turn0
-    synth). Pass ``recipe="v7"`` for v4 empty/recovery on ToolACE/xLAM
-    filler and light empty-after-exec drops on APIGen-MT (no v5 synth
-    complete-turn0). Pass ``recipe="v4"`` (or all three v5 flags off) to
+    synth). Pass ``recipe="v7"`` or ``recipe="v8"`` for v4 empty/recovery on
+    ToolACE/xLAM filler and light empty-after-exec drops on APIGen-MT (no v5
+    synth complete-turn0). v8 additionally drops identical consecutive
+    assistant *calls* after unroll (see ``sft.drop_identical_call``).
+    Pass ``recipe="v4"`` (or all three v5 flags off) to
     ablate back to v4. ``None`` v4/v5 flags follow the inferred recipe so
     v1/v2 kwargs do not silently gain later drops.
     """
@@ -880,7 +900,7 @@ def unroll_and_filter(
             synth_c_row = synthesize_complete_turn0
             drop_abs_row = drop_absorbed_independent_followup
             synth_rec_row = synthesize_recovery_stop
-            if recipe == RECIPE_V7:
+            if recipe in RECIPES_APIGEN_MIX:
                 # Filler: v4 empty + recovery. APIGen-MT: light empty-after-exec
                 # only. Never apply v5 synthetic complete-turn0.
                 drop_u_row = False
@@ -1088,7 +1108,8 @@ def main(argv: list[str] | None = None) -> int:
             "env-state consistency. v6 is v4 empty/recovery + only "
             "drop_state_inconsistent (no turn-0 rewrites). v7 is v4 "
             "empty/recovery on ToolACE/xLAM filler and light empty-after-exec "
-            "on APIGen-MT (no v5 complete-turn0). v4/v3/v2/v1 remain "
+            "on APIGen-MT (no v5 complete-turn0). v8 is v7 plus identical-call "
+            "drop and a ~30% non-tool cap. v4/v3/v2/v1 remain "
             "behind --recipe / keep-flags."
         )
     )
@@ -1115,8 +1136,9 @@ def main(argv: list[str] | None = None) -> int:
         choices=list(RECIPE_IDS),
         default=None,
         help=(
-            "Unroll recipe id. Default v5. v7 applies empty-after-exec then "
-            "the non-tool cap (sft.cap_nontool_v7) when writing rows."
+            "Unroll recipe id. Default v5. v7/v8 apply empty-after-exec then "
+            "the non-tool cap (sft.cap_nontool_v7) when writing rows; v8 also "
+            "drops identical consecutive assistant calls."
         ),
     )
     parser.add_argument(
@@ -1251,10 +1273,24 @@ def main(argv: list[str] | None = None) -> int:
                 synthesize_complete_turn0=synth_c,
             )
         )
-        if recipe == RECIPE_V7:
-            from sft.cap_nontool_v7 import cap_nontool_unrolls, format_cap_report
+        if recipe in RECIPES_APIGEN_MIX:
+            from sft.cap_nontool_v7 import (
+                cap_kwargs_for_recipe,
+                cap_nontool_unrolls,
+                format_cap_report,
+            )
 
-            rows, cap_stats = cap_nontool_unrolls(rows)
+            if recipe == RECIPE_V8:
+                from sft.drop_identical_call import (
+                    drop_identical_call_unrolls,
+                    format_identical_call_report,
+                )
+
+                rows, idrop_stats = drop_identical_call_unrolls(rows)
+                print(format_identical_call_report(idrop_stats))
+            rows, cap_stats = cap_nontool_unrolls(
+                rows, **cap_kwargs_for_recipe(recipe)
+            )
             print(format_cap_report(cap_stats))
         if args.compare_recipe:
             delta = compare_recipe_unroll(

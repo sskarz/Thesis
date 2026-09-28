@@ -18,7 +18,8 @@ This module downsamples non-tool unrolled rows so ``pct_nontool`` lands in
   ``mix_stats_v7`` projected unroll, ``filter_empty_after_exec --recipe v7``
   writes). ``mix_stats_v7 --gate --mlx-dir`` must see these same capped rows.
 
-Call **after** the normal v7 empty-after-exec filter. RNG seed **47**.
+Call **after** the normal v7 empty-after-exec filter (and after the v8
+identical-call drop when recipe is v8). RNG seed **47** (v7) or **48** (v8).
 """
 
 from __future__ import annotations
@@ -30,9 +31,13 @@ from typing import Any, Iterable
 
 from sft.config import (
     SEED_V7,
+    SEED_V8,
     V7_NONTOOL_MAX,
     V7_NONTOOL_MIN,
     V7_NONTOOL_TARGET,
+    V8_NONTOOL_MAX,
+    V8_NONTOOL_MIN,
+    V8_NONTOOL_TARGET,
 )
 from sft.format_apigen_mt import (
     NONTOOL_LABELS,
@@ -49,6 +54,32 @@ _CAP_NOTE = (
     "Full conversations remain in splits-v7; this cap applies at "
     "unroll → mlx-v7 time (prepare / mix_stats projected unroll)."
 )
+_CAP_NOTE_V8 = (
+    "Full conversations remain in splits-v8; this cap applies at "
+    "unroll → mlx-v8 time (prepare / mix_stats projected unroll, after "
+    "identical-call drop)."
+)
+
+
+def cap_kwargs_for_recipe(recipe: str) -> dict[str, Any]:
+    """Seed / band / labels for ``cap_nontool_unrolls`` under a mix recipe."""
+    if recipe == "v8":
+        return {
+            "seed": SEED_V8,
+            "target": V8_NONTOOL_TARGET,
+            "min_frac": V8_NONTOOL_MIN,
+            "max_frac": V8_NONTOOL_MAX,
+            "experiment": "v8",
+            "note": _CAP_NOTE_V8,
+        }
+    return {
+        "seed": SEED_V7,
+        "target": V7_NONTOOL_TARGET,
+        "min_frac": V7_NONTOOL_MIN,
+        "max_frac": V7_NONTOOL_MAX,
+        "experiment": "v7",
+        "note": _CAP_NOTE,
+    }
 
 
 def unroll_gold(row: dict) -> str:
@@ -166,8 +197,10 @@ def cap_nontool_unrolls(
     target: float = V7_NONTOOL_TARGET,
     min_frac: float = V7_NONTOOL_MIN,
     max_frac: float = V7_NONTOOL_MAX,
+    experiment: str = "v7",
+    note: str | None = None,
 ) -> tuple[list[dict], dict[str, Any]]:
-    """Keep every ``tool_call`` unroll; downsample non-tool to the v7 band.
+    """Keep every ``tool_call`` unroll; downsample non-tool to the target band.
 
     Deterministic: sort by ``id`` within each label, then ``random.Random(seed)``.
     Original relative order of kept rows is preserved.
@@ -238,7 +271,8 @@ def cap_nontool_unrolls(
         "by_label_after": dict(sorted(after_labels.items())),
         "nontool_kept_by_label": dict(sorted(kept_by_label.items())),
         "dropped_nontool": n_non - n_kept_non,
-        "note": _CAP_NOTE,
+        "experiment": experiment,
+        "note": note if note is not None else _CAP_NOTE,
     }
     return kept, stats
 
@@ -246,9 +280,10 @@ def cap_nontool_unrolls(
 def format_cap_report(stats: dict[str, Any] | None) -> str:
     if not stats:
         return "v7 non-tool unroll cap: (not applied)"
+    experiment = stats.get("experiment") or "v7"
     return "\n".join(
         [
-            "v7 non-tool unroll cap "
+            f"{experiment} non-tool unroll cap "
             f"(seed={stats.get('seed')} target={stats.get('target')} "
             f"band=[{stats.get('min_frac')}, {stats.get('max_frac')}] "
             f"capped={stats.get('capped')}):",

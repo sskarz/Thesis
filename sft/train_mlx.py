@@ -8,7 +8,10 @@ and env-state consistency; see ``sft.filter_empty_after_exec``). Pass
 Pass ``--recipe v7`` for the APIGen-MT mix (defaults ``splits-v7`` /
 ``mlx-v7`` / ``adapters-v7``; v4 empty/recovery on filler, no v5
 complete-turn0, then ``sft.cap_nontool_v7`` so mlx-v7 ``pct_nontool`` is
-~15%). Does **not** run training in CI; on Linux this prints the
+~15%). Pass ``--recipe v8`` for lever 1 (defaults ``splits-v8`` /
+``mlx-v8`` / ``adapters-v8``; same v4 empty/recovery, **no** v5
+complete-turn0, identical-call drop, then non-tool cap ~30% seed 48).
+Does **not** run training in CI; on Linux this prints the
 command.
 """
 
@@ -25,6 +28,7 @@ from typing import Any
 from sft.config import (
     ADAPTER_DIR,
     ADAPTER_DIR_V7,
+    ADAPTER_DIR_V8,
     FUSED_DIR,
     HF_INSTRUCT_ID,
     LORA_BATCH_SIZE,
@@ -39,17 +43,21 @@ from sft.config import (
     MLX_CONVERT_QLORA_HINT,
     MLX_DATA_DIR,
     MLX_DATA_DIR_V7,
+    MLX_DATA_DIR_V8,
     MLX_MODEL_DIR,
     SMOKE_TRAIN_ROWS,
     SMOKE_VALID_ROWS,
     SPLITS_DIR,
     SPLITS_DIR_V7,
+    SPLITS_DIR_V8,
     TRAIN_JSONL,
     VALID_JSONL,
 )
 from sft.filter_empty_after_exec import (
     RECIPE_IDS,
     RECIPE_V7,
+    RECIPE_V8,
+    RECIPES_APIGEN_MIX,
     RECIPES_WITH_RECOVERY,
     compare_recipe_unroll,
     format_recipe_comparison,
@@ -91,7 +99,9 @@ def prepare_mlx_data(
     empty/recovery plus only ``drop_state_inconsistent``. Pass ``recipe="v7"``
     for the APIGen-MT mix (v4 empty/recovery on filler; no complete-turn0;
     then cap non-tool unrolls and hard-gate token-budgeted targets — splits-v7
-    conversations stay full).
+    conversations stay full). Pass ``recipe="v8"`` for lever 1 (same v4
+    empty/recovery; identical-call drop; non-tool cap ~30% seed 48; token
+    budget — splits-v8 conversations stay full).
     Conversation-level splits are unchanged.
     """
     if recipe is None:
@@ -133,11 +143,25 @@ def prepare_mlx_data(
     train_u, train_stats = unroll_and_filter(train, **filter_kwargs)
     valid_u, valid_stats = unroll_and_filter(valid, **filter_kwargs)
     train_cap = valid_cap = None
-    if recipe == RECIPE_V7:
-        from sft.cap_nontool_v7 import cap_nontool_unrolls, format_cap_report
+    train_idrop = valid_idrop = None
+    if recipe == RECIPE_V8:
+        from sft.drop_identical_call import (
+            drop_identical_call_unrolls,
+            format_identical_call_report,
+        )
 
-        train_u, train_cap = cap_nontool_unrolls(train_u)
-        valid_u, valid_cap = cap_nontool_unrolls(valid_u)
+        train_u, train_idrop = drop_identical_call_unrolls(train_u)
+        valid_u, valid_idrop = drop_identical_call_unrolls(valid_u)
+    if recipe in RECIPES_APIGEN_MIX:
+        from sft.cap_nontool_v7 import (
+            cap_kwargs_for_recipe,
+            cap_nontool_unrolls,
+            format_cap_report,
+        )
+
+        cap_kwargs = cap_kwargs_for_recipe(recipe)
+        train_u, train_cap = cap_nontool_unrolls(train_u, **cap_kwargs)
+        valid_u, valid_cap = cap_nontool_unrolls(valid_u, **cap_kwargs)
     format_kwargs = dict(
         recipe=recipe,
         drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
@@ -151,6 +175,9 @@ def prepare_mlx_data(
     )
     print(train_stats.format("train", **format_kwargs))
     print(valid_stats.format("valid", **format_kwargs))
+    if train_idrop is not None:
+        print(format_identical_call_report(train_idrop))
+        print(format_identical_call_report(valid_idrop))
     if train_cap is not None:
         print(format_cap_report(train_cap))
         print(format_cap_report(valid_cap))
@@ -170,21 +197,32 @@ def prepare_mlx_data(
     if smoke:
         train_u = train_u[:smoke_train_rows]
         valid_u = valid_u[:smoke_valid_rows]
-    if recipe == RECIPE_V7:
-        from sft.budget_seq import budget_unrolled_rows, format_budget_report
+    if recipe in RECIPES_APIGEN_MIX:
+        from sft.budget_seq import (
+            DEFAULT_MODEL_DIR,
+            budget_unrolled_rows,
+            format_budget_report,
+        )
 
-        train_u, train_budget = budget_unrolled_rows(
-            train_u,
-            max_seq_length=max_seq_length,
-            tokenizer=budget_tokenizer,
-        )
-        valid_u, valid_budget = budget_unrolled_rows(
-            valid_u,
-            max_seq_length=max_seq_length,
-            tokenizer=budget_tokenizer,
-        )
-        print(format_budget_report(train_budget, "v7 train"))
-        print(format_budget_report(valid_budget, "v7 valid"))
+        if budget_tokenizer is None and not DEFAULT_MODEL_DIR.exists():
+            print(
+                f"token budget ({recipe}): skipped "
+                f"(no tokenizer and {DEFAULT_MODEL_DIR} missing; "
+                "Mac prepare with local MLX weights will hard-gate)"
+            )
+        else:
+            train_u, train_budget = budget_unrolled_rows(
+                train_u,
+                max_seq_length=max_seq_length,
+                tokenizer=budget_tokenizer,
+            )
+            valid_u, valid_budget = budget_unrolled_rows(
+                valid_u,
+                max_seq_length=max_seq_length,
+                tokenizer=budget_tokenizer,
+            )
+            print(format_budget_report(train_budget, f"{recipe} train"))
+            print(format_budget_report(valid_budget, f"{recipe} valid"))
     if mlx_dir.exists():
         shutil.rmtree(mlx_dir)
     mlx_dir.mkdir(parents=True, exist_ok=True)
@@ -203,10 +241,15 @@ def prepare_mlx_data(
         f"synthesize_complete_turn0={synthesize_complete_turn0}; "
         f"synthesize_recovery_stop={synthesize_recovery_stop}"
         + (
-            f"; v7_nontool_cap=on pct_nontool "
+            f"; {recipe}_nontool_cap=on pct_nontool "
             f"{(train_cap or {}).get('pct_nontool_before')}→"
             f"{(train_cap or {}).get('pct_nontool_after')}"
             if train_cap is not None
+            else ""
+        )
+        + (
+            f"; identical_call_drop={train_idrop.get('dropped')}"
+            if train_idrop is not None
             else ""
         )
         + ")"
@@ -298,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
         "--recipe",
         choices=list(RECIPE_IDS),
         default=None,
-        help="Unroll recipe id. Default v5. v7/v6/v4/v3/v2/v1 are other recipes.",
+        help="Unroll recipe id. Default v5. v8/v7/v6/v4/v3/v2/v1 are other recipes.",
     )
     parser.add_argument(
         "--compare-recipe",
@@ -396,13 +439,21 @@ def main(argv: list[str] | None = None) -> int:
             mlx_dir = MLX_DATA_DIR_V7
         if adapter_path == ADAPTER_DIR:
             adapter_path = ADAPTER_DIR_V7
+    elif recipe == RECIPE_V8:
+        if splits_dir == SPLITS_DIR:
+            splits_dir = SPLITS_DIR_V8
+        if mlx_dir == MLX_DATA_DIR:
+            mlx_dir = MLX_DATA_DIR_V8
+        if adapter_path == ADAPTER_DIR:
+            adapter_path = ADAPTER_DIR_V8
 
     if not (splits_dir / TRAIN_JSONL.name).exists():
         parser.error(
             f"Missing {splits_dir / TRAIN_JSONL.name}. "
             "Run download → format → split first (see sft/README.md). "
             "For v7: download --apigen-mt-only, format --apigen-mt, "
-            "build_mix_v7 → sft/data/splits-v7."
+            "build_mix_v7 → sft/data/splits-v7. "
+            "For v8: same ingest, then build_mix_v8 → sft/data/splits-v8."
         )
 
     smoke = args.smoke and not args.full
@@ -469,9 +520,10 @@ def main(argv: list[str] | None = None) -> int:
     print("train command:")
     print(" ", " ".join(cmd))
 
-    fused_name = (
-        "gemma-4-e2b-it-iffc-v7" if recipe == RECIPE_V7 else "gemma-4-e2b-it-iffc"
-    )
+    fused_name = {
+        RECIPE_V7: "gemma-4-e2b-it-iffc-v7",
+        RECIPE_V8: "gemma-4-e2b-it-iffc-v8",
+    }.get(recipe, "gemma-4-e2b-it-iffc")
     fused = FUSED_DIR / fused_name
     fuse_cmd = fuse_command(model, adapter_path, fused)
     print("fuse command:")

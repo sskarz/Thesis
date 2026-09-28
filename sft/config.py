@@ -44,6 +44,16 @@ VALID_JSONL_V7 = SPLITS_DIR_V7 / "valid.jsonl"
 CORPUS_TEST_JSONL_V7 = SPLITS_DIR_V7 / "corpus_test.jsonl"
 MANIFEST_PATH_V7 = SPLITS_DIR_V7 / "MANIFEST.json"
 
+# SFT v8 experiment dirs — lever 1 (identical-call drop + higher non-tool band).
+# Do **not** reuse splits-v7 / mlx-v7 / adapters-v7 (Run 21 collapsed).
+SPLITS_DIR_V8 = DATA_DIR / "splits-v8"
+MLX_DATA_DIR_V8 = DATA_DIR / "mlx-v8"
+ADAPTER_DIR_V8 = SFT_ROOT / "adapters-v8"
+TRAIN_JSONL_V8 = SPLITS_DIR_V8 / "train.jsonl"
+VALID_JSONL_V8 = SPLITS_DIR_V8 / "valid.jsonl"
+CORPUS_TEST_JSONL_V8 = SPLITS_DIR_V8 / "corpus_test.jsonl"
+MANIFEST_PATH_V8 = SPLITS_DIR_V8 / "MANIFEST.json"
+
 LORA_CONFIG_PATH = SFT_ROOT / "lora_config.yaml"
 
 # ---------------------------------------------------------------------------
@@ -100,6 +110,32 @@ V7_NONTOOL_MIN = 0.10
 V7_NONTOOL_MAX = 0.20
 V7_NONTOOL_TARGET = 0.15  # unroll → mlx-v7 cap; conversations in splits-v7 stay full
 V7_EXPERIMENT = "sft-v7"
+
+# ---------------------------------------------------------------------------
+# SFT v8 mix (lever 1; seed 48; do not reopen v7 seed-47 or v1 seed-42)
+# ---------------------------------------------------------------------------
+# Run 21 (v7 IFFC) collapsed unfinished: hit_step_limit / identical-call loops
+# (ls / VehicleControl). Hypothesis: ~85% tool_call / ~15% non-tool taught
+# observe→re-emit the same call. v8 keeps the APIGen-MT conversation mix,
+# drops identical consecutive assistant *calls* at unroll, and raises the
+# mlx non-tool / stop target into [0.25, 0.35] (default 0.30).
+# Unscored — do not invent a v8 BFCL number. No finish-200 / BoN on v7.
+SEED_V8 = 48
+V8_TARGET_APIGEN_FRAC = V7_TARGET_APIGEN_FRAC
+V8_MIN_APIGEN_FRAC = V7_MIN_APIGEN_FRAC  # keep ≥50% APIGen-MT after rebalance
+V8_TARGET_MID_FC_FRAC = V7_TARGET_MID_FC_FRAC
+V8_TARGET_CLARIFY_FRAC = V7_TARGET_CLARIFY_FRAC
+V8_TARGET_IRRELEVANCE_FRAC = V7_TARGET_IRRELEVANCE_FRAC
+V8_MAX_IRRELEVANCE_FRAC = V7_MAX_IRRELEVANCE_FRAC
+V8_ABORT_IRRELEVANCE_FRAC = V7_ABORT_IRRELEVANCE_FRAC
+V8_TARGET_FINAL_FRAC = V7_TARGET_FINAL_FRAC
+V8_NONTOOL_MIN = 0.25
+V8_NONTOOL_MAX = 0.35
+V8_NONTOOL_TARGET = 0.30  # unroll → mlx-v8 cap; conversations in splits-v8 stay full
+V8_EXPERIMENT = "sft-v8"
+# Conversation-level loop filter: drop trajs with this many consecutive
+# identical assistant tool-calls (observations in between still count).
+V8_LOOP_MIN_RUN = 3
 
 # ---------------------------------------------------------------------------
 # Base model (matches benchmark/config.py gemma4-e2b GGUF lineage)
