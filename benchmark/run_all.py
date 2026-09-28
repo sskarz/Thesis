@@ -197,7 +197,10 @@ def main():
             "iffc-state-bon = Best-of-N majority vote on IFFC+STATE "
             "(default N=5, temperature=0.7; not NFC/GST/CD); "
             "xlam = Salesforce xLAM JSON-in-text "
-            '({"tool_calls":[{name, arguments}]}; no native tools).'
+            '({"tool_calls":[{name, arguments}]}; no native tools); '
+            "iffc-stop-repeat = IFFC + harness force-stop on consecutive "
+            "identical calls, or executed-call re-emits after 6 assistant "
+            "tool-turns in the current ask (baseline iffc unchanged)."
         ),
     )
     parser.add_argument(
