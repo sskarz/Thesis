@@ -259,10 +259,13 @@ MULTI_TURN_MAX_STEPS = 20
 #        --fc-mode xlam scored 6/200 = 3.0% — still very low, not a
 #        method win, not published ~78.94%).
 # iffc-stop-repeat = IFFC JSON-in-text plus harness force-stop when the
-#        proposed call set repeats after a tool observation (subset of
-#        already-executed calls, or consecutive identical assistant sets).
+#        proposed call set repeats after a tool observation: consecutive
+#        identical assistant sets (immediate), or subset of already-executed
+#        calls after OBSERVE_SAME_MIN_ASSISTANT_TOOL_TURNS (6) assistant
+#        tool-turns in the current BFCL ask (not short VC re-calls).
 #        Baseline iffc is unchanged. Decode/harness lever, not a training
-#        recipe. Unscored until a measured BFCL run.
+#        recipe. Run 27 ungated observe_same scored 54/200 = 27% on BASE
+#        (miss vs IFFC 30.5%); this gate is the tighten, still a probe.
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
