@@ -23,6 +23,7 @@ from sft.config import (
     V9_MAX_SEQ_LENGTH,
     V9_MIN_TOOLACE_XLAM_FRAC,
     V9_PROBE_IDS,
+    V9_PROBE_IDS_VC_SIDECAR,
 )
 from sft.filter_empty_after_exec import (
     RECIPE_V4,
@@ -84,6 +85,7 @@ def _xlam(i: int) -> dict:
     return _rec(
         f"xlam-{i}",
         [
+            {"role": "system", "content": "sys"},
             {"role": "user", "content": f"call {i}"},
             {"role": "assistant", "content": _call("fn", i=i)},
         ],
@@ -101,6 +103,7 @@ def _apigen(i: int, kind: str = "final") -> dict:
     return _rec(
         f"apigen-{kind}-{i}",
         [
+            {"role": "system", "content": "sys"},
             {"role": "user", "content": f"q {i}"},
             {"role": "assistant", "content": _call("tool")},
             {"role": "user", "content": _exec_obs("tool()")},
@@ -127,7 +130,10 @@ def test_v9_constants_locked():
     assert V9_MAX_APIGEN_FRAC == 0.35
     assert V9_MAX_SEQ_LENGTH == 8192
     assert SPLITS_DIR_V9.name == "splits-v9"
-    assert "_4" in V9_PROBE_IDS and "_52" in V9_PROBE_IDS and "_96" in V9_PROBE_IDS
+    assert "_4" in V9_PROBE_IDS and "_163" in V9_PROBE_IDS
+    assert len(V9_PROBE_IDS) == 10
+    assert "_52" not in V9_PROBE_IDS and "_96" not in V9_PROBE_IDS
+    assert V9_PROBE_IDS_VC_SIDECAR == ("_52", "_60", "_74", "_76", "_83", "_96")
 
 
 def test_v9_recipe_is_v4_empty_no_v5_synth():

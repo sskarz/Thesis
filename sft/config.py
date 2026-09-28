@@ -231,7 +231,7 @@ V9_ABORT_IRRELEVANCE_UNROLL_FRAC = 0.12
 V9_ABORT_REFUSE_MIN = 0.005  # ≈0 → abort; 2% floor is soft
 V9_MAX_OBSERVE_SAME_OF_TOOL = 0.01  # sampler exclusion working
 
-# Probe IDs: prior v8 10-ID set PLUS VehicleControl regressors.
+# Formal 10-ID plain-IFFC gate (denominators /10). Do NOT fold VC into this.
 V9_PROBE_IDS = (
     "_4",
     "_38",
@@ -243,6 +243,9 @@ V9_PROBE_IDS = (
     "_82",
     "_3",
     "_163",
+)
+# VehicleControl regressors: required diagnostic sidecar; never inflate the 10-ID denom.
+V9_PROBE_IDS_VC_SIDECAR = (
     "_52",
     "_60",
     "_74",

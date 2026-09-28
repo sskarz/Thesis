@@ -60,12 +60,15 @@ from sft.config import (
     V9_MIN_TOOLACE_XLAM_FRAC,
     V9_MIN_XLAM_FRAC,
     V9_PROBE_IDS,
+    V9_PROBE_IDS_VC_SIDECAR,
     V9_TARGET_APIGEN_FRAC,
     V9_TARGET_TOOLACE_FRAC,
     V9_TARGET_XLAM_FRAC,
 )
 from sft.filter_empty_after_exec import RECIPE_V9
+from sft.format_apigen_mt import STOP_IRRELEVANCE
 from sft.io import read_jsonl, sha256_file, write_jsonl
+from sft.mix_stats_v7 import conversation_stop_label
 from sft.mix_stats_v9 import collect_stats, format_report, gate_reasons
 from sft.split_data import assert_no_bfcl, stratified_split
 
@@ -152,7 +155,104 @@ def assemble_v9_pool(
         ]
         selected = other + _take(apigen_rows, keep_a)
 
+    # Cap conversation-level irrelevance_[] (almost all ToolACE terminal []).
+    # Matches V9_MAX_IRRELEVANCE_CONV_FRAC / abort 0.12 — v7-style downsample;
+    # prefer dropping ToolACE/xLAM irrelevance before APIGen.
+    n_sel = len(selected)
+    irr_rows = [
+        r for r in selected if conversation_stop_label(r) == STOP_IRRELEVANCE
+    ]
+    non_irr = [
+        r for r in selected if conversation_stop_label(r) != STOP_IRRELEVANCE
+    ]
+    if n_sel and irr_rows:
+        # keep_irr / (n_non + keep_irr) <= max  => keep_irr <= max/(1-max) * n_non
+        # Aim slightly under max so stratified train/valid stay ≤ max.
+        max_frac = min(V9_MAX_IRRELEVANCE_CONV_FRAC, 0.098)
+        keep_irr = int(max_frac / (1.0 - max_frac) * len(non_irr) + 1e-12)
+        if len(irr_rows) > keep_irr:
+            filler_irr = [
+                r
+                for r in irr_rows
+                if str(r.get("source")) in {SOURCE_TOOLACE, SOURCE_XLAM}
+            ]
+            apigen_irr = [
+                r
+                for r in irr_rows
+                if str(r.get("source")) == SOURCE_APIGEN_MT
+            ]
+            # Always keep APIGen irrelevance (scarce); fill remaining from filler.
+            keep_filler = max(0, keep_irr - len(apigen_irr))
+            selected = non_irr + list(apigen_irr) + _take(filler_irr, keep_filler)
+
+    # Enforce individual ToolACE / xLAM bands (do not widen). Drop overweight
+    # source rows after irrelevance/APIGen caps; never expand bands for convenience.
+    selected = _clamp_source_max(selected, SOURCE_XLAM, V9_MAX_XLAM_FRAC)
+    selected = _clamp_source_max(selected, SOURCE_TOOLACE, V9_MAX_TOOLACE_FRAC)
+    selected = _clamp_source_max(selected, SOURCE_APIGEN_MT, V9_MAX_APIGEN_FRAC)
+    # Re-check floors after clamps (add back from leftovers if needed).
+    selected = _ensure_source_min(
+        selected, SOURCE_TOOLACE, toolace, V9_MIN_TOOLACE_FRAC
+    )
+    selected = _ensure_source_min(
+        selected, SOURCE_XLAM, xlam, V9_MIN_XLAM_FRAC
+    )
+    selected = _ensure_source_min(
+        selected, SOURCE_APIGEN_MT, apigen, V9_MIN_APIGEN_FRAC
+    )
+    # Final max clamp (mins may have nudged a peer over max).
+    selected = _clamp_source_max(selected, SOURCE_XLAM, V9_MAX_XLAM_FRAC)
+    selected = _clamp_source_max(selected, SOURCE_TOOLACE, V9_MAX_TOOLACE_FRAC)
+    selected = _clamp_source_max(selected, SOURCE_APIGEN_MT, V9_MAX_APIGEN_FRAC)
+
     selected.sort(key=lambda r: str(r.get("id", "")))
+    return selected
+
+
+def _clamp_source_max(
+    selected: list[dict], source: str, max_frac: float
+) -> list[dict]:
+    """Downsample ``source`` so its share is ≤ ``max_frac``."""
+    if max_frac <= 0 or max_frac >= 1:
+        return selected
+    src_rows = [r for r in selected if str(r.get("source")) == source]
+    other = [r for r in selected if str(r.get("source")) != source]
+    if not src_rows:
+        return selected
+    # keep / (n_other + keep) <= max  => keep <= max/(1-max) * n_other
+    keep_n = int(max_frac / (1.0 - max_frac) * len(other) + 1e-12)
+    # Also never exceed floor(max_frac * total) style; prefer slightly under.
+    keep_n = min(keep_n, int(max_frac * (len(other) + keep_n) + 1e-12))
+    if len(src_rows) <= keep_n:
+        return selected
+    return other + _take(src_rows, keep_n)
+
+
+def _ensure_source_min(
+    selected: list[dict],
+    source: str,
+    pool: list[dict],
+    min_frac: float,
+) -> list[dict]:
+    """Add unused ``source`` rows from ``pool`` until share ≥ ``min_frac``."""
+    if min_frac <= 0:
+        return selected
+    seen = {str(r.get("id")) for r in selected}
+    src_n = sum(1 for r in selected if str(r.get("source")) == source)
+    n = len(selected)
+    if n and (src_n / n) >= min_frac:
+        return selected
+    extras = [r for r in pool if str(r.get("id")) not in seen]
+    # (src_n + k) / (n + k) >= min => k >= (min*n - src_n)/(1-min)
+    import math
+
+    need = min_frac * n - src_n
+    if need <= 0:
+        return selected
+    k = int(math.ceil(need / (1.0 - min_frac) - 1e-12))
+    if k <= 0:
+        return selected
+    selected = list(selected) + _take(extras, k)
     return selected
 
 
@@ -242,6 +342,11 @@ def build_v9_manifest(
             "in this scaffold PR"
         ),
         "probe_ids": list(V9_PROBE_IDS),
+        "probe_ids_vc_sidecar": list(V9_PROBE_IDS_VC_SIDECAR),
+        "probe_note": (
+            "Formal gate = probe_ids (10). VC sidecar is diagnostic only; "
+            "never fold into /10 denominators."
+        ),
         "eval_note": (
             "Later BFCL under plain iffc regardless of stop-repeat harness. "
             "Do not require stop-repeat to pass smoke for v9."

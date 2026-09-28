@@ -58,8 +58,12 @@ from sft.config import (
     V9_MAX_APIGEN_FRAC,
     V9_MAX_IRRELEVANCE_CONV_FRAC,
     V9_MAX_OBSERVE_SAME_OF_TOOL,
+    V9_MAX_TOOLACE_FRAC,
+    V9_MAX_XLAM_FRAC,
     V9_MIN_APIGEN_FRAC,
+    V9_MIN_TOOLACE_FRAC,
     V9_MIN_TOOLACE_XLAM_FRAC,
+    V9_MIN_XLAM_FRAC,
 )
 from sft.filter_empty_after_exec import (
     RECIPE_V9,
@@ -211,6 +215,18 @@ def gate_reasons(
         reasons.append(
             f"pct_apigen_mt={pct_a:.4f} outside [{V9_MIN_APIGEN_FRAC}, "
             f"{V9_MAX_APIGEN_FRAC}]"
+        )
+    pct_t = float(conv.get("pct_toolace") or 0.0)
+    if pct_t < V9_MIN_TOOLACE_FRAC or pct_t > V9_MAX_TOOLACE_FRAC:
+        reasons.append(
+            f"pct_toolace={pct_t:.4f} outside [{V9_MIN_TOOLACE_FRAC}, "
+            f"{V9_MAX_TOOLACE_FRAC}]"
+        )
+    pct_x = float(conv.get("pct_xlam") or 0.0)
+    if pct_x < V9_MIN_XLAM_FRAC or pct_x > V9_MAX_XLAM_FRAC:
+        reasons.append(
+            f"pct_xlam={pct_x:.4f} outside [{V9_MIN_XLAM_FRAC}, "
+            f"{V9_MAX_XLAM_FRAC}]"
         )
     pct_tx = float(conv.get("pct_toolace_xlam") or 0.0)
     if pct_tx < V9_MIN_TOOLACE_XLAM_FRAC:
