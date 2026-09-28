@@ -8,9 +8,10 @@ and env-state consistency; see ``sft.filter_empty_after_exec``). Pass
 Pass ``--recipe v7`` for the APIGen-MT mix (defaults ``splits-v7`` /
 ``mlx-v7`` / ``adapters-v7``; v4 empty/recovery on filler, no v5
 complete-turn0, then ``sft.cap_nontool_v7`` so mlx-v7 ``pct_nontool`` is
-~15%). Pass ``--recipe v8`` for lever 1 (defaults ``splits-v8`` /
+~15%). Pass ``--recipe v8`` for lever 1 / v8.1 (defaults ``splits-v8`` /
 ``mlx-v8`` / ``adapters-v8``; same v4 empty/recovery, **no** v5
-complete-turn0, identical-call drop, then non-tool cap ~30% seed 48).
+complete-turn0, identical-call + observe→same-call drop, then non-tool
+cap ~35% seed 48).
 Does **not** run training in CI; on Linux this prints the
 command.
 """
@@ -99,8 +100,9 @@ def prepare_mlx_data(
     empty/recovery plus only ``drop_state_inconsistent``. Pass ``recipe="v7"``
     for the APIGen-MT mix (v4 empty/recovery on filler; no complete-turn0;
     then cap non-tool unrolls and hard-gate token-budgeted targets — splits-v7
-    conversations stay full). Pass ``recipe="v8"`` for lever 1 (same v4
-    empty/recovery; identical-call drop; non-tool cap ~30% seed 48; token
+    conversations stay full). Pass ``recipe="v8"`` for lever 1 / v8.1 (same v4
+    empty/recovery; consecutive identical **and** observe→same-call drop;
+    non-tool cap ~35% seed 48; token
     budget — splits-v8 conversations stay full).
     Conversation-level splits are unchanged.
     """

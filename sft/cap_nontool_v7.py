@@ -57,7 +57,8 @@ _CAP_NOTE = (
 _CAP_NOTE_V8 = (
     "Full conversations remain in splits-v8; this cap applies at "
     "unroll → mlx-v8 time (prepare / mix_stats projected unroll, after "
-    "identical-call drop)."
+    "v8.1 identical-call + observe→same-call drop). Target ~0.35 in "
+    "[0.25, 0.35], seed 48."
 )
 
 

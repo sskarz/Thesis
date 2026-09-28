@@ -2,9 +2,10 @@
 
 Conversation-level starting point is the same as v7 (APIGen-MT core ≥50%)
 but **seed 48**, a new experiment id, and ToolACE-R-lite loop-trajectory
-filter before split:
+filter before split. v8.1 keeps this module / dirs / ``--recipe v8``:
 
 * Drop teacher trajs with ≥3 consecutive identical assistant tool-calls
+  **or** ≥3 observe→same-call re-emits (A-B-A-B ``ls`` / ``displayCarStatus``)
 * Log drops by source
 * Abort if remaining ``pct_apigen_mt`` would fall below 50%
 
@@ -12,9 +13,9 @@ Writes ``train.jsonl`` / ``valid.jsonl`` / ``corpus_test.jsonl`` plus
 ``MANIFEST.json`` with ``experiment: sft-v8``. Never overwrites frozen v1
 ``sft/data/splits/`` or ``splits-v7``.
 
-Unrolled ``pct_nontool`` (~0.30) and identical-call drop are **not** splits
-gates — they apply at unroll → mlx-v8 time. Gate that band with
-``mix_stats_v8 --mlx-dir ... --gate`` after prepare.
+Unrolled ``pct_nontool`` (~0.35) and identical-call / observe→same-call
+drop are **not** splits gates — they apply at unroll → mlx-v8 time. Gate
+that band with ``mix_stats_v8 --mlx-dir ... --gate`` after prepare.
 """
 
 from __future__ import annotations
@@ -57,6 +58,7 @@ from sft.config import (
     V8_NONTOOL_MAX,
     V8_NONTOOL_MIN,
     V8_NONTOOL_TARGET,
+    V8_RECIPE_BUMP,
     V8_TARGET_APIGEN_FRAC,
     V8_TARGET_CLARIFY_FRAC,
     V8_TARGET_FINAL_FRAC,
@@ -100,6 +102,7 @@ def build_v8_manifest(
     }
     return {
         "experiment": V8_EXPERIMENT,
+        "recipe_bump": V8_RECIPE_BUMP,
         "seed": seed,
         "train_frac": TRAIN_FRAC,
         "val_frac": VAL_FRAC,
@@ -127,28 +130,32 @@ def build_v8_manifest(
             "abort_irrelevance_[]": V8_ABORT_IRRELEVANCE_FRAC,
             "final_answer": V8_TARGET_FINAL_FRAC,
             "unrolled_pct_nontool": (
-                f"deferred to unroll → mlx-v8: identical-call drop then "
-                f"cap_nontool_v7 (seed {seed}) so pct_nontool is in "
-                f"[{V8_NONTOOL_MIN}, {V8_NONTOOL_MAX}] "
+                f"deferred to unroll → mlx-v8: v8.1 identical-call + "
+                f"observe→same-call drop then cap_nontool_v7 (seed {seed}) "
+                f"so pct_nontool is in [{V8_NONTOOL_MIN}, {V8_NONTOOL_MAX}] "
                 f"(target ~{V8_NONTOOL_TARGET}). "
                 "Not a splits-v8 conversation gate."
             ),
         },
         "student_filter": (
-            "ToolACE-R-lite (v8): drop teacher loop trajs with "
+            "ToolACE-R-lite (v8.1): drop teacher loop trajs with "
             f">={V8_LOOP_MIN_RUN} consecutive identical assistant tool-calls "
+            f"**or** >={V8_LOOP_MIN_RUN} observe→same-call re-emits "
             "before split; abort if APIGen-MT floor would be violated. "
             "No MLX Jaccard drafts (that remains student_filter_v7 Phase 3)."
         ),
         "loop_filter": loop_filter,
         "identical_call_drop": (
-            "sft.drop_identical_call at unroll → mlx-v8: drop gold assistant "
-            "turns whose parsed IFFC calls equal the previous assistant call. "
-            "Anti observe→re-emit (Run 21 step-limit loops). "
+            "sft.drop_identical_call at unroll → mlx-v8 (v8.1): drop gold "
+            "assistant turns that equal the previous assistant call "
+            "(consecutive) **or** re-emit already-executed calls after a "
+            "tool-result observation (observe→same-call; ls/displayCarStatus "
+            "A-B-A-B). Consecutive-only was too light (~32 rows). "
             "Does not rewrite NL finals or reintroduce v5 complete-turn0."
         ),
         "nontool_unroll_cap": (
-            "splits-v8 stores full conversations. After identical-call drop, "
+            "splits-v8 stores full conversations. After v8.1 identical-call "
+            "+ observe→same-call drop, "
             f"sft.cap_nontool_v7 (seed {seed}) downsamples clarify/final/"
             "irrelevance_[] assistant unrolls so mlx-v8 pct_nontool is in "
             f"[{V8_NONTOOL_MIN}, {V8_NONTOOL_MAX}] "
@@ -296,10 +303,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=SPLITS_DIR_V8)
     parser.add_argument("--seed", type=int, default=SEED_V8)
     parser.add_argument(
-        "--loop-min-run",
-        type=int,
-        default=V8_LOOP_MIN_RUN,
-        help="Drop conversations with this many consecutive identical calls.",
+            "--loop-min-run",
+            type=int,
+            default=V8_LOOP_MIN_RUN,
+            help=(
+                "Drop conversations with this many consecutive identical "
+                "calls or observe→same-call re-emits."
+            ),
     )
     parser.add_argument(
         "--skip-gates",

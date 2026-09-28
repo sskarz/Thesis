@@ -170,7 +170,8 @@ def collect_stats(
 
     When ``unrolled`` is omitted and ``unroll_recipe`` is v7/v8, the same
     downsample the trainer applies is used so the report matches mlx-v7 /
-    mlx-v8. v8 also applies the identical-call drop **before** the cap.
+    mlx-v8. v8.1 also applies identical-call + observe→same-call drop
+    **before** the cap.
     Pass ``unrolled=`` from ``--mlx-dir`` (already post-processed by prepare)
     and leave ``cap_nontool`` / ``drop_identical`` off so we do not apply twice.
     """
