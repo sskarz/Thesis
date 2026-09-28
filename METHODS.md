@@ -1227,7 +1227,7 @@ The first four are directly measurable on BFCL v4 without changes to the benchma
 8. Jain, N., et al. "Lost in Space: Optimizing Tokens for Grammar-Constrained Decoding." arXiv:2502.14969, 2025.
 9. Khattab, O., et al. "DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines." ICLR 2024. https://dspy.ai/.
 10. Liu, J., et al. "APIGen: Automated Pipeline for Generating Verifiable and Diverse Function-Calling Datasets." arXiv:2406.18518, 2024.
-11. Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." arXiv:2409.00920, 2024.
+11. Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920. https://arxiv.org/abs/2409.00920
 12. Lu, J., et al. "ToolSandbox: A Stateful, Conversational, Interactive Evaluation Framework for LLM Tool Use Capabilities." arXiv:2408.04682, 2024.
 13. Madaan, A., et al. "Self-Refine: Iterative Refinement with Self-Feedback." NeurIPS 2023. arXiv:2303.17651.
 14. Patil, S., et al. "Gorilla: Large Language Model Connected with Massive APIs." arXiv:2305.15334, 2023. https://arxiv.org/abs/2305.15334
