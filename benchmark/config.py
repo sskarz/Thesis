@@ -140,7 +140,7 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Gemma-4-E2B-it SFT-IFFC-v7 (Q4_K_M)",
         "slug": "Gemma-4-E2B-it-SFT-IFFC-v7-Q4_K_M",
     },
-    # SFT v8 lever 1 (APIGen-MT core; identical-call drop; ~30% non-tool).
+    # SFT v8 lever 1 / v8.1 (APIGen-MT core; observe→same-call drop; ~35% non-tool).
     # Distinct api_name/slug so a future v8 run does not overwrite v7 / Runs 12–21.
     # Unscored; do not invent a v8 BFCL number. GGUF path TBD after Mac smoke.
     "gemma4-e2b-sft-iffc-v8": {

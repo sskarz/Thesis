@@ -13,8 +13,9 @@
 # env-state consistency) unless --recipe v8/v7/v6/v4/v3/v2/v1 or keep-flags are
 # passed through EXTRA. v6 = v4 empty/recovery + drop_state_inconsistent only.
 # v7 = APIGen-MT mix (defaults splits-v7 / mlx-v7 / adapters-v7).
-# v8 = lever 1 (defaults splits-v8 / mlx-v8 / adapters-v8; identical-call drop;
-#      non-tool ~30%). Smoke is 100 iters; pass --iters 200 for a longer probe.
+# v8 = lever 1 / v8.1 (defaults splits-v8 / mlx-v8 / adapters-v8;
+#      observe→same-call drop; non-tool ~35%). Smoke is 100 iters; pass
+#      --iters 200 for a longer probe.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

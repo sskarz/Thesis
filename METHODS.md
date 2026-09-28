@@ -962,15 +962,15 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **Lit review:** [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md) (12-source synthesis for v7 planning; vault owns the deep note — may land in a parallel vault PR before it is on `main`). Do **not** paste the full review here.
 
-**Next intended method — SFT v8 lever 1 (scaffolding, not scored; do not invent results):**
+**Next intended method — SFT v8 lever 1 / v8.1 (scaffolding, not scored; do not invent results):**
 
 Run 21 (v7 IFFC) collapsed unfinished (12/200, score null; `hit_step_limit` / identical-call loops). Do **not** finish-200 or BoN on v7; do **not** more-epochs that mix.
 
-v8 keeps the APIGen-MT conversation core (**≥50%**) and v4 empty/recovery (no v5 complete-turn0), then:
+v8 keeps the APIGen-MT conversation core (**≥50%**) and v4 empty/recovery (no v5 complete-turn0). Recipe **flag stays `v8`** (`splits-v8` / `mlx-v8`). v8.1 bump:
 
-1. Drop gold assistant turns identical to the previous assistant **call** (anti observe→re-emit)
-2. Raise mlx non-tool / stop target to **~0.30** (band `[0.25, 0.35]`, seed **48**)
-3. ToolACE-R-lite: drop teacher loop trajs (≥3 consecutive identical calls) before unroll; abort if APIGen floor would be violated
+1. Drop gold assistant turns identical to the previous assistant **call** **or** that re-emit already-executed calls after a tool result (observe→same-call; `ls`/`displayCarStatus` A-B-A-B). Consecutive-only was too light (~32 rows).
+2. Raise mlx non-tool / stop target to **~0.35** (band `[0.25, 0.35]`, seed **48**)
+3. ToolACE-R-lite: drop teacher loop trajs (≥3 consecutive identical **or** ≥3 observe→same-call) before unroll; abort if APIGen floor would be violated
 
 Mac gate: `build_mix_v8` → `mix_stats_v8 --gate` → prepare `--recipe v8` → `mix_stats_v8 --mlx-dir … --gate` → smoke 100–200 iters. Registry `gemma4-e2b-sft-iffc-v8`. See `sft/README.md`. **Do not invent a v8 score.**
 

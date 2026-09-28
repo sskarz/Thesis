@@ -44,8 +44,9 @@ VALID_JSONL_V7 = SPLITS_DIR_V7 / "valid.jsonl"
 CORPUS_TEST_JSONL_V7 = SPLITS_DIR_V7 / "corpus_test.jsonl"
 MANIFEST_PATH_V7 = SPLITS_DIR_V7 / "MANIFEST.json"
 
-# SFT v8 experiment dirs — lever 1 (identical-call drop + higher non-tool band).
+# SFT v8 experiment dirs — lever 1 / v8.1 bump (observe→same-call + ~35% non-tool).
 # Do **not** reuse splits-v7 / mlx-v7 / adapters-v7 (Run 21 collapsed).
+# v8.1 keeps these dirs and ``--recipe v8`` so Mac can rebuild in place.
 SPLITS_DIR_V8 = DATA_DIR / "splits-v8"
 MLX_DATA_DIR_V8 = DATA_DIR / "mlx-v8"
 ADAPTER_DIR_V8 = SFT_ROOT / "adapters-v8"
@@ -112,13 +113,17 @@ V7_NONTOOL_TARGET = 0.15  # unroll → mlx-v7 cap; conversations in splits-v7 st
 V7_EXPERIMENT = "sft-v7"
 
 # ---------------------------------------------------------------------------
-# SFT v8 mix (lever 1; seed 48; do not reopen v7 seed-47 or v1 seed-42)
+# SFT v8 mix (lever 1 / v8.1 bump; seed 48; do not reopen v7 or v1)
 # ---------------------------------------------------------------------------
 # Run 21 (v7 IFFC) collapsed unfinished: hit_step_limit / identical-call loops
 # (ls / VehicleControl). Hypothesis: ~85% tool_call / ~15% non-tool taught
-# observe→re-emit the same call. v8 keeps the APIGen-MT conversation mix,
-# drops identical consecutive assistant *calls* at unroll, and raises the
-# mlx non-tool / stop target into [0.25, 0.35] (default 0.30).
+# observe→re-emit the same call. v8 keeps the APIGen-MT conversation mix
+# (v4 empty/recovery; **no** v5 synth turn-0). Recipe **flag stays v8**
+# (splits-v8 / mlx-v8 / adapters-v8) — v8.1 is a mix-recipe bump, not a
+# new experiment id.
+# v8.1 vs first lever-1 scaffold: consecutive identical-call drop was too
+# light (~32 rows); also drop observe→same-call re-emits (A-B-A-B
+# ls/displayCarStatus). Non-tool unroll target ~0.35 (band [0.25, 0.35]).
 # Unscored — do not invent a v8 BFCL number. No finish-200 / BoN on v7.
 SEED_V8 = 48
 V8_TARGET_APIGEN_FRAC = V7_TARGET_APIGEN_FRAC
@@ -131,10 +136,11 @@ V8_ABORT_IRRELEVANCE_FRAC = V7_ABORT_IRRELEVANCE_FRAC
 V8_TARGET_FINAL_FRAC = V7_TARGET_FINAL_FRAC
 V8_NONTOOL_MIN = 0.25
 V8_NONTOOL_MAX = 0.35
-V8_NONTOOL_TARGET = 0.30  # unroll → mlx-v8 cap; conversations in splits-v8 stay full
+V8_NONTOOL_TARGET = 0.35  # unroll → mlx-v8 cap; conversations in splits-v8 stay full
 V8_EXPERIMENT = "sft-v8"
+V8_RECIPE_BUMP = "v8.1"  # same --recipe v8 / dirs; stronger drop + 0.35 non-tool
 # Conversation-level loop filter: drop trajs with this many consecutive
-# identical assistant tool-calls (observations in between still count).
+# identical assistant tool-calls **or** observe→same-call re-emits.
 V8_LOOP_MIN_RUN = 3
 
 # ---------------------------------------------------------------------------

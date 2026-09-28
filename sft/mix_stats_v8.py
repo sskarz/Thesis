@@ -1,12 +1,16 @@
 """Stop-taxonomy / source stats for the SFT v8 mix.
 
 Same conversation gates as v7 (APIGen-MT ≥50%, irrelevance caps) plus the
-lever-1 unroll pipeline: identical-call drop, then non-tool cap to
-``[0.25, 0.35]`` (target 0.30, seed 48).
+v8.1 unroll pipeline: identical-call **and** observe→same-call drop, then
+non-tool cap to ``[0.25, 0.35]`` (target 0.35, seed 48). Recipe flag stays
+``v8``; dirs stay ``splits-v8`` / ``mlx-v8``.
 
 CLI::
 
+    uv run python -m sft.build_mix_v8 --out sft/data/splits-v8
     uv run python -m sft.mix_stats_v8 --splits sft/data/splits-v8 --gate
+    uv run python -m sft.train_mlx --prepare-only --recipe v8 \\
+      --splits-dir sft/data/splits-v8 --mlx-dir sft/data/mlx-v8
     uv run python -m sft.mix_stats_v8 --splits sft/data/splits-v8 \\
         --mlx-dir sft/data/mlx-v8 --gate
 """
@@ -24,12 +28,13 @@ from sft.config import (
     V8_MIN_APIGEN_FRAC,
     V8_NONTOOL_MAX,
     V8_NONTOOL_MIN,
+    V8_RECIPE_BUMP,
 )
 from sft.filter_empty_after_exec import RECIPE_V8
 from sft.io import read_jsonl
 from sft.mix_stats_v7 import (
     collect_stats as collect_stats_base,
-    format_report,
+    format_report as format_report_base,
     gate_reasons,
 )
 
@@ -42,8 +47,8 @@ def collect_stats(
     cap_nontool: bool | None = None,
     drop_identical: bool | None = None,
 ):
-    """v8 projected unroll: identical-call drop then non-tool cap (~0.30)."""
-    return collect_stats_base(
+    """v8.1 projected unroll: observe→same-call drop then non-tool cap (~0.35)."""
+    stats = collect_stats_base(
         conversations,
         unrolled=unrolled,
         unroll_recipe=unroll_recipe,
@@ -53,6 +58,24 @@ def collect_stats(
         abort_irrelevance_frac=V8_ABORT_IRRELEVANCE_FRAC,
         nontool_min=V8_NONTOOL_MIN,
         nontool_max=V8_NONTOOL_MAX,
+    )
+    stats["recipe_bump"] = V8_RECIPE_BUMP
+    return stats
+
+
+def format_report(
+    stats: dict,
+    *,
+    require_unrolled_nontool: bool = False,
+) -> str:
+    body = format_report_base(
+        stats, require_unrolled_nontool=require_unrolled_nontool
+    )
+    bump = stats.get("recipe_bump") or V8_RECIPE_BUMP
+    return (
+        f"{body}\n"
+        f"recipe_bump={bump} (flag remains --recipe v8; dirs splits-v8/mlx-v8; "
+        "v8.1 observe→same-call drop + non-tool target 0.35)"
     )
 
 
@@ -70,7 +93,8 @@ def _load_split_dir(path: Path) -> list[dict]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Print v8 stop-taxonomy / source / identical-call / non-tool stats."
+            "Print v8.1 stop-taxonomy / source / identical-call / "
+            "observe→same-call / non-tool stats."
         )
     )
     parser.add_argument(
@@ -85,8 +109,9 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=(
             "Optional already-unrolled mlx JSONL dir (skips in-memory unroll). "
-            "Must be the v8 prepare output (identical-call drop + ~30% cap). "
-            "With --gate, also requires unrolled pct_nontool in [0.25, 0.35]."
+            "Must be the v8 prepare output (v8.1 observe→same-call drop + "
+            "~35% cap). With --gate, also requires unrolled pct_nontool in "
+            "[0.25, 0.35]."
         ),
     )
     parser.add_argument(

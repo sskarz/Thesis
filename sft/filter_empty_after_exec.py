@@ -35,9 +35,12 @@ a v7 BFCL number.
 
 SFT v8 (``--recipe v8``) is lever 1 on that same APIGen-MT mix: v4
 empty/recovery like v7 (still **no** v5 complete-turn0), plus drop gold
-assistant turns identical to the previous assistant **call**, then cap
-non-tool unrolls to ~30% (band [0.25, 0.35], seed 48). Run 21 collapsed on
-v7 identical-call loops — do not finish-200 / BoN that mix. Unscored.
+assistant turns that equal the previous assistant call **or** re-emit
+already-executed calls after a tool result (v8.1 observe→same-call;
+consecutive-only was ~32 rows / too light), then cap non-tool unrolls to
+~35% (band [0.25, 0.35], seed 48). Dirs stay splits-v8 / mlx-v8. Run 21
+collapsed on v7 identical-call loops — do not finish-200 / BoN that mix.
+Unscored.
 """
 
 from __future__ import annotations
@@ -223,8 +226,8 @@ def resolve_recipe(
     underspecified drop, no complete-turn0 synth).
     v4: all three v5 keep/no-synth flags (empty-target curriculum only).
     v7: explicit ``recipe="v7"`` only (not inferred from keep-flags).
-    v8: explicit ``recipe="v8"`` only (v7 unroll + identical-call drop at
-    prepare; not inferred from keep-flags).
+    v8: explicit ``recipe="v8"`` only (v7 unroll + v8.1 identical-call /
+    observe→same-call drop at prepare; not inferred from keep-flags).
     v3: both ``--keep-first-assistant-empty`` and
     ``--keep-clarifying-empty-after-user`` (empty-after-exec + recovery only).
     v2: ``--keep-terminal-empty-after-exec`` (drop non-terminal only).
@@ -850,8 +853,9 @@ def unroll_and_filter(
     ``drop_state_inconsistent`` (no underspecified drop, no complete-turn0
     synth). Pass ``recipe="v7"`` or ``recipe="v8"`` for v4 empty/recovery on
     ToolACE/xLAM filler and light empty-after-exec drops on APIGen-MT (no v5
-    synth complete-turn0). v8 additionally drops identical consecutive
-    assistant *calls* after unroll (see ``sft.drop_identical_call``).
+    synth complete-turn0). v8 additionally drops consecutive identical
+    assistant *calls* **and** observe→same-call re-emits after unroll
+    (see ``sft.drop_identical_call``; v8.1).
     Pass ``recipe="v4"`` (or all three v5 flags off) to
     ablate back to v4. ``None`` v4/v5 flags follow the inferred recipe so
     v1/v2 kwargs do not silently gain later drops.
@@ -1108,8 +1112,9 @@ def main(argv: list[str] | None = None) -> int:
             "env-state consistency. v6 is v4 empty/recovery + only "
             "drop_state_inconsistent (no turn-0 rewrites). v7 is v4 "
             "empty/recovery on ToolACE/xLAM filler and light empty-after-exec "
-            "on APIGen-MT (no v5 complete-turn0). v8 is v7 plus identical-call "
-            "drop and a ~30% non-tool cap. v4/v3/v2/v1 remain "
+            "on APIGen-MT (no v5 complete-turn0). v8 is v7 plus v8.1 "
+            "identical-call / observe→same-call drop and a ~35% non-tool "
+            "cap. v4/v3/v2/v1 remain "
             "behind --recipe / keep-flags."
         )
     )
@@ -1138,7 +1143,7 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Unroll recipe id. Default v5. v7/v8 apply empty-after-exec then "
             "the non-tool cap (sft.cap_nontool_v7) when writing rows; v8 also "
-            "drops identical consecutive assistant calls."
+            "drops consecutive identical and observe→same-call assistant calls."
         ),
     )
     parser.add_argument(
