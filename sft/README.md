@@ -55,6 +55,46 @@ Converter (`sft/format_apigen_mt.py`): ShareGPT `human`→user, `function_call`�
 
 **Thesis test:** BFCL v4 `multi_turn_base` only. Do not add BFCL prompts or past scored responses to these JSONL files.
 
+## SFT v9 (lever2 action-class quotas — scaffolding, **unscored**)
+
+New experiment id `sft-v9` / internal **lever2**. Seed **49**. Dirs: `splits-v9` / `mlx-v9` / `adapters-v9`. **Do not invent a v9 BFCL score.** **Do not prepare/LoRA on Mac until this scaffold is reviewed and conversation + action-class gates PASS.**
+
+**Why:** lever1 (v8 / v8.1) teacher observe→same / consecutive-identical drops failed to transfer stop/advance into Gemma-4-E2B LoRA. lever2 quota-trains the action classes BFCL multi-turn needs (ToolACE-style coverage), not another loop filter.
+
+**Conversation pool (locked):** ToolACE **45–55%** + xLAM **15–20%** + APIGen-MT **20–30%** (hard cap **≤35%**, floor **≥15%**). Abort if ToolACE+xLAM < 55%.
+
+**Unroll quotas (PRIMARY; assistant gold, `--mask-prompt`):**
+
+| Class | Target | Hard band |
+|---|---|---|
+| `mt_tool_chain_advance` | 40–50% | [35, 55] |
+| `tool_call_start` | 12–18% | [10, 20] |
+| `final_after_obs` (loose) | 12–18% | [10, 20] |
+| `ask` | 8–12% | [6, 14] |
+| `refuse` | 3–5% (floor 2% OK) | abort if ≈0 |
+| `irrelevance_[]` | 5–8% | max 10%; abort >12% |
+
+Soft-exclude observe→same / consecutive identical from keep (sampler exclusion only — **not** a teacher traj filter). Keep v4 empty/recovery on filler; **ban** v5 synth complete-turn0. `final_after_obs` classified **loose**; when duplicating prefer advancing prior tools; log stricter subtype, don't hard-filter. max_seq **8192** + existing `budget_seq`. Stage B DiaTool-DPO preference pairs: **stub only** (`python -m sft.pref_pairs_antiloop_v9 --dry-run`).
+
+**Standing constraints:** no BoN / no v7 resume / no full LoRA on failed v8 / no teacher observe→same as primary / no v5 synth turn0. Later BFCL under **plain iffc** regardless of stop-repeat harness.
+
+**Probe IDs (later):** prior v8 10-ID plus VC regressors `_52,_60,_74,_76,_83,_96` (optional `_186`).
+
+```bash
+# Scaffold only in this PR — do NOT run prepare/mix on Mac yet without review.
+uv run python -m sft.build_mix_v9 --out sft/data/splits-v9
+uv run python -m sft.mix_stats_v9 --splits sft/data/splits-v9 --gate
+# After gates reviewed:
+# uv run python -m sft.train_mlx --prepare-only --recipe v9 \
+#   --splits-dir sft/data/splits-v9 --mlx-dir sft/data/mlx-v9
+# uv run python -m sft.mix_stats_v9 --splits sft/data/splits-v9 \
+#   --mlx-dir sft/data/mlx-v9 --gate
+# Stage B stub (no training):
+uv run python -m sft.pref_pairs_antiloop_v9 --dry-run
+```
+
+Modules: `action_class_v9.py`, `quota_sample_v9.py`, `build_mix_v9.py`, `mix_stats_v9.py`, `label_toolace_v9.py`, `pref_pairs_antiloop_v9.py`, `drop_identical_call.py` (predicates reused as sampler exclusion). Tests: `tests/sft/test_action_class_v9.py`, `test_quota_sample_v9.py`, `test_sft_v9.py`.
+
 ## Base model
 
 `benchmark/config.py` registers Gemma as GGUF:
@@ -235,6 +275,7 @@ Verified data gaps (inspect `sft/format_iffc.py`, not a guessed root cause):
 | *(default)* / `--recipe v5` | **v5** | v4 + underspecified drop + complete-turn0 synth + state-inconsistent drop. **Run 17 scored 11.5%** (regression vs v4). |
 | `--recipe v6` | **v6** | v4 empty/recovery + **only** `drop_state_inconsistent`. Turn-0 rewrites **off**. Distinct from v4. **Run 18 scored 13.0%** (miss vs v4). |
 | `--recipe v7` | **v7** | New mix (APIGen-MT core). v4 empty/recovery on ToolACE/xLAM filler; light empty-after-exec on `apigen_mt`; **no** v5 complete-turn0; then cap non-tool unrolls (~15%). **Unscored.** |
+| `--recipe v9` | **v9** | lever2. ToolACE-primary pool + action-class quotas (`quota_sample_v9`). v4 empty/recovery on filler; **no** v5 synth; **no** teacher observe→same traj filter. max_seq 8192. **Unscored. Do not prepare until reviewed.** |
 | `--recipe v4` | v4 | Empty-target curriculum only (Run 15 mix, 15.0%) |
 | `--keep-underspecified-turn0` **and** `--keep-state-inconsistent` **and** `--no-synthetic-complete-turn0` | v4 | Same as `--recipe v4` |
 | `--keep-underspecified-turn0` **and** `--no-synthetic-complete-turn0` | v6 | Same as `--recipe v6` |
@@ -411,6 +452,13 @@ sft/
 ├── mix_stats_v7.py           # v7 taxonomy / source / empty-after-exec CLI
 ├── build_mix_v7.py           # assemble splits-v7 (seed 47; NC license in MANIFEST)
 ├── student_filter_v7.py      # Phase 3 stub (MLX Jaccard loop not in this PR)
+├── drop_identical_call.py    # call canonicalization / observe→same predicates
+├── action_class_v9.py        # lever2 action-class labels
+├── quota_sample_v9.py        # unroll action-class quotas (replaces cap for v9)
+├── build_mix_v9.py           # assemble splits-v9 (seed 49; ToolACE-primary)
+├── mix_stats_v9.py           # v9 source + action-class gates
+├── label_toolace_v9.py       # optional action_labels attachment
+├── pref_pairs_antiloop_v9.py # Stage B DiaTool-DPO stub (dry-run only)
 ├── split_data.py
 ├── train_mlx.py              # unroll + filter + mlx_lm.lora wrapper
 ├── train_mlx.sh
