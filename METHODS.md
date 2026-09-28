@@ -28,6 +28,7 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
 - [Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)](#experiment-mlx-sft-v1-gemma-4-e2b-iffc-mix)
 - [Prioritized Recommendations](#prioritized-recommendations)
+- [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; ranked next SFT **if** tightened stop-repeat fails vs IFFC 30.5%)
 - [References](#references)
 
 ---
@@ -899,6 +900,8 @@ Aggregated: state mismatch **75**, empty **40**, missing GT exec **31** (146/146
 
 Best inference remains BoN **36.5%** (base Gemma). Best IFFC remains Run 5 **30.5%**. Best SFT remains v4 IFFC **15.0%**. Details: `THESIS.md`. Do **not** overwrite Run 27. Do **not** make `iffc-stop-repeat` the default on base.
 
+**GAR framing (lit, not a new score):** Calibration bottleneck / GAR ([arXiv:2609.00949](https://arxiv.org/abs/2609.00949)) — Acc ≤ GAR; SRI/CRI-like decode can **hurt Acc**. That aligns with this scored miss: a CRI-adjacent force-stop cut Acc **30.5% → 27.0%** on healthy base (VehicleControl **22→33**). Evidence writeup: [PR #55](https://github.com/sskarz/Thesis/pull/55). **Still trying tightened stop-repeat first.** Ranked next SFT **if** that fails vs IFFC 30.5%: [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28). Do **not** invent a new `multi_turn_base` number.
+
 ### How to run
 
 Harness lives in [PR #54](https://github.com/sskarz/Thesis/pull/54) (`benchmark/stop_on_repeat.py`). Serve **base** Gemma (not an SFT GGUF):
@@ -1011,6 +1014,8 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **Lit review:** [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md) (12-source synthesis for v7 planning; vault owns the deep note — may land in a parallel vault PR before it is on `main`). Do **not** paste the full review here.
 
+**Still trying tightened stop-repeat first** vs IFFC **30.5%**. **If** that fails, ranked next SFT is the [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (not a new score; paper BFCL % ≠ our harness).
+
 **Next intended method — SFT v7 (planned, not scored; do not invent results):**
 
 1. MT-native verified trajs core (**≥50%**) — APIGen-MT-5k → IFFC JSON-in-text, assistant-only loss
@@ -1022,6 +1027,7 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 - **Data Turnstile** ([§24](#24-data-turnstile-open-function-calling-data-generation)) — optional **open** data-gen complement to Hub-gated APIGen-MT for v7+ mixes (API specs → DAG-role multi-turn FC SFT). Paper BFCL is **single-turn**; τ² Telecom ≠ our `multi_turn_base`.
 - **Critical-State RL** ([§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls)) — optional **post-healthy-SFT** occurrence-local RL (nested sampling on the trainable turn). Distinct from blanket GRPO. **Do not** unlock GRPO as the main path.
+- **MCP-GRANITE** ([§3a](#3a-tool-interface-granularity-mcp-granite)) — optional composites if the tool list is huge. **Unscored.** Cross-link only; see Post–Run27 ranking item 7.
 
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
@@ -1133,7 +1139,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 
 ### Next (Sanskar decides)
 
-1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. Center on APIGen-MT verified multi-turn trajs (≥50% MT-native) + calibrated stop/clarify (~12–15% non-tool) + ToolACE-R-lite student-aware filter; optional Hammer/RPO only after a healthy SFT. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
+1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Still trying tightened stop-repeat first** vs IFFC **30.5%**. **If** that fails, follow the dated ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; action-class quotas + GAR; Magnet/Critical-State contrast then mDPO; **not** decode bans). Center on APIGen-MT verified multi-turn trajs (≥50% MT-native) + calibrated stop/clarify (~12–15% non-tool) + ToolACE-R-lite student-aware filter; optional Hammer/RPO only after a healthy SFT. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
@@ -1146,9 +1152,11 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 
 - Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920.
 - Zeng et al. ToolACE-R. arXiv:2504.01400. (v7 student-aware filter; **not scored**)
-- Prabhakar et al. APIGen-MT. arXiv:2504.03601. (v7 planned mix core; **not scored**)
+- Zeng et al. ToolACE-MT. arXiv:2508.12685. (paper BFCL-v3 MT 9.25%→40.25%; **not** our harness)
+- Prabhakar et al. APIGen-MT. arXiv:2504.03601. (v7 planned mix core; **not scored**; paper MT 1B/3B/8B 43/56/69% — **not** our harness)
 - Ramakrishnan & Sharma. Data Turnstile. arXiv:2607.29250. (optional open data-gen complement for v7+; **not scored**)
 - Chen, Zhao, et al. Critical-State RL. arXiv:2609.24985. (post-healthy-SFT occurrence-local RL; **not scored**; not blanket GRPO)
+- Calibration bottleneck / GAR. arXiv:2609.00949. (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
 - IFFC Appendix B: arXiv:2608.22472
@@ -1174,6 +1182,8 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 9 | **DSPy prompt optimization** | Model-specific prompt tuning | Auto-discovered improvements | High |
 
 The first four are directly measurable on BFCL v4 without changes to the benchmark format, making them strong thesis contributions. The key narrative: **inference-time techniques can close the gap between SLMs and cloud-scale models without fine-tuning.**
+
+**Post–Run27 (2026-09-28):** Stop-on-repeat is a **scored miss** on healthy base ([PR #55](https://github.com/sskarz/Thesis/pull/55); GAR-aligned Acc regress). **Still trying tightened stop-repeat first.** Ranked next **SFT** **if** that fails vs IFFC **30.5%**: [Post–Run27 consensus](#post-run27-consensus-2026-09-28). Do **not** treat decode bans as the next method win. Do **not** unlock GRPO as the main path.
 
 ---
 
@@ -1261,6 +1271,7 @@ Each method in this section involves modifying model weights — via supervised 
 - [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling)
 - [23. Curriculum Learning for Progressive Tool Mastery](#23-curriculum-learning-for-progressive-tool-mastery)
 - [Training-Time Prioritized Recommendations](#training-time-prioritized-recommendations)
+- [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28)
 - [Part II References](#part-ii-references)
 
 ---
@@ -1348,10 +1359,12 @@ ToolACE-8B (LLaMA-3.1-8B fine-tuned with LoRA rank 16, alpha 32) on BFCL:
 - **Dataset availability:** The xlam-function-calling-60k dataset (derived from ToolBench, used by both ToolACE and xLAM) is publicly available on HuggingFace.
 - **Complexity:** High for building the full pipeline; medium if using the existing public datasets.
 - **Related (unscored):** [§24 Data Turnstile](#24-data-turnstile-open-function-calling-data-generation) is an **open** API-spec → multi-turn FC SFT generator (DAG roles + schema validation). Frame as an alternative / complement to Hub-gated APIGen-MT for **v7+ mixes**, not a scored thesis run.
+- **Related (paper suite, not our harness):** **ToolACE-MT** (Zeng et al., ICLR’26, [arXiv:2508.12685](https://arxiv.org/abs/2508.12685)) — non-AR skeleton → mask-fill → offline verify. Paper: Llama-3.1-8B MT **9.25%→40.25%** on **BFCL-v3** (vs MAS 31.38%). Do **not** write 40.25% as a thesis `multi_turn_base` score. Cross-link: [Post–Run27 consensus](#post-run27-consensus-2026-09-28).
 
 ### Sources
 
 - Liu, T., et al. "ToolACE: Winning the Points of LLM Function Calling." ICLR 2025. arXiv:2409.00920. https://arxiv.org/abs/2409.00920
+- Zeng et al. "ToolACE-MT." ICLR 2026. arXiv:2508.12685. https://arxiv.org/abs/2508.12685 (paper BFCL-v3 MT; **not** our harness)
 - Salesforce. "xlam-function-calling-60k." HuggingFace Datasets. https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k
 
 ---
@@ -1458,7 +1471,7 @@ On τ-bench (agentic evaluation), xLAM-2-70b-fc-r achieves 56.2% success rate, o
 
 - **xLAM-1b-fc-r** is directly relevant to edge deployment — at 1B parameters it fits comfortably on all target hardware. GGUF versions are published on HuggingFace (`Salesforce/xLAM-1b-fc-r-gguf`).
 - **As a benchmark model:** Registry key `xlam-1b` is in `benchmark/config.py` (`Salesforce/xLAM-1b-fc-r-gguf`, Q4_K_M; distinct `api_name` / `slug` so results do not overwrite other models). Serve with `-hf Salesforce/xLAM-1b-fc-r-gguf:Q4_K_M`. **Run 19 already scored `--fc-mode nfc` on BFCL v4 `multi_turn_base`: 0/200 = 0.0%** (Mac `run_id=19`; wall **13.55 min**; finished `2026-09-22T14:26:42Z`). This is a **channel/format collapse on our multi_turn NFC harness** (NFC never parses `content`). **All 200** eval errors: `Model response list is empty for turn 0`. Avg `api_calls` **3.63**; gen_tps_mean ≈ **196.7**. **Run 20 already scored `--fc-mode xlam` on the same GGUF / slice: 6/200 = 3.0%** (Mac `run_id=20`; wall **~13.28 h**; `2026-09-22T15:28:35Z` → `2026-09-23T04:45:30Z`). Adapter [PR #42](https://github.com/sskarz/Thesis/pull/42): no native tools payload; Salesforce-style JSON-in-text prompt; parse `content`. Smoke extracted calls (5/5). Full score is still **very low**. 194/200 eval errors; `state_mismatch` **128**; under_call/missing exec **46**; empty_turn **20**. Flags: `hit_step_limit` **171/200**; `xlam_unparseable` **111/200**; `context_overflow` **42/200**. Avg `api_calls` **50.47** (min 2, max 101) — tools actually ran vs Run 19 empty channel. gen_tps_mean ≈ **91.6** (n=50). Correct: `multi_turn_base_{50,119,133,139,144,161}`. Same-harness contrast: Gemma NFC Run 4 **27.0%**; CD **10.5%**. **Do not** claim xLAM scores 0 on BFCL overall. **Do not** equate 0.0% or 3.0% to published overall ~78.94%. **Do not** present 3.0% as a method win. Registry: [PR #41](https://github.com/sskarz/Thesis/pull/41). Full writeup: `THESIS.md`.
-- **Training data:** The xlam-function-calling-60k dataset used for training is publicly available.
+- **Training data:** The xlam-function-calling-60k dataset used for training is publicly available. **APIGen-MT → xLAM-2-fc-r** (already the v7 mix core; **unscored** here): blueprint ground truth; **mask user/tool, train assistant only**; open [APIGen-MT-5k](https://huggingface.co/datasets/Salesforce/APIGen-MT-5k). Paper MT (Prabhakar et al.; **theirs**, not this pipeline): **1B 43% / 3B 56% / 8B 69%**. Do **not** equate those % to Run 19/20 or Gemma `multi_turn_base`. Cross-link: [Post–Run27 consensus](#post-run27-consensus-2026-09-28).
 - **No new method.** Run 19 is stock `--fc-mode nfc` on a published GGUF (format-channel collapse). Run 20 is the **already-merged** `--fc-mode xlam` format adapter ([PR #42](https://github.com/sskarz/Thesis/pull/42)) on that same GGUF — a **measured fair-channel baseline at 3.0%**, not a new training or inference-time method. **Do not claim published ~78.94% overall as a score from this pipeline.**
 
 ### Sources
@@ -1869,11 +1882,11 @@ A typical curriculum for tool-calling fine-tuning:
 
 ## Training-Time Prioritized Recommendations
 
-Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B, RTX 4090 with 24GB VRAM):
+Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B, RTX 4090 with 24GB VRAM). **Post–Run27 (2026-09-28):** still trying **tightened stop-repeat first** vs IFFC **30.5%**. **If** that fails, the ranked next-SFT list is [Post–Run27 consensus](#post-run27-consensus-2026-09-28) — not a new `multi_turn_base` score, not GRPO-as-main-path.
 
 | Priority | Technique | Target Problem | Expected Impact | Effort |
 |----------|-----------|----------------|-----------------|--------|
-| 1 | **SFT v7 (planned, not scored; recipe v6 is closed)** | Gemma `multi_turn_base` after Run 18 scored v6 as a **miss vs v4** (26/200 = 13.0% vs Run 15 15.0%, −2.0 pp / −4). Modest +1.5 pp vs Run 17 11.5%. Empty 1; state 118 / under-call 55; avg api_calls 13.34. **SFT path locked 2026-09-23.** | APIGen-MT verified MT trajs (≥50%) + stop/clarify ~12–15% non-tool + ToolACE-R-lite. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (**unscored**). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (**unscored**; not blanket GRPO). **Do not** invent a v7 score. **Do not** BoN v6; **do not** more-epochs the v6 mix. Thin filter on this family is exhausted. v4 IFFC 15% remains best SFT recovery. Do **not** present 13.0% as a method win. | Planned (unscored) |
+| 1 | **SFT v7 (planned, not scored; recipe v6 is closed)** | Gemma `multi_turn_base` after Run 18 scored v6 as a **miss vs v4** (26/200 = 13.0% vs Run 15 15.0%, −2.0 pp / −4). Modest +1.5 pp vs Run 17 11.5%. Empty 1; state 118 / under-call 55; avg api_calls 13.34. **SFT path locked 2026-09-23.** Run 27 stop-on-repeat is a **scored miss** on base (27.0% vs IFFC 30.5%). | **If** tightened stop-repeat fails vs 30.5%: [Post–Run27 ranking](#post-run27-consensus-2026-09-28) — APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; mask user/tool, train assistant only; action-class quotas + GAR; Magnet/Critical-State contrast then mDPO. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (**unscored**). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (**unscored**; not blanket GRPO). **Do not** invent a v7 score. **Do not** BoN v6; **do not** more-epochs the v6 mix. Thin filter on this family is exhausted. v4 IFFC 15% remains best SFT recovery. Do **not** present 13.0% as a method win. | Planned (unscored; contingent on stop-repeat vs 30.5%) |
 | 2 | **Optional ablation: ToolACE-only vs xLAM-only (small scale)** | Isolate 5520 ToolACE `[]` targets (xLAM 0%) | Diagnose mix vs format | Medium |
 | 3 | **Function masking augmentation (Hammer)** | Generalization, irrelevance | Robust to unseen APIs; +irrelevance | Medium |
 | 4 | **Add xLAM-1b-fc-r as benchmark baseline** | Comparison point. Run 19 NFC **0/200 = 0.0%** was format-channel collapse (JSON in `content`, not `tool_calls`). Fair path `--fc-mode xlam` is **scored**. | **Scored NFC:** 0.0% format-channel collapse. **Scored `--fc-mode xlam`:** Run 20 **6/200 = 3.0%** (fair channel; still **very low**; tools actually ran, avg `api_calls` **50.47**). **Not** published overall ~78.94%. **Not** a method win. Still **below CD 10.5%**. Registry [PR #41](https://github.com/sskarz/Thesis/pull/41); adapter [PR #42](https://github.com/sskarz/Thesis/pull/42). Do **not** overwrite Run 19 or 20. | **Done** (NFC + fair-channel scored) |
@@ -1916,13 +1929,17 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
       Empty still 1 (_43); state 118 / under-call 55; avg api_calls 13.34
       (fixed v5's 40.3 churn). Do NOT present as a method win.
       Do NOT BoN this ckpt; do NOT more-epochs the v6 mix.
-    ↓ Next: SFT v7 (planned, NOT scored) — APIGen-MT verified MT trajs
-      + calibrated stop/clarify + student-aware filter.
+    ↓ Still trying tightened stop-repeat first vs IFFC 30.5%
+      (Run 27 iffc-stop-repeat = 27.0% scored miss; PR #55).
+    ↓ IF that fails: Post–Run27 ranked SFT (2026-09-28; NOT scored) —
+      APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Gemma template;
+      mask user/tool, train assistant only; action-class quotas + GAR;
+      Magnet pos/neg or Critical-State labels then mDPO after SFT.
       Optional open data-gen complement: Data Turnstile (§24; unscored).
       Optional post-healthy-SFT local RL: Critical-State RL (§25; unscored;
       not blanket GRPO). Do NOT unlock GRPO as the main path.
       SFT path locked 2026-09-23 as the main path; inference wrappers secondary.
-      Not another thin filter on the same family.
+      Not another thin filter on the same family. Not decode bans as the win.
       BoN 36.5% still best on base Gemma.
       v4 IFFC 15.0% remains best SFT recovery.
     ↓ Frozen split seed=42 (~90/5/5 train/val/corpus_test); BFCL multi_turn_base held out
@@ -1944,6 +1961,62 @@ This pipeline answers the central thesis question: **does fine-tuning or inferen
 
 ---
 
+## Post-Run27 consensus (2026-09-28)
+
+Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run 27. **Does not invent a `multi_turn_base` score.** Paper BFCL percentages below are **their** suites (often BFCL-v3 overall / paper MT) — **not** this repo’s BFCL v4 `multi_turn_base` execution checker. Do **not** claim paper % on our harness. Do **not** unlock GRPO as the main path.
+
+### Our measured context (authoritative)
+
+- Run 5 BASE IFFC: **61/200 = 30.5%**
+- Run 27 BASE `--fc-mode iffc-stop-repeat`: **54/200 = 27.0%** (−3.5 pp / −7). **200/200 responses.** Stop flags **37/200**, all among failures (**0 stopped and correct**). VehicleControlAPI **22→33** vs Run 5. Same accuracy level as Run 4 NFC 27.0% — **not** an identical method. Evidence: [PR #55](https://github.com/sskarz/Thesis/pull/55) / [IFFC stop-on-repeat experiment](#experiment-iffc-stop-on-repeat---fc-mode-iffc-stop-repeat). **Scored miss. Decode heuristic is not a free win on healthy base.**
+- Best inference BoN **36.5%** (Run 11). Best SFT v4 IFFC **15.0%** (Run 15).
+- Teacher loop-filters v8/v8.1 failed; stop-on-repeat helped collapsed smoke but hurt healthy base.
+
+**Still trying tightened stop-repeat first.** The ranking below is **if** that fails versus IFFC **30.5%**.
+
+### Theme
+
+**Verified multi-turn trajectories + action-class balance beat decode heuristics.** GAR explains the Run 27 Acc regress: Acc ≤ GAR; SRI/CRI-like decode can **hurt Acc** even when it looks calibrated ([Calibration bottleneck](https://arxiv.org/abs/2609.00949)). Force-stop on repeat is CRI-adjacent; on a healthy IFFC channel it cut Acc **30.5% → 27.0%** while VehicleControl state mismatch rose.
+
+### Cite map (paper suite ≠ our harness)
+
+| Work | Cite | Notes (theirs, not ours) |
+|------|------|--------------------------|
+| ToolACE | ICLR’25, [arXiv:2409.00920](https://arxiv.org/abs/2409.00920) — [§13](#13-toolace-automated-training-data-generation) | ~26.5k APIs; non-tool ask/decline |
+| ToolACE-MT | ICLR’26, [arXiv:2508.12685](https://arxiv.org/abs/2508.12685) | Non-AR skeleton → mask-fill → offline verify. Paper: Llama-3.1-8B MT **9.25%→40.25%** BFCL-v3 (vs MAS 31.38%) |
+| APIGen-MT → xLAM-2-fc-r | [arXiv:2504.03601](https://arxiv.org/abs/2504.03601); [§15](#15-xlam-large-action-models) | Blueprint GT; **mask user/tool, train assistant only**; open APIGen-MT-5k. Paper MT **1B 43% / 3B 56% / 8B 69%** |
+| FunReason-MT | [arXiv:2510.24645](https://arxiv.org/abs/2510.24645) | Qwen3-4B SFT MT **15.75→46.90**; **+RL →57.75** BFCL-v3. Cite as paper; **not** a GRPO unlock here |
+| Magnet + mDPO | ACL’25, [arXiv:2503.07826](https://arxiv.org/abs/2503.07826) | Qwen2.5-Coder-14B; 34k SFT + ~4.5k pos/neg → mDPO |
+| GAR / Calibration bottleneck | [arXiv:2609.00949](https://arxiv.org/abs/2609.00949) | 4-class tool_call / ask / refuse / confirm; Acc ≤ GAR; SRI/CRI can hurt Acc — aligns with stop-repeat |
+| Critical-State RL | [arXiv:2609.24985](https://arxiv.org/abs/2609.24985) — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) | Already logged; **unscored**. Occurrence-local RL after healthy SFT. **Not** blanket GRPO |
+| OODA-Tool | [arXiv:2608.24368](https://arxiv.org/abs/2608.24368) | Qwen3 0.6–14B; typed OODA; largest gains on smallest (~+7 pp ≤4B); latency ~2.4× — prefer joint typed CoT **one-pass** at edge |
+| MCP-GRANITE | [arXiv:2609.24161](https://arxiv.org/abs/2609.24161) — [§3a](#3a-tool-interface-granularity-mcp-granite) | Already logged; **unscored**. Optional if the tool list is huge |
+| Data Turnstile | [arXiv:2607.29250](https://arxiv.org/abs/2607.29250) — [§24](#24-data-turnstile-open-function-calling-data-generation) | Already logged; **unscored**. Harness ID/mask note, not the primary SFT-loop fix |
+| When2Call / MetaTool | related 2025 | Light pointer: 4-way when-to-call |
+| BFCL / Gorilla multi-turn | ICML’25 / [Gorilla blog](https://gorilla.cs.berkeley.edu/blogs/13_bfcl_v3_multi_turn.html); [arXiv:2402.15491](https://arxiv.org/abs/2402.15491) | Light pointer: state + response checkers; empty gold turns matter |
+
+Room for extra URLs later without inventing numbers.
+
+### Ranked next SFT (if tightened stop-repeat fails vs 30.5%)
+
+1. **APIGen-MT-5k + ToolACE / ToolACE-MT-style MT + single-turn FC** (~30–50% MT). Gemma template. **Mask user/tool; train assistant only.**
+2. **Action-class quotas** (final-after-success-obs, ask, refuse/defer, irrelevance) and **measure GAR per class**.
+3. **Anti-loop contrast:** Magnet-style pos/neg or Critical-State labels; mDPO / small preference **after** SFT ≫ decode bans.
+4. **Lightweight state prefix** (goal / slots / last fact / next mode) in **one pass** (OODA-Tool latency cost → not a 2.4× multi-pass at edge).
+5. **Hold decode stops on the scored base.** Optional soft max-N identical successful signatures, then force answer.
+6. **Occurrence-local RL** only if SFT plateaus — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), **not** [§19 blanket GRPO](#19-reinforcement-learning-with-verifiable-rewards-grpo).
+7. **Optional MCP-GRANITE composites** if the tool list is huge — [§3a](#3a-tool-interface-granularity-mcp-granite).
+
+### Anti-patterns
+
+Teacher loop-filter-only; stop-on-repeat / CRI-like decode; recovery-targeted SFT without refusal / final negatives; Acc-only while GAR(ask/refuse) collapses.
+
+### Already-logged options (cross-link, do not duplicate)
+
+[Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite), [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation), [APIGen-MT / xLAM §15](#15-xlam-large-action-models), [ToolACE §13](#13-toolace-automated-training-data-generation). All three first-named remain **unscored** research options.
+
+---
+
 ## Part II References
 
 30. Dettmers, T., et al. "QLoRA: Efficient Finetuning of Quantized LLMs." NeurIPS 2023. arXiv:2305.14314.
@@ -1961,3 +2034,10 @@ This pipeline answers the central thesis question: **does fine-tuning or inferen
 42. Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 43. Ramakrishnan, G. & Sharma, M. "Data Turnstile: A Scalable Open Framework for Function-Calling Data Generation." arXiv:2607.29250, 2026.
 44. Chen, Z., Zhao, W., et al. "Critical-State RL: Diagnosing Trainable States for Multi-Turn Tool Use." arXiv:2609.24985, 2026.
+45. Zeng et al. "ToolACE-MT." ICLR 2026. arXiv:2508.12685.
+46. Prabhakar et al. "APIGen-MT: Agentic Pipeline for Multi-Turn Data Generation via Simulated Agent-Human Interplay." arXiv:2504.03601, 2025.
+47. FunReason-MT. arXiv:2510.24645. (paper BFCL-v3; **not** our harness)
+48. Magnet + mDPO. ACL 2025. arXiv:2503.07826.
+49. Calibration bottleneck / GAR. arXiv:2609.00949.
+50. OODA-Tool. arXiv:2608.24368.
+51. Paschalides, D., et al. "MCP-GRANITE Benchmark: GRANularity Interface TEsting for MCP-Based LLM Agents." arXiv:2609.24161, 2026.
