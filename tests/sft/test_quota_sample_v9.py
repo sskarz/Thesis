@@ -156,7 +156,7 @@ def test_quota_sample_excludes_observe_same_and_hits_bands():
     pct = stats["pct_by_class"]
     assert 0.35 <= pct[ACTION_MT_TOOL_CHAIN_ADVANCE] <= 0.55
     assert 0.10 <= pct[ACTION_TOOL_CALL_START] <= 0.20
-    assert 0.10 <= pct[ACTION_FINAL_AFTER_OBS] <= 0.20
+    assert 0.18 <= pct[ACTION_FINAL_AFTER_OBS] <= 0.26
     assert 0.06 <= pct[ACTION_ASK] <= 0.14
     assert pct[ACTION_REFUSE] >= 0.005
     assert pct[ACTION_IRRELEVANCE] <= 0.12

@@ -223,7 +223,7 @@ V9_MAX_IRRELEVANCE_CONV_FRAC = 0.10
 # refuse hard_lo is a soft floor (2% OK); abort only if refuse ≈ 0.
 V9_ACTION_MT_TOOL_CHAIN_ADVANCE = (0.40, 0.50, 0.35, 0.55)
 V9_ACTION_TOOL_CALL_START = (0.12, 0.18, 0.10, 0.20)
-V9_ACTION_FINAL_AFTER_OBS = (0.12, 0.18, 0.10, 0.20)
+V9_ACTION_FINAL_AFTER_OBS = (0.20, 0.24, 0.18, 0.26)
 V9_ACTION_ASK = (0.08, 0.12, 0.06, 0.14)
 V9_ACTION_REFUSE = (0.03, 0.05, 0.02, 0.06)  # floor 2% OK; abort if ≈0
 V9_ACTION_IRRELEVANCE = (0.05, 0.08, 0.0, 0.10)  # abort >0.12 separately

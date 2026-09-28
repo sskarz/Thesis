@@ -69,7 +69,7 @@ New experiment id `sft-v9` / internal **lever2**. Seed **49**. Dirs: `splits-v9`
 |---|---|---|
 | `mt_tool_chain_advance` | 40–50% | [35, 55] |
 | `tool_call_start` | 12–18% | [10, 20] |
-| `final_after_obs` (loose) | 12–18% | [10, 20] |
+| `final_after_obs` (loose) | 20–24% | [18, 26] |
 | `ask` | 8–12% | [6, 14] |
 | `refuse` | 3–5% (floor 2% OK) | abort if ≈0 |
 | `irrelevance_[]` | 5–8% | max 10%; abort >12% |
