@@ -258,6 +258,11 @@ MULTI_TURN_MAX_STEPS = 20
 #        (Run 19 NFC 0/200 was format-channel collapse; Run 20
 #        --fc-mode xlam scored 6/200 = 3.0% — still very low, not a
 #        method win, not published ~78.94%).
+# iffc-stop-repeat = IFFC JSON-in-text plus harness force-stop when the
+#        proposed call set repeats after a tool observation (subset of
+#        already-executed calls, or consecutive identical assistant sets).
+#        Baseline iffc is unchanged. Decode/harness lever, not a training
+#        recipe. Unscored until a measured BFCL run.
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
@@ -266,6 +271,7 @@ FC_GST = "gst"
 FC_IFFC_STATE = "iffc-state"
 FC_IFFC_STATE_BON = "iffc-state-bon"
 FC_XLAM = "xlam"
+FC_IFFC_STOP_REPEAT = "iffc-stop-repeat"
 FC_MODES = (
     FC_NFC,
     FC_IFFC,
@@ -274,8 +280,16 @@ FC_MODES = (
     FC_IFFC_STATE,
     FC_IFFC_STATE_BON,
     FC_XLAM,
+    FC_IFFC_STOP_REPEAT,
 )
-FC_JSON_TEXT_MODES = (FC_IFFC, FC_CD, FC_IFFC_STATE, FC_IFFC_STATE_BON, FC_XLAM)
+FC_JSON_TEXT_MODES = (
+    FC_IFFC,
+    FC_CD,
+    FC_IFFC_STATE,
+    FC_IFFC_STATE_BON,
+    FC_XLAM,
+    FC_IFFC_STOP_REPEAT,
+)
 FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON)
 FC_MODE: str = FC_NFC
 
