@@ -49,7 +49,42 @@ uv run python -m sft.mix_stats_v7 --splits sft/data/splits-v7 \
   --mlx-dir sft/data/mlx-v7 --adapter-path sft/adapters-v7-smoke
 ```
 
-Converter (`sft/format_apigen_mt.py`): ShareGPT `human`→user, `function_call`→IFFC JSON, `observation`→`format_iffc_execution_user_message`, `gpt`→assistant **natural language**. **Never** auto-map NL done to `[]`. Unrolled non-tool share is capped at prepare (`sft/cap_nontool_v7.py`, seed 47): keep every `tool_call` row; downsample clarify / final / irrelevance so mlx-v7 `pct_nontool` is in `[0.10, 0.20]` (target ~0.15). Student-aware filter is a stub (`python -m sft.student_filter_v7 --help`). Registry key: `gemma4-e2b-sft-iffc-v7` (GGUF path TBD after fuse).
+Converter (`sft/format_apigen_mt.py`): ShareGPT `human`→user, `function_call`→IFFC JSON, `observation`→`format_iffc_execution_user_message`, `gpt`→assistant **natural language**. **Never** auto-map NL done to `[]`. Unrolled non-tool share is capped at prepare (`sft/cap_nontool_v7.py`, seed 47): keep every `tool_call` row; downsample clarify / final / irrelevance so mlx-v7 `pct_nontool` is in `[0.10, 0.20]` (target ~0.15). Student-aware filter is a stub (`python -m sft.student_filter_v7 --help`). Registry key: `gemma4-e2b-sft-iffc-v7` (GGUF path TBD after fuse). **Run 21 collapsed unfinished** (hit_step_limit / identical-call loops). Do **not** finish-200 or BoN on v7. Do **not** more-epochs that mix.
+
+## SFT v8 (lever 1 — identical-call drop + ~30% non-tool; **unscored**)
+
+New experiment id `sft-v8`. **Do not invent a v8 BFCL number.** Distinct dirs (`splits-v8` / `mlx-v8` / `adapters-v8`), seed **48**, registry `gemma4-e2b-sft-iffc-v8`. Same APIGen-MT conversation mix as v7 (v4 empty/recovery on filler; **no** v5 complete-turn0). Lever 1 vs Run 21 collapse:
+
+1. **Identical-call drop** at unroll: skip gold assistant turns whose parsed IFFC calls equal the previous assistant call (anti observe→re-emit `ls` / VehicleControl loops).
+2. **Non-tool / stop target ~0.30** (mlx cap band `[0.25, 0.35]`, seed 48) after that drop.
+3. **ToolACE-R-lite** conversation filter: drop teacher trajs with ≥3 consecutive identical assistant calls before split; **abort** if APIGen-MT would fall below 50%. No MLX Jaccard drafts.
+
+**Mac calibration gate** (prepare → mix_stats → smoke 100–200 iters). Do **not** full LoRA or BFCL from scaffolding alone.
+
+```bash
+# 0–1) Same Hub Accept + ingest as v7 (reuse formatted JSONL if already on disk)
+huggingface-cli login
+uv run python -m sft.download_datasets --apigen-mt-only
+uv run python -m sft.format_iffc --apigen-mt
+
+# 2) Mix → sft/data/splits-v8/ (seed 48; refuses splits/ and splits-v7)
+uv run python -m sft.build_mix_v8 --out sft/data/splits-v8
+uv run python -m sft.mix_stats_v8 --splits sft/data/splits-v8 --gate
+
+# 3) Unroll (recipe v8: v4 empty/recovery; identical-call drop; ~30% non-tool cap)
+uv run python -m sft.train_mlx --prepare-only --recipe v8 \
+  --splits-dir sft/data/splits-v8 --mlx-dir sft/data/mlx-v8
+uv run python -m sft.mix_stats_v8 --splits sft/data/splits-v8 \
+  --mlx-dir sft/data/mlx-v8 --gate
+
+# 4) Smoke LoRA (100 iters) or 200-iter probe — Mac only; not CI
+./sft/train_mlx.sh --smoke --run --recipe v8 \
+  --mlx-dir sft/data/mlx-v8 --adapter-path sft/adapters-v8-smoke
+./sft/train_mlx.sh --smoke --run --recipe v8 --iters 200 \
+  --mlx-dir sft/data/mlx-v8 --adapter-path sft/adapters-v8-probe
+```
+
+Pass the `--mlx-dir` mix_stats gate before overnight train. Confirm prepare log: `recipe=v8`, `identical-call drop`, `v8 non-tool unroll cap` with `pct_nontool` in `[0.25, 0.35]`, `synthesize_complete_turn0=False`.
 
 **Splits** (by conversation / example id, never by turn): `seed=42`; stratify on `source`, `is_multi_turn`, `n_tools_in_gold` (1 vs ≥2); ~90% train / ~5% val / ~5% corpus_test → about **Train 32.7k / Val 1.8k / Corpus-test 1.8k**.
 
@@ -65,7 +100,8 @@ Converter (`sft/format_apigen_mt.py`): ShareGPT `human`→user, `function_call`�
 - key: `gemma4-e2b-sft-iffc-v4` — SFT v4 (v3 empty-after-exec + drop first-assistant-empty and clarifying `[]`, LoRA best@1600 val 0.196, PR #31). Distinct `api_name` / `slug` so Run 15 does **not** overwrite Runs 12–14. Run 15 scored **30/200 = 15.0%** (scored recovery, still below IFFC/NFC). Run 16 scored **26/200 = 13.0%** under `--fc-mode iffc-state` on the same GGUF (null/negative vs Run 15). Serve with `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v4-best1600-Q4_K_M.gguf` (not `-hf`).
 - key: `gemma4-e2b-sft-iffc-v5` — SFT v5 (PR #35: v4 empty-recovery + turn-0 completeness + env-state consistency; LoRA best@1800 val 0.147). Distinct `api_name` / `slug` so Run 17 does **not** overwrite Runs 12–16. Serve with `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v5-best1800-Q4_K_M.gguf` (not `-hf`). Run 17 scored **23/200 = 11.5%** under `--fc-mode iffc` (**scored regression vs Run 15 15.0%**). **Do not present as a method win.** Do **not** overwrite. **No BoN / no more epochs on this mix.**
 - key: `gemma4-e2b-sft-iffc-v6` — SFT v6 (PR #38: v4 empty/recovery + `drop_state_inconsistent` only; turn-0 rewrites off; LoRA best@1800 val 0.142). Distinct `api_name` / `slug` so Run 18 does **not** overwrite Runs 12–17. Serve with `llama-server -m sft/fused/gemma-4-e2b-it-iffc-v6-best1800-Q4_K_M.gguf` (not `-hf`). Run 18 scored **26/200 = 13.0%** under `--fc-mode iffc` (**scored miss vs Run 15 15.0%**). **Do not present as a method win.** Do **not** overwrite. **No BoN / no more epochs on this mix.**
-- key: `gemma4-e2b-sft-iffc-v7` — SFT v7 (APIGen-MT-5k core; IFFC JSON-in-text). Distinct `api_name` / `slug`. GGUF path **TBD** after fuse — do not invent a best@XXXX file. **Unscored. Do not invent a v7 BFCL number.** Serve later with `llama-server -m <fused-v7.gguf>` (not `-hf`).
+- key: `gemma4-e2b-sft-iffc-v7` — SFT v7 (APIGen-MT-5k core; IFFC JSON-in-text). Distinct `api_name` / `slug`. GGUF path **TBD** after fuse — do not invent a best@XXXX file. **Run 21 collapsed unfinished** (hit_step_limit / identical-call loops). **Do not invent a v7 BFCL number.** Do **not** finish-200 / BoN / more-epochs on v7. Serve later with `llama-server -m <fused-v7.gguf>` (not `-hf`).
+- key: `gemma4-e2b-sft-iffc-v8` — SFT v8 lever 1 (identical-call drop + ~30% non-tool; seed 48). Distinct `api_name` / `slug`. GGUF path **TBD** after Mac smoke+fuse — do not invent a best@XXXX file. **Unscored. Do not invent a v8 BFCL number.** Serve later with `llama-server -m <fused-v8.gguf>` (not `-hf`).
 
 Instruct weights: **`google/gemma-4-e2b-it`** (gated; HuggingFace token required).
 
@@ -234,7 +270,8 @@ Verified data gaps (inspect `sft/format_iffc.py`, not a guessed root cause):
 |---|---|---|
 | *(default)* / `--recipe v5` | **v5** | v4 + underspecified drop + complete-turn0 synth + state-inconsistent drop. **Run 17 scored 11.5%** (regression vs v4). |
 | `--recipe v6` | **v6** | v4 empty/recovery + **only** `drop_state_inconsistent`. Turn-0 rewrites **off**. Distinct from v4. **Run 18 scored 13.0%** (miss vs v4). |
-| `--recipe v7` | **v7** | New mix (APIGen-MT core). v4 empty/recovery on ToolACE/xLAM filler; light empty-after-exec on `apigen_mt`; **no** v5 complete-turn0; then cap non-tool unrolls (~15%). **Unscored.** |
+| `--recipe v7` | **v7** | New mix (APIGen-MT core). v4 empty/recovery on ToolACE/xLAM filler; light empty-after-exec on `apigen_mt`; **no** v5 complete-turn0; then cap non-tool unrolls (~15%). **Run 21 collapsed. Unscored.** |
+| `--recipe v8` | **v8** | Lever 1 on the APIGen-MT mix (seed 48). Same v4 empty/recovery as v7; **no** v5 complete-turn0; drop identical consecutive assistant calls; cap non-tool ~30% (`[0.25, 0.35]`). **Unscored.** |
 | `--recipe v4` | v4 | Empty-target curriculum only (Run 15 mix, 15.0%) |
 | `--keep-underspecified-turn0` **and** `--keep-state-inconsistent` **and** `--no-synthetic-complete-turn0` | v4 | Same as `--recipe v4` |
 | `--keep-underspecified-turn0` **and** `--no-synthetic-complete-turn0` | v6 | Same as `--recipe v6` |
@@ -405,12 +442,16 @@ sft/
 ├── download_datasets.py
 ├── format_iffc.py            # reuses benchmark.iffc
 ├── format_apigen_mt.py       # ShareGPT function_call/observation/gpt → IFFC
-├── filter_empty_after_exec.py  # v5 default; --recipe v7 = APIGen-MT mix unroll
+├── filter_empty_after_exec.py  # v5 default; --recipe v7/v8 = APIGen-MT mix unroll
 ├── curriculum_v5.py            # turn-0 completeness + env-state detectors (v6 reuses state drop)
-├── cap_nontool_v7.py         # v7: downsample non-tool unrolls to ~15% (mlx-v7)
+├── drop_identical_call.py    # v8: drop gold turns identical to previous assistant call
+├── cap_nontool_v7.py         # v7/v8: downsample non-tool unrolls (v7 ~15%, v8 ~30%)
 ├── mix_stats_v7.py           # v7 taxonomy / source / empty-after-exec CLI
+├── mix_stats_v8.py           # v8 taxonomy + identical-call + ~30% non-tool gate
 ├── build_mix_v7.py           # assemble splits-v7 (seed 47; NC license in MANIFEST)
+├── build_mix_v8.py           # assemble splits-v8 (seed 48; loop filter + APIGen floor)
 ├── student_filter_v7.py      # Phase 3 stub (MLX Jaccard loop not in this PR)
+├── student_filter_v8.py      # ToolACE-R-lite: drop teacher identical-call loop trajs
 ├── split_data.py
 ├── train_mlx.py              # unroll + filter + mlx_lm.lora wrapper
 ├── train_mlx.sh
@@ -420,8 +461,10 @@ sft/
     ├── formatted/
     ├── splits/               # v1 train.jsonl, valid.jsonl, corpus_test.jsonl, MANIFEST.json
     ├── splits-v7/            # v7 mix (do not overwrite splits/)
+    ├── splits-v8/            # v8 mix (do not overwrite splits/ or splits-v7)
     ├── mlx/                  # unrolled train/valid for mlx_lm.lora
-    └── mlx-v7/
+    ├── mlx-v7/
+    └── mlx-v8/
 ```
 
 ## Tests

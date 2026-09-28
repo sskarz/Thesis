@@ -219,6 +219,43 @@ def test_sft_iffc_v7_model_is_distinct_from_prior_sft_keys_and_base():
         config.select_model(previous)
 
 
+def test_sft_iffc_v8_model_is_distinct_from_prior_sft_keys_and_base():
+    key = "gemma4-e2b-sft-iffc-v8"
+    assert key in config.MODELS
+
+    v8 = config.MODELS[key]
+    v7 = config.MODELS["gemma4-e2b-sft-iffc-v7"]
+    v6 = config.MODELS["gemma4-e2b-sft-iffc-v6"]
+    v4 = config.MODELS["gemma4-e2b-sft-iffc-v4"]
+    v1 = config.MODELS["gemma4-e2b-sft-iffc"]
+    base = config.MODELS["gemma4-e2b"]
+    assert v8["api_name"] == "gemma4-e2b-sft-iffc-v8"
+    assert v8["display"] == "Gemma-4-E2B-it SFT-IFFC-v8 (Q4_K_M)"
+    assert v8["slug"] == "Gemma-4-E2B-it-SFT-IFFC-v8-Q4_K_M"
+    assert v8["gguf_path"] == ""
+    assert v8["api_name"] != v7["api_name"]
+    assert v8["slug"] != v7["slug"]
+    assert v8["display"] != v7["display"]
+    assert v8["api_name"] != v6["api_name"]
+    assert v8["slug"] != v4["slug"]
+    assert v8["api_name"] != v1["api_name"]
+    assert v8["api_name"] != base["api_name"]
+    assert v8["slug"] != base["slug"]
+
+    previous = config.DEFAULT_MODEL
+    try:
+        config.select_model(key)
+        assert config.MODEL_NAME == "gemma4-e2b-sft-iffc-v8"
+        assert config.MODEL_DISPLAY == "Gemma-4-E2B-it SFT-IFFC-v8 (Q4_K_M)"
+        assert config.MODEL_SLUG == "Gemma-4-E2B-it-SFT-IFFC-v8-Q4_K_M"
+        assert config.MODEL_RESULTS_DIR == config.RESULTS_DIR / v8["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v7["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / v1["slug"]
+        assert config.MODEL_RESULTS_DIR != config.RESULTS_DIR / base["slug"]
+    finally:
+        config.select_model(previous)
+
+
 def test_xlam_1b_model_is_distinct_from_other_registry_keys():
     key = "xlam-1b"
     assert key in config.MODELS

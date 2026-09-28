@@ -175,6 +175,11 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-t
 # Run 20 already scored xLAM-1b --fc-mode xlam: 6/200 = 3.0% — format-fixed
 # fair channel (tools actually ran; still very low; not a method win;
 # not published ~78.94%; still below CD 10.5%); do not overwrite.
+# Run 21 SFT-IFFC-v7 IFFC collapsed unfinished (12/200, score null;
+# hit_step_limit 9/12, iffc_unparseable 4/12; identical-call loops).
+# Do not finish-200 / BoN / more-epochs on v7. Do not overwrite Run 21.
+# Next scaffolding: SFT v8 lever 1 (seed 48, ~30% non-tool, identical-call
+# drop). Mac: prepare → mix_stats_v8 --gate → smoke 100–200 iters. Unscored.
 # uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v4 --only-multi-turn \
 # --categories multi_turn_base --fc-mode iffc
 # xLAM-1b-fc-r (PLAN Tier 1 §3): registry key `xlam-1b` exists ([PR #41](https://github.com/sskarz/Thesis/pull/41));

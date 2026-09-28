@@ -18,6 +18,7 @@ from sft.filter_empty_after_exec import (
     RECIPE_V5,
     RECIPE_V6,
     RECIPE_V7,
+    RECIPE_V8,
     classify_assistant_turn,
     flags_for_recipe,
     infer_recipe,
@@ -627,7 +628,9 @@ def test_recipe_flags_v1_v2_v3_v4_v5_v6():
     assert resolve_recipe(recipe=RECIPE_V4) == RECIPE_V4
     assert resolve_recipe(recipe=RECIPE_V6) == RECIPE_V6
     assert resolve_recipe(recipe=RECIPE_V7) == RECIPE_V7
+    assert resolve_recipe(recipe=RECIPE_V8) == RECIPE_V8
     assert recipe_drop_flags(RECIPE_V7) == (True, True)
+    assert recipe_drop_flags(RECIPE_V8) == (True, True)
     assert recipe_drop_flags(RECIPE_V6) == (True, True)
     assert recipe_drop_flags(RECIPE_V5) == (True, True)
     assert recipe_drop_flags(RECIPE_V4) == (True, True)
@@ -636,6 +639,7 @@ def test_recipe_flags_v1_v2_v3_v4_v5_v6():
     assert recipe_drop_flags(RECIPE_V1) == (False, False)
     assert recipe_v4_drop_flags(RECIPE_V6) == (True, True)
     assert recipe_v4_drop_flags(RECIPE_V7) == (True, True)
+    assert recipe_v4_drop_flags(RECIPE_V8) == (True, True)
     assert recipe_v4_drop_flags(RECIPE_V5) == (True, True)
     assert recipe_v4_drop_flags(RECIPE_V4) == (True, True)
     assert recipe_v4_drop_flags(RECIPE_V3) == (False, False)
@@ -643,9 +647,11 @@ def test_recipe_flags_v1_v2_v3_v4_v5_v6():
     assert recipe_v5_flags(RECIPE_V5) == (True, True, True, True)
     assert recipe_v5_flags(RECIPE_V6) == (False, True, False, False)
     assert recipe_v5_flags(RECIPE_V7) == (False, False, False, False)
+    assert recipe_v5_flags(RECIPE_V8) == (False, False, False, False)
     assert recipe_v5_flags(RECIPE_V4) == (False, False, False, False)
     assert recipe_v5_flags(RECIPE_V6) != recipe_v5_flags(RECIPE_V4)
     assert recipe_v5_flags(RECIPE_V7) == recipe_v5_flags(RECIPE_V4)
+    assert recipe_v5_flags(RECIPE_V8) == recipe_v5_flags(RECIPE_V4)
     assert infer_recipe(
         drop_nonterminal_empty_after_exec=True,
         drop_terminal_empty_after_exec=True,

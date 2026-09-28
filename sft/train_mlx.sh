@@ -5,13 +5,16 @@
 #   ./sft/train_mlx.sh --full     # default full iters
 #   ./sft/train_mlx.sh --full --run
 #   ./sft/train_mlx.sh --smoke --run --recipe v7
+#   ./sft/train_mlx.sh --smoke --run --recipe v8
 #
 # Does not download data. Run download → format → split first (see README.md).
 # Unroll applies the SFT v5 curriculum (v4 empty-after-exec + recovery +
 # first-assistant / clarifying empty drops, plus turn-0 completeness and
-# env-state consistency) unless --recipe v7/v6/v4/v3/v2/v1 or keep-flags are
+# env-state consistency) unless --recipe v8/v7/v6/v4/v3/v2/v1 or keep-flags are
 # passed through EXTRA. v6 = v4 empty/recovery + drop_state_inconsistent only.
 # v7 = APIGen-MT mix (defaults splits-v7 / mlx-v7 / adapters-v7).
+# v8 = lever 1 (defaults splits-v8 / mlx-v8 / adapters-v8; identical-call drop;
+#      non-tool ~30%). Smoke is 100 iters; pass --iters 200 for a longer probe.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -42,6 +45,8 @@ done
 SPLITS_FILE="sft/data/splits/train.jsonl"
 if [[ "$RECIPE" == "v7" ]]; then
   SPLITS_FILE="sft/data/splits-v7/train.jsonl"
+elif [[ "$RECIPE" == "v8" ]]; then
+  SPLITS_FILE="sft/data/splits-v8/train.jsonl"
 fi
 
 if [[ ! -f "$SPLITS_FILE" ]]; then
@@ -51,6 +56,11 @@ if [[ ! -f "$SPLITS_FILE" ]]; then
     echo "     uv run python -m sft.download_datasets --apigen-mt-only" >&2
     echo "     uv run python -m sft.format_iffc --apigen-mt" >&2
     echo "     uv run python -m sft.build_mix_v7 --out sft/data/splits-v7" >&2
+  elif [[ "$RECIPE" == "v8" ]]; then
+    echo "Run: huggingface-cli login && accept Salesforce/APIGen-MT-5k (CC-BY-NC)" >&2
+    echo "     uv run python -m sft.download_datasets --apigen-mt-only" >&2
+    echo "     uv run python -m sft.format_iffc --apigen-mt" >&2
+    echo "     uv run python -m sft.build_mix_v8 --out sft/data/splits-v8" >&2
   else
     echo "Run: uv run python -m sft.download_datasets && uv run python -m sft.format_iffc && uv run python -m sft.split_data" >&2
   fi

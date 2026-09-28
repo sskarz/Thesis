@@ -962,19 +962,26 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **Lit review:** [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md) (12-source synthesis for v7 planning; vault owns the deep note — may land in a parallel vault PR before it is on `main`). Do **not** paste the full review here.
 
-**Next intended method — SFT v7 (planned, not scored; do not invent results):**
+**Next intended method — SFT v8 lever 1 (scaffolding, not scored; do not invent results):**
 
-1. MT-native verified trajs core (**≥50%**) — APIGen-MT-5k → IFFC JSON-in-text, assistant-only loss
-2. Rebalance stop taxonomy — tool / clarify / final / irrelevance `[]` at **~12–15%** non-tool
-3. Student-aware mid-difficulty filter (ToolACE-R-lite)
-4. Optional post-SFT: Hammer masking + RPO/mDPO **only after** a healthy (non-collapsed, not below-IFFC) SFT
+Run 21 (v7 IFFC) collapsed unfinished (12/200, score null; `hit_step_limit` / identical-call loops). Do **not** finish-200 or BoN on v7; do **not** more-epochs that mix.
+
+v8 keeps the APIGen-MT conversation core (**≥50%**) and v4 empty/recovery (no v5 complete-turn0), then:
+
+1. Drop gold assistant turns identical to the previous assistant **call** (anti observe→re-emit)
+2. Raise mlx non-tool / stop target to **~0.30** (band `[0.25, 0.35]`, seed **48**)
+3. ToolACE-R-lite: drop teacher loop trajs (≥3 consecutive identical calls) before unroll; abort if APIGen floor would be violated
+
+Mac gate: `build_mix_v8` → `mix_stats_v8 --gate` → prepare `--recipe v8` → `mix_stats_v8 --mlx-dir … --gate` → smoke 100–200 iters. Registry `gemma4-e2b-sft-iffc-v8`. See `sft/README.md`. **Do not invent a v8 score.**
+
+v7 (APIGen-MT ≥50% + ~15% non-tool) remains the prior unscored mix that Run 21 collapsed on. Optional post-SFT Hammer/RPO only after a healthy SFT. Optional Data Turnstile / Critical-State RL unchanged (both unscored).
 
 **Related options (logged 2026-09-24, both unscored; do not invent scores):**
 
 - **Data Turnstile** ([§24](#24-data-turnstile-open-function-calling-data-generation)) — optional **open** data-gen complement to Hub-gated APIGen-MT for v7+ mixes (API specs → DAG-role multi-turn FC SFT). Paper BFCL is **single-turn**; τ² Telecom ≠ our `multi_turn_base`.
 - **Critical-State RL** ([§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls)) — optional **post-healthy-SFT** occurrence-local RL (nested sampling on the trainable turn). Distinct from blanket GRPO. **Do not** unlock GRPO as the main path.
 
-Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
+Planning with Sanskar next. v8 scaffolding (unscored): `sft/drop_identical_call.py`, `sft/build_mix_v8.py`, `sft/mix_stats_v8.py`, `sft/student_filter_v8.py`, registry key `gemma4-e2b-sft-iffc-v8`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes (including v7). No finish-200 on Run 21.
 
 **v1 (Run 12):** Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`.
 

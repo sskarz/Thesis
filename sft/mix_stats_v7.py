@@ -25,7 +25,11 @@ from typing import Any, Iterable
 
 from benchmark.iffc import parse_iffc_response
 
-from sft.cap_nontool_v7 import cap_nontool_unrolls, format_cap_report
+from sft.cap_nontool_v7 import (
+    cap_kwargs_for_recipe,
+    cap_nontool_unrolls,
+    format_cap_report,
+)
 from sft.config import (
     SOURCE_APIGEN_MT,
     SPLITS_DIR_V7,
@@ -34,8 +38,13 @@ from sft.config import (
     V7_NONTOOL_MAX,
     V7_NONTOOL_MIN,
 )
+from sft.drop_identical_call import (
+    drop_identical_call_unrolls,
+    format_identical_call_report,
+)
 from sft.filter_empty_after_exec import (
     RECIPE_V7,
+    RECIPE_V8,
     classify_assistant_turn,
     flags_for_recipe,
     is_first_assistant_empty_target,
@@ -150,27 +159,50 @@ def collect_stats(
     unrolled: list[dict] | None = None,
     unroll_recipe: str = RECIPE_V7,
     cap_nontool: bool | None = None,
+    drop_identical: bool | None = None,
+    cap_kwargs: dict[str, Any] | None = None,
+    nontool_min: float | None = None,
+    nontool_max: float | None = None,
+    min_apigen_frac: float | None = None,
+    abort_irrelevance_frac: float | None = None,
 ) -> dict[str, Any]:
     """Conversation stats plus unrolled assistant-target stats.
 
-    When ``unrolled`` is omitted and ``unroll_recipe`` is v7, the same
-    ``sft.cap_nontool_v7`` downsample the trainer applies is used so the
-    report matches mlx-v7. Pass ``unrolled=`` from ``--mlx-dir`` (already
-    capped by prepare) and leave ``cap_nontool`` off so we do not cap twice.
+    When ``unrolled`` is omitted and ``unroll_recipe`` is v7/v8, the same
+    downsample the trainer applies is used so the report matches mlx-v7 /
+    mlx-v8. v8 also applies the identical-call drop **before** the cap.
+    Pass ``unrolled=`` from ``--mlx-dir`` (already post-processed by prepare)
+    and leave ``cap_nontool`` / ``drop_identical`` off so we do not apply twice.
     """
     conv = scan_conversations(conversations)
     rows = unrolled
     from_mlx = unrolled is not None
     cap_stats: dict[str, Any] | None = None
+    idrop_stats: dict[str, Any] | None = None
     apply_cap = cap_nontool
     if apply_cap is None:
-        apply_cap = unroll_recipe == RECIPE_V7 and not from_mlx
+        apply_cap = unroll_recipe in {RECIPE_V7, RECIPE_V8} and not from_mlx
+    apply_idrop = drop_identical
+    if apply_idrop is None:
+        apply_idrop = unroll_recipe == RECIPE_V8 and not from_mlx
+    if cap_kwargs is None and apply_cap:
+        cap_kwargs = cap_kwargs_for_recipe(unroll_recipe)
+    if nontool_min is None:
+        nontool_min = float((cap_kwargs or {}).get("min_frac", V7_NONTOOL_MIN))
+    if nontool_max is None:
+        nontool_max = float((cap_kwargs or {}).get("max_frac", V7_NONTOOL_MAX))
+    if min_apigen_frac is None:
+        min_apigen_frac = V7_MIN_APIGEN_FRAC
+    if abort_irrelevance_frac is None:
+        abort_irrelevance_frac = V7_ABORT_IRRELEVANCE_FRAC
     if rows is None:
         rows, _stats = unroll_and_filter(
             conversations, check_bfcl_leak=False, **flags_for_recipe(unroll_recipe)
         )
+    if apply_idrop:
+        rows, idrop_stats = drop_identical_call_unrolls(rows)
     if apply_cap:
-        rows, cap_stats = cap_nontool_unrolls(rows)
+        rows, cap_stats = cap_nontool_unrolls(rows, **(cap_kwargs or {}))
     unr = scan_unrolled(rows)
     return {
         "conversations": conv,
@@ -179,6 +211,11 @@ def collect_stats(
         "unroll_capped": bool(apply_cap or from_mlx),
         "unroll_from_mlx": from_mlx,
         "nontool_cap": cap_stats,
+        "identical_call_drop": idrop_stats,
+        "nontool_min": nontool_min,
+        "nontool_max": nontool_max,
+        "min_apigen_frac": min_apigen_frac,
+        "abort_irrelevance_frac": abort_irrelevance_frac,
     }
 
 
@@ -187,37 +224,40 @@ def gate_reasons(
     *,
     require_unrolled_nontool: bool = False,
 ) -> list[str]:
-    """Hard mix constraints from the v7 plan. Empty list = pass.
+    """Hard mix constraints from the v7/v8 plan. Empty list = pass.
 
     Conversation-level (``--splits`` without ``--mlx-dir``): ``pct_apigen_mt``,
     conversation irrelevance share, and (if unrolled stats are present)
     empty-after-exec / unrolled irrelevance. Does **not** require unrolled
-    ``pct_nontool`` in ``[0.1, 0.2]`` unless ``require_unrolled_nontool``
+    ``pct_nontool`` in the recipe band unless ``require_unrolled_nontool``
     (``--mlx-dir`` after prepare, which must already be capped).
     """
     reasons: list[str] = []
     conv = stats.get("conversations") or {}
     unr = stats.get("unrolled") or {}
+    min_apigen = float(stats.get("min_apigen_frac") or V7_MIN_APIGEN_FRAC)
+    abort_irr = float(stats.get("abort_irrelevance_frac") or V7_ABORT_IRRELEVANCE_FRAC)
+    nontool_min = float(stats.get("nontool_min") or V7_NONTOOL_MIN)
+    nontool_max = float(stats.get("nontool_max") or V7_NONTOOL_MAX)
     pct_apigen = float(conv.get("pct_apigen_mt") or 0.0)
-    if pct_apigen < V7_MIN_APIGEN_FRAC:
+    if pct_apigen < min_apigen:
         reasons.append(
-            f"pct_apigen_mt={pct_apigen:.3f} < {V7_MIN_APIGEN_FRAC} (conversation)"
+            f"pct_apigen_mt={pct_apigen:.3f} < {min_apigen} (conversation)"
         )
     n_conv = int(conv.get("n") or 0)
     n_irr_conv = int((conv.get("stop_label") or {}).get(STOP_IRRELEVANCE, 0))
     irr_conv = _pct(n_irr_conv, n_conv)
-    if irr_conv > V7_ABORT_IRRELEVANCE_FRAC:
+    if irr_conv > abort_irr:
         reasons.append(
-            f"conversation irrelevance_[] share={irr_conv:.3f} > "
-            f"{V7_ABORT_IRRELEVANCE_FRAC}"
+            f"conversation irrelevance_[] share={irr_conv:.3f} > {abort_irr}"
         )
     if unr:
         n_unr = int(unr.get("n") or 0)
         n_irr = int((unr.get("stop_label") or {}).get(STOP_IRRELEVANCE, 0))
         irr_share = _pct(n_irr, n_unr)
-        if irr_share > V7_ABORT_IRRELEVANCE_FRAC:
+        if irr_share > abort_irr:
             reasons.append(
-                f"irrelevance_[] row share={irr_share:.3f} > {V7_ABORT_IRRELEVANCE_FRAC}"
+                f"irrelevance_[] row share={irr_share:.3f} > {abort_irr}"
             )
         empty_after = int(unr.get("empty_after_exec") or 0)
         if empty_after > 0:
@@ -226,10 +266,10 @@ def gate_reasons(
             )
         if require_unrolled_nontool:
             pct_nontool = float(unr.get("pct_nontool") or 0.0)
-            if not (V7_NONTOOL_MIN <= pct_nontool <= V7_NONTOOL_MAX):
+            if not (nontool_min <= pct_nontool <= nontool_max):
                 reasons.append(
                     f"pct_nontool={pct_nontool:.3f} outside "
-                    f"[{V7_NONTOOL_MIN}, {V7_NONTOOL_MAX}] "
+                    f"[{nontool_min}, {nontool_max}] "
                     "(unrolled assistant targets; run prepare cap)"
                 )
     return reasons
@@ -243,14 +283,18 @@ def format_report(
     conv = stats["conversations"]
     unr = stats["unrolled"]
     cap = stats.get("nontool_cap")
+    idrop = stats.get("identical_call_drop")
+    recipe = stats.get("recipe") or RECIPE_V7
+    experiment = "sft-v8" if recipe == RECIPE_V8 else "sft-v7"
+    mlx_label = "mlx-v8" if recipe == RECIPE_V8 else "mlx-v7"
     if stats.get("unroll_from_mlx"):
-        unroll_note = "from --mlx-dir (prepare must already have capped)"
-    elif cap:
-        unroll_note = "projected capped unroll (same as trainer mlx-v7)"
+        unroll_note = f"from --mlx-dir (prepare must already have post-processed {mlx_label})"
+    elif cap or idrop:
+        unroll_note = f"projected post-process unroll (same as trainer {mlx_label})"
     else:
         unroll_note = "uncapped unroll"
     lines = [
-        f"sft-v7 mix stats (recipe={stats.get('recipe')})",
+        f"{experiment} mix stats (recipe={recipe})",
         "conversations:",
         f"  n={conv['n']}  pct_apigen_mt={conv['pct_apigen_mt']:.4f}  "
         f"mean_assistant_turns={conv['mean_assistant_turns']:.3f}  "
@@ -265,6 +309,8 @@ def format_report(
         f"  by_source={unr['by_source']}",
         f"  stop_label={unr['stop_label']}  pct={unr['stop_label_pct']}",
     ]
+    if idrop:
+        lines.append(format_identical_call_report(idrop))
     if cap:
         lines.append(format_cap_report(cap))
     reasons = gate_reasons(stats, require_unrolled_nontool=require_unrolled_nontool)
