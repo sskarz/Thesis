@@ -29,8 +29,9 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)](#experiment-iffc-stop-on-repeat---fc-mode-iffc-stop-repeat) (Run 27 ungated miss 27.0%; Run 30 tighten **32.5%** scored win vs IFFC on BASE)
 - [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
 - [Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)](#experiment-mlx-sft-v1-gemma-4-e2b-iffc-mix)
+- [SFT v9.2 smoke-gate FAIL (Run 36; HOLD / park)](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold) (plain-IFFC 10-ID; **not** a `multi_turn_base` %; quota remix **HOLD**)
 - [Prioritized Recommendations](#prioritized-recommendations)
-- [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; tightened stop-repeat **PASSES** Run 30 32.5%; ranked next SFT is a **later** path, not the next immediate pivot)
+- [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; tightened stop-repeat **PASSES** Run 30 32.5%; SFT v9.2 10-ID **FAIL** → park; next after advisor = Stage B pref pairs, not another quota remix)
 - [References](#references)
 
 ---
@@ -977,7 +978,7 @@ Stop flags: **3/200**, **all FAIL** (0 stopped and correct): `stop_on_repeat_obs
 
 Avg `api_calls`: Run 5 **8.28** / Run 27 **7.92** / Run 30 **8.30**; avg turns **3.67** all three.
 
-**Not** smoke81 / v7 / v8 / v9 SFT / BoN. Do **not** pivot to SFT v9 ([PR #57](https://github.com/sskarz/Thesis/pull/57) stays draft/parked). **No BoN, no train, no v7 resume** as the reaction to this result. Pre-gates (Thesis Bot; do not invent): A/B PASS — smoke81 Run 28 avg_api 7.8; base10 VC Run 29 soft healthy.
+**Not** smoke81 / v7 / v8 / v9 SFT / BoN. SFT v9.2 10-ID smoke-gate **FAILed** (Run 36 avg `api_calls` **25.7**, `hit_step_limit` **6/10**) — **HOLD / park**; **not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. Do **not** merge [PR #57](https://github.com/sskarz/Thesis/pull/57) (stays draft @`cde93a3`). **No BoN, no v7 resume, no full LoRA on failed mixes** as the reaction. Pre-gates (Thesis Bot; do not invent): A/B PASS — smoke81 Run 28 avg_api 7.8; base10 VC Run 29 soft healthy.
 
 ### Failure modes
 
@@ -1001,7 +1002,7 @@ Run 30 examples: fail VC state `multi_turn_base_52`, `_58`, `_63`, `_64`, `_65`;
 
 Best inference remains BoN **36.5%** (base Gemma). Best IFFC remains Run 5 **30.5%** (baseline). Tightened stop-repeat Run 30 **32.5%** is a **scored win vs that IFFC baseline**, still **below STATE 34.0% and BoN 36.5%**. Best SFT remains v4 IFFC **15.0%**. Details: `THESIS.md`. Do **not** overwrite Run 27 or Run 30. Do **not** make ungated `iffc-stop-repeat` the default on base.
 
-**GAR framing (lit, not a new score):** Zhao et al., *Calibration is the Bottleneck*, [arXiv:2609.00949](https://arxiv.org/abs/2609.00949) (2026) — Acc ≤ GAR; SRI/CRI-like decode can **hurt Acc**. Ungated force-stop cut Acc **30.5% → 27.0%** (VehicleControl **22→33**). **Gated recover:** tighten MIN=6 recovered past IFFC (**27.0% → 32.5%**; VehicleControl **33→22**, back to Run 5). Evidence writeup: [PR #55](https://github.com/sskarz/Thesis/pull/55) (Run 27 miss) + this Run 30 add. **Tightened stop-repeat PASSES** (Run 30 **32.5%**). Ranked next SFT is a **later** path, not the next immediate pivot: [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28). Do **not** invent tok/s. Do **not** invent a new paper score.
+**GAR framing (lit, not a new score):** Zhao et al., *Calibration is the Bottleneck*, [arXiv:2609.00949](https://arxiv.org/abs/2609.00949) (2026) — Acc ≤ GAR; SRI/CRI-like decode can **hurt Acc**. Ungated force-stop cut Acc **30.5% → 27.0%** (VehicleControl **22→33**). **Gated recover:** tighten MIN=6 recovered past IFFC (**27.0% → 32.5%**; VehicleControl **33→22**, back to Run 5). Evidence writeup: [PR #55](https://github.com/sskarz/Thesis/pull/55) (Run 27 miss) + this Run 30 add. **Tightened stop-repeat PASSES** (Run 30 **32.5%**). **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg **25.7**, hit **6/10**) → [HOLD / park](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). Next after advisor: Stage B pref pairs, **not** another quota remix. Do **not** invent tok/s. Do **not** invent a v9 BFCL %.
 
 ### How to run
 
@@ -1115,7 +1116,7 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **Lit review:** [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md) (12-source synthesis for v7 planning; vault owns the deep note — may land in a parallel vault PR before it is on `main`). Do **not** paste the full review here.
 
-**Tightened stop-repeat PASSES** (Run 30 **65/200 = 32.5%** vs IFFC **30.5%**). Ranked next SFT is a **later** path, not the next immediate pivot: [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (not a new score; paper BFCL % ≠ our harness). Do **not** pivot to SFT v9 ([PR #57](https://github.com/sskarz/Thesis/pull/57) stays draft/parked). **No BoN, no train, no v7 resume** as the reaction to Run 30.
+**Tightened stop-repeat PASSES** (Run 30 **65/200 = 32.5%** vs IFFC **30.5%**). SFT v9.2 10-ID smoke-gate **FAIL** (Run 36) → **HOLD / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). Codex **`HOLD_sft_quota_remix`**. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 BFCL %.** Paper BFCL % ≠ our harness.
 
 **Next intended method — SFT v7 (planned, not scored; do not invent results):**
 
@@ -1153,7 +1154,7 @@ Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `
 
 **v5 mix (Run 17, scored regression vs v4):** Mac `benchmark.db` `run_id=17`: **23/200 = 11.5%**. `model_display` Gemma-4-E2B-it SFT-IFFC-v5 (Q4_K_M); `model_key` `gemma4-e2b-sft-iffc-v5`; fused GGUF `sft/fused/gemma-4-e2b-it-iffc-v5-best1800-Q4_K_M.gguf`; LoRA best@1800 (`val=0.147`); `--fc-mode iffc`. Recipe ([PR #35](https://github.com/sskarz/Thesis/pull/35)): keep v4 empty-drops + recovery-after-`[]`; drop underspecified turn-0; synthetic complete first-episode; drop state-inconsistent continue-after-exec. Train ~29850 after prepare. Started `2026-09-21T23:00:31Z`; **`finished_at` NULL**; **`inference_metrics=0`** (do not invent tok/s). 200 responses, 177 `eval_errors`, 200 `multi_turn_timings`. Deltas: **−3.5 pp / −7 vs Run 15**; **−1.5 pp vs Run 16**; **−15.5 pp vs NFC**; **−19.0 pp vs IFFC**; **−25.0 pp vs BoN**. Overlap vs Run 15: both 18, only17 5 (`_12,_21,_42,_161,_169`), lost 12 (`_105,_106,_114,_116,_129,_135,_136,_142,_156,_159,_190,_191`). Primary buckets: empty_turn **0** (0%), state_mismatch **133** (~75%; Travel 32 / TradingBot 30 / VehicleControl 28 / GFS 23 / Twitter 8 / Message 8 / Ticket 4), under_call **44** (~25%; turn0=27). Sum `predicted_ms` ≈ 51.9 gen-min; avg turns 3.67; avg `api_calls` 40.27. Empty-`[]` fully suppressed; residual is state/under-call. Lost corrects heavily TradingBot. Hypothesis: **synthetic complete turn-0** taught parallel call dumps that desync observe→act APIs; underspecified-turn0 drop helped only modestly; **state-inconsistent drop is the one keep.** **Do not present 11.5% as a method win.** **No BoN on this ckpt; no more epochs on the v5 mix.** Code: `sft/curriculum_v5.py`, `sft/filter_empty_after_exec.py`. See `sft/README.md`.
 
-**v6 mix (Run 18, scored miss vs v4):** Mac `benchmark.db` `run_id=18`: **26/200 = 13.0%**. `model_display` Gemma-4-E2B-it SFT-IFFC-v6 (Q4_K_M); `model_key` `gemma4-e2b-sft-iffc-v6`; fused GGUF `sft/fused/gemma-4-e2b-it-iffc-v6-best1800-Q4_K_M.gguf`; LoRA best@1800 (`val=0.142`, `adapters-v6-recovery`); `--fc-mode iffc`. Recipe ([PR #38](https://github.com/sskarz/Thesis/pull/38)): v4 empty/recovery + only `drop_state_inconsistent`; turn-0 underspec drop and synthetic complete turn-0 **off**. Model key [PR #39](https://github.com/sskarz/Thesis/pull/39). Started `2026-09-22T12:50:47Z`, finished `2026-09-22T14:01:37Z` (~**70.8 min** wall). 200 responses, 174 `eval_errors`, 200 `multi_turn_timings`; inference_metrics present (gen_tps_mean ≈ **103.1**; prompt_tps_mean ≈ 741.4; peak_rss ≈ 9170 MB). Deltas: **−2.0 pp / −4 vs Run 15**; **+1.5 pp / +3 vs Run 17**; **0.0 pp vs Run 16**; **−14.0 pp vs NFC**; **−17.5 pp vs IFFC**; **−23.5 pp vs BoN**. Overlap vs Run 15: both 18, only18 8 (`_42,_47,_102,_144,_161,_169,_186,_192`), lost 12 (`_52,_64,_78,_105,_106,_107,_109,_114,_129,_136,_159,_166` — mostly TradingBot/VehicleControl state_mismatch; turn-0 under_call `_105,_114,_159,_166`). Overlap vs Run 17: both 15, only18 11, only17 8. Primary buckets: empty_turn **1** (`_43` turn 2), state_mismatch **118** (~68%; VehicleControl 31 / TradingBot 26 / GFS 22 / Travel 19 / Twitter 10 / Ticket 5 / Message 5), under_call **55** (~32%; turn0=38). Avg turns 3.67; avg `api_calls` **13.34** (vs Run 15 17.3, Run 17 40.3). **Do not present 13.0% as a method win.** **No BoN on this ckpt; no more epochs on the v6 mix.** Thin filter ablation on the same family is likely exhausted. Code: `sft/filter_empty_after_exec.py` (`RECIPE_V6` / `recipe_v5_flags`). See `sft/README.md`.
+**v6 mix (Run 18, scored miss vs v4):** Mac `benchmark.db` `run_id=18`: **26/200 = 13.0%**. `model_display` Gemma-4-E2B-it SFT-IFFC-v6 (Q4_K_M); `model_key` `gemma4-e2b-sft-iffc-v6`; fused GGUF `sft/fused/gemma-4-e2b-it-iffc-v6-best1800-Q4_K_M.gguf`; LoRA best@1800 (`val=0.142`, `adapters-v6-recovery`); `--fc-mode iffc`. Recipe ([PR #38](https://github.com/sskarz/Thesis/pull/38)): v4 empty/recovery + only `drop_state_inconsistent`; turn-0 underspec drop and synthetic complete turn-0 **off**. Model key [PR #39](https://github.com/sskarz/Thesis/pull/39). Started `2026-09-22T12:50:47Z`, finished `2026-09-22T14:01:37Z` (~**70.8 min** wall). 200 responses, 174 `eval_errors`, 200 `multi_turn_timings`; inference_metrics present (gen_tps_mean ≈ **103.1**; prompt_tps_mean ≈ 741.4; peak_rss ≈ 9170 MB). Deltas: **−2.0 pp / −4 vs Run 15**; **+1.5 pp / +3 vs Run 17**; **0.0 pp vs Run 16**; **−14.0 pp vs NFC**; **−17.5 pp vs IFFC**; **−23.5 pp vs BoN**. Overlap vs Run 15: both 18, only18 8 (`_42,_47,_102,_144,_161,_169,_186,_192`), lost 12 (`_52,_64,_78,_105,_106,_107,_109,_114,_129,_136,_159,_166` — mostly TradingBot/VehicleControl state_mismatch; turn-0 under_call `_105,_114,_159,_166`). Overlap vs Run 17: both 15, only18 11, only17 8. Primary buckets: empty_turn **1** (`_43` turn 2), state_mismatch **118** (~68%; VehicleControl 31 / TradingBot 26 / GFS 22 / Travel 19 / Twitter 10 / Ticket 5 / Message 5), under_call **55** (~32%; turn0=38). Avg turns 3.67; avg `api_calls` **13.34** (vs Run 15 17.3, Run 17 40.3). **Do not present 13.0% as a method win.** **No BoN on this ckpt; no more epochs on the v6 mix.** Thin filter ablation on the same family is likely exhausted. Code: `sft/filter_empty_after_exec.py` (`RECIPE_V6` / `recipe_v5_flags`). See `sft/README.md`. SFT v9.2 10-ID smoke-gate is a **FAIL → HOLD** (Run 36; **not** a v6 follow-on `multi_turn_base` score) — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold).
 
 **Chat format:** the same JSON-in-text IFFC shape as `--fc-mode iffc` (`benchmark/iffc.py` Appendix B). Assistant turns are a JSON list of `{"function_name", "parameters"}` (or `[]`). Tool/observation turns are user-role execution messages. Native `tool_calls` are **not** mixed into this adapter dataset.
 
@@ -1243,13 +1244,38 @@ Mac `run_id=17`, `--model gemma4-e2b-sft-iffc-v5 --fc-mode iffc`. Recipe is [PR 
 
 Mac `run_id=18`, `--model gemma4-e2b-sft-iffc-v6 --fc-mode iffc`. Recipe is [PR #38](https://github.com/sskarz/Thesis/pull/38) v6 unroll (v4 empty/recovery + only `drop_state_inconsistent`; turn-0 underspec/synth **off**); LoRA best@1800 `val=0.142`; fused `sft/fused/gemma-4-e2b-it-iffc-v6-best1800-Q4_K_M.gguf`; model key [PR #39](https://github.com/sskarz/Thesis/pull/39). **26/200 = 13.0%** (−4 / −2.0 pp vs Run 15; +3 / +1.5 pp vs Run 17). Empty_turn **1** (`_43` turn 2) / state_mismatch **118** / under_call **55** (turn0=38). Overlap vs Run 15: both 18 / only18 8 (`_42,_47,_102,_144,_161,_169,_186,_192`) / lost 12 (`_52,_64,_78,_105,_106,_107,_109,_114,_129,_136,_159,_166`). Overlap vs Run 17: both 15 / only18 11 / only17 8. Wall ~70.8 min; avg `api_calls` **13.34** (fixed v5’s 40.3); gen_tps_mean ≈ 103.1. Lost vs v4 mostly TradingBot/VehicleControl state_mismatch plus turn-0 under_call `_105,_114,_159,_166`. **Scored miss vs v4 recovery. Do not present as a method win. No BoN / no more epochs on this mix.** Next SFT lever is **v7** (planned, **not scored**; not another thin filter on the same family). Full writeup: `THESIS.md` Run 18 subsection.
 
+### SFT v9 / v9.1 / v9.2 — lever-2 action quotas (10-ID smoke-gate FAIL → HOLD)
+
+**Codex CONFIRM: `HOLD_sft_quota_remix`.** Formal **plain-IFFC 10-ID** smoke-gate **FAIL** on SFT v9.2 (Mac `run_id=36`). Full LoRA **never started**. **HOLD / park.** This is **not** a BFCL `multi_turn_base` accuracy. **Do not invent** a v9 / v9.1 / v9.2 BFCL %. Thursday banked `multi_turn_base` remains **Run 30** BASE iffc-stop-repeat **65/200 = 32.5%** (harness, [PR #54](https://github.com/sskarz/Thesis/pull/54) @`7ad7ff3`) — already logged; do **not** reframe as SFT.
+
+Worktree: Thesis-sft-v9 [PR #57](https://github.com/sskarz/Thesis/pull/57) **draft** @`cde93a3` (branch `cursor/sft-v9-lever2-action-quotas`). **Do not merge PR #57.** Tweak vs v9: shrink `V9_ACTION_MT_TOOL_CHAIN_ADVANCE` band `(0.40,0.50,0.35,0.55)` → `(0.30,0.38,0.28,0.42)`. Kept from v9.1: `V9_ACTION_FINAL_AFTER_OBS` `(0.20,0.24,0.18,0.26)`. Model key (smoke only): `gemma4-e2b-sft-iffc-v9-smoke92`.
+
+**Smoke@100 (healthy; not a score):** val **1.303 → 0.645**; train@100 0.774; finite / no NaN; exit 0. Healthy loss does **not** pass the formal 10-ID gate.
+
+**Formal 10-ID gate (Run 36) — FAIL** vs gate `avg api ≤8.3`, `hit_step_limit ≤2/10`, `iffc_unparseable ≤1/10`, `turn0_tool ≥6/10`:
+
+| Metric | Gate | **Run 36 (v9.2)** | Run 33 (v9.1) | Run 31 (v9) |
+|--------|------|-------------------|---------------|-------------|
+| avg `api_calls` | ≤8.3 | **25.7** | 17.6 | 22.5 |
+| `hit_step_limit` | ≤2/10 | **6/10** | 5/10 | 5/10 |
+| `iffc_unparseable` | ≤1/10 | 0/10 | 0/10 | 1/10 |
+| `turn0_tool` | ≥6/10 | 10/10 | 10/10 | 10/10 |
+
+Worse than Run 33 v9.1 (**17.6** / **5/10**) and Run 31 v9 (**22.5** / **5/10**). Loopers (calls): `_4=60`, `_82=43`, `_84=40`, `_30=40`, `_3=23`, `_163=22`. Two sequential quota remixes failed the step-limit gate; the second **regressed** avg and hits.
+
+**Do not cite Run 35** — **INVALID** (server died mid-probe). VC sidecar **Run 37** is diagnostic only (same-call `_52/_74/_83`); **not** folded into the /10 denominator.
+
+**Diagnosis (Codex):** primary is identical-call / over-call looping after observations (**not** under-call). Advance-band shrink renormalized toward start/ask/refuse/final but did **not** teach stop; fewer advance golds may have weakened useful multi-step progress.
+
+**Next:** no third remix, no rebuild/resume/fuse/probe another quota variant. After Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder) — **not** another quota remix. Hard bans: no BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 BFCL %, no iffc-stop-repeat as an SFT fix, no kitchen-sink multi-tweak. Scoreboard BFCL N=200 **unchanged**: BoN **36.5%** / IFFC **30.5%** / SFT-v4 **15.0%** / Run 30 **32.5%** (harness).
+
 ### Anti-recommendations
 
-Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 mix **or** the v5 mix **or** the v6 mix; BoN / IFFC+STATE on the Run 12, Run 13, Run 15, Run 17, or Run 18 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT or multi-turn; present Run 14’s 2.0% as a method win or a training-time recovery; present Run 15’s 15.0% as beating IFFC or NFC; present Run 16’s 13.0% as a STATE win on SFT-v4; present Run 17’s 11.5% as a method win; present Run 18’s 13.0% as a method win; invent tok/s for Run 15, Run 16, or Run 17 (`inference_metrics=0`); **propose BoN as the next win on the SFT-v4, SFT-v5, or SFT-v6 checkpoint**.
+Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 mix **or** the v5 mix **or** the v6 mix; BoN / IFFC+STATE on the Run 12, Run 13, Run 15, Run 17, or Run 18 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT or multi-turn; present Run 14’s 2.0% as a method win or a training-time recovery; present Run 15’s 15.0% as beating IFFC or NFC; present Run 16’s 13.0% as a STATE win on SFT-v4; present Run 17’s 11.5% as a method win; present Run 18’s 13.0% as a method win; invent tok/s for Run 15, Run 16, or Run 17 (`inference_metrics=0`); **propose BoN as the next win on the SFT-v4, SFT-v5, or SFT-v6 checkpoint**; invent a v9 / v9.1 / v9.2 BFCL `multi_turn_base` %; cite Run 35 (INVALID — server died); fold Run 37 into the 10-ID denominator; start full LoRA on the failed v9.2 mix; merge [PR #57](https://github.com/sskarz/Thesis/pull/57); treat iffc-stop-repeat as an SFT fix; run a third quota remix.
 
 ### Next (Sanskar decides)
 
-1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Tightened stop-repeat PASSES** (Run 30 **32.5%** vs IFFC **30.5%**) — SFT ranking is a **later** path, not the next immediate pivot. Follow the dated ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) when SFT is next (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; action-class quotas + GAR; Magnet/Critical-State contrast then mDPO; **not** decode bans). Center on APIGen-MT verified multi-turn trajs (≥50% MT-native) + calibrated stop/clarify (~12–15% non-tool) + ToolACE-R-lite student-aware filter; optional Hammer/RPO only after a healthy SFT. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)) is **logged / unscored** (OODA one-pass preferred; PTC / Looped LMs inference; PARL-MT / RC-GRPO training-time, **not** a GRPO unlock). **Do not invent a v7 score.** Do **not** pivot to SFT v9 ([PR #57](https://github.com/sskarz/Thesis/pull/57) stays draft/parked). **No BoN, no train, no v7 resume** as the reaction to Run 30. Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
+1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Tightened stop-repeat PASSES** (Run 30 **32.5%** vs IFFC **30.5%**). **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg `api_calls` **25.7**, `hit_step_limit` **6/10**) → **`HOLD_sft_quota_remix` / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes.** Historical ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) still stands as a later SFT path (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Magnet/Critical-State then mDPO; **not** decode bans) — action-class **quota remix is HOLD**. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)) is **logged / unscored**. **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
@@ -1300,7 +1326,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 
 The first four are directly measurable on BFCL v4 without changes to the benchmark format, making them strong thesis contributions. The key narrative: **inference-time techniques can close the gap between SLMs and cloud-scale models without fine-tuning.**
 
-**Post–Run27 (2026-09-28):** Ungated stop-on-repeat is a **scored miss** on healthy base ([PR #55](https://github.com/sskarz/Thesis/pull/55); GAR-aligned Acc regress). **Tightened stop-repeat PASSES** (Run 30 **65/200 = 32.5%** vs IFFC **30.5%**; +5.5 pp vs Run 27 ungated; still below STATE 34.0% / BoN 36.5%). Ranked next **SFT** is a **later** path, not the next immediate pivot: [Post–Run27 consensus](#post-run27-consensus-2026-09-28). Do **not** pivot to SFT v9 ([PR #57](https://github.com/sskarz/Thesis/pull/57) stays draft/parked). **No BoN / no train / no v7 resume** as the reaction. Do **not** treat ungated decode bans as the next method win. Do **not** unlock GRPO as the main path.
+**Post–Run27 (2026-09-28):** Ungated stop-on-repeat is a **scored miss** on healthy base ([PR #55](https://github.com/sskarz/Thesis/pull/55); GAR-aligned Acc regress). **Tightened stop-repeat PASSES** (Run 30 **65/200 = 32.5%** vs IFFC **30.5%**; +5.5 pp vs Run 27 ungated; still below STATE 34.0% / BoN 36.5%). **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg **25.7**, hit **6/10**) → **`HOLD_sft_quota_remix` / park**. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs, **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft**. **No BoN / no v7 resume / no full LoRA on failed mixes / no invented v9 BFCL %.** Do **not** treat ungated decode bans as the next method win. Do **not** unlock GRPO as the main path.
 
 ---
 
@@ -2198,13 +2224,22 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
       on BASE — not an SFT/method win. finished_at NULL (metrics 4/5
       soft bookkeeping; accuracy locked in scores); status JSON stale —
       trust DB+log; --resume-run-id 30 after orphan; N=200 complete.
-      Do NOT overwrite BoN / IFFC / SFT-v4. Do NOT pivot to SFT v9
-      (PR #57 stays draft/parked). No BoN / no train / no v7 resume
-      as the reaction. Codex CONFIRM_PASS. Do not invent tok/s.
+      Do NOT overwrite BoN / IFFC / SFT-v4. Codex CONFIRM_PASS.
+    ↓ SFT v9.2 10-ID smoke-gate FAIL (Run 36; 2026-09-28): avg api 25.7
+      (gate ≤8.3), hit_step_limit 6/10 (gate ≤2). Smoke@100 healthy
+      (val→0.645); full LoRA never started. Worse than Run 33 v9.1
+      (17.6 / 5/10) and Run 31 v9 (22.5 / 5/10). NOT a multi_turn_base
+      accuracy — do NOT invent a v9 BFCL %. Do NOT cite Run 35 (INVALID).
+      Run 37 VC sidecar diagnostic only — not in /10. PR #57 stays draft
+      @cde93a3 (advance-band shrink; kept v9.1 final_after_obs). Codex
+      HOLD_sft_quota_remix. No BoN / no v7 resume / no full LoRA on
+      failed mixes. Next after Thursday advisor: Stage B advance_vs_loop
+      pref pairs (stub → audited builder), NOT another quota remix.
     ↓ Later path: Post–Run27 ranked SFT (2026-09-28; NOT scored) —
       APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Gemma template;
-      mask user/tool, train assistant only; action-class quotas + GAR;
-      Magnet pos/neg or Critical-State labels then mDPO after SFT.
+      mask user/tool, train assistant only; action-class quota remix HOLD
+      (v9.2 10-ID FAIL); next after advisor = Stage B advance_vs_loop
+      pref pairs then Magnet/Critical-State mDPO after SFT.
       Optional open data-gen complement: Data Turnstile (§24; unscored).
       Optional post-healthy-SFT local RL: Critical-State RL (§25; unscored;
       not blanket GRPO). Do NOT unlock GRPO as the main path.
@@ -2213,6 +2248,7 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
       GRPO unlock); HyperTool execution granularity.
       SFT path locked 2026-09-23 as the main path; inference wrappers secondary.
       Not another thin filter on the same family. Not decode bans as the win.
+      Not a third quota remix. Not invented v9 BFCL %.
       BoN 36.5% still best on base Gemma.
       v4 IFFC 15.0% remains best SFT recovery.
     ↓ Frozen split seed=42 (~90/5/5 train/val/corpus_test); BFCL multi_turn_base held out
@@ -2245,8 +2281,9 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 - Run 30 BASE `--fc-mode iffc-stop-repeat` **tighten MIN=6** @ `78c22a0` (PR #54): **65/200 = 0.325** (`scores.id=21`; `multi_turn_base` only; **200/200 responses + timings**; `entry_id` identical to Run 5/Run 27; bartowski Q4_K_M). **+2.0 percentage points vs Run 5 (65−61 correct)** — **not** “+4pp”; **+5.5 pp vs Run 27**. Still **below STATE 34.0% and BoN 36.5%**. Stop flags **37→3**, all FAIL. VC state **22** (recovered from Run 27’s 33). `state_mismatch` **60** (=Run 5). **First scored win of tightened stop-repeat over plain IFFC on BASE.** **Celebrate / park SFT-v9: YES.** **Caveats:** harness/decode guardrail on BASE — **not** an SFT/method win; `finished_at` still **NULL** (metrics 4/5 soft bookkeeping; accuracy locked in `scores`); status JSON **stale** — trust DB+log; `--resume-run-id 30` after orphan; **N=200 complete**. **Codex CONFIRM_PASS.**
 - Best inference BoN **36.5%** (Run 11). Best SFT v4 IFFC **15.0%** (Run 15). Do **not** overwrite either.
 - Teacher loop-filters v8/v8.1 failed; ungated stop-on-repeat helped collapsed smoke but hurt healthy base; **gated recover** past IFFC.
+- **SFT v9.2 10-ID smoke-gate FAIL** (Run 36): avg `api_calls` **25.7** (gate ≤8.3), `hit_step_limit` **6/10** (gate ≤2). Smoke@100 healthy (val→**0.645**); full LoRA never started. Worse than Run 33 v9.1 (17.6 / 5/10) and Run 31 v9 (22.5 / 5/10). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **Do not cite Run 35** (INVALID — server died). Run 37 VC sidecar diagnostic only — not in /10. Codex **`HOLD_sft_quota_remix`**. Details: [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold).
 
-**Tightened stop-repeat PASSES** (Run 30 **32.5%**). The ranking below is a **later** SFT path, not the next immediate pivot. Do **not** pivot to SFT v9 ([PR #57](https://github.com/sskarz/Thesis/pull/57) stays draft/parked). **No BoN, no train, no v7 resume** as the reaction to Run 30.
+**Tightened stop-repeat PASSES** (Run 30 **32.5%**). SFT v9.2 smoke-gate **FAIL → park**. Quota remix **HOLD**. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 BFCL %.**
 
 ### Theme
 
@@ -2276,11 +2313,11 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 | BFCL / Gorilla multi-turn | Patil et al. 2025, [ICML 2025](https://proceedings.mlr.press/v267/patil25a.html); Gorilla [arXiv:2305.15334](https://arxiv.org/abs/2305.15334); [leaderboard](https://gorilla.cs.berkeley.edu/leaderboard.html) | Light pointer: state + response checkers; empty gold turns matter |
 | BUTTON | Chen et al., ICLR 2025, [arXiv:2410.12952](https://arxiv.org/abs/2410.12952) | Light pointer only; do **not** duplicate a full section |
 
-### Ranked next SFT (later path; not the next immediate pivot after Run 30)
+### Ranked next SFT (later path; quota remix HOLD; next after advisor = Stage B pref pairs)
 
 1. **APIGen-MT-5k + ToolACE / ToolACE-MT-style MT + single-turn FC** (~30–50% MT). Gemma template. **Mask user/tool; train assistant only.**
-2. **Action-class quotas** (final-after-success-obs, ask, refuse/defer, irrelevance) and **measure GAR per class**.
-3. **Anti-loop contrast:** Magnet-style pos/neg or Critical-State labels; mDPO / small preference **after** SFT ≫ decode bans.
+2. **Action-class quotas HOLD** — v9 / v9.1 / v9.2 10-ID smoke-gate **FAIL** (Run 36 avg **25.7**, hit **6/10**). Do **not** third-remix. After Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder). Historical GAR-per-class measurement still applies; remix itself is **parked**.
+3. **Anti-loop contrast (next lever):** Magnet-style pos/neg or Critical-State labels; **advance_vs_loop** pref pairs then mDPO / small preference **after** SFT ≫ decode bans ≫ another quota remix.
 4. **Lightweight state prefix** (goal / slots / last fact / next mode) in **one pass** ([OODA-Tool §26](#26-ooda-tool-typed-observe-orient-decide-act) latency cost → not a 2.4× multi-pass at edge).
 5. **Hold decode stops on the scored base.** Optional soft max-N identical successful signatures, then force answer.
 6. **Occurrence-local RL** only if SFT plateaus — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), **not** [§19 blanket GRPO](#19-reinforcement-learning-with-verifiable-rewards-grpo). [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) / [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo) remain logged research options; **do not** unlock GRPO as the main path.
@@ -2288,7 +2325,7 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 
 ### Anti-patterns
 
-Teacher loop-filter-only; stop-on-repeat / CRI-like decode; recovery-targeted SFT without refusal / final negatives; Acc-only while GAR(ask/refuse) collapses.
+Teacher loop-filter-only; stop-on-repeat / CRI-like decode; recovery-targeted SFT without refusal / final negatives; Acc-only while GAR(ask/refuse) collapses; quota remix after two sequential 10-ID FAILs (v9 / v9.1 / v9.2); inventing a v9 BFCL `multi_turn_base` %; full LoRA on a failed mix.
 
 ### Already-logged options (cross-link, do not duplicate)
 
