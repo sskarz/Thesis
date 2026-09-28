@@ -221,7 +221,7 @@ V9_MAX_IRRELEVANCE_CONV_FRAC = 0.10
 # Unrolled assistant-turn action-class quotas (PRIMARY lever).
 # Each value is (target_lo, target_hi, hard_lo, hard_hi).
 # refuse hard_lo is a soft floor (2% OK); abort only if refuse ≈ 0.
-V9_ACTION_MT_TOOL_CHAIN_ADVANCE = (0.40, 0.50, 0.35, 0.55)
+V9_ACTION_MT_TOOL_CHAIN_ADVANCE = (0.30, 0.38, 0.28, 0.42)
 V9_ACTION_TOOL_CALL_START = (0.12, 0.18, 0.10, 0.20)
 V9_ACTION_FINAL_AFTER_OBS = (0.20, 0.24, 0.18, 0.26)
 V9_ACTION_ASK = (0.08, 0.12, 0.06, 0.14)

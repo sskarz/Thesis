@@ -67,7 +67,7 @@ New experiment id `sft-v9` / internal **lever2**. Seed **49**. Dirs: `splits-v9`
 
 | Class | Target | Hard band |
 |---|---|---|
-| `mt_tool_chain_advance` | 40–50% | [35, 55] |
+| `mt_tool_chain_advance` | 30–38% | [28, 42] |
 | `tool_call_start` | 12–18% | [10, 20] |
 | `final_after_obs` (loose) | 20–24% | [18, 26] |
 | `ask` | 8–12% | [6, 14] |
