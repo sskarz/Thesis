@@ -266,6 +266,13 @@ MULTI_TURN_MAX_STEPS = 20
 #        Baseline iffc is unchanged. Decode/harness lever, not a training
 #        recipe. Run 27 ungated observe_same scored 54/200 = 27% on BASE
 #        (miss vs IFFC 30.5%); this gate is the tighten, still a probe.
+#        Run 30 tighten MIN=6 scored 65/200 = 32.5% — do not overwrite.
+# iffc-ooda-card = IFFC JSON-in-text plus a one-pass harness-written
+#        [OODA] card (goal / slots / last / next) prefixed on each
+#        decision turn, stacked on iffc-stop-repeat MIN=6. Not
+#        iffc-state (no [STATE] dump / no compression). Not OODA-Tool
+#        training; not a Specialized 4-pass loop. Unscored; do not
+#        overwrite Run 30. Default nfc is unchanged.
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
@@ -275,6 +282,7 @@ FC_IFFC_STATE = "iffc-state"
 FC_IFFC_STATE_BON = "iffc-state-bon"
 FC_XLAM = "xlam"
 FC_IFFC_STOP_REPEAT = "iffc-stop-repeat"
+FC_IFFC_OODA_CARD = "iffc-ooda-card"
 FC_MODES = (
     FC_NFC,
     FC_IFFC,
@@ -284,6 +292,7 @@ FC_MODES = (
     FC_IFFC_STATE_BON,
     FC_XLAM,
     FC_IFFC_STOP_REPEAT,
+    FC_IFFC_OODA_CARD,
 )
 FC_JSON_TEXT_MODES = (
     FC_IFFC,
@@ -292,8 +301,10 @@ FC_JSON_TEXT_MODES = (
     FC_IFFC_STATE_BON,
     FC_XLAM,
     FC_IFFC_STOP_REPEAT,
+    FC_IFFC_OODA_CARD,
 )
 FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON)
+FC_IFFC_STOP_REPEAT_MODES = (FC_IFFC_STOP_REPEAT, FC_IFFC_OODA_CARD)
 FC_MODE: str = FC_NFC
 
 # Best-of-N (only used by --fc-mode iffc-state-bon)

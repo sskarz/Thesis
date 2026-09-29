@@ -522,7 +522,7 @@ def test_maybe_strip_empty_assistant_is_noop_for_nfc_and_cd():
     assert history[-1]["content"] == "[]"
     generate_multi_turn._maybe_strip_trailing_empty_assistant(history, "iffc", True)
     assert history[-1]["role"] == "user"
-    for mode in ("iffc-state", "iffc-state-bon"):
+    for mode in ("iffc-state", "iffc-state-bon", "iffc-ooda-card"):
         state_hist = [
             {"role": "user", "content": "hi"},
             {"role": "assistant", "content": "[]"},
@@ -589,6 +589,7 @@ def test_build_chat_payload_nfc_and_gst_keep_tools_iffc_cd_and_iffc_state_omit_t
     iffc_state = generate_multi_turn._build_chat_payload(history, tools, "iffc-state")
     bon = generate_multi_turn._build_chat_payload(history, tools, "iffc-state-bon")
     xlam = generate_multi_turn._build_chat_payload(history, tools, "xlam")
+    ooda = generate_multi_turn._build_chat_payload(history, tools, "iffc-ooda-card")
     assert nfc["tools"] == tools
     assert nfc["tool_choice"] == "auto"
     assert nfc["temperature"] == 0.0
@@ -610,6 +611,10 @@ def test_build_chat_payload_nfc_and_gst_keep_tools_iffc_cd_and_iffc_state_omit_t
     assert "tools" not in xlam
     assert "tool_choice" not in xlam
     assert xlam["temperature"] == 0.0
+    assert "tools" not in ooda
+    assert "tool_choice" not in ooda
+    assert ooda["temperature"] == 0.0
+    assert "[OODA]" in ooda["messages"][-1]["content"]
 
 
 def test_generate_for_entry_cd_two_pass_no_native_tools(monkeypatch):

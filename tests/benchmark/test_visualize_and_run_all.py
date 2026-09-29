@@ -515,6 +515,55 @@ def test_run_all_iffc_state_base_only_wires_flags(monkeypatch):
     assert "bon_n=" not in (run["notes"] or "")
 
 
+def test_run_all_iffc_ooda_card_base_only_wires_flags(monkeypatch):
+    monkeypatch.setattr(db, "_detect_hardware", lambda: {})
+
+    calls = []
+
+    def record(name):
+        def inner(*args, **kwargs):
+            calls.append((name, args, kwargs))
+            return None
+
+        return inner
+
+    monkeypatch.setattr(run_all, "check_server", lambda: True)
+    monkeypatch.setattr(run_all.generate_responses, "run", record("generate_responses.run"))
+    monkeypatch.setattr(run_all.generate_multi_turn, "run", record("generate_multi_turn.run"))
+    monkeypatch.setattr(run_all.evaluate_responses, "run", record("evaluate_responses.run"))
+    monkeypatch.setattr(run_all.evaluate_multi_turn, "run", record("evaluate_multi_turn.run"))
+    monkeypatch.setattr(run_all.collect_metrics, "run", record("collect_metrics.run"))
+    monkeypatch.setattr(run_all.visualize, "run", record("visualize.run"))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "benchmark.run_all",
+            "--only-multi-turn",
+            "--categories",
+            "multi_turn_base",
+            "--fc-mode",
+            "iffc-ooda-card",
+            "--notes",
+            "UNSCORED: IFFC+OODA-card+stop-repeat MIN=6 vs Run30; do not overwrite Run 30",
+        ],
+    )
+
+    run_all.main()
+
+    mt_gen = next(c for c in calls if c[0] == "generate_multi_turn.run")
+    assert mt_gen[2]["fc_mode"] == "iffc-ooda-card"
+    assert list(mt_gen[2]["categories"]) == ["multi_turn_base"]
+    assert "generate_responses.run" not in [c[0] for c in calls]
+    assert run_all.config.FC_MODE == "iffc-ooda-card"
+
+    run = db.get_run(run_all.config.RUN_ID)
+    assert "fc_mode=iffc-ooda-card" in (run["notes"] or "")
+    assert "multi_turn_base" in (run["notes"] or "")
+    assert "fc_mode=iffc-stop-repeat" not in (run["notes"] or "")
+    assert "bon_n=" not in (run["notes"] or "")
+
+
 def test_run_all_iffc_state_bon_wires_flags_and_bon_n(monkeypatch):
     monkeypatch.setattr(db, "_detect_hardware", lambda: {})
 
@@ -574,6 +623,15 @@ def test_fc_mode_from_notes():
     assert run_all.fc_mode_from_notes("TagDispatch; fc_mode=iffc") == "iffc"
     assert run_all.fc_mode_from_notes("GST+NFC; fc_mode=gst") == "gst"
     assert run_all.fc_mode_from_notes("IFFC+STATE; fc_mode=iffc-state") == "iffc-state"
+    assert (
+        run_all.fc_mode_from_notes(
+            "UNSCORED; fc_mode=iffc-ooda-card categories=multi_turn_base"
+        )
+        == "iffc-ooda-card"
+    )
+    assert (
+        run_all.fc_mode_from_notes("fc_mode=iffc-stop-repeat") == "iffc-stop-repeat"
+    )
     assert (
         run_all.fc_mode_from_notes(
             "BoN; fc_mode=iffc-state-bon bon_n=5 categories=multi_turn_base"

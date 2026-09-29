@@ -108,6 +108,7 @@ Multi-turn function-calling mode and category filter:
 - `--fc-mode iffc-state`: IFFC JSON-in-text plus a harness-written `[STATE]` snapshot from **actual** tool execution results (METHODS §5 working memory). Same checker as IFFC. **Not** GST, **not** CD/GBNF, **not** LLM summarization. See METHODS.md.
 - `--fc-mode iffc-state-bon`: Best-of-N majority voting overlay on **IFFC+STATE** (METHODS §4; Snell et al. arXiv:2408.03314). Sample N=5 (configurable `--bon-n`) at `temperature=0.7`, vote per step, execute the winner once. **~N× latency.** **Not** NFC/GST/CD. See METHODS.md.
 - `--fc-mode xlam`: Salesforce xLAM JSON-in-text (`{"tool_calls":[{name, arguments}]}` in assistant content). Does **not** send `tools`/`tool_choice`. Empty `{"tool_calls": []}` ends the turn. Fair channel for `--model xlam-1b` (Run 19 NFC 0/200 was format-channel collapse; Run 20 `--fc-mode xlam` scored **6/200 = 3.0%** — still **very low**; **not** a method win). **Do not claim published ~78.94% parity.** See METHODS.md.
+- `--fc-mode iffc-ooda-card`: IFFC JSON-in-text plus a **one-pass** harness-written `[OODA]` card (goal / slots / last / next) prefixed on each decision turn, stacked on `iffc-stop-repeat` MIN=6. **Not** `iffc-state`. **Not** OODA-Tool training; **not** a Specialized 4-pass loop. **Unscored.** Do **not** overwrite Run 30. Default remains `nfc`. See METHODS.md.
 - `--iffc-strip-empty-assistant`: **diagnostic-only** IFFC history bookkeeping — omit trailing assistant `[]` stop turns from `chat_history` before the next BFCL user turn (and right after the within-turn stop). Default **off** (Run 5–13 IFFC unchanged). **Not** a training method and **not** a claim that standard IFFC improved. Notes record `iffc_strip_empty_assistant=1`; figures nest under `iffc-strip-empty-assistant/`. **Run 14 already scored this on `gemma4-e2b-sft-iffc-v2`: 4/200 = 2.0%** — did **not** rescue the never-start collapse; **do not present 2% as a method win** (see `THESIS.md`).
 - `--categories multi_turn_base`: run only that multi-turn split (skip miss_func / miss_param / long_context)
 
@@ -121,6 +122,22 @@ xLAM-1b-fc-r JSON-in-text adapter (serve command in `CLAUDE.md`). Run 19 NFC sco
 ```bash
 uv run python -m benchmark.run_all --model xlam-1b --fc-mode xlam \
   --only-multi-turn --categories multi_turn_base
+```
+
+One-pass OODA card on **BASE** Gemma stacked on `iffc-stop-repeat` MIN=6 (**unscored**; do **not** overwrite Run 30; not `iffc-state`; not 4-pass OODA). Offline smoke, then Mac calib, then full 200 only if planned gates pass (METHODS.md):
+
+```bash
+cd llama.cpp
+./build/bin/llama-server --jinja -fa on \
+  -hf bartowski/google_gemma-4-E2B-it-GGUF:Q4_K_M \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 \
+  -np 4 -cb -ub 1024
+
+uv run python -m benchmark.smoke_ooda_card
+# Full 200 — only after calib; new run_id; do NOT --resume-run-id 30
+# uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+#   --categories multi_turn_base --fc-mode iffc-ooda-card \
+#   --notes "UNSCORED: IFFC+OODA-card+stop-repeat MIN=6 vs Run30 32.5%; do not overwrite Run 30"
 ```
 
 Gemma CD vs the scored NFC 27.0% / IFFC 30.5% `multi_turn_base` baselines (do not update THESIS.md tables until this run is scored):

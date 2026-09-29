@@ -26,6 +26,11 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
   ``OBSERVE_SAME_MIN_ASSISTANT_TOOL_TURNS`` (6) assistant tool-turns in the
   current BFCL ask. Short VehicleControl re-calls are not truncated.
   Baseline ``iffc`` is unchanged. Decode/harness lever only.
+- ``iffc-ooda-card``: IFFC JSON-in-text plus a one-pass harness-written
+  ``[OODA]`` card (goal / slots / last / next) prefixed on each decision
+  turn, stacked on the same stop-repeat MIN=6 gate. **Not** ``iffc-state``.
+  **Not** OODA-Tool training; **not** a Specialized 4-pass loop. Distinct
+  ``fc_mode`` so it cannot overwrite Run 30. Default ``nfc`` is unchanged.
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits trailing
 IFFC assistant ``[]`` stop turns from ``chat_history`` before the next BFCL
@@ -45,6 +50,7 @@ from . import cd as cd_mode
 from . import config, db
 from . import gst as gst_mode
 from . import iffc_state as iffc_state_mode
+from . import ooda_card as ooda_card_mode
 from . import stop_on_repeat
 from . import xlam as xlam_mode
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
@@ -149,10 +155,10 @@ def _resolve_strip_empty_assistant(
 
 
 def _iffc_family_mode(fc_mode: str) -> bool:
-    """Plain IFFC plus iffc-state / stop-repeat overlays (same ``[]`` stop)."""
+    """Plain IFFC plus iffc-state / stop-repeat / ooda-card overlays (same ``[]`` stop)."""
     return (
         fc_mode == config.FC_IFFC
-        or fc_mode == config.FC_IFFC_STOP_REPEAT
+        or fc_mode in config.FC_IFFC_STOP_REPEAT_MODES
         or fc_mode in config.FC_IFFC_STATE_MODES
     )
 
@@ -179,20 +185,30 @@ def _build_chat_payload(
     chat_history: list[dict],
     active_tools: list[dict],
     fc_mode: str,
+    ooda_tracker: ooda_card_mode.OodaCardTracker | None = None,
 ) -> dict:
-    """Build a chat-completions payload. IFFC/CD/iffc-state/iffc-state-bon/xlam never send tools/tool_choice.
+    """Build a chat-completions payload. IFFC/CD/iffc-state/iffc-state-bon/xlam/ooda-card never send tools/tool_choice.
 
     GST uses the NFC tools channel (``tools`` + ``tool_choice=auto``).
     BoN sampling uses temperature=0.7 via :mod:`benchmark.bon`; this helper
     still emits 0.7 for ``iffc-state-bon`` so a stray single-sample path
     would not silently go greedy.
+
+    ``iffc-ooda-card`` injects the card on a **copy** of messages so the
+    persistent transcript stays IFFC-clean for stop-on-repeat.
     """
     temperature = (
         config.BON_TEMPERATURE if fc_mode == config.FC_IFFC_STATE_BON else 0.0
     )
+    messages: list[dict] = chat_history
+    if fc_mode == config.FC_IFFC_OODA_CARD:
+        tracker = ooda_tracker or ooda_card_mode.OodaCardTracker()
+        messages = ooda_card_mode.inject_card(
+            chat_history, tracker, has_tools=bool(active_tools)
+        )
     payload: dict = {
         "model": config.MODEL_NAME,
-        "messages": chat_history,
+        "messages": messages,
         "temperature": temperature,
     }
     if _is_json_text_mode(fc_mode):
@@ -218,6 +234,8 @@ def _prepare_step_messages(
             iffc_state_mode.ensure_iffc_state_system_message(chat_history, active_tools)
         elif fc_mode == config.FC_XLAM:
             xlam_mode.ensure_xlam_system_message(chat_history, active_tools)
+        elif fc_mode == config.FC_IFFC_OODA_CARD:
+            ooda_card_mode.ensure_ooda_system_message(chat_history, active_tools)
         else:
             ensure_iffc_system_message(chat_history, active_tools)
         return
@@ -239,6 +257,7 @@ def _complete_chat_sync(
     chat_history: list[dict],
     active_tools: list[dict],
     fc_mode: str,
+    ooda_tracker: ooda_card_mode.OodaCardTracker | None = None,
 ) -> tuple[dict, int]:
     """One model step. CD may issue two constrained requests; BoN samples N."""
     if fc_mode == config.FC_CD:
@@ -256,7 +275,9 @@ def _complete_chat_sync(
             model=config.MODEL_NAME,
             n=config.BON_N,
         )
-    payload = _build_chat_payload(chat_history, active_tools, fc_mode)
+    payload = _build_chat_payload(
+        chat_history, active_tools, fc_mode, ooda_tracker=ooda_tracker
+    )
     return _post_chat_sync(payload), 1
 
 
@@ -285,7 +306,7 @@ def _decide_assistant_step(
         content = assistant_text(message)
         parsed = try_parse_iffc_response(content)
         if parsed:
-            if fc_mode == config.FC_IFFC_STOP_REPEAT:
+            if fc_mode in config.FC_IFFC_STOP_REPEAT_MODES:
                 reason = stop_on_repeat.force_stop_reason(chat_history, content)
                 if reason is not None:
                     # Force a clean [] stop; do not re-execute the looped calls.
@@ -338,6 +359,7 @@ def _append_execution_feedback(
     tool_calls_raw: list | None,
     exec_results: list,
     state_tracker: iffc_state_mode.StateTracker | None = None,
+    ooda_tracker: ooda_card_mode.OodaCardTracker | None = None,
 ) -> None:
     if _is_json_text_mode(fc_mode):
         if fc_mode in config.FC_IFFC_STATE_MODES and state_tracker is not None:
@@ -350,6 +372,10 @@ def _append_execution_feedback(
             )
         else:
             content = format_iffc_execution_user_message(func_strings, exec_results)
+            if fc_mode == config.FC_IFFC_OODA_CARD and ooda_tracker is not None:
+                ooda_card_mode.record_execution(
+                    ooda_tracker, func_strings, exec_results
+                )
         chat_history.append({
             "role": "user",
             "content": content,
@@ -424,6 +450,11 @@ def generate_for_entry(
         if fc_mode in config.FC_IFFC_STATE_MODES
         else None
     )
+    ooda_tracker = (
+        ooda_card_mode.OodaCardTracker()
+        if fc_mode == config.FC_IFFC_OODA_CARD
+        else None
+    )
 
     for turn_idx, turn_messages in enumerate(questions):
         # Before the next BFCL user turn: drop the previous turn's IFFC ``[]``
@@ -462,7 +493,7 @@ def generate_for_entry(
 
             try:
                 data, n_calls = _complete_chat_sync(
-                    chat_history, active_tools, fc_mode
+                    chat_history, active_tools, fc_mode, ooda_tracker=ooda_tracker
                 )
                 api_calls += n_calls
             except requests.exceptions.HTTPError as e:
@@ -532,6 +563,7 @@ def generate_for_entry(
                 tool_calls_raw,
                 exec_results,
                 state_tracker=state_tracker,
+                ooda_tracker=ooda_tracker,
             )
         else:
             # Loop completed without break — model never gave a text response
@@ -613,6 +645,11 @@ async def _generate_entry_async(
         if fc_mode in config.FC_IFFC_STATE_MODES
         else None
     )
+    ooda_tracker = (
+        ooda_card_mode.OodaCardTracker()
+        if fc_mode == config.FC_IFFC_OODA_CARD
+        else None
+    )
     strip_empty_assistant = _resolve_strip_empty_assistant(None)
 
     for turn_idx, turn_messages in enumerate(questions):
@@ -665,7 +702,10 @@ async def _generate_entry_async(
                     )
                 else:
                     payload = _build_chat_payload(
-                        chat_history, active_tools, fc_mode
+                        chat_history,
+                        active_tools,
+                        fc_mode,
+                        ooda_tracker=ooda_tracker,
                     )
                     data = await _gated_post(payload)
                     n_calls = 1
@@ -738,6 +778,7 @@ async def _generate_entry_async(
                 tool_calls_raw,
                 exec_results,
                 state_tracker=state_tracker,
+                ooda_tracker=ooda_tracker,
             )
         else:
             flags.append(f"hit_step_limit:turn_{turn_idx}")
@@ -978,7 +1019,7 @@ def run(
 
 def _parse_cli() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, GST, IFFC+STATE, IFFC+STATE+BoN, or xLAM)."
+        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, GST, IFFC+STATE, IFFC+STATE+BoN, xLAM, IFFC-stop-repeat, or IFFC-OODA-card)."
     )
     parser.add_argument(
         "--fc-mode",
@@ -997,7 +1038,13 @@ def _parse_cli() -> argparse.Namespace:
             "iffc-state-bon = Best-of-N majority vote on IFFC+STATE "
             "(default N=5, temperature=0.7; not NFC/GST/CD). "
             "xlam = Salesforce xLAM JSON-in-text "
-            '({"tool_calls":[{name, arguments}]}; no native tools).'
+            '({"tool_calls":[{name, arguments}]}; no native tools). '
+            "iffc-stop-repeat = IFFC + harness force-stop on consecutive "
+            "identical calls, or executed-call re-emits after 6 assistant "
+            "tool-turns in the current ask (baseline iffc unchanged). "
+            "iffc-ooda-card = IFFC + one-pass [OODA] card (goal/slots/last/next) "
+            "stacked on stop-repeat MIN=6 (not iffc-state; not 4-pass OODA; "
+            "do not overwrite Run 30)."
         ),
     )
     parser.add_argument(

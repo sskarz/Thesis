@@ -27,6 +27,7 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: Guided-Structured Templates (`--fc-mode gst`)](#experiment-guided-structured-templates---fc-mode-gst)
 - [Experiment: IFFC + harness STATE (`--fc-mode iffc-state`)](#experiment-iffc--harness-state---fc-mode-iffc-state)
 - [Experiment: IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)](#experiment-iffc-stop-on-repeat---fc-mode-iffc-stop-repeat) (Run 27 ungated miss 27.0%; Run 30 tighten **32.5%** scored win vs IFFC on BASE)
+- [Experiment: IFFC one-pass OODA card (`--fc-mode iffc-ooda-card`)](#experiment-iffc-one-pass-ooda-card---fc-mode-iffc-ooda-card) (**unscored**; stacked on Run 30 stop-repeat MIN=6; not iffc-state; not 4-pass OODA)
 - [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
 - [Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)](#experiment-mlx-sft-v1-gemma-4-e2b-iffc-mix)
 - [SFT v9.2 smoke-gate FAIL (Run 36; HOLD / park)](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold) (plain-IFFC 10-ID; **not** a `multi_turn_base` %; quota remix **HOLD**)
@@ -1018,6 +1019,74 @@ Already scored (do not overwrite): Run 27 ungated = 54/200 = 27.0%; Run 30 tight
 
 ---
 
+## Experiment: IFFC one-pass OODA card (`--fc-mode iffc-ooda-card`)
+
+Inference-only **one-pass** overlay on the IFFC JSON-in-text channel. Each model decision turn is deterministically prefixed with a compact harness-written card:
+
+```
+[OODA]
+goal: <latest BFCL user question>
+slots: k=v; k=v
+last: name(args)->outcome
+next: call | ask | final | refuse
+[/OODA]
+```
+
+Stacked on the existing BASE path with `iffc-stop-repeat` (`OBSERVE_SAME_MIN_ASSISTANT_TOOL_TURNS=6`). Distinct `--fc-mode iffc-ooda-card` so scoring identity cannot collide with Run 30 (`fc_mode=iffc-stop-repeat`). Default `--fc-mode nfc` is **unchanged**.
+
+**Why a new fc-mode, not a flag on `iffc-stop-repeat`:** Run 30 already scored that mode. A separate `fc_mode=` tag keeps `--resume` off that row. The card is a prompt prefix, not a change to the stop heuristic.
+
+**Not `iffc-state`:** no `[STATE]` dump, no last-2-turn compression, no STATE-trust addendum. Run 16 already measured STATE **negative** on SFT-v4 (13.0% vs IFFC 15.0%). The card is a 4-field prefix (goal / slots / last / next) injected on a **working copy** of messages so the persistent transcript stays IFFC-clean for stop-on-repeat.
+
+**Not OODA-Tool training** (Guo et al., [arXiv:2608.24368](https://arxiv.org/abs/2608.24368)). **Specialized 4-pass Observe→Orient→Decide→Act is dropped** — one chat completion per step, same as IFFC. Inspired by Joint typed CoT / one-pass, not a reproduction of their stage LoRAs.
+
+**Unscored.** Do **not** invent a `multi_turn_base` number. Do **not** overwrite Run 30.
+
+### Planned gates (Codex lock; not results)
+
+Calibrate on Mac (offline smoke + optional `--live` structural check) **before** a full 200. A full-200 on BASE Gemma-4-E2B-it Q4_K_M `multi_turn_base` is allowed only if **all** of:
+
+| Gate | Planned threshold |
+|------|-------------------|
+| Accuracy | **≥ 65/200** (tie or beat Run 30 32.5%) |
+| `state_mismatch` | **< 60** (strictly below Run 30 = Run 5) |
+| empty + missing GT | **≤ 75** (Run 30 empty 38 + missing 37 = 75) |
+| Latency | **≤ 1.25×** Run 30 wall / decode |
+
+Do **not** claim these as measured. Fail any gate → do not promote; keep Run 30 as the stop-repeat score.
+
+`next` is **advisory** (When2Call-style): `refuse` if no live tools; `ask` if the last exec looks like a missing/invalid argument; `final` if the latest user utterance is a closing thanks/done; otherwise `call`. It does **not** force decode. Stop-on-repeat still force-stops `[]` on consecutive identical / gated observe-same.
+
+### How to run (Mac calibration; BASE Gemma-4-E2B-it Q4_K_M)
+
+Serve **base** Gemma (bartowski Q4_K_M; not an SFT GGUF):
+
+```bash
+cd llama.cpp
+./build/bin/llama-server --jinja -fa on \
+  -hf bartowski/google_gemma-4-E2B-it-GGUF:Q4_K_M \
+  --host 0.0.0.0 --port 8080 -ngl 99 -c 65536 --temp 0.0 \
+  -np 4 -cb -ub 1024
+```
+
+Harness smoke (no 200-run):
+
+```bash
+uv run python -m benchmark.smoke_ooda_card
+uv run python -m benchmark.smoke_ooda_card --live   # structural only if server is up
+uv run pytest -q tests/benchmark/test_ooda_card.py
+```
+
+Full 200 — **not started in this PR**. New `runs` row only; **do not** `--resume-run-id 30`:
+
+```bash
+# uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+#   --categories multi_turn_base --fc-mode iffc-ooda-card \
+#   --notes "UNSCORED: IFFC+OODA-card+stop-repeat MIN=6 vs Run30 32.5%; do not overwrite Run 30"
+```
+
+---
+
 ## Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)
 
 This is the **test-time compute / MV@N** ablation for the BFCL multi-turn harness (METHODS §4 / PLAN #2; Snell et al., [arXiv:2408.03314](https://arxiv.org/abs/2408.03314)). It **rides on IFFC+STATE** so the 34.0% channel is not given back. It is **not** NFC, **not** GST, **not** TagDispatch/CD GBNF, and **not** a verifier / reward-model Best-of-N.
@@ -1318,6 +1387,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 4 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
 | 5 | **Best-of-N majority voting (`--fc-mode iffc-state-bon`)** | Gemma `multi_turn_base` vs IFFC+STATE 34.0% | **Measured** Run 11: 73/200 = 36.5% (beats STATE by +5 / +2.5 pp). State 64→53; empty 31→36; under-call flat. ~7× wall / ~8.8× decode — modest lift, **not free**. | Done (harness + live score) |
 | 5a | **IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)** | Collapsed over-call vs healthy-base IFFC | **Measured** Run 27 ungated on **BASE** Gemma: 54/200 = 27.0% (`scores.id=20`; **200/200 responses**). **Miss vs Run 5 IFFC 30.5%** (−3.5 pp; −9.5 pp vs BoN). Same accuracy level as Run 4 NFC 27.0% — **not** an identical method. Stop flags **37/200**, all failures (**0 stopped and correct**). VehicleControlAPI **22→33** vs Run 5. **Measured** Run 30 tighten MIN=6 @ `78c22a0` (PR #54): **65/200 = 0.325** (`scores.id=21`; `multi_turn_base` only; **200/200 responses + timings**; `entry_id` identical to Run 5/Run 27; bartowski Q4_K_M). **First scored win vs Run 5 IFFC** (**+2.0 percentage points; 65−61 correct** — **not** “+4pp”); **+5.5 pp vs Run 27**. Still **below STATE 34.0% and BoN 36.5%**. Stop flags **37→3**, all FAIL. VC state **33→22** (recovered to Run 5). `state_mismatch` **60** (=Run 5). **Celebrate / park SFT-v9: YES.** **Caveats:** harness/decode guardrail on BASE — **not** an SFT/method win; `finished_at` NULL (metrics 4/5 soft bookkeeping; accuracy locked in `scores`); status JSON stale — trust DB+log; `--resume-run-id 30` after orphan; N=200 complete. **Codex CONFIRM_PASS.** Do **not** invent tok/s. Do **not** overwrite BoN / IFFC / SFT-v4. Do **not** pivot to SFT v9. Harness [PR #54](https://github.com/sskarz/Thesis/pull/54). | Done (harness + live scores; ungated miss; tighten **PASSES**) |
+| 5b | **IFFC one-pass OODA card (`--fc-mode iffc-ooda-card`)** | Lightweight state prefix on BASE + stop-repeat MIN=6 | **Unscored.** Inference-only `[OODA]` card (goal / slots / last / next) stacked on Run 30’s stop-repeat. **Not** `iffc-state`. **Not** OODA-Tool training; Specialized 4-pass **dropped**. Do **not** overwrite Run 30. Planned full-200 gates (not results): ≥65/200, `state_mismatch`<60, empty+missing ≤75, ≤1.25× Run 30 latency. See [experiment](#experiment-iffc-one-pass-ooda-card---fc-mode-iffc-ooda-card). | Planned (harness + unit tests; no 200-run) |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level. Complements [PTC-Decoder §27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa) (training-free tool-name DFA; **unscored**; not our harness). | Medium |
 | 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale. Complements [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite): retrieve tools **and** redesign API-surface cardinality (~4 task-class tools in that paper). Complements [HyperTool §30](#30-hypertool-code-block-execution-granularity) (execution granularity / code-block; **unscored**; MCP-Universe ≠ BFCL). **Unscored** on this harness. | Medium |
 | 8 | **Schema-based verification loop** | Argument errors across categories | +3–10% with retries | Medium |
@@ -1874,7 +1944,7 @@ Do **not** paste these as thesis `multi_turn_base` scores. Our measured ladder i
 
 ### Applicability
 
-- **Thesis role:** Logged 2026-09-28 as a full section (was a light Post–Run27 cite). **Unscored.** Complements Post–Run27 “lightweight state prefix in **one pass**” — prefer Joint typed CoT over Specialized 4-call loop at edge. Relevant to VehicleControl / `state_mismatch`.
+- **Thesis role:** Logged 2026-09-28 as a full section (was a light Post–Run27 cite). **Unscored.** Complements Post–Run27 “lightweight state prefix in **one pass**” — prefer Joint typed CoT over Specialized 4-call loop at edge. Relevant to VehicleControl / `state_mismatch`. Harness experiment: [`--fc-mode iffc-ooda-card`](#experiment-iffc-one-pass-ooda-card---fc-mode-iffc-ooda-card) (inference-only card; **not** a reproduction of OODA-Tool training; Specialized 4-pass **dropped**).
 - **BFCL categories:** Paper transfer includes BFCL Multi-turn (their suite). Relevance to our `multi_turn_base` is **hypothesis only** until scored.
 - **Complexity:** Medium for Joint one-pass typed CoT; high for Specialized multi-pass + stage LoRAs.
 - **Limitation:** Specialized latency (~2.4×) is a poor edge default. Direct-LoRA remains cheaper when one-pass latency is the constraint.
