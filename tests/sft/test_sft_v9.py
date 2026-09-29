@@ -247,10 +247,10 @@ def test_mix_stats_v9_conversation_gates(tmp_path: Path):
     assert reasons == [], reasons
 
 
-def test_pref_pairs_stub_dry_run():
+def test_pref_pairs_exact_prefix_dry_run():
     schema = pair_schema_example()
     assert schema["pair_kind"] == "advance_vs_loop"
-    assert schema["schema_version"] == 1
+    assert schema["schema_version"] == 2
     apigen, toolace, xlam = _pools(n_t=5, n_x=2, n_a=3)
     report = dry_run_report(toolace + apigen)
     assert report["training"] is False

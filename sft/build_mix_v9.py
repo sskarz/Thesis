@@ -338,8 +338,8 @@ def build_v9_manifest(
             "exclusion + logging only. Not a conversation-level traj delete."
         ),
         "stage_b_pref_pairs": (
-            "stub only — sft.pref_pairs_antiloop_v9 --dry-run; no DPO/ORPO "
-            "in this scaffold PR"
+            "exact-prefix miner + DPO objective scaffold only — "
+            "sft.pref_pairs_antiloop_v9 --dry-run; no preference training"
         ),
         "probe_ids": list(V9_PROBE_IDS),
         "probe_ids_vc_sidecar": list(V9_PROBE_IDS_VC_SIDECAR),

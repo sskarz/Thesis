@@ -256,5 +256,5 @@ V9_PROBE_IDS_VC_SIDECAR = (
 # Optional later (not required for scaffold): "_186"
 V9_PROBE_IDS_OPTIONAL = ("_186",)
 
-# Stage B DiaTool-DPO stub only — no training in this PR.
-V9_PREF_PAIRS_SCHEMA_VERSION = 1
+# Stage B exact-prefix preference schema. Pair mining/scaffold only: no training.
+V9_PREF_PAIRS_SCHEMA_VERSION = 2

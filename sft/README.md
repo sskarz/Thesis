@@ -74,7 +74,7 @@ New experiment id `sft-v9` / internal **lever2**. Seed **49**. Dirs: `splits-v9`
 | `refuse` | 3–5% (floor 2% OK) | abort if ≈0 |
 | `irrelevance_[]` | 5–8% | max 10%; abort >12% |
 
-Soft-exclude observe→same / consecutive identical from keep (sampler exclusion only — **not** a teacher traj filter). Keep v4 empty/recovery on filler; **ban** v5 synth complete-turn0. `final_after_obs` classified **loose**; when duplicating prefer advancing prior tools; log stricter subtype, don't hard-filter. max_seq **8192** + existing `budget_seq`. Stage B DiaTool-DPO preference pairs: **stub only** (`python -m sft.pref_pairs_antiloop_v9 --dry-run`).
+Soft-exclude observe→same / consecutive identical from keep (sampler exclusion only — **not** a teacher traj filter). Keep v4 empty/recovery on filler; **ban** v5 synth complete-turn0. `final_after_obs` classified **loose**; when duplicating prefer advancing prior tools; log stricter subtype, don't hard-filter. max_seq **8192** + existing `budget_seq`. Stage B exact-prefix DPO is now the primary post-quota path, but remains scaffold-only (`python -m sft.pref_pairs_antiloop_v9 --dry-run`); do not train yet.
 
 **Standing constraints:** no BoN / no v7 resume / no full LoRA on failed v8 / no teacher observe→same as primary / no v5 synth turn0. Later BFCL under **plain iffc** regardless of stop-repeat harness.
 
@@ -94,6 +94,53 @@ uv run python -m sft.pref_pairs_antiloop_v9 --dry-run
 ```
 
 Modules: `action_class_v9.py`, `quota_sample_v9.py`, `build_mix_v9.py`, `mix_stats_v9.py`, `label_toolace_v9.py`, `pref_pairs_antiloop_v9.py`, `drop_identical_call.py` (predicates reused as sampler exclusion). Tests: `tests/sft/test_action_class_v9.py`, `test_quota_sample_v9.py`, `test_sft_v9.py`.
+
+### Stage B: exact-prefix anti-loop DPO scaffold (no training yet)
+
+The failed v9/v9.1/v9.2 quota smokes isolate the missing preference: after a
+successful observation, an advancing call or genuine final must outrank
+repeating the call that just executed. Stage B is therefore the primary
+post-v9-quota path. The miner constructs the reject at the **same prefix** by
+copying the immediately preceding executed call set into canonical IFFC; it
+never attaches a later response to an earlier prompt.
+
+Mine source-only pairs and inspect counts, samples, exclusions, and gates:
+
+```bash
+# Report only (default); does not write data or train.
+python -m sft.pref_pairs_antiloop_v9 --dry-run \
+  --splits sft/data/splits-v9
+
+# Explicit write, only after all gates pass. Data remains untracked.
+python -m sft.pref_pairs_antiloop_v9 --write \
+  --splits sft/data/splits-v9 --out-dir sft/data/pref-v9
+
+# Dependency-free objective/config check; never imports MLX or starts training.
+python -m sft.train_dpo_mlx --dry-run
+python -m sft.train_dpo_mlx --check-fixtures sft/data/pref-v9/train.jsonl
+```
+
+Required data gates are zero BFCL-looking IDs/content, byte-identical shared
+prompt hashes, non-identical canonical chosen/rejected responses, rejects equal
+to the immediately preceding executed call set, retry-valid observations
+excluded, parent-disjoint splits, and dedupe/caps by parent and tool family.
+Treat any failure as a data kill. Report the actual strict pair count; do not
+pad the set with BFCL or prefix-mismatched negatives.
+
+The intended later recipe is reference-anchored DPO on assistant continuation
+tokens only: untouched `google/gemma-4-e2b-it` for both policy initialization
+and frozen reference, LoRA rank 16 / scale 32 / 16 layers, `beta=0.1`, learning
+rate `1e-6`, batch size 1, and an 8192-token budget. Precompute frozen
+reference chosen/rejected log-probabilities with adapters disabled. **Do not
+initialize from `adapters-v9-smoke`, `adapters-v9-smoke91`, or
+`adapters-v9-smoke92`.**
+
+Only after advisor approval, a reviewed full MLX tokenization/cache/update path,
+and a free Mac may the implementation run a tiny synthetic overfit followed by
+one 100-update smoke. No beta/LR sweep, fusion, serving, or BFCL run is part of
+this scaffold. `train_dpo_mlx.py` intentionally has no training entrypoint;
+the real MLX forward/backward and reference-cache implementation remains a
+follow-up gate.
 
 ## Base model
 
@@ -458,7 +505,9 @@ sft/
 ├── build_mix_v9.py           # assemble splits-v9 (seed 49; ToolACE-primary)
 ├── mix_stats_v9.py           # v9 source + action-class gates
 ├── label_toolace_v9.py       # optional action_labels attachment
-├── pref_pairs_antiloop_v9.py # Stage B DiaTool-DPO stub (dry-run only)
+├── pref_pairs_antiloop_v9.py # Stage B exact-prefix miner (explicit write only)
+├── train_dpo_mlx.py          # no-train DPO objective/config scaffold
+├── dpo_config.yaml           # locked base/r16/alpha32/beta/lr design
 ├── split_data.py
 ├── train_mlx.py              # unroll + filter + mlx_lm.lora wrapper
 ├── train_mlx.sh
