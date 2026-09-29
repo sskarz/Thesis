@@ -220,12 +220,29 @@ def test_failed_smoke_adapters_are_forbidden_initializers(path):
     validate_policy_initializer(None)
 
 
-def test_readiness_keeps_audit_and_100_update_smoke_no_go():
+def test_readiness_exposes_only_guarded_100_update_smoke():
     report = readiness_report()
     assert report["tokenize_mask_truncation_kill"] == "PASS"
     assert report["reference_cache_hash_invariance"] == "PASS"
     assert report["lora_only_update_assert"] == "PASS"
     assert report["synthetic_overfit"] == "PASS"
-    assert report["pair_audit"] == "FAIL / pending"
-    assert report["100_update_smoke"] == "FAIL / pending"
-    assert report["smoke_verdict"] == "NO-GO"
+    assert report["pair_audit"].startswith("READY")
+    assert report["100_update_smoke"].startswith("READY")
+    assert report["smoke_verdict"] == "GO for exactly one guarded 100-update smoke"
+
+
+def test_smoke_row_order_is_deterministic_and_round_robins_strata():
+    from sft.run_dpo_smoke_mlx import stratified_row_order
+
+    rows = [
+        {"source": "b", "chosen_action": "x"},
+        {"source": "a", "chosen_action": "y"},
+        {"source": "a", "chosen_action": "y"},
+        {"source": "b", "chosen_action": "x"},
+    ]
+    order = stratified_row_order(rows, seed=7)
+    assert order == stratified_row_order(rows, seed=7)
+    assert {tuple(rows[index].values()) for index in order[:2]} == {
+        ("a", "y"),
+        ("b", "x"),
+    }

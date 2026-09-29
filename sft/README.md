@@ -74,7 +74,7 @@ New experiment id `sft-v9` / internal **lever2**. Seed **49**. Dirs: `splits-v9`
 | `refuse` | 3–5% (floor 2% OK) | abort if ≈0 |
 | `irrelevance_[]` | 5–8% | max 10%; abort >12% |
 
-Soft-exclude observe→same / consecutive identical from keep (sampler exclusion only — **not** a teacher traj filter). Keep v4 empty/recovery on filler; **ban** v5 synth complete-turn0. `final_after_obs` classified **loose**; when duplicating prefer advancing prior tools; log stricter subtype, don't hard-filter. max_seq **8192** + existing `budget_seq`. Stage B exact-prefix DPO is now the primary post-quota path, but remains scaffold-only (`python -m sft.pref_pairs_antiloop_v9 --dry-run`); do not train yet.
+Soft-exclude observe→same / consecutive identical from keep (sampler exclusion only — **not** a teacher traj filter). Keep v4 empty/recovery on filler; **ban** v5 synth complete-turn0. `final_after_obs` classified **loose**; when duplicating prefer advancing prior tools; log stricter subtype, don't hard-filter. max_seq **8192** + existing `budget_seq`. Stage B exact-prefix DPO is now the primary post-quota path. Mining remains guarded by `python -m sft.pref_pairs_antiloop_v9 --dry-run`; real training is limited to the fixed `--smoke-100` entrypoint documented below.
 
 **Standing constraints:** no BoN / no v7 resume / no full LoRA on failed v8 / no teacher observe→same as primary / no v5 synth turn0. Later BFCL under **plain iffc** regardless of stop-repeat harness.
 
@@ -95,7 +95,7 @@ uv run python -m sft.pref_pairs_antiloop_v9 --dry-run
 
 Modules: `action_class_v9.py`, `quota_sample_v9.py`, `build_mix_v9.py`, `mix_stats_v9.py`, `label_toolace_v9.py`, `pref_pairs_antiloop_v9.py`, `drop_identical_call.py` (predicates reused as sampler exclusion). Tests: `tests/sft/test_action_class_v9.py`, `test_quota_sample_v9.py`, `test_sft_v9.py`.
 
-### Stage B: exact-prefix anti-loop DPO scaffold (no training yet)
+### Stage B: exact-prefix anti-loop DPO with one guarded smoke path
 
 The failed v9/v9.1/v9.2 quota smokes isolate the missing preference: after a
 successful observation, an advancing call or genuine final must outrank
@@ -136,8 +136,8 @@ rate `1e-6`, batch size 1, and an 8192-token budget. **Do not initialize from
 `adapters-v9-smoke`, `adapters-v9-smoke91`, or `adapters-v9-smoke92`.** Runtime
 validation rejects those paths.
 
-The Stage B wiring now has dependency-free protocol boundaries for a future
-MLX tokenizer/scorer/autodiff adapter. It builds one shared prompt plus intact
+The Stage B wiring keeps dependency-free protocol boundaries for inspection
+and tests. It builds one shared prompt plus intact
 chosen/rejected continuations, masks every prompt token, and raises a kill gate
 instead of truncating either continuation. Frozen reference scores are computed
 twice with adapters disabled, keyed by prompt/chosen/rejected SHA-256, validated
@@ -147,11 +147,20 @@ non-LoRA gradients, and proves base parameters did not change. The synthetic
 fake policy lowers DPO loss and improves its preference margin without MLX or a
 model download; `--check-wiring` exercises all of this on CPU.
 
-The readiness report still returns **NO-GO** for a real Mac smoke. A stratified
-real-pair audit and the one guarded 100-update smoke remain `FAIL / pending`.
-There is intentionally no real-MLX `--run` command yet, and no
-`mlx_lm.lora --run` command should be substituted. No beta/LR sweep, fusion,
-serving, or BFCL run is authorized by this wiring change.
+The only real-training entrypoint is the fixed local command below. It samples
+128 source/action-stratified pairs with the real tokenizer, drops every pair
+that would truncate at 8192, freezes base continuation log-probabilities, and
+runs exactly 100 batch-1 updates at the locked recipe. It refuses an existing
+output directory and every failed v9 smoke adapter initializer. Ordinary
+inspection commands do not import MLX.
+
+```bash
+python -m sft.train_dpo_mlx --smoke-100
+```
+
+The adapter is written to `sft/adapters-dpo-smoke100/`; loss/margin telemetry
+and machine-readable status are written under `/tmp/sft_logs`. This is not a
+general `--run` path and must not be used for a beta/LR sweep or full training.
 
 ## Base model
 
@@ -517,7 +526,8 @@ sft/
 ├── mix_stats_v9.py           # v9 source + action-class gates
 ├── label_toolace_v9.py       # optional action_labels attachment
 ├── pref_pairs_antiloop_v9.py # Stage B exact-prefix miner (explicit write only)
-├── train_dpo_mlx.py          # dependency-free DPO wiring; no real --run
+├── train_dpo_mlx.py          # dependency-free wiring + guarded --smoke-100
+├── run_dpo_smoke_mlx.py      # fixed local-only 100-update MLX execution
 ├── dpo_config.yaml           # locked base/r16/alpha32/beta/lr design
 ├── split_data.py
 ├── train_mlx.py              # unroll + filter + mlx_lm.lora wrapper

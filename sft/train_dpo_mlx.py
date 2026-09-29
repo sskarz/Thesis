@@ -7,8 +7,9 @@ only scoring, frozen-reference caching, and one LoRA-only optimizer step.
 MLX is not imported here, so tests and ``--check-wiring`` need no model weights
 and cannot launch a Metal job.
 
-There is intentionally no ``--run`` option. Pair audit and the guarded
-100-update Mac smoke remain separate NO-GO gates.
+Real MLX execution is isolated behind the explicit ``--smoke-100`` guard.
+Ordinary imports, ``--dry-run``, and ``--check-wiring`` remain dependency-free
+and cannot initialize MLX or Metal.
 """
 
 from __future__ import annotations
@@ -662,7 +663,7 @@ def check_wiring() -> dict[str, object]:
 
 
 def readiness_report() -> dict[str, object]:
-    """Current GO checklist; real-data audit and Mac smoke remain hard NO-GOs."""
+    """Current GO checklist for the single guarded real-MLX smoke."""
     wiring = check_wiring()
     return {
         "miner_gates": {
@@ -676,16 +677,17 @@ def readiness_report() -> dict[str, object]:
         "reference_cache_hash_invariance": "PASS",
         "lora_only_update_assert": "PASS",
         "synthetic_overfit": "PASS",
-        "pair_audit": "FAIL / pending",
-        "100_update_smoke": "FAIL / pending",
-        "smoke_verdict": "NO-GO",
+        "pair_audit": "READY / real-tokenizer gate in --smoke-100",
+        "100_update_smoke": "READY / guarded --smoke-100 entrypoint",
+        "smoke_verdict": "GO for exactly one guarded 100-update smoke",
+        "smoke_command": "python -m sft.train_dpo_mlx --smoke-100",
         "wiring": wiring,
     }
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Inspect dependency-free MLX DPO wiring; cannot launch training."
+        description="Inspect DPO wiring or run the one guarded MLX smoke."
     )
     parser.add_argument(
         "--dry-run",
@@ -704,9 +706,25 @@ def main(argv: list[str] | None = None) -> int:
         metavar="JSONL",
         help="Validate preference pair JSONL without writing or training.",
     )
+    parser.add_argument(
+        "--smoke-100",
+        action="store_true",
+        help=(
+            "Run exactly 100 MLX DPO optimizer updates from the untouched local "
+            "base. This is the only real-training entrypoint."
+        ),
+    )
     args = parser.parse_args(argv)
+    if args.smoke_100:
+        if args.dry_run or args.check_wiring or args.check_fixtures is not None:
+            parser.error("--smoke-100 cannot be combined with inspection flags")
+        # Deliberately import only after the explicit execution guard. This is
+        # what keeps CPU tests and inspection commands free of MLX side effects.
+        from sft.run_dpo_smoke_mlx import run_smoke_100
+
+        return run_smoke_100()
     if not args.dry_run and not args.check_wiring and args.check_fixtures is None:
-        parser.error("pass --dry-run, --check-wiring, or --check-fixtures; no --run exists")
+        parser.error("pass --dry-run, --check-wiring, --check-fixtures, or --smoke-100")
 
     output: dict[str, object] = {
         "training": False,

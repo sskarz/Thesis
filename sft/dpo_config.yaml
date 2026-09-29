@@ -1,5 +1,5 @@
-# Stage B reference-anchored DPO design lock. This is documentation for the
-# pending reviewed MLX implementation; train_dpo_mlx.py does not launch jobs.
+# Stage B reference-anchored DPO recipe lock. Real execution is available only
+# through train_dpo_mlx.py --smoke-100; inspection modes remain dependency-free.
 model: google/gemma-4-e2b-it
 reference_model: google/gemma-4-e2b-it
 policy_init: untouched_base
