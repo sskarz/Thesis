@@ -25,11 +25,13 @@ Thesis/
 │   ├── cd.py                          # TagDispatch-style CD (name GBNF + per-tool json_schema)
 │   ├── gst.py                         # GST 7-step curriculum (arXiv:2509.18076) on NFC tools
 │   ├── iffc_state.py                  # IFFC+STATE overlay (harness-written working memory)
+│   ├── ooda_card.py                   # One-pass IFFC [OODA] card (goal/slots/last/next)
 │   ├── bon.py                         # Best-of-N majority vote overlay on IFFC+STATE
 │   ├── smoke_iffc.py                  # Offline IFFC smoke (parser + mock loop)
 │   ├── smoke_cd.py                    # Offline CD smoke (constraint checks + mock two-pass)
 │   ├── smoke_gst.py                   # Offline GST smoke (template in payload + mock NFC loop)
 │   ├── smoke_iffc_state.py            # Offline IFFC+STATE smoke (STATE + last-2-turns + mock IFFC)
+│   ├── smoke_ooda_card.py             # Offline IFFC-OODA-card smoke (card + parse + mock IFFC)
 │   ├── smoke_bon.py                   # Offline BoN smoke (majority vote + mock IFFC+STATE loop)
 │   ├── coerce_types.py                # Schema-aware arg type coercion (fixes Llama string serialization)
 │   ├── parse_functiongemma.py         # Custom output parser for FunctionGemma
@@ -152,6 +154,12 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --categories multi_turn_base --fc-mode iffc-state-bon \
   --notes "BoN N=5 on IFFC+STATE vs 34% / IFFC 30.5% / GST 30.5% / NFC 27% / CD 10.5%"
+# UNSCORED iffc-ooda-card (one-pass [OODA] prefix + stop-repeat MIN=6).
+# Do NOT start a full 200 from this agent. Do NOT overwrite Run 30.
+# uv run python -m benchmark.smoke_ooda_card
+# uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+#   --categories multi_turn_base --fc-mode iffc-ooda-card \
+#   --notes "UNSCORED: IFFC+OODA-card+stop-repeat MIN=6 vs Run30 32.5%; do not overwrite Run 30"
 uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc --only-multi-turn \
   --categories multi_turn_base --fc-mode iffc
 uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-turn \

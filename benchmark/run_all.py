@@ -19,6 +19,14 @@ Function-calling modes (``--fc-mode``):
   ``--fc-mode xlam`` scored 6/200 = 3.0% --- still very low, not published
   ~78.94%).
 
+- ``iffc-stop-repeat``: IFFC JSON-in-text plus harness force-stop on
+  consecutive identical calls or executed-call re-emits after 6 assistant
+  tool-turns in the current ask. Baseline iffc unchanged.
+- ``iffc-ooda-card``: IFFC JSON-in-text plus a one-pass harness-written
+  ``[OODA]`` card stacked on stop-repeat MIN=6. Not ``iffc-state``. Not
+  OODA-Tool training; not a Specialized 4-pass loop. Do not overwrite
+  Run 30. Default ``nfc`` is unchanged.
+
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits
 trailing IFFC assistant ``[]`` from ``chat_history`` before the next BFCL
 user turn. Default off (Run 5–13 unchanged). Not a training method.
@@ -200,7 +208,10 @@ def main():
             '({"tool_calls":[{name, arguments}]}; no native tools); '
             "iffc-stop-repeat = IFFC + harness force-stop on consecutive "
             "identical calls, or executed-call re-emits after 6 assistant "
-            "tool-turns in the current ask (baseline iffc unchanged)."
+            "tool-turns in the current ask (baseline iffc unchanged); "
+            "iffc-ooda-card = IFFC + one-pass [OODA] card (goal/slots/last/"
+            "next) stacked on stop-repeat MIN=6 (not iffc-state; not 4-pass "
+            "OODA; do not overwrite Run 30)."
         ),
     )
     parser.add_argument(
@@ -332,6 +343,10 @@ def main():
             if args.fc_mode == config.FC_IFFC_STATE_BON
             else " (xLAM = JSON-in-text {\"tool_calls\":[...]} ; no native tools)"
             if args.fc_mode == config.FC_XLAM
+            else " (IFFC-stop-repeat = IFFC + force-stop after 6 tool-turns / consecutive identical)"
+            if args.fc_mode == config.FC_IFFC_STOP_REPEAT
+            else " (IFFC-OODA-card = one-pass [OODA] prefix + stop-repeat MIN=6; not iffc-state; not 4-pass)"
+            if args.fc_mode == config.FC_IFFC_OODA_CARD
             else " (NFC = native tools)"
         )
     )
