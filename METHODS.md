@@ -26,12 +26,13 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: TagDispatch-style CD (`--fc-mode cd`)](#experiment-tagdispatch-style-cd---fc-mode-cd)
 - [Experiment: Guided-Structured Templates (`--fc-mode gst`)](#experiment-guided-structured-templates---fc-mode-gst)
 - [Experiment: IFFC + harness STATE (`--fc-mode iffc-state`)](#experiment-iffc--harness-state---fc-mode-iffc-state)
-- [Experiment: IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)](#experiment-iffc-stop-on-repeat---fc-mode-iffc-stop-repeat) (Run 27 ungated miss 27.0%; Run 30 tighten **32.5%** scored win vs IFFC on BASE)
+- [Experiment: IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)](#experiment-iffc-stop-on-repeat---fc-mode-iffc-stop-repeat) (Run 27 ungated miss 27.0%; Run 30 tighten **32.5%** scored win vs IFFC on BASE; **do not overwrite**; Run 42 OODA-card is now higher Acc)
+- [Experiment: IFFC OODA card (`--fc-mode iffc-ooda-card`)](#experiment-iffc-ooda-card---fc-mode-iffc-ooda-card) (Run 42 **71/200 = 35.5%**; +3.0 pp vs Run 30; `state_mismatch` gate **MISS**; still below BoN 36.5%)
 - [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
 - [Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)](#experiment-mlx-sft-v1-gemma-4-e2b-iffc-mix)
 - [SFT v9.2 smoke-gate FAIL (Run 36; HOLD / park)](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold) (plain-IFFC 10-ID; **not** a `multi_turn_base` %; quota remix **HOLD**)
 - [Prioritized Recommendations](#prioritized-recommendations)
-- [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; tightened stop-repeat **PASSES** Run 30 32.5%; SFT v9.2 10-ID **FAIL** → park; next after advisor = Stage B pref pairs, not another quota remix)
+- [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; Run 42 iffc-ooda-card **35.5%** scored, `state_mismatch` gate **MISS**; Run 30 **32.5%** untouched; SFT v9.2 10-ID **FAIL** → park; next after advisor = Stage B pref pairs, not another quota remix)
 - [References](#references)
 
 ---
@@ -729,7 +730,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "TagDispatch-style CD vs NFC 27% / IFFC 30.5%"
 ```
 
-Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%; BoN N=5 Run 11 = 73/200 = 36.5%; SFT-IFFC LoRA best@1000 Run 12 = 1/200 = 0.5% (scored negative); SFT-IFFC-v2 filtered-[] LoRA best@2000 Run 13 = 1/200 = 0.5% (same collapse; filter insufficient); SFT-IFFC-v2 + strip trailing `[]` Run 14 = 4/200 = 2.0% (**DIAGNOSTIC** history bookkeeping — **not** a method win); SFT-IFFC-v4 LoRA best@1600 Run 15 = 30/200 = 15.0% (**scored recovery** from collapse, still **below IFFC 30.5% and below NFC 27.0%** — **do not present as beating IFFC**); SFT-IFFC-v4 + IFFC+STATE Run 16 = 26/200 = 13.0% (**scored negative/null overlay** vs Run 15 — **do not propose BoN on this ckpt**); SFT-IFFC-v5 LoRA best@1800 Run 17 = 23/200 = 11.5% (**scored regression vs Run 15** — **do not present as a method win**; **no BoN / no more epochs on this mix**); SFT-IFFC-v6 LoRA best@1800 Run 18 = 26/200 = 13.0% (**scored miss vs Run 15 15.0%** — **do not present as a method win**; **no BoN / no more epochs on v6**); xLAM-1b-fc-r NFC Run 19 = 0/200 = 0.0% (**scored format-channel collapse** on this multi_turn NFC harness — **not** published overall BFCL ~78.94%; **not** an ability floor; **not** a method win; gen_tps_mean ≈ **196.7**; avg `api_calls` **3.63**); xLAM-1b-fc-r `--fc-mode xlam` Run 20 = 6/200 = 3.0% (**format-fixed fair-channel** after [PR #42](https://github.com/sskarz/Thesis/pull/42) — tools actually ran, avg `api_calls` **50.47**; still **very low**; **not** a method win; **not** published ~78.94%; still **below CD 10.5%**; gen_tps_mean ≈ **91.6**); IFFC-stop-repeat Run 27 = 54/200 = 27.0% (**BASE** Gemma ungated, [PR #54](https://github.com/sskarz/Thesis/pull/54) commit `5b49d7a` — **scored miss vs IFFC 30.5%** (−3.5 pp); **not** smoke81 / v7 / v8 SFT / BoN; **not** a method win); IFFC-stop-repeat **tighten** Run 30 = 65/200 = **32.5%** (**BASE** Gemma, PR #54 commit `78c22a0`, MIN=6 `observe_same`; `scores.id=21`; **200/200 responses** — **first scored win vs Run 5 IFFC 30.5%** (**+2.0 percentage points; 65−61 correct** — **not** “+4pp”); **+5.5 pp vs Run 27**; still **below STATE 34.0% and BoN 36.5%**; **not** best overall inference; do **not** overwrite BoN / IFFC / SFT-v4; **Codex CONFIRM_PASS**; do **not** invent tok/s).
+Comparison target (already scored, do not overwrite): NFC Run 4 = 54/200 = 27.0%; IFFC Run 5 = 61/200 = 30.5%; CD Run 8 = 21/200 = 10.5%; GST+NFC Run 9 = 61/200 = 30.5%; IFFC+STATE Run 10 = 68/200 = 34.0%; BoN N=5 Run 11 = 73/200 = 36.5%; SFT-IFFC LoRA best@1000 Run 12 = 1/200 = 0.5% (scored negative); SFT-IFFC-v2 filtered-[] LoRA best@2000 Run 13 = 1/200 = 0.5% (same collapse; filter insufficient); SFT-IFFC-v2 + strip trailing `[]` Run 14 = 4/200 = 2.0% (**DIAGNOSTIC** history bookkeeping — **not** a method win); SFT-IFFC-v4 LoRA best@1600 Run 15 = 30/200 = 15.0% (**scored recovery** from collapse, still **below IFFC 30.5% and below NFC 27.0%** — **do not present as beating IFFC**); SFT-IFFC-v4 + IFFC+STATE Run 16 = 26/200 = 13.0% (**scored negative/null overlay** vs Run 15 — **do not propose BoN on this ckpt**); SFT-IFFC-v5 LoRA best@1800 Run 17 = 23/200 = 11.5% (**scored regression vs Run 15** — **do not present as a method win**; **no BoN / no more epochs on this mix**); SFT-IFFC-v6 LoRA best@1800 Run 18 = 26/200 = 13.0% (**scored miss vs Run 15 15.0%** — **do not present as a method win**; **no BoN / no more epochs on v6**); xLAM-1b-fc-r NFC Run 19 = 0/200 = 0.0% (**scored format-channel collapse** on this multi_turn NFC harness — **not** published overall BFCL ~78.94%; **not** an ability floor; **not** a method win; gen_tps_mean ≈ **196.7**; avg `api_calls` **3.63**); xLAM-1b-fc-r `--fc-mode xlam` Run 20 = 6/200 = 3.0% (**format-fixed fair-channel** after [PR #42](https://github.com/sskarz/Thesis/pull/42) — tools actually ran, avg `api_calls` **50.47**; still **very low**; **not** a method win; **not** published ~78.94%; still **below CD 10.5%**; gen_tps_mean ≈ **91.6**); IFFC-stop-repeat Run 27 = 54/200 = 27.0% (**BASE** Gemma ungated, [PR #54](https://github.com/sskarz/Thesis/pull/54) commit `5b49d7a` — **scored miss vs IFFC 30.5%** (−3.5 pp); **not** smoke81 / v7 / v8 SFT / BoN; **not** a method win); IFFC-stop-repeat **tighten** Run 30 = 65/200 = **32.5%** (**BASE** Gemma, PR #54 commit `78c22a0`, MIN=6 `observe_same`; `scores.id=21`; **200/200 responses** — **first scored win vs Run 5 IFFC 30.5%** (**+2.0 percentage points; 65−61 correct** — **not** “+4pp”); **+5.5 pp vs Run 27**; still **below STATE 34.0% and BoN 36.5%**; **not** best overall inference; do **not** overwrite this row / BoN / IFFC / SFT-v4; **Codex CONFIRM_PASS**; do **not** invent tok/s); IFFC OODA-card Run 42 = 71/200 = **35.5%** (**BASE** Gemma, `--fc-mode iffc-ooda-card`, [PR #61](https://github.com/sskarz/Thesis/pull/61) @ `1dea341`; **200/200 responses**; finished `2026-09-29T05:51:02.787870+00:00`; **+6 / +3.0 pp vs Run 30**; still **below BoN 36.5% (−1.0 pp)** and **above STATE 34.0% (+1.5 pp)**; `state_mismatch` **71** gate **MISS** vs <60; empty+missing **58** MET vs ≤75; TTFT **517.8 ms** vs Run 30 **630.5 ms** (≤1.25× **MET**); **not** a clean gate sweep; **not** 4-pass OODA / **not** iffc-state / **not** a flag on stop-repeat; do **not** overwrite Run 30; calib Run 40 ≠ BFCL %; Run 41 orphan ignore; SFT parked; no BoN; do **not** invent tok/s).
 
 ### Pause / resume (kill overnight, continue the same run)
 
@@ -1000,7 +1001,7 @@ Run 27 details (146/146): state mismatch **75**, empty **40**, missing GT exec *
 
 Run 30 examples: fail VC state `multi_turn_base_52`, `_58`, `_63`, `_64`, `_65`; correct `multi_turn_base_100` (5 api / 2 turns), `_101`, `_102`, `_103`, `_105`.
 
-Best inference remains BoN **36.5%** (base Gemma). Best IFFC remains Run 5 **30.5%** (baseline). Tightened stop-repeat Run 30 **32.5%** is a **scored win vs that IFFC baseline**, still **below STATE 34.0% and BoN 36.5%**. Best SFT remains v4 IFFC **15.0%**. Details: `THESIS.md`. Do **not** overwrite Run 27 or Run 30. Do **not** make ungated `iffc-stop-repeat` the default on base.
+Best inference remains BoN **36.5%** (base Gemma). Best IFFC remains Run 5 **30.5%** (baseline). Tightened stop-repeat Run 30 **32.5%** is a **scored win vs that IFFC baseline**, still **below STATE 34.0% and BoN 36.5%**. Run 42 `--fc-mode iffc-ooda-card` is now **higher Acc** (**71/200 = 35.5%**, +3.0 pp vs this row) with a `state_mismatch` gate **MISS** — see [IFFC OODA card](#experiment-iffc-ooda-card---fc-mode-iffc-ooda-card). Do **not** overwrite this `runs` row. Best SFT remains v4 IFFC **15.0%**. Details: `THESIS.md`. Do **not** overwrite Run 27 or Run 30. Do **not** make ungated `iffc-stop-repeat` the default on base.
 
 **GAR framing (lit, not a new score):** Zhao et al., *Calibration is the Bottleneck*, [arXiv:2609.00949](https://arxiv.org/abs/2609.00949) (2026) — Acc ≤ GAR; SRI/CRI-like decode can **hurt Acc**. Ungated force-stop cut Acc **30.5% → 27.0%** (VehicleControl **22→33**). **Gated recover:** tighten MIN=6 recovered past IFFC (**27.0% → 32.5%**; VehicleControl **33→22**, back to Run 5). Evidence writeup: [PR #55](https://github.com/sskarz/Thesis/pull/55) (Run 27 miss) + this Run 30 add. **Tightened stop-repeat PASSES** (Run 30 **32.5%**). **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg **25.7**, hit **6/10**) → [HOLD / park](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). Next after advisor: Stage B pref pairs, **not** another quota remix. Do **not** invent tok/s. Do **not** invent a v9 BFCL %.
 
@@ -1014,7 +1015,75 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
   --notes "BASE gemma4-e2b iffc-stop-repeat vs Run5 IFFC 30.5%; NOT smoke81/v7/v8"
 ```
 
-Already scored (do not overwrite): Run 27 ungated = 54/200 = 27.0%; Run 30 tighten = 65/200 = 0.325. Relaunch of Run 30 used `--resume-run-id 30` after orphan; **N=200 complete**. Do **not** invent a second Run 30 row.
+Already scored (do not overwrite): Run 27 ungated = 54/200 = 27.0%; Run 30 tighten = 65/200 = 0.325. Relaunch of Run 30 used `--resume-run-id 30` after orphan; **N=200 complete**. Do **not** invent a second Run 30 row. Run 42 is a **new** `--fc-mode iffc-ooda-card` run — **never resume Run 30**.
+
+---
+
+## Experiment: IFFC OODA card (`--fc-mode iffc-ooda-card`)
+
+This is a **dedicated** `--fc-mode iffc-ooda-card` (PR [#61](https://github.com/sskarz/Thesis/pull/61) draft branch `cursor/iffc-ooda-card-e5c5` @ `1dea341`). **Not** a flag on `--fc-mode iffc-stop-repeat`. **Not** `--fc-mode iffc-state`. **Not** Guo et al. Specialized 4-pass OODA (METHODS [§26](#26-ooda-tool-typed-observe-orient-decide-act) paper method remains distinct). One-pass `[OODA]` card (`goal` / `slots` / `last` / `next`) on a **working copy** of messages; stacked on stop-repeat **MIN=6**; `next` is **advisory**. Baseline `--fc-mode iffc` and `--fc-mode iffc-stop-repeat` are **unchanged**. **Not** NFC, **not** GST, **not** CD/GBNF, **not** STATE, **not** BoN, **not** a retrain.
+
+Harness code lives in PR #61 — **leave that PR alone**; this writeup is docs-only. Do **not** overwrite Run 30. Do **not** invent tok/s beyond verified TTFT. Do **not** invent a second score. Calib is **not** a BFCL accuracy claim. SFT still parked (best SFT v4 **15.0%**). No BoN.
+
+### Calib Run 40 (10-ID, unscored) — PASS, not a BFCL %
+
+Mac `run_id=40`; 10 responses; **no** `scores` row. Artifacts: `ooda_card_calib_10id.json` + `ooda_card_calib_status.md`. **PASS:** avg `api_calls` **6.1**, `hit_step_limit` **0/10**, `iffc_unparseable` **0/10**, `turn0_tool` **10/10**. Finished `2026-09-29T02:06:15.918626+00:00`. **Not** a `multi_turn_base` accuracy. Do **not** cite 10-ID as 35.5%.
+
+### Orphan Run 41 — ignore
+
+Mac `run_id=41`: **0 responses**, no score, no `finished_at`. Abort / ignore note only. Do **not** invent a Run 41 %.
+
+### Run 42 — full-200 `multi_turn_base` (71/200 = 35.5%)
+
+**NEW run** (never `--resume-run-id 30`). Mac `run_id=42`; BASE `gemma4-e2b` / slug `Gemma-4-E2B-it-Q4_K_M`; `fc_mode=iffc-ooda-card`; `--categories multi_turn_base` **only**; notes `BASE`, `-np4 -c65536`, `temp=0`. **200/200 responses.** Finished DB `2026-09-29T05:51:02.787870+00:00` = **2026-09-29 01:51 ET**.
+
+**Measured: 71/200 = 35.5%** (accuracy **0.355**). Versus Run 30 tighten **65/200 = 32.5%**: **+6 correct / +3.0 pp**. Versus Run 5 IFFC **61/200 = 30.5%**: **+10 / +5.0 pp**. Versus Run 4 NFC **54/200 = 27.0%**: **+17 / +8.5 pp**. Versus Run 10 IFFC+STATE **68/200 = 34.0%**: **+3 / +1.5 pp** (above STATE). Versus BoN Run 11 **73/200 = 36.5%**: **−2 / −1.0 pp** (BoN still best inference). **Accuracy win vs Run 30 and vs IFFC / NFC; still below BoN.** Do **not** claim a clean gate sweep (see `state_mismatch` **MISS** below). Do **not** overwrite Run 30 / BoN / IFFC / SFT-v4.
+
+#### `eval_errors` (Run 42)
+
+Total error rows **129** (failed entries = 129 → 71 correct). Other = 0.
+
+| Bucket | n | Gate |
+|--------|--:|------|
+| `state_mismatch` | **71** | **MISS** vs <60 |
+| `empty_response` | **17** | — |
+| `missing_gt_exec` | **41** | — |
+| empty + missing GT | **58** | **MET** vs ≤75 |
+| total `eval_errors` | **129** | — |
+
+#### Pre-registered gates
+
+| Gate | Verified | Status |
+|------|----------|--------|
+| Accuracy ≥65/200 | 71/200 | **MET** |
+| `state_mismatch` <60 | 71 | **MISS** |
+| empty + missing GT ≤75 | 17+41=58 | **MET** |
+| Latency ≤1.25× Run 30 | TTFT mean **517.8 ms** vs Run 30 **630.5 ms** (SQL 517.7544 / 630.4518; ratio 0.82; 1.25× threshold 788.06 ms) | **MET** |
+
+Do **not** invent generation tok/s. Call out the `state_mismatch` miss: 71 is **not** <60. Three of four pre-registered gates MET; the state gate did **not**.
+
+#### N=200 scoreboard after Run 42
+
+- Best inference: BoN **36.5%** (Run 11) — **still best**
+- Run 42 iffc-ooda-card: **35.5%** (new **second** inference)
+- Run 10 IFFC+STATE: **34.0%**
+- Run 30 iffc-stop-repeat tighten: **32.5%**
+- Run 5 IFFC: **30.5%**
+- Best SFT: v4 **15.0%**
+
+SFT still parked. No BoN on this channel. Calib Run 40 ≠ 35.5%. Run 30 untouched.
+
+### How to run
+
+Harness lives in [PR #61](https://github.com/sskarz/Thesis/pull/61) (draft; `cursor/iffc-ooda-card-e5c5` @ `1dea341`). Serve **base** Gemma (not an SFT GGUF):
+
+```bash
+uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+  --categories multi_turn_base --fc-mode iffc-ooda-card \
+  --notes "BASE gemma4-e2b iffc-ooda-card vs Run30 32.5%; NOT iffc-state / NOT 4-pass OODA"
+```
+
+Already scored (do not overwrite): Run 40 calib 10-ID (unscored PASS); Run 41 orphan 0 responses (ignore); Run 42 full-200 = 71/200 = 0.355. Do **not** resume Run 30. Do **not** invent a second Run 42 row.
 
 ---
 
@@ -1108,7 +1177,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 ## Experiment: MLX SFT (Gemma-4-E2B, IFFC mix)
 
-Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both scored negative** on BFCL v4 `multi_turn_base`. Run 14 is a **DIAGNOSTIC** history-bookkeeping ablation on the same v2 GGUF (`--iffc-strip-empty-assistant`): **4/200 = 2.0%** — did **not** rescue the never-start collapse. **Do not present 2% as a method win.** **v4 (Run 15) is a scored recovery: 30/200 = 15.0%** — empty-`[]` largely fixed, still **below IFFC 30.5% and below NFC 27.0%**. **Do not present 15% as beating IFFC.** **Run 16 (IFFC+STATE on that same v4 GGUF) is a scored negative/null overlay: 26/200 = 13.0%** (−2.0 pp vs Run 15). STATE helps **base** Gemma, not this SFT-v4 checkpoint. **Do not propose BoN as the next win on this ckpt.** **v5 (Run 17) is a scored regression: 23/200 = 11.5%** (−3.5 pp / −7 vs Run 15; state_mismatch 109→133, under_call 59→44, empty 2→0, avg api_calls/entry 17.3→40.3). Hypothesis: synthetic complete turn-0 taught parallel call dumps. **Do not present 11.5% as a method win.** **No BoN on this ckpt; no more epochs on the v5 mix.** **v6 (Run 18) is a scored miss vs v4: 26/200 = 13.0%** (−2.0 pp / −4 vs Run 15; +1.5 pp / +3 vs Run 17; ties Run 16). Recipe ([PR #38](https://github.com/sskarz/Thesis/pull/38)): v4 empty/recovery + only `drop_state_inconsistent`; turn-0 underspec/synth **off**. Model key [PR #39](https://github.com/sskarz/Thesis/pull/39). Empty still 1 (`_43`); residual state_mismatch 118 + under_call 55; avg api_calls **13.34** (fixed v5’s 40.3 churn). **Do not present 13.0% as a method win.** **No BoN on this ckpt; no more epochs on the v6 mix.** v4 IFFC 15% remains best SFT recovery. **SFT path locked 2026-09-23** as the main path (inference wrappers secondary). Next training lever: SFT **v7** (planned, **not scored**). Inference-time baselines unchanged: BoN 36.5% best **on base Gemma**; IFFC+STATE 34.0%; IFFC 30.5%. Full audit: `THESIS.md`.
+Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both scored negative** on BFCL v4 `multi_turn_base`. Run 14 is a **DIAGNOSTIC** history-bookkeeping ablation on the same v2 GGUF (`--iffc-strip-empty-assistant`): **4/200 = 2.0%** — did **not** rescue the never-start collapse. **Do not present 2% as a method win.** **v4 (Run 15) is a scored recovery: 30/200 = 15.0%** — empty-`[]` largely fixed, still **below IFFC 30.5% and below NFC 27.0%**. **Do not present 15% as beating IFFC.** **Run 16 (IFFC+STATE on that same v4 GGUF) is a scored negative/null overlay: 26/200 = 13.0%** (−2.0 pp vs Run 15). STATE helps **base** Gemma, not this SFT-v4 checkpoint. **Do not propose BoN as the next win on this ckpt.** **v5 (Run 17) is a scored regression: 23/200 = 11.5%** (−3.5 pp / −7 vs Run 15; state_mismatch 109→133, under_call 59→44, empty 2→0, avg api_calls/entry 17.3→40.3). Hypothesis: synthetic complete turn-0 taught parallel call dumps. **Do not present 11.5% as a method win.** **No BoN on this ckpt; no more epochs on the v5 mix.** **v6 (Run 18) is a scored miss vs v4: 26/200 = 13.0%** (−2.0 pp / −4 vs Run 15; +1.5 pp / +3 vs Run 17; ties Run 16). Recipe ([PR #38](https://github.com/sskarz/Thesis/pull/38)): v4 empty/recovery + only `drop_state_inconsistent`; turn-0 underspec/synth **off**. Model key [PR #39](https://github.com/sskarz/Thesis/pull/39). Empty still 1 (`_43`); residual state_mismatch 118 + under_call 55; avg api_calls **13.34** (fixed v5’s 40.3 churn). **Do not present 13.0% as a method win.** **No BoN on this ckpt; no more epochs on the v6 mix.** v4 IFFC 15% remains best SFT recovery. **SFT path locked 2026-09-23** as the main path (inference wrappers secondary). Next training lever: SFT **v7** (planned, **not scored**). Inference-time baselines after Run 42: BoN 36.5% best **on base Gemma**; iffc-ooda-card **35.5%** (second inference; `state_mismatch` gate **MISS**); IFFC+STATE 34.0%; Run 30 32.5%; IFFC 30.5%. Full audit: `THESIS.md`.
 
 ### Decision: SFT path locked (2026-09-23)
 
@@ -1116,7 +1185,7 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **Lit review:** [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md) (12-source synthesis for v7 planning; vault owns the deep note — may land in a parallel vault PR before it is on `main`). Do **not** paste the full review here.
 
-**Tightened stop-repeat PASSES** (Run 30 **65/200 = 32.5%** vs IFFC **30.5%**). SFT v9.2 10-ID smoke-gate **FAIL** (Run 36) → **HOLD / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). Codex **`HOLD_sft_quota_remix`**. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 BFCL %.** Paper BFCL % ≠ our harness.
+**Tightened stop-repeat PASSES** (Run 30 **65/200 = 32.5%** vs IFFC **30.5%**). Run 42 `--fc-mode iffc-ooda-card` is now **scored** at **71/200 = 35.5%** (+3.0 pp vs Run 30; still below BoN 36.5%; `state_mismatch` gate **MISS**) — see [IFFC OODA card](#experiment-iffc-ooda-card---fc-mode-iffc-ooda-card). Do **not** overwrite Run 30. SFT v9.2 10-ID smoke-gate **FAIL** (Run 36) → **HOLD / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). Codex **`HOLD_sft_quota_remix`**. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 BFCL %.** Paper BFCL % ≠ our harness.
 
 **Next intended method — SFT v7 (planned, not scored; do not invent results):**
 
@@ -1133,7 +1202,7 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **Related options (logged 2026-09-28, all unscored; paper numbers are theirs; do not invent `multi_turn_base` scores):**
 
-- **OODA-Tool** ([§26](#26-ooda-tool-typed-observe-orient-decide-act)) — typed Observe→Orient→Decide→Act; **train + infer**. Prefer Joint **one-pass** over Specialized ~2.4× at edge. Cross-link Post–Run27 (do not duplicate ranking).
+- **OODA-Tool** ([§26](#26-ooda-tool-typed-observe-orient-decide-act)) — Guo et al. typed Observe→Orient→Decide→Act paper method remains **unscored** (prefer Joint **one-pass** over Specialized ~2.4×). A **separate** one-pass `[OODA]` card harness (`--fc-mode iffc-ooda-card`) is **scored** Run 42 **71/200 = 35.5%** — **not** 4-pass Specialized; **not** iffc-state. Cross-link [IFFC OODA card](#experiment-iffc-ooda-card---fc-mode-iffc-ooda-card).
 - **PTC-Decoder** ([§27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa)) — **inference-only** Plan-to-Act + tool-name DFA. Not our Mac harness / not BFCL `multi_turn_base`.
 - **Looped LMs** ([§28](#28-looped-language-models-for-compositional-tool-calling)) — mostly **inference / test-time compute**. Needs a looped backbone we do not run.
 - **PARL-MT / PROGRA** ([§29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling)) — **training-time** progress-aware PAG-RL. Logged research option after healthy SFT; **do not** unlock GRPO as the main path.
@@ -1246,7 +1315,7 @@ Mac `run_id=18`, `--model gemma4-e2b-sft-iffc-v6 --fc-mode iffc`. Recipe is [PR 
 
 ### SFT v9 / v9.1 / v9.2 — lever-2 action quotas (10-ID smoke-gate FAIL → HOLD)
 
-**Codex CONFIRM: `HOLD_sft_quota_remix`.** Formal **plain-IFFC 10-ID** smoke-gate **FAIL** on SFT v9.2 (Mac `run_id=36`). Full LoRA **never started**. **HOLD / park.** This is **not** a BFCL `multi_turn_base` accuracy. **Do not invent** a v9 / v9.1 / v9.2 BFCL %. Thursday banked `multi_turn_base` remains **Run 30** BASE iffc-stop-repeat **65/200 = 32.5%** (harness, [PR #54](https://github.com/sskarz/Thesis/pull/54) @`7ad7ff3`) — already logged; do **not** reframe as SFT.
+**Codex CONFIRM: `HOLD_sft_quota_remix`.** Formal **plain-IFFC 10-ID** smoke-gate **FAIL** on SFT v9.2 (Mac `run_id=36`). Full LoRA **never started**. **HOLD / park.** This is **not** a BFCL `multi_turn_base` accuracy. **Do not invent** a v9 / v9.1 / v9.2 BFCL %. Thursday banked stop-repeat remains **Run 30** BASE iffc-stop-repeat **65/200 = 32.5%** (harness, [PR #54](https://github.com/sskarz/Thesis/pull/54) @`7ad7ff3`) — already logged; do **not** overwrite; do **not** reframe as SFT. Run 42 `--fc-mode iffc-ooda-card` is a **later** scored harness row (**71/200 = 35.5%**; still below BoN; `state_mismatch` gate **MISS**) — also **not** SFT.
 
 Worktree: Thesis-sft-v9 [PR #57](https://github.com/sskarz/Thesis/pull/57) **draft** @`cde93a3` (branch `cursor/sft-v9-lever2-action-quotas`). **Do not merge PR #57.** Tweak vs v9: shrink `V9_ACTION_MT_TOOL_CHAIN_ADVANCE` band `(0.40,0.50,0.35,0.55)` → `(0.30,0.38,0.28,0.42)`. Kept from v9.1: `V9_ACTION_FINAL_AFTER_OBS` `(0.20,0.24,0.18,0.26)`. Model key (smoke only): `gemma4-e2b-sft-iffc-v9-smoke92`.
 
@@ -1267,7 +1336,7 @@ Worse than Run 33 v9.1 (**17.6** / **5/10**) and Run 31 v9 (**22.5** / **5/10**)
 
 **Diagnosis (Codex):** primary is identical-call / over-call looping after observations (**not** under-call). Advance-band shrink renormalized toward start/ask/refuse/final but did **not** teach stop; fewer advance golds may have weakened useful multi-step progress.
 
-**Next:** no third remix, no rebuild/resume/fuse/probe another quota variant. After Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder) — **not** another quota remix. Hard bans: no BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 BFCL %, no iffc-stop-repeat as an SFT fix, no kitchen-sink multi-tweak. Scoreboard BFCL N=200 **unchanged**: BoN **36.5%** / IFFC **30.5%** / SFT-v4 **15.0%** / Run 30 **32.5%** (harness).
+**Next:** no third remix, no rebuild/resume/fuse/probe another quota variant. After Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder) — **not** another quota remix. Hard bans: no BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 BFCL %, no iffc-stop-repeat as an SFT fix, no kitchen-sink multi-tweak. Scoreboard BFCL N=200 **updated with Run 42 (inference, not SFT)**: BoN **36.5%** / Run 42 iffc-ooda-card **35.5%** / STATE **34.0%** / Run 30 **32.5%** / IFFC **30.5%** / SFT-v4 **15.0%**. Run 30 **untouched**. `state_mismatch` gate on Run 42 is a **MISS**.
 
 ### Anti-recommendations
 
@@ -1275,7 +1344,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 
 ### Next (Sanskar decides)
 
-1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Tightened stop-repeat PASSES** (Run 30 **32.5%** vs IFFC **30.5%**). **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg `api_calls` **25.7**, `hit_step_limit` **6/10**) → **`HOLD_sft_quota_remix` / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes.** Historical ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) still stands as a later SFT path (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Magnet/Critical-State then mDPO; **not** decode bans) — action-class **quota remix is HOLD**. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)) is **logged / unscored**. **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
+1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Tightened stop-repeat PASSES** (Run 30 **32.5%** vs IFFC **30.5%**). Run 42 `--fc-mode iffc-ooda-card` **scored** **71/200 = 35.5%** (accuracy win vs Run 30; still below BoN; `state_mismatch` gate **MISS**; SFT still **HOLD**). **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg `api_calls` **25.7**, `hit_step_limit` **6/10**) → **`HOLD_sft_quota_remix` / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes.** Historical ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) still stands as a later SFT path (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Magnet/Critical-State then mDPO; **not** decode bans) — action-class **quota remix is HOLD**. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)) is **logged / unscored**. **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
@@ -1292,7 +1361,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Prabhakar et al. "APIGen-MT." NeurIPS 2025 D&B. arXiv:2504.03601. https://arxiv.org/abs/2504.03601 (v7 planned mix core; **not scored**; paper MT 1B/3B/8B 43/56/69% — **not** our harness)
 - Ramakrishnan, G. & Sharma, M. (Amazon AGI). Data Turnstile. arXiv:2607.29250. https://arxiv.org/abs/2607.29250 (optional open data-gen complement for v7+; **not scored**; same paper as [§24](#24-data-turnstile-open-function-calling-data-generation))
 - Chen et al. (Salesforce). Critical-State RL. arXiv:2609.24985. https://arxiv.org/abs/2609.24985 (post-healthy-SFT occurrence-local RL; **not scored**; not blanket GRPO)
-- Guo et al. OODA-Tool. arXiv:2608.24368. https://arxiv.org/abs/2608.24368 ([§26](#26-ooda-tool-typed-observe-orient-decide-act); **not scored**; prefer one-pass)
+- Guo et al. OODA-Tool. arXiv:2608.24368. https://arxiv.org/abs/2608.24368 ([§26](#26-ooda-tool-typed-observe-orient-decide-act); paper method **unscored**; one-pass `[OODA]` card harness **scored** Run 42 — prefer one-pass)
 - Yu, Mu, & Wu. PTC-Decoder. arXiv:2609.30836. https://arxiv.org/abs/2609.30836 ([§27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa); inference-only; **not scored**)
 - Popescu et al. Looped LMs. arXiv:2608.18171. https://arxiv.org/abs/2608.18171 ([§28](#28-looped-language-models-for-compositional-tool-calling); **not scored**)
 - Chai et al. PARL-MT. arXiv:2509.23206. https://arxiv.org/abs/2509.23206 ([§29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling); **not scored**; not a GRPO unlock)
@@ -1317,7 +1386,8 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 3 | **IFFC + harness STATE (`--fc-mode iffc-state`)** | Gemma `multi_turn_base` vs IFFC/GST 30.5% | **Measured** Run 10 (base): 68/200 = 34.0% (beats IFFC; first above 30.5%). **Measured** Run 16 (SFT-v4): 26/200 = 13.0% (**null/negative vs Run 15 15.0%**). Empty 41→31 on base; state 60→64 (did not improve). On SFT-v4 residual stays state 112 / under-call 59. **Measured** Run 17 (SFT-v5 IFFC): 23/200 = 11.5% (**regression vs Run 15**). **Measured** Run 18 (SFT-v6 IFFC): 26/200 = 13.0% (**miss vs Run 15**). Next training path is SFT **v7** (planned, **not scored**), **not** BoN-on-v4/v5/v6. | Done (harness + scores) |
 | 4 | **Few-shot format demonstrations** | Parallel call format, cross-language | +5–20pp for SLMs | Medium |
 | 5 | **Best-of-N majority voting (`--fc-mode iffc-state-bon`)** | Gemma `multi_turn_base` vs IFFC+STATE 34.0% | **Measured** Run 11: 73/200 = 36.5% (beats STATE by +5 / +2.5 pp). State 64→53; empty 31→36; under-call flat. ~7× wall / ~8.8× decode — modest lift, **not free**. | Done (harness + live score) |
-| 5a | **IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)** | Collapsed over-call vs healthy-base IFFC | **Measured** Run 27 ungated on **BASE** Gemma: 54/200 = 27.0% (`scores.id=20`; **200/200 responses**). **Miss vs Run 5 IFFC 30.5%** (−3.5 pp; −9.5 pp vs BoN). Same accuracy level as Run 4 NFC 27.0% — **not** an identical method. Stop flags **37/200**, all failures (**0 stopped and correct**). VehicleControlAPI **22→33** vs Run 5. **Measured** Run 30 tighten MIN=6 @ `78c22a0` (PR #54): **65/200 = 0.325** (`scores.id=21`; `multi_turn_base` only; **200/200 responses + timings**; `entry_id` identical to Run 5/Run 27; bartowski Q4_K_M). **First scored win vs Run 5 IFFC** (**+2.0 percentage points; 65−61 correct** — **not** “+4pp”); **+5.5 pp vs Run 27**. Still **below STATE 34.0% and BoN 36.5%**. Stop flags **37→3**, all FAIL. VC state **33→22** (recovered to Run 5). `state_mismatch` **60** (=Run 5). **Celebrate / park SFT-v9: YES.** **Caveats:** harness/decode guardrail on BASE — **not** an SFT/method win; `finished_at` NULL (metrics 4/5 soft bookkeeping; accuracy locked in `scores`); status JSON stale — trust DB+log; `--resume-run-id 30` after orphan; N=200 complete. **Codex CONFIRM_PASS.** Do **not** invent tok/s. Do **not** overwrite BoN / IFFC / SFT-v4. Do **not** pivot to SFT v9. Harness [PR #54](https://github.com/sskarz/Thesis/pull/54). | Done (harness + live scores; ungated miss; tighten **PASSES**) |
+| 5a | **IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)** | Collapsed over-call vs healthy-base IFFC | **Measured** Run 27 ungated on **BASE** Gemma: 54/200 = 27.0% (`scores.id=20`; **200/200 responses**). **Miss vs Run 5 IFFC 30.5%** (−3.5 pp; −9.5 pp vs BoN). Same accuracy level as Run 4 NFC 27.0% — **not** an identical method. Stop flags **37/200**, all failures (**0 stopped and correct**). VehicleControlAPI **22→33** vs Run 5. **Measured** Run 30 tighten MIN=6 @ `78c22a0` (PR #54): **65/200 = 0.325** (`scores.id=21`; `multi_turn_base` only; **200/200 responses + timings**; `entry_id` identical to Run 5/Run 27; bartowski Q4_K_M). **First scored win vs Run 5 IFFC** (**+2.0 percentage points; 65−61 correct** — **not** “+4pp”); **+5.5 pp vs Run 27**. Still **below STATE 34.0% and BoN 36.5%**. Stop flags **37→3**, all FAIL. VC state **33→22** (recovered to Run 5). `state_mismatch` **60** (=Run 5). **Celebrate / park SFT-v9: YES.** **Caveats:** harness/decode guardrail on BASE — **not** an SFT/method win; `finished_at` NULL (metrics 4/5 soft bookkeeping; accuracy locked in `scores`); status JSON stale — trust DB+log; `--resume-run-id 30` after orphan; N=200 complete. **Codex CONFIRM_PASS.** Do **not** invent tok/s. Do **not** overwrite this row / BoN / IFFC / SFT-v4. Run 42 iffc-ooda-card is now **higher Acc** (35.5%) with a `state_mismatch` gate **MISS** — do **not** overwrite Run 30. Harness [PR #54](https://github.com/sskarz/Thesis/pull/54). | Done (harness + live scores; ungated miss; tighten **PASSES**; Run 42 is a **separate** mode) |
+| 5b | **IFFC OODA card (`--fc-mode iffc-ooda-card`)** | One-pass `[OODA]` working-memory card on stop-repeat MIN=6 | **Measured** Run 42 on **BASE** Gemma: **71/200 = 35.5%** (`multi_turn_base` only; **200/200 responses**; finished `2026-09-29T05:51:02.787870+00:00`). Dedicated `--fc-mode` — **not** a flag on stop-repeat; **not** iffc-state; **not** 4-pass OODA. **+6 / +3.0 pp vs Run 30**; still **below BoN 36.5% (−1.0 pp)**; **above STATE 34.0% (+1.5 pp)**. `eval_errors`: state_mismatch **71**, empty **17**, missing_gt **41**, empty+missing **58**, total **129**. Gates: ≥65/200 **MET**; state_mismatch <60 **MISS**; empty+missing ≤75 **MET**; TTFT 517.8 vs Run 30 630.5 ms (≤1.25× **MET**). **Do not claim a clean gate sweep.** Calib Run 40 10-ID **PASS** (not a BFCL %). Run 41 orphan 0 responses — ignore. Do **not** overwrite Run 30. SFT parked. No BoN. Do **not** invent tok/s. Harness [PR #61](https://github.com/sskarz/Thesis/pull/61) draft @ `1dea341`. | Done (docs for scored run; harness PR #61 separate) |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level. Complements [PTC-Decoder §27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa) (training-free tool-name DFA; **unscored**; not our harness). | Medium |
 | 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale. Complements [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite): retrieve tools **and** redesign API-surface cardinality (~4 task-class tools in that paper). Complements [HyperTool §30](#30-hypertool-code-block-execution-granularity) (execution granularity / code-block; **unscored**; MCP-Universe ≠ BFCL). **Unscored** on this harness. | Medium |
 | 8 | **Schema-based verification loop** | Argument errors across categories | +3–10% with retries | Medium |
@@ -1326,7 +1396,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 
 The first four are directly measurable on BFCL v4 without changes to the benchmark format, making them strong thesis contributions. The key narrative: **inference-time techniques can close the gap between SLMs and cloud-scale models without fine-tuning.**
 
-**Post–Run27 (2026-09-28):** Ungated stop-on-repeat is a **scored miss** on healthy base ([PR #55](https://github.com/sskarz/Thesis/pull/55); GAR-aligned Acc regress). **Tightened stop-repeat PASSES** (Run 30 **65/200 = 32.5%** vs IFFC **30.5%**; +5.5 pp vs Run 27 ungated; still below STATE 34.0% / BoN 36.5%). **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg **25.7**, hit **6/10**) → **`HOLD_sft_quota_remix` / park**. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs, **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft**. **No BoN / no v7 resume / no full LoRA on failed mixes / no invented v9 BFCL %.** Do **not** treat ungated decode bans as the next method win. Do **not** unlock GRPO as the main path.
+**Post–Run42 (2026-09-29):** `--fc-mode iffc-ooda-card` is **scored** (Run 42 **71/200 = 35.5%**; +3.0 pp vs Run 30; still below BoN 36.5%; `state_mismatch` **71** gate **MISS**). Run 30 **untouched**. Ungated stop-on-repeat remains a **scored miss** on healthy base ([PR #55](https://github.com/sskarz/Thesis/pull/55); GAR-aligned Acc regress). Tightened stop-repeat still **PASSES** (Run 30 **65/200 = 32.5%** vs IFFC **30.5%**). **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg **25.7**, hit **6/10**) → **`HOLD_sft_quota_remix` / park**. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs, **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft**. **No BoN / no v7 resume / no full LoRA on failed mixes / no invented v9 BFCL %.** Do **not** treat ungated decode bans as the next method win. Do **not** unlock GRPO as the main path. Do **not** claim a clean Run 42 gate sweep.
 
 ---
 
@@ -1853,7 +1923,7 @@ Chen, Z., Zhao, W., et al. (Salesforce). "Critical-State RL: Diagnosing Trainabl
 
 OODA-Tool (Guo et al., 2026) is a typed Observe→Orient→Decide→Act controller with central-controller checks. It targets **state–action competition**: the pressure to emit the next call overwrites accumulated state (`state_mismatch`-like failures). Biggest paper gains are on **Qwen3 0.6B–4B**.
 
-**Train vs infer: both** — stage LoRAs (Joint / Shared / Specialized) plus optional multi-pass inference. **Not a scored thesis experiment.** Do not invent a `multi_turn_base` number. Cross-link [Post–Run27 consensus](#post-run27-consensus-2026-09-28) (do not duplicate a second ranking). Prefer **Joint typed CoT / one-pass** over Specialized ~2.4× multi-pass at edge.
+**Train vs infer: both** — stage LoRAs (Joint / Shared / Specialized) plus optional multi-pass inference. **Guo et al. paper method is not a scored thesis experiment.** Do not paste their ToolDial pp as a `multi_turn_base` number. A **separate** one-pass `[OODA]` card harness (`--fc-mode iffc-ooda-card`; **not** 4-pass Specialized; **not** iffc-state) is **scored** Run 42 **71/200 = 35.5%** — see [IFFC OODA card](#experiment-iffc-ooda-card---fc-mode-iffc-ooda-card). Cross-link [Post–Run27 consensus](#post-run27-consensus-2026-09-28) (do not duplicate a second ranking). Prefer **Joint typed CoT / one-pass** over Specialized ~2.4× multi-pass at edge.
 
 ### Mechanism
 
@@ -1870,12 +1940,12 @@ A central controller checks each handoff. Training variants: Joint (typed CoT in
 
 Paper ToolDial Task Success, Specialized OODA vs Direct-LoRA (Guo et al., 2026; cite as **theirs**, not ours): **+6.86 / +6.79 / +6.99 / +5.94 / +4.48 pp** at 0.6B / 1.7B / 4B / 8B / 14B. Gains concentrate on state-intensive slices; smaller on parallel calls. Transfer: FAIL-TaLMs, MTU-Bench, BFCL (margin shrinks with scale; smaller on BFCL Multi-turn). Specialized ≈ **2.36×** latency vs Direct-LoRA at 1.7B in their ToolDial study.
 
-Do **not** paste these as thesis `multi_turn_base` scores. Our measured ladder is unchanged except adding Run 30 (BoN **36.5%** best inference; STATE **34.0%**; Run 30 tighten **32.5%** scored win vs IFFC; IFFC Run 5 **30.5%** baseline; SFT-v4 **15.0%** best SFT; Run 27 ungated **27.0%** scored miss).
+Do **not** paste these as thesis `multi_turn_base` scores. Our measured ladder after Run 42: BoN **36.5%** best inference; Run 42 iffc-ooda-card **35.5%** (second inference; `state_mismatch` gate **MISS**); STATE **34.0%**; Run 30 tighten **32.5%** scored win vs IFFC; IFFC Run 5 **30.5%** baseline; SFT-v4 **15.0%** best SFT; Run 27 ungated **27.0%** scored miss.
 
 ### Applicability
 
-- **Thesis role:** Logged 2026-09-28 as a full section (was a light Post–Run27 cite). **Unscored.** Complements Post–Run27 “lightweight state prefix in **one pass**” — prefer Joint typed CoT over Specialized 4-call loop at edge. Relevant to VehicleControl / `state_mismatch`.
-- **BFCL categories:** Paper transfer includes BFCL Multi-turn (their suite). Relevance to our `multi_turn_base` is **hypothesis only** until scored.
+- **Thesis role:** Logged 2026-09-28 as a full section (was a light Post–Run27 cite). Guo et al. paper method remains **unscored**. Complements Post–Run27 “lightweight state prefix in **one pass**” — prefer Joint typed CoT over Specialized 4-call loop at edge. Relevant to VehicleControl / `state_mismatch`. The one-pass `[OODA]` **card** (`--fc-mode iffc-ooda-card`) is **scored** Run 42 **71/200 = 35.5%** (accuracy win vs Run 30; still below BoN; `state_mismatch` **71** gate **MISS**). That card is **not** this paper’s 4-pass Specialized loop.
+- **BFCL categories:** Paper transfer includes BFCL Multi-turn (their suite). Our one-pass card on `multi_turn_base` is **measured** (Run 42); Guo et al. Specialized / Joint LoRA transfer is **not**.
 - **Complexity:** Medium for Joint one-pass typed CoT; high for Specialized multi-pass + stage LoRAs.
 - **Limitation:** Specialized latency (~2.4×) is a poor edge default. Direct-LoRA remains cheaper when one-pass latency is the constraint.
 
@@ -1967,7 +2037,7 @@ RC-GRPO (Zhong et al., 2026) addresses a GRPO pathology after strong SFT: groups
 
 Paper BFCLv4 multi-turn validation (Zhong et al., 2026; cite as **theirs**, not ours): Qwen2.5-7B RCTP-FT+RC-GRPO **85.00%** overall vs SFT+GRPO **48.75%** / RCTP+GRPO **73.75%**; LLaMA-3.1-8B **48.75%**. Their Qwen result exceeds listed closed API baselines in their table.
 
-**Metric mismatch:** their BFCLv4 multi-turn validation split / categories ≠ our `multi_turn_base` 200-entry Mac harness. Do **not** write 85% as a thesis score. Our measured highs stay BoN **36.5%** / STATE **34.0%** / Run 30 tighten **32.5%** / IFFC **30.5%** / SFT-v4 **15.0%** / Run 27 ungated **27.0%**.
+**Metric mismatch:** their BFCLv4 multi-turn validation split / categories ≠ our `multi_turn_base` 200-entry Mac harness. Do **not** write 85% as a thesis score. Our measured highs stay BoN **36.5%** / Run 42 iffc-ooda-card **35.5%** / STATE **34.0%** / Run 30 tighten **32.5%** / IFFC **30.5%** / SFT-v4 **15.0%** / Run 27 ungated **27.0%**.
 
 ### Applicability
 
@@ -2168,7 +2238,7 @@ A typical curriculum for tool-calling fine-tuning:
 
 ## Training-Time Prioritized Recommendations
 
-Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B, RTX 4090 with 24GB VRAM). **Post–Run30 (2026-09-28):** tightened stop-repeat **PASSES** (Run 30 **32.5%** vs IFFC **30.5%**). Ranked next-SFT list in [Post–Run27 consensus](#post-run27-consensus-2026-09-28) is a **later** path, not the next immediate pivot — not a new `multi_turn_base` score, not GRPO-as-main-path, not SFT v9.
+Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B, RTX 4090 with 24GB VRAM). **Post–Run42 (2026-09-29):** `--fc-mode iffc-ooda-card` **scored** (Run 42 **35.5%**; `state_mismatch` gate **MISS**; still below BoN). Tightened stop-repeat still **PASSES** (Run 30 **32.5%** vs IFFC **30.5%**; **do not overwrite**). Ranked next-SFT list in [Post–Run27 consensus](#post-run27-consensus-2026-09-28) is a **later** path, not the next immediate pivot — not a new `multi_turn_base` score, not GRPO-as-main-path, not SFT v9. **SFT still HOLD.**
 
 | Priority | Technique | Target Problem | Expected Impact | Effort |
 |----------|-----------|----------------|-----------------|--------|
@@ -2224,7 +2294,16 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
       on BASE — not an SFT/method win. finished_at NULL (metrics 4/5
       soft bookkeeping; accuracy locked in scores); status JSON stale —
       trust DB+log; --resume-run-id 30 after orphan; N=200 complete.
-      Do NOT overwrite BoN / IFFC / SFT-v4. Codex CONFIRM_PASS.
+      Do NOT overwrite BoN / IFFC / SFT-v4 / this row. Codex CONFIRM_PASS.
+    ↓ IFFC OODA-card SCORED (Run 42 71/200=0.355 vs Run 30 32.5%;
+      +6 / +3.0 pp). Dedicated --fc-mode iffc-ooda-card (PR #61 @ 1dea341);
+      NOT a flag on stop-repeat; NOT iffc-state; NOT 4-pass OODA.
+      NEW run — never resume Run 30. 200/200 responses. Finished
+      2026-09-29T05:51:02.787870+00:00. Still below BoN 36.5% (−1.0 pp);
+      above STATE 34.0% (+1.5 pp). state_mismatch 71 GATE MISS vs <60;
+      empty+missing 58 MET; TTFT 517.8 vs Run 30 630.5 ms MET.
+      Do NOT claim a clean gate sweep. Calib Run 40 ≠ BFCL %.
+      Run 41 orphan ignore. SFT still parked. No BoN. Do NOT invent tok/s.
     ↓ SFT v9.2 10-ID smoke-gate FAIL (Run 36; 2026-09-28): avg api 25.7
       (gate ≤8.3), hit_step_limit 6/10 (gate ≤2). Smoke@100 healthy
       (val→0.645); full LoRA never started. Worse than Run 33 v9.1
@@ -2243,14 +2322,15 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
       Optional open data-gen complement: Data Turnstile (§24; unscored).
       Optional post-healthy-SFT local RL: Critical-State RL (§25; unscored;
       not blanket GRPO). Do NOT unlock GRPO as the main path.
-      2026-09-28 methods sweep (§26–§31; unscored): OODA one-pass preferred;
+      2026-09-28 methods sweep (§26–§31; paper OODA unscored; one-pass
+      [OODA] card SCORED Run 42): OODA one-pass preferred;
       PTC / Looped LMs inference; PARL-MT / RC-GRPO training-time (not a
       GRPO unlock); HyperTool execution granularity.
       SFT path locked 2026-09-23 as the main path; inference wrappers secondary.
       Not another thin filter on the same family. Not decode bans as the win.
       Not a third quota remix. Not invented v9 BFCL %.
-      BoN 36.5% still best on base Gemma.
-      v4 IFFC 15.0% remains best SFT recovery.
+      BoN 36.5% still best on base Gemma. Run 42 35.5% is second inference
+      (state_mismatch gate MISS). v4 IFFC 15.0% remains best SFT recovery.
     ↓ Frozen split seed=42 (~90/5/5 train/val/corpus_test); BFCL multi_turn_base held out
     ↓ mlx-lm LoRA on Apple Silicon (--mask-prompt, rank 16–32)
     ↓ Fuse adapter, convert to GGUF (Q4_K_M), serve via llama-server
@@ -2278,12 +2358,13 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 
 - Run 5 BASE IFFC: **61/200 = 30.5%** (baseline; do **not** overwrite)
 - Run 27 BASE `--fc-mode iffc-stop-repeat` **ungated**: **54/200 = 27.0%** (−3.5 pp / −7). **200/200 responses.** Stop flags **37/200**, all among failures (**0 stopped and correct**). VehicleControlAPI **22→33** vs Run 5. Same accuracy level as Run 4 NFC 27.0% — **not** an identical method. Evidence: [PR #55](https://github.com/sskarz/Thesis/pull/55) / [IFFC stop-on-repeat experiment](#experiment-iffc-stop-on-repeat---fc-mode-iffc-stop-repeat). **Scored miss. Ungated decode heuristic is not a free win on healthy base.**
-- Run 30 BASE `--fc-mode iffc-stop-repeat` **tighten MIN=6** @ `78c22a0` (PR #54): **65/200 = 0.325** (`scores.id=21`; `multi_turn_base` only; **200/200 responses + timings**; `entry_id` identical to Run 5/Run 27; bartowski Q4_K_M). **+2.0 percentage points vs Run 5 (65−61 correct)** — **not** “+4pp”; **+5.5 pp vs Run 27**. Still **below STATE 34.0% and BoN 36.5%**. Stop flags **37→3**, all FAIL. VC state **22** (recovered from Run 27’s 33). `state_mismatch` **60** (=Run 5). **First scored win of tightened stop-repeat over plain IFFC on BASE.** **Celebrate / park SFT-v9: YES.** **Caveats:** harness/decode guardrail on BASE — **not** an SFT/method win; `finished_at` still **NULL** (metrics 4/5 soft bookkeeping; accuracy locked in `scores`); status JSON **stale** — trust DB+log; `--resume-run-id 30` after orphan; **N=200 complete**. **Codex CONFIRM_PASS.**
-- Best inference BoN **36.5%** (Run 11). Best SFT v4 IFFC **15.0%** (Run 15). Do **not** overwrite either.
+- Run 30 BASE `--fc-mode iffc-stop-repeat` **tighten MIN=6** @ `78c22a0` (PR #54): **65/200 = 0.325** (`scores.id=21`; `multi_turn_base` only; **200/200 responses + timings**; `entry_id` identical to Run 5/Run 27; bartowski Q4_K_M). **+2.0 percentage points vs Run 5 (65−61 correct)** — **not** “+4pp”; **+5.5 pp vs Run 27**. Still **below STATE 34.0% and BoN 36.5%**. Stop flags **37→3**, all FAIL. VC state **22** (recovered from Run 27’s 33). `state_mismatch` **60** (=Run 5). **First scored win of tightened stop-repeat over plain IFFC on BASE.** **Celebrate / park SFT-v9: YES.** **Caveats:** harness/decode guardrail on BASE — **not** an SFT/method win; `finished_at` still **NULL** (metrics 4/5 soft bookkeeping; accuracy locked in `scores`); status JSON **stale** — trust DB+log; `--resume-run-id 30` after orphan; **N=200 complete**. **Codex CONFIRM_PASS.** Do **not** overwrite this row.
+- Run 42 BASE `--fc-mode iffc-ooda-card` ([PR #61](https://github.com/sskarz/Thesis/pull/61) draft @ `1dea341`): **71/200 = 0.355**. Dedicated mode — **not** a flag on stop-repeat; **not** iffc-state; **not** 4-pass OODA. **NEW run** (never resume Run 30). **200/200 responses.** Finished `2026-09-29T05:51:02.787870+00:00`. **+6 / +3.0 pp vs Run 30**. Still **below BoN 36.5% (−1.0 pp)**; **above STATE 34.0% (+1.5 pp)**. `state_mismatch` **71** gate **MISS** vs <60; empty+missing **58** MET; TTFT **517.8 ms** vs Run 30 **630.5 ms** (≤1.25× **MET**). **Do not claim a clean gate sweep.** Calib Run 40 10-ID **PASS** (not a BFCL %). Run 41 orphan 0 responses — ignore. SFT parked. No BoN. Do **not** invent tok/s. Details: [IFFC OODA card](#experiment-iffc-ooda-card---fc-mode-iffc-ooda-card).
+- Best inference BoN **36.5%** (Run 11). Second inference Run 42 **35.5%**. Best SFT v4 IFFC **15.0%** (Run 15). Do **not** overwrite BoN / IFFC / SFT-v4 / Run 30.
 - Teacher loop-filters v8/v8.1 failed; ungated stop-on-repeat helped collapsed smoke but hurt healthy base; **gated recover** past IFFC.
 - **SFT v9.2 10-ID smoke-gate FAIL** (Run 36): avg `api_calls` **25.7** (gate ≤8.3), `hit_step_limit` **6/10** (gate ≤2). Smoke@100 healthy (val→**0.645**); full LoRA never started. Worse than Run 33 v9.1 (17.6 / 5/10) and Run 31 v9 (22.5 / 5/10). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **Do not cite Run 35** (INVALID — server died). Run 37 VC sidecar diagnostic only — not in /10. Codex **`HOLD_sft_quota_remix`**. Details: [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold).
 
-**Tightened stop-repeat PASSES** (Run 30 **32.5%**). SFT v9.2 smoke-gate **FAIL → park**. Quota remix **HOLD**. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 BFCL %.**
+**Tightened stop-repeat PASSES** (Run 30 **32.5%**). Run 42 iffc-ooda-card **scored 35.5%** (`state_mismatch` gate **MISS**; still below BoN). SFT v9.2 smoke-gate **FAIL → park**. Quota remix **HOLD**. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 BFCL %.**
 
 ### Theme
 
@@ -2300,7 +2381,7 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 | Magnet (mDPO) | Yin et al. 2025, ACL 2025, [arXiv:2503.07826](https://arxiv.org/abs/2503.07826) | Qwen2.5-Coder-14B; 34k SFT + ~4.5k pos/neg → mDPO |
 | GAR / Calibration is the Bottleneck | Zhao et al. 2026, [arXiv:2609.00949](https://arxiv.org/abs/2609.00949) | 4-class tool_call / ask / refuse / confirm; Acc ≤ GAR; SRI/CRI can hurt Acc — aligns with stop-repeat |
 | Critical-State RL | Chen et al. (Salesforce) 2026, [arXiv:2609.24985](https://arxiv.org/abs/2609.24985) — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) | Already logged; **unscored**. Occurrence-local RL after healthy SFT. **Not** blanket GRPO |
-| OODA-Tool | Guo et al. 2026, [arXiv:2608.24368](https://arxiv.org/abs/2608.24368) — [§26](#26-ooda-tool-typed-observe-orient-decide-act) | Full section 2026-09-28; **unscored**. Qwen3 0.6–14B; typed OODA; largest gains on smallest (~+7 pp ≤4B); Specialized ≈ 2.36× — prefer Joint typed CoT **one-pass** at edge |
+| OODA-Tool | Guo et al. 2026, [arXiv:2608.24368](https://arxiv.org/abs/2608.24368) — [§26](#26-ooda-tool-typed-observe-orient-decide-act) | Full section 2026-09-28; **paper method unscored**. Qwen3 0.6–14B; typed OODA; largest gains on smallest (~+7 pp ≤4B); Specialized ≈ 2.36× — prefer Joint typed CoT **one-pass** at edge. **Separate** one-pass `[OODA]` card harness **scored** Run 42 **71/200 = 35.5%** ([experiment](#experiment-iffc-ooda-card---fc-mode-iffc-ooda-card); **not** 4-pass Specialized; `state_mismatch` gate **MISS**) |
 | PTC-Decoder | Yu, Mu, & Wu 2026, [arXiv:2609.30836](https://arxiv.org/abs/2609.30836) — [§27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa) | Logged 2026-09-28; **unscored**. **Inference-only** Plan-to-Act + tool-name DFA. Jetson/satellite LLM-judge; **not** our `multi_turn_base` |
 | Looped LMs | Popescu et al. 2026, [arXiv:2608.18171](https://arxiv.org/abs/2608.18171) — [§28](#28-looped-language-models-for-compositional-tool-calling) | Logged 2026-09-28; **unscored**. Mostly test-time compute. Paper BFCL static single-turn; live/MT left future |
 | PARL-MT / PROGRA | Chai et al. ACL 2026 Findings, [arXiv:2509.23206](https://arxiv.org/abs/2509.23206) — [§29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) | Logged 2026-09-28; **unscored**. **Training-time** PAG + PAG-RL. **Not** a GRPO unlock |
@@ -2318,7 +2399,7 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 1. **APIGen-MT-5k + ToolACE / ToolACE-MT-style MT + single-turn FC** (~30–50% MT). Gemma template. **Mask user/tool; train assistant only.**
 2. **Action-class quotas HOLD** — v9 / v9.1 / v9.2 10-ID smoke-gate **FAIL** (Run 36 avg **25.7**, hit **6/10**). Do **not** third-remix. After Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder). Historical GAR-per-class measurement still applies; remix itself is **parked**.
 3. **Anti-loop contrast (next lever):** Magnet-style pos/neg or Critical-State labels; **advance_vs_loop** pref pairs then mDPO / small preference **after** SFT ≫ decode bans ≫ another quota remix.
-4. **Lightweight state prefix** (goal / slots / last fact / next mode) in **one pass** ([OODA-Tool §26](#26-ooda-tool-typed-observe-orient-decide-act) latency cost → not a 2.4× multi-pass at edge).
+4. **Lightweight state prefix** (goal / slots / last fact / next mode) in **one pass** — **scored** as `--fc-mode iffc-ooda-card` Run 42 **71/200 = 35.5%** ([experiment](#experiment-iffc-ooda-card---fc-mode-iffc-ooda-card); stacked on stop-repeat MIN=6; `next` advisory). Still **below BoN 36.5%**; `state_mismatch` gate **MISS**. Guo et al. Specialized ~2.4× multi-pass remains **not** the edge default ([OODA-Tool §26](#26-ooda-tool-typed-observe-orient-decide-act)).
 5. **Hold decode stops on the scored base.** Optional soft max-N identical successful signatures, then force answer.
 6. **Occurrence-local RL** only if SFT plateaus — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), **not** [§19 blanket GRPO](#19-reinforcement-learning-with-verifiable-rewards-grpo). [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) / [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo) remain logged research options; **do not** unlock GRPO as the main path.
 7. **Optional MCP-GRANITE composites** if the tool list is huge — [§3a](#3a-tool-interface-granularity-mcp-granite).
@@ -2329,7 +2410,7 @@ Teacher loop-filter-only; stop-on-repeat / CRI-like decode; recovery-targeted SF
 
 ### Already-logged options (cross-link, do not duplicate)
 
-[Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), [OODA-Tool §26](#26-ooda-tool-typed-observe-orient-decide-act), [PTC-Decoder §27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa), [Looped LMs §28](#28-looped-language-models-for-compositional-tool-calling), [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling), [HyperTool §30](#30-hypertool-code-block-execution-granularity), [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo), [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite), [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation), [APIGen-MT / xLAM §15](#15-xlam-large-action-models), [ToolACE §13](#13-toolace-automated-training-data-generation). Sweep entries remain **unscored** research options. Paper numbers are **theirs**.
+[Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), [OODA-Tool §26](#26-ooda-tool-typed-observe-orient-decide-act), [PTC-Decoder §27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa), [Looped LMs §28](#28-looped-language-models-for-compositional-tool-calling), [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling), [HyperTool §30](#30-hypertool-code-block-execution-granularity), [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo), [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite), [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation), [APIGen-MT / xLAM §15](#15-xlam-large-action-models), [ToolACE §13](#13-toolace-automated-training-data-generation). Sweep entries remain **unscored** research options except the one-pass `[OODA]` **card** harness (Run 42 **scored**; not Guo et al. Specialized). Paper numbers are **theirs**.
 
 ---
 
