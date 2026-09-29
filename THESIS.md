@@ -1917,13 +1917,13 @@ Do **not**:
 
 ### DPO β0.2 smoke100 10-ID PASS (Run 49) — health gate, not a BFCL %
 
-**Framing:** **PASS** health gate on a 100-update DPO smoke (`β=0.2`). This is **not** a BFCL `multi_turn_base` N=200 accuracy. **Do not invent** a Run 49 / 47 / 48 BFCL %. Full DPO train remains **HOLD** pending Sanskar GO + Codex verify. PTC-A Run 46 FAIL **13.5%** is **banked and closed**; PTC-B **HOLD**. Path is **DPO**. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** — **do not merge** harness drafts as wins. **No BoN.** N=200 scoreboard **unchanged**: BoN **36.5%** / Run 42 **35.5%** / STATE **34.0%** / Run 30 **32.5%** / IFFC **30.5%** / SFT-v4 **15%** / Run 46 PTC-A **13.5%** FAIL.
+**Framing:** **PASS** health gate on a 100-update DPO smoke (`β=0.2`). This is **not** a BFCL `multi_turn_base` N=200 accuracy. **Do not invent** a Run 49 / 47 / 48 BFCL %. A capped full DPO train (`UPDATES_CAP=1000`) is **in flight / results pending** — not a scored N=200 win, and not a permanent HOLD on the path. PTC-A Run 46 FAIL **13.5%** is **banked and closed**; PTC-B **HOLD**. Path is **DPO**. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** — **do not merge** harness drafts as wins. **No BoN.** N=200 scoreboard **unchanged**: BoN **36.5%** / Run 42 **35.5%** / STATE **34.0%** / Run 30 **32.5%** / IFFC **30.5%** / SFT-v4 **15%** / Run 46 PTC-A **13.5%** FAIL.
 
 #### Checkpoint identity (smoke only)
 
 Mac `run_id=49`; `model_key` `gemma4-e2b-dpo-smoke100-beta02`; display Gemma-4-E2B-it DPO smoke100 beta0.2 (Q4_K_M); `--fc-mode iffc` (plain IFFC, **not** PTC / OODA). n=**10** IDs (same set as Run 47/48): `multi_turn_base_4,38,46,64,84,95,30,82,3,163`. Harness tip `d344123fe`. Fused GGUF `sft/fused/gemma-4-e2b-it-dpo-smoke100-beta02-Q4_K_M.gguf`.
 
-**Train recipe (smoke only):** 100-update smoke from **untouched** `gemma-4-e2b-it-mlx`; β=**0.2**; LR 1e-6; LoRA r16/s32; `adapters-dpo-smoke100-beta02` → fused Q4. Probe wall ~225s. Do **not** claim full DPO train started or succeeded.
+**Train recipe (smoke only):** 100-update smoke from **untouched** `gemma-4-e2b-it-mlx`; β=**0.2**; LR 1e-6; LoRA r16/s32; `adapters-dpo-smoke100-beta02` → fused Q4. Probe wall ~225s. Do **not** invent a smoke BFCL %. A capped full train is **in flight / results pending**.
 
 #### Formal 10-ID gate — PASS
 
@@ -1941,13 +1941,13 @@ Gate band: avg API **≥4 and ≤8.3**, `hit_step_limit` **≤2/10**, `iffc_unpa
 #### Takeaways
 
 1. **Health-gate PASS, not a BFCL %.** Do **not** invent a `multi_turn_base` N=200 figure for Run 49 / 47 / 48.
-2. **Full DPO train HOLD.** Pending Sanskar GO + Codex verify. Do **not** claim full train started or succeeded.
+2. **Full DPO train in flight / results pending.** Capped `UPDATES_CAP=1000`. Do **not** invent an N=200 BFCL %; do **not** present the 10-ID smoke as a method win.
 3. **N=200 winners unchanged.** BoN **36.5%** / Run 42 **35.5%** / STATE **34.0%** / Run 30 **32.5%** / IFFC **30.5%** / SFT-v4 **15%** / Run 46 PTC-A **13.5%** FAIL. Do **not** overwrite those rows.
 4. **PR #57 stays draft.** Do **not** merge harness drafts as wins. **No BoN.**
 
 #### Anti-recommendations
 
-Do **not**: invent a Run 49 BFCL %; present 7/10 turn0 as a N=200 method win; overwrite Run 30 / 42 / BoN / IFFC / SFT-v4 / Run 46; start or claim a full DPO train; BoN this smoke ckpt; merge PR #57; unpark SFT quota remix; more PTC/OODA remix as a reaction.
+Do **not**: invent a Run 49 BFCL %; present 7/10 turn0 as a N=200 method win; overwrite Run 30 / 42 / BoN / IFFC / SFT-v4 / Run 46; invent a full-DPO N=200 % before that train is scored; BoN this smoke ckpt; merge PR #57; unpark SFT quota remix; more PTC/OODA remix as a reaction.
 
 Details: `METHODS.md` [DPO β0.2 smoke100 PASS](METHODS.md#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-).
 

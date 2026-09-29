@@ -32,9 +32,9 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
 - [Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)](#experiment-mlx-sft-v1-gemma-4-e2b-iffc-mix)
 - [SFT v9.2 smoke-gate FAIL (Run 36; HOLD / park)](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold) (plain-IFFC 10-ID; **not** a `multi_turn_base` %; quota remix **HOLD**)
-- [DPO β0.2 smoke100 10-ID PASS (Run 49; health gate)](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-) (plain-IFFC 10-ID; **not** a BFCL %; full DPO train **HOLD**)
+- [DPO β0.2 smoke100 10-ID PASS (Run 49; health gate)](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-) (plain-IFFC 10-ID; **not** a BFCL %; full DPO train **in flight / results pending**)
 - [Prioritized Recommendations](#prioritized-recommendations)
-- [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; Run 46 iffc-ptc-a **13.5%** scored FAIL / closed; Run 42 **35.5%** still best non-BoN; Run 30 **32.5%** untouched; SFT HOLD; DPO β0.2 smoke100 Run 49 **PASS** / full train **HOLD**; PR #57 stays draft, **not** more PTC/OODA remix)
+- [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; Run 46 iffc-ptc-a **13.5%** scored FAIL / closed; Run 42 **35.5%** still best non-BoN; Run 30 **32.5%** untouched; SFT HOLD; DPO β0.2 smoke100 Run 49 **PASS** / full train **in flight / results pending**; PR #57 stays draft, **not** more PTC/OODA remix)
 - [References](#references)
 
 ---
@@ -1415,7 +1415,7 @@ Worse than Run 33 v9.1 (**17.6** / **5/10**) and Run 31 v9 (**22.5** / **5/10**)
 
 ### DPO β0.2 smoke100 10-ID PASS (Run 49) — health gate, not a BFCL %
 
-**PASS** health gate. Formal **plain-IFFC 10-ID** on DPO smoke100 β=0.2 (Mac `run_id=49`). This is **not** a BFCL `multi_turn_base` accuracy. **Do not invent** a Run 49 / 47 / 48 BFCL %. Full DPO train remains **HOLD** pending Sanskar GO + Codex verify. PTC-A Run 46 FAIL **13.5%** is **banked and closed**; PTC-B **HOLD**. Path is **DPO**. [PR #57](https://github.com/sskarz/Thesis/pull/57) DPO pair-audit stays **draft** until GO — **do not merge** harness drafts as wins. **No BoN.**
+**PASS** health gate. Formal **plain-IFFC 10-ID** on DPO smoke100 β=0.2 (Mac `run_id=49`). This is **not** a BFCL `multi_turn_base` accuracy. **Do not invent** a Run 49 / 47 / 48 BFCL %. A capped full DPO train (`UPDATES_CAP=1000`) is **in flight / results pending** — not a scored N=200 win, and not a permanent HOLD on the path. PTC-A Run 46 FAIL **13.5%** is **banked and closed**; PTC-B **HOLD**. Path is **DPO**. [PR #57](https://github.com/sskarz/Thesis/pull/57) DPO pair-audit stays **draft** — **do not merge** harness drafts as wins. **No BoN.**
 
 Identity (verified 2026-09-29, live Mac `benchmark.db`):
 
@@ -1426,7 +1426,7 @@ Identity (verified 2026-09-29, live Mac `benchmark.db`):
 - harness tip: `d344123fe`
 - gguf: `sft/fused/gemma-4-e2b-it-dpo-smoke100-beta02-Q4_K_M.gguf`
 
-**Train recipe (smoke only; not a full DPO train):** 100-update smoke from **untouched** `gemma-4-e2b-it-mlx`; β=**0.2**; LR 1e-6; LoRA r16/s32; `adapters-dpo-smoke100-beta02` → fused Q4. Probe wall ~225s. Do **not** claim full DPO train started or succeeded.
+**Train recipe (smoke only; not a full DPO train):** 100-update smoke from **untouched** `gemma-4-e2b-it-mlx`; β=**0.2**; LR 1e-6; LoRA r16/s32; `adapters-dpo-smoke100-beta02` → fused Q4. Probe wall ~225s. Do **not** invent a smoke / Run 49 BFCL %. A capped full train is **in flight / results pending** (not a scored N=200 win).
 
 **Formal 10-ID gate (Run 49) — PASS** vs gate `avg api ≥4 and ≤8.3`, `hit_step_limit ≤2/10`, `iffc_unparseable ≤1/10`, `turn0_tool ≥6/10`:
 
@@ -1441,11 +1441,11 @@ All four gates **MET → PASS**. β0.2 improves turn0 vs β0.1 (7 vs 6) while st
 
 **Do not** treat this PASS as a method win on the N=200 ladder. Scoreboard BFCL N=200 **unchanged**: BoN **36.5%** / Run 42 iffc-ooda-card **35.5%** / STATE **34.0%** / Run 30 **32.5%** / IFFC **30.5%** / SFT-v4 **15.0%** / Run 46 iffc-ptc-a **13.5%** (FAIL / closed). Run 30 / Run 42 / BoN / IFFC / SFT-v4 / Run 46 **untouched**.
 
-**Next:** full DPO train still **HOLD** until Sanskar GO + Codex verify. Do **not** BoN this smoke ckpt. Do **not** merge PR #57. Do **not** more PTC/OODA remix. Do **not** unpark SFT quota remix.
+**Next:** capped full DPO train is **in flight / results pending**. Do **not** invent an N=200 BFCL % until that train is scored. Do **not** BoN this smoke ckpt. Do **not** merge PR #57. Do **not** more PTC/OODA remix. Do **not** unpark SFT quota remix.
 
 ### Anti-recommendations
 
-Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 mix **or** the v5 mix **or** the v6 mix; BoN / IFFC+STATE on the Run 12, Run 13, Run 15, Run 17, or Run 18 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT or multi-turn; present Run 14’s 2.0% as a method win or a training-time recovery; present Run 15’s 15.0% as beating IFFC or NFC; present Run 16’s 13.0% as a STATE win on SFT-v4; present Run 17’s 11.5% as a method win; present Run 18’s 13.0% as a method win; invent tok/s for Run 15, Run 16, or Run 17 (`inference_metrics=0`); **propose BoN as the next win on the SFT-v4, SFT-v5, or SFT-v6 checkpoint**; invent a v9 / v9.1 / v9.2 BFCL `multi_turn_base` %; cite Run 35 (INVALID — server died); fold Run 37 into the 10-ID denominator; start full LoRA on the failed v9.2 mix; merge [PR #57](https://github.com/sskarz/Thesis/pull/57); treat iffc-stop-repeat as an SFT fix; run a third quota remix; invent a Run 49 / 47 / 48 BFCL `multi_turn_base` %; present the Run 49 10-ID **PASS** as a N=200 score or a method win; claim full DPO train started or succeeded; BoN the DPO smoke100 ckpt.
+Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 mix **or** the v5 mix **or** the v6 mix; BoN / IFFC+STATE on the Run 12, Run 13, Run 15, Run 17, or Run 18 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT or multi-turn; present Run 14’s 2.0% as a method win or a training-time recovery; present Run 15’s 15.0% as beating IFFC or NFC; present Run 16’s 13.0% as a STATE win on SFT-v4; present Run 17’s 11.5% as a method win; present Run 18’s 13.0% as a method win; invent tok/s for Run 15, Run 16, or Run 17 (`inference_metrics=0`); **propose BoN as the next win on the SFT-v4, SFT-v5, or SFT-v6 checkpoint**; invent a v9 / v9.1 / v9.2 BFCL `multi_turn_base` %; cite Run 35 (INVALID — server died); fold Run 37 into the 10-ID denominator; start full LoRA on the failed v9.2 mix; merge [PR #57](https://github.com/sskarz/Thesis/pull/57); treat iffc-stop-repeat as an SFT fix; run a third quota remix; invent a Run 49 / 47 / 48 BFCL `multi_turn_base` %; present the Run 49 10-ID **PASS** as a N=200 score or a method win; invent a full-DPO `multi_turn_base` % before that train is scored; BoN the DPO smoke100 ckpt.
 
 ### Next (Sanskar decides)
 
