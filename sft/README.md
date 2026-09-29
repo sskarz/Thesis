@@ -115,8 +115,10 @@ python -m sft.pref_pairs_antiloop_v9 --dry-run \
 python -m sft.pref_pairs_antiloop_v9 --write \
   --splits sft/data/splits-v9 --out-dir sft/data/pref-v9
 
-# Dependency-free objective/config check; never imports MLX or starts training.
+# Dependency-free objective/config and fake-backend wiring checks. These never
+# import MLX, download weights, or start training.
 python -m sft.train_dpo_mlx --dry-run
+python -m sft.train_dpo_mlx --check-wiring
 python -m sft.train_dpo_mlx --check-fixtures sft/data/pref-v9/train.jsonl
 ```
 
@@ -127,20 +129,29 @@ excluded, parent-disjoint splits, and dedupe/caps by parent and tool family.
 Treat any failure as a data kill. Report the actual strict pair count; do not
 pad the set with BFCL or prefix-mismatched negatives.
 
-The intended later recipe is reference-anchored DPO on assistant continuation
-tokens only: untouched `google/gemma-4-e2b-it` for both policy initialization
-and frozen reference, LoRA rank 16 / scale 32 / 16 layers, `beta=0.1`, learning
-rate `1e-6`, batch size 1, and an 8192-token budget. Precompute frozen
-reference chosen/rejected log-probabilities with adapters disabled. **Do not
-initialize from `adapters-v9-smoke`, `adapters-v9-smoke91`, or
-`adapters-v9-smoke92`.**
+The locked recipe is reference-anchored DPO on assistant continuation tokens
+only: untouched `google/gemma-4-e2b-it` for both policy initialization and
+frozen reference, LoRA rank 16 / scale 32 / 16 layers, `beta=0.1`, learning
+rate `1e-6`, batch size 1, and an 8192-token budget. **Do not initialize from
+`adapters-v9-smoke`, `adapters-v9-smoke91`, or `adapters-v9-smoke92`.** Runtime
+validation rejects those paths.
 
-Only after advisor approval, a reviewed full MLX tokenization/cache/update path,
-and a free Mac may the implementation run a tiny synthetic overfit followed by
-one 100-update smoke. No beta/LR sweep, fusion, serving, or BFCL run is part of
-this scaffold. `train_dpo_mlx.py` intentionally has no training entrypoint;
-the real MLX forward/backward and reference-cache implementation remains a
-follow-up gate.
+The Stage B wiring now has dependency-free protocol boundaries for a future
+MLX tokenizer/scorer/autodiff adapter. It builds one shared prompt plus intact
+chosen/rejected continuations, masks every prompt token, and raises a kill gate
+instead of truncating either continuation. Frozen reference scores are computed
+twice with adapters disabled, keyed by prompt/chosen/rejected SHA-256, validated
+on JSONL load, and refused when adapters are enabled. `dpo_train_step` computes
+the reference-anchored loss, applies one backend optimizer update, rejects
+non-LoRA gradients, and proves base parameters did not change. The synthetic
+fake policy lowers DPO loss and improves its preference margin without MLX or a
+model download; `--check-wiring` exercises all of this on CPU.
+
+The readiness report still returns **NO-GO** for a real Mac smoke. A stratified
+real-pair audit and the one guarded 100-update smoke remain `FAIL / pending`.
+There is intentionally no real-MLX `--run` command yet, and no
+`mlx_lm.lora --run` command should be substituted. No beta/LR sweep, fusion,
+serving, or BFCL run is authorized by this wiring change.
 
 ## Base model
 
@@ -506,7 +517,7 @@ sft/
 ├── mix_stats_v9.py           # v9 source + action-class gates
 ├── label_toolace_v9.py       # optional action_labels attachment
 ├── pref_pairs_antiloop_v9.py # Stage B exact-prefix miner (explicit write only)
-├── train_dpo_mlx.py          # no-train DPO objective/config scaffold
+├── train_dpo_mlx.py          # dependency-free DPO wiring; no real --run
 ├── dpo_config.yaml           # locked base/r16/alpha32/beta/lr design
 ├── split_data.py
 ├── train_mlx.py              # unroll + filter + mlx_lm.lora wrapper
