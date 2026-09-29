@@ -108,6 +108,7 @@ Multi-turn function-calling mode and category filter:
 - `--fc-mode iffc-state`: IFFC JSON-in-text plus a harness-written `[STATE]` snapshot from **actual** tool execution results (METHODS §5 working memory). Same checker as IFFC. **Not** GST, **not** CD/GBNF, **not** LLM summarization. See METHODS.md.
 - `--fc-mode iffc-state-bon`: Best-of-N majority voting overlay on **IFFC+STATE** (METHODS §4; Snell et al. arXiv:2408.03314). Sample N=5 (configurable `--bon-n`) at `temperature=0.7`, vote per step, execute the winner once. **~N× latency.** **Not** NFC/GST/CD. See METHODS.md.
 - `--fc-mode xlam`: Salesforce xLAM JSON-in-text (`{"tool_calls":[{name, arguments}]}` in assistant content). Does **not** send `tools`/`tool_choice`. Empty `{"tool_calls": []}` ends the turn. Fair channel for `--model xlam-1b` (Run 19 NFC 0/200 was format-channel collapse; Run 20 `--fc-mode xlam` scored **6/200 = 3.0%** — still **very low**; **not** a method win). **Do not claim published ~78.94% parity.** See METHODS.md.
+- `--fc-mode iffc-ptc-a`: IFFC JSON-in-text plus a **live tool-name GBNF** (PTC-A / TC-Decoder). Arguments unconstrained — the request never sends `json_schema` or native `tools`. **Not** CD pass-2, **not** Plan-to-Act (PTC-B), **not** `iffc-ooda-card`, **not** stacked with `iffc-stop-repeat`. Default remains `nfc`. Unscored until a **new** run_id. See METHODS.md §27.
 - `--iffc-strip-empty-assistant`: **diagnostic-only** IFFC history bookkeeping — omit trailing assistant `[]` stop turns from `chat_history` before the next BFCL user turn (and right after the within-turn stop). Default **off** (Run 5–13 IFFC unchanged). **Not** a training method and **not** a claim that standard IFFC improved. Notes record `iffc_strip_empty_assistant=1`; figures nest under `iffc-strip-empty-assistant/`. **Run 14 already scored this on `gemma4-e2b-sft-iffc-v2`: 4/200 = 2.0%** — did **not** rescue the never-start collapse; **do not present 2% as a method win** (see `THESIS.md`).
 - `--categories multi_turn_base`: run only that multi-turn split (skip miss_func / miss_param / long_context)
 
@@ -212,6 +213,27 @@ Offline Best-of-N majority vote on IFFC+STATE (no llama-server):
 
 ```bash
 uv run python -m benchmark.smoke_bon
+```
+
+Offline PTC-A name-DFA + mock IFFC loop (no llama-server):
+
+```bash
+uv run python -m benchmark.smoke_ptc_a
+```
+
+PTC-A on BASE Gemma (`--fc-mode iffc-ptc-a`): live tool-name GBNF, arguments free, **solo** (no OODA card, no stop-repeat, no Plan-to-Act). Default `nfc` is unchanged. Banked: Run 30 `iffc-stop-repeat` **65/200 = 32.5%**; Run 42 `iffc-ooda-card` **71/200 = 35.5%**. **Do not overwrite. Do not `--resume-run-id 30` or `42`.** Calib then full-200 is Mac / Thesis Bot after this PR — **do not start BFCL here:**
+
+```bash
+# CALIB (frozen stratified subset; PASS = zero out-of-set names + Run-40-style sanity)
+# uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+#   --categories multi_turn_base --fc-mode iffc-ptc-a \
+#   --notes "CALIB: BASE + iffc-ptc-a solo (no OODA, no stop-repeat, no PTC-B)"
+#
+# FULL-200 only after calib PASS. New run_id. Gates: acc≥71/200, state_mismatch≤60,
+# empty+missing≤75, ≤1.25× Run30 latency; paired vs Run 30 and Run 42.
+# uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+#   --categories multi_turn_base --fc-mode iffc-ptc-a \
+#   --notes "FULL-200: BASE + iffc-ptc-a solo; gates acc≥71/200, state_mismatch≤60, empty+missing≤75, ≤1.25× Run30 latency"
 ```
 
 The pipeline runs five steps in sequence:

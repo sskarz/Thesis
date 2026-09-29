@@ -266,6 +266,11 @@ MULTI_TURN_MAX_STEPS = 20
 #        Baseline iffc is unchanged. Decode/harness lever, not a training
 #        recipe. Run 27 ungated observe_same scored 54/200 = 27% on BASE
 #        (miss vs IFFC 30.5%); this gate is the tighten, still a probe.
+# iffc-ptc-a = IFFC JSON-in-text plus a live tool-name GBNF (PTC-A /
+#        TC-Decoder). Arguments unconstrained: do not send json_schema or
+#        CD pass-2. Not Plan-to-Act (PTC-B). Not iffc-ooda-card. Not
+#        stacked with iffc-stop-repeat on the first ablation. Not the
+#        default (nfc stays default). Unscored until a new run_id.
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
@@ -275,6 +280,7 @@ FC_IFFC_STATE = "iffc-state"
 FC_IFFC_STATE_BON = "iffc-state-bon"
 FC_XLAM = "xlam"
 FC_IFFC_STOP_REPEAT = "iffc-stop-repeat"
+FC_IFFC_PTC_A = "iffc-ptc-a"
 FC_MODES = (
     FC_NFC,
     FC_IFFC,
@@ -284,6 +290,7 @@ FC_MODES = (
     FC_IFFC_STATE_BON,
     FC_XLAM,
     FC_IFFC_STOP_REPEAT,
+    FC_IFFC_PTC_A,
 )
 FC_JSON_TEXT_MODES = (
     FC_IFFC,
@@ -292,6 +299,7 @@ FC_JSON_TEXT_MODES = (
     FC_IFFC_STATE_BON,
     FC_XLAM,
     FC_IFFC_STOP_REPEAT,
+    FC_IFFC_PTC_A,
 )
 FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON)
 FC_MODE: str = FC_NFC

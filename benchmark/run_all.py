@@ -18,6 +18,9 @@ Function-calling modes (``--fc-mode``):
   ``xlam-1b`` (Run 19 NFC 0/200 was format-channel collapse; Run 20
   ``--fc-mode xlam`` scored 6/200 = 3.0% --- still very low, not published
   ~78.94%).
+- ``iffc-ptc-a``: IFFC JSON-in-text plus a live tool-name GBNF (PTC-A).
+  Arguments unconstrained. Not CD pass-2, not Plan-to-Act, not OODA-card,
+  not stop-repeat. Default remains ``nfc``.
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits
 trailing IFFC assistant ``[]`` from ``chat_history`` before the next BFCL
@@ -200,7 +203,9 @@ def main():
             '({"tool_calls":[{name, arguments}]}; no native tools); '
             "iffc-stop-repeat = IFFC + harness force-stop on consecutive "
             "identical calls, or executed-call re-emits after 6 assistant "
-            "tool-turns in the current ask (baseline iffc unchanged)."
+            "tool-turns in the current ask (baseline iffc unchanged); "
+            "iffc-ptc-a = IFFC JSON-in-text + live tool-name GBNF "
+            "(args free; not CD / not Plan-to-Act / not OODA-card)."
         ),
     )
     parser.add_argument(
@@ -332,6 +337,13 @@ def main():
             if args.fc_mode == config.FC_IFFC_STATE_BON
             else " (xLAM = JSON-in-text {\"tool_calls\":[...]} ; no native tools)"
             if args.fc_mode == config.FC_XLAM
+            else " (IFFC-stop-repeat = IFFC + harness force-stop on looped calls)"
+            if args.fc_mode == config.FC_IFFC_STOP_REPEAT
+            else (
+                " (IFFC+PTC-A = IFFC JSON-in-text + live tool-name GBNF; "
+                "args free; not CD pass-2; not Plan-to-Act)"
+            )
+            if args.fc_mode == config.FC_IFFC_PTC_A
             else " (NFC = native tools)"
         )
     )

@@ -589,6 +589,7 @@ def test_build_chat_payload_nfc_and_gst_keep_tools_iffc_cd_and_iffc_state_omit_t
     iffc_state = generate_multi_turn._build_chat_payload(history, tools, "iffc-state")
     bon = generate_multi_turn._build_chat_payload(history, tools, "iffc-state-bon")
     xlam = generate_multi_turn._build_chat_payload(history, tools, "xlam")
+    ptc_a = generate_multi_turn._build_chat_payload(history, tools, "iffc-ptc-a")
     assert nfc["tools"] == tools
     assert nfc["tool_choice"] == "auto"
     assert nfc["temperature"] == 0.0
@@ -610,6 +611,11 @@ def test_build_chat_payload_nfc_and_gst_keep_tools_iffc_cd_and_iffc_state_omit_t
     assert "tools" not in xlam
     assert "tool_choice" not in xlam
     assert xlam["temperature"] == 0.0
+    assert "tools" not in ptc_a
+    assert "tool_choice" not in ptc_a
+    assert "json_schema" not in ptc_a
+    assert ptc_a["grammar"]
+    assert ptc_a["temperature"] == 0.0
 
 
 def test_generate_for_entry_cd_two_pass_no_native_tools(monkeypatch):

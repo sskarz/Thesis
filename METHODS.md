@@ -149,6 +149,42 @@ PTC-Decoder (Yu, Mu, & Wu, 2026) is a **training-free** decoder for offline reso
 
 Complements, does not replace, IFFC / stop-repeat. Closest peer to [§2 Constrained Decoding](#2-constrained-decoding-and-grammar-guided-generation) and `--fc-mode cd` name-GBNF.
 
+### Harness mode (`--fc-mode iffc-ptc-a`)
+
+**What it is:** IFFC JSON-in-text (Appendix B prompt + parser) plus a llama-server `grammar` that is a **live tool-name DFA**. Each decision call rebuilds GBNF over the *currently live* tool set (miss_func withheld names are absent until restored). `[]` is legal. `parameters` is an unconstrained JSON object (empty, extra keys, or non-schema types are all allowed by the grammar).
+
+**What it is not:**
+- **Not CD.** `--fc-mode cd` is two-pass TagDispatch (name GBNF, then per-tool `json_schema`). PTC-A is **one pass**, never sends `json_schema`, and does **not** reuse `cd.build_name_dispatch_grammar` (that GBNF forbids `parameters` and would drop args). Helpers reused from `benchmark/cd.py` are name-only: `tool_names`, `grammar_allowed_names`, GBNF string literals.
+- **Not PTC-B.** Plan-to-Act stays off.
+- **Not `iffc-ooda-card`** (open PR #61). First ablation is **BASE + PTC-A solo** so the DFA is identifiable. Do not merge/require that branch.
+- **Not `iffc-stop-repeat`.** Run 30 (65/200 = 32.5%) stays a separate Thursday harness baseline. Do not silently stack stop-repeat into this mode.
+- **Not the default.** `nfc` remains `config.FC_MODE` / CLI default.
+
+**Banked baselines (do not invent scores; do not overwrite):** Run 30 BASE + `iffc-stop-repeat` **65/200 = 32.5%**; Run 42 BASE + `iffc-ooda-card` **71/200 = 35.5%** (`state_mismatch` 71 MISS vs gate <60).
+
+**Identity:** `fc_mode=iffc-ptc-a` in run notes. Always a **new** `run_id`. **Never** `--resume-run-id 30` or `42`.
+
+Calib then full-200 (Thesis Bot on Mac **after** this PR; **do not** start BFCL from the harness PR):
+
+```bash
+# CALIB — frozen stratified multi_turn_base subset (same spirit as Run 40 OODA calib).
+# PASS: zero out-of-set tool names; turn0 tools ≥6/10; unparseable ≤1/10;
+# avg API not collapsed (<4 kill); step-limit ≤2/10. Parent = BASE IFFC channel
+# (not OODA, not stop-repeat). Do NOT --resume-run-id 30 or 42.
+# uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+#   --categories multi_turn_base --fc-mode iffc-ptc-a \
+#   --notes "CALIB: BASE + iffc-ptc-a solo (no OODA, no stop-repeat, no PTC-B)"
+
+# FULL-200 — only after calib PASS. New run_id. Gates:
+# accuracy ≥71/200 (hold Run 42); state_mismatch ≤60; empty+missing_gt_exec ≤75;
+# latency ≤1.25× Run30; report paired wins/losses vs Run 30 and Run 42.
+# uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+#   --categories multi_turn_base --fc-mode iffc-ptc-a \
+#   --notes "FULL-200: BASE + iffc-ptc-a solo; gates acc≥71/200, state_mismatch≤60, empty+missing≤75, ≤1.25× Run30 latency"
+```
+
+Kill immediately if name-only constraint cannot ship without constraining argument semantics or changing BFCL schemas.
+
 ### Evidence
 
 Paper results (Yu, Mu, & Wu, 2026; cite as **theirs**, not ours):
@@ -163,10 +199,10 @@ Paper results (Yu, Mu, & Wu, 2026; cite as **theirs**, not ours):
 
 ### Applicability
 
-- **Thesis role:** Logged 2026-09-28; **unscored**. Closest inference peer to constrained tool-name decode already in the thesis orbit.
-- **BFCL categories:** Hypothesis for name-constrained decode on `multi_turn_base` / `parallel`. Untested here.
-- **Complexity:** Medium (DFA / GBNF over live tool names; plan-as-first-tool prompt).
-- **Limitation:** Paper setting is offline satellite / Jetson Orin NX with LLM-judge overall + F1 — not our execution checker. Token overhead ~2×.
+- **Thesis role:** Logged 2026-09-28; literature **unscored**. Harness flag `--fc-mode iffc-ptc-a` is inference-only (name DFA, args free, no Plan-to-Act). **No `multi_turn_base` score until a new run_id after calib PASS.** Do not invent a number.
+- **BFCL categories:** First ablation is `multi_turn_base` only, BASE Gemma-4-E2B Q4_K_M, PTC-A solo (not stacked with OODA or stop-repeat).
+- **Complexity:** Medium (GBNF over live tool names on stock llama-server; no LLGuidance required).
+- **Limitation:** Paper setting is offline satellite / Jetson Orin NX with LLM-judge overall + F1 — not our execution checker. Token overhead ~2× in the paper; measure vs Run 30 here. Name-only DFA may not fully clear `state_mismatch` (in-set wrong tool, wrong args, completed-state detection).
 
 ### Sources
 
@@ -2301,7 +2337,7 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 | GAR / Calibration is the Bottleneck | Zhao et al. 2026, [arXiv:2609.00949](https://arxiv.org/abs/2609.00949) | 4-class tool_call / ask / refuse / confirm; Acc ≤ GAR; SRI/CRI can hurt Acc — aligns with stop-repeat |
 | Critical-State RL | Chen et al. (Salesforce) 2026, [arXiv:2609.24985](https://arxiv.org/abs/2609.24985) — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) | Already logged; **unscored**. Occurrence-local RL after healthy SFT. **Not** blanket GRPO |
 | OODA-Tool | Guo et al. 2026, [arXiv:2608.24368](https://arxiv.org/abs/2608.24368) — [§26](#26-ooda-tool-typed-observe-orient-decide-act) | Full section 2026-09-28; **unscored**. Qwen3 0.6–14B; typed OODA; largest gains on smallest (~+7 pp ≤4B); Specialized ≈ 2.36× — prefer Joint typed CoT **one-pass** at edge |
-| PTC-Decoder | Yu, Mu, & Wu 2026, [arXiv:2609.30836](https://arxiv.org/abs/2609.30836) — [§27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa) | Logged 2026-09-28; **unscored**. **Inference-only** Plan-to-Act + tool-name DFA. Jetson/satellite LLM-judge; **not** our `multi_turn_base` |
+| PTC-Decoder | Yu, Mu, & Wu 2026, [arXiv:2609.30836](https://arxiv.org/abs/2609.30836) — [§27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa) | Logged 2026-09-28; paper **unscored** on our sheet. Harness `--fc-mode iffc-ptc-a` = name DFA, args free, **no** Plan-to-Act; **no** `multi_turn_base` number until a new run_id after calib PASS |
 | Looped LMs | Popescu et al. 2026, [arXiv:2608.18171](https://arxiv.org/abs/2608.18171) — [§28](#28-looped-language-models-for-compositional-tool-calling) | Logged 2026-09-28; **unscored**. Mostly test-time compute. Paper BFCL static single-turn; live/MT left future |
 | PARL-MT / PROGRA | Chai et al. ACL 2026 Findings, [arXiv:2509.23206](https://arxiv.org/abs/2509.23206) — [§29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) | Logged 2026-09-28; **unscored**. **Training-time** PAG + PAG-RL. **Not** a GRPO unlock |
 | HyperTool | Du*, Zhou*, et al. 2026, [arXiv:2606.13663](https://arxiv.org/abs/2606.13663) — [§30](#30-hypertool-code-block-execution-granularity) | Logged 2026-09-28; **unscored**. **Train + infer** code-block granularity. MCP-Universe ≠ BFCL |

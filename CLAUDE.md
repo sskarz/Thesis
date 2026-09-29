@@ -23,11 +23,13 @@ Thesis/
 │   ├── iffc.py                        # IFFC Appendix B prompt + JSON-in-text parser
 │   ├── xlam.py                        # xLAM JSON-in-text ({"tool_calls":[...]} ) prompt
 │   ├── cd.py                          # TagDispatch-style CD (name GBNF + per-tool json_schema)
+│   ├── ptc_a.py                       # PTC-A: IFFC JSON-in-text + live tool-name GBNF (args free)
 │   ├── gst.py                         # GST 7-step curriculum (arXiv:2509.18076) on NFC tools
 │   ├── iffc_state.py                  # IFFC+STATE overlay (harness-written working memory)
 │   ├── bon.py                         # Best-of-N majority vote overlay on IFFC+STATE
 │   ├── smoke_iffc.py                  # Offline IFFC smoke (parser + mock loop)
 │   ├── smoke_cd.py                    # Offline CD smoke (constraint checks + mock two-pass)
+│   ├── smoke_ptc_a.py                 # Offline PTC-A smoke (name DFA + mock IFFC loop)
 │   ├── smoke_gst.py                   # Offline GST smoke (template in payload + mock NFC loop)
 │   ├── smoke_iffc_state.py            # Offline IFFC+STATE smoke (STATE + last-2-turns + mock IFFC)
 │   ├── smoke_bon.py                   # Offline BoN smoke (majority vote + mock IFFC+STATE loop)
@@ -184,6 +186,16 @@ uv run python -m benchmark.run_all --model gemma4-e2b-sft-iffc-v2 --only-multi-t
 # Do not claim published ~78.94% parity.
 # uv run python -m benchmark.run_all --model xlam-1b --fc-mode xlam \
 # --only-multi-turn --categories multi_turn_base
+# PTC-A (name DFA, args free) — solo BASE ablation. Unscored until a new run_id.
+# Do NOT --resume-run-id 30 or 42. Do NOT stack OODA / stop-repeat / Plan-to-Act.
+# Calib then full-200: Thesis Bot on Mac after this PR; do not start BFCL here.
+# uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+# --categories multi_turn_base --fc-mode iffc-ptc-a \
+# --notes "CALIB: BASE + iffc-ptc-a solo (no OODA, no stop-repeat, no PTC-B)"
+# After calib PASS only:
+# uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
+# --categories multi_turn_base --fc-mode iffc-ptc-a \
+# --notes "FULL-200: BASE + iffc-ptc-a solo; gates acc≥71/200, state_mismatch≤60, empty+missing≤75, ≤1.25× Run30 latency"
 ```
 
 ### Query the database

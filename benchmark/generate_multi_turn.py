@@ -26,6 +26,10 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
   ``OBSERVE_SAME_MIN_ASSISTANT_TOOL_TURNS`` (6) assistant tool-turns in the
   current BFCL ask. Short VehicleControl re-calls are not truncated.
   Baseline ``iffc`` is unchanged. Decode/harness lever only.
+- ``iffc-ptc-a``: IFFC JSON-in-text plus a live tool-name GBNF (PTC-A).
+  Arguments unconstrained — no ``json_schema``, no CD pass-2, no Plan-to-Act.
+  Not ``iffc-ooda-card`` and not stacked with ``iffc-stop-repeat``. Solo BASE
+  ablation; default remains ``nfc``.
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits trailing
 IFFC assistant ``[]`` stop turns from ``chat_history`` before the next BFCL
@@ -45,6 +49,7 @@ from . import cd as cd_mode
 from . import config, db
 from . import gst as gst_mode
 from . import iffc_state as iffc_state_mode
+from . import ptc_a as ptc_a_mode
 from . import stop_on_repeat
 from . import xlam as xlam_mode
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
@@ -149,10 +154,11 @@ def _resolve_strip_empty_assistant(
 
 
 def _iffc_family_mode(fc_mode: str) -> bool:
-    """Plain IFFC plus iffc-state / stop-repeat overlays (same ``[]`` stop)."""
+    """Plain IFFC plus iffc-state / stop-repeat / PTC-A overlays (same ``[]`` stop)."""
     return (
         fc_mode == config.FC_IFFC
         or fc_mode == config.FC_IFFC_STOP_REPEAT
+        or fc_mode == config.FC_IFFC_PTC_A
         or fc_mode in config.FC_IFFC_STATE_MODES
     )
 
@@ -180,12 +186,13 @@ def _build_chat_payload(
     active_tools: list[dict],
     fc_mode: str,
 ) -> dict:
-    """Build a chat-completions payload. IFFC/CD/iffc-state/iffc-state-bon/xlam never send tools/tool_choice.
+    """Build a chat-completions payload. IFFC/CD/iffc-state/iffc-state-bon/xlam/iffc-ptc-a never send tools/tool_choice.
 
     GST uses the NFC tools channel (``tools`` + ``tool_choice=auto``).
     BoN sampling uses temperature=0.7 via :mod:`benchmark.bon`; this helper
     still emits 0.7 for ``iffc-state-bon`` so a stray single-sample path
-    would not silently go greedy.
+    would not silently go greedy. ``iffc-ptc-a`` attaches a name-only GBNF
+    (``grammar``) and never ``json_schema``.
     """
     temperature = (
         config.BON_TEMPERATURE if fc_mode == config.FC_IFFC_STATE_BON else 0.0
@@ -196,6 +203,8 @@ def _build_chat_payload(
         "temperature": temperature,
     }
     if _is_json_text_mode(fc_mode):
+        if fc_mode == config.FC_IFFC_PTC_A:
+            ptc_a_mode.apply_name_dfa_constraints(payload, active_tools)
         return payload
     if active_tools:
         payload["tools"] = active_tools
@@ -210,10 +219,12 @@ def _prepare_step_messages(
 ) -> None:
     if _is_json_text_mode(fc_mode):
         # Persistent transcript is JSON-in-text for IFFC, CD, iffc-state,
-        # iffc-state-bon, and xlam. CD applies grammar/json_schema on a
-        # working copy inside complete_step. iffc-state / iffc-state-bon
-        # keep Appendix B + a short STATE-trust addendum. xlam uses the
-        # Salesforce {"tool_calls":[...]} contract, not Appendix B.
+        # iffc-state-bon, xlam, and iffc-ptc-a. CD applies grammar/json_schema
+        # on a working copy inside complete_step. iffc-ptc-a attaches a
+        # name-only GBNF on the IFFC payload (args free; no json_schema).
+        # iffc-state / iffc-state-bon keep Appendix B + a short STATE-trust
+        # addendum. xlam uses the Salesforce {"tool_calls":[...]} contract,
+        # not Appendix B.
         if fc_mode in config.FC_IFFC_STATE_MODES:
             iffc_state_mode.ensure_iffc_state_system_message(chat_history, active_tools)
         elif fc_mode == config.FC_XLAM:
@@ -316,6 +327,8 @@ def _decide_assistant_step(
             flag = "cd_unparseable"
         elif fc_mode == config.FC_XLAM:
             flag = "xlam_unparseable"
+        elif fc_mode == config.FC_IFFC_PTC_A:
+            flag = "ptc_a_unparseable"
         else:
             flag = "iffc_unparseable"
         return "end_turn", None, None, parse_retries_left, flag
@@ -978,7 +991,7 @@ def run(
 
 def _parse_cli() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, GST, IFFC+STATE, IFFC+STATE+BoN, or xLAM)."
+        description="Generate BFCL multi-turn responses (NFC, IFFC, CD, GST, IFFC+STATE, IFFC+STATE+BoN, xLAM, or IFFC+PTC-A)."
     )
     parser.add_argument(
         "--fc-mode",
@@ -997,7 +1010,9 @@ def _parse_cli() -> argparse.Namespace:
             "iffc-state-bon = Best-of-N majority vote on IFFC+STATE "
             "(default N=5, temperature=0.7; not NFC/GST/CD). "
             "xlam = Salesforce xLAM JSON-in-text "
-            '({"tool_calls":[{name, arguments}]}; no native tools).'
+            '({"tool_calls":[{name, arguments}]}; no native tools). '
+            "iffc-ptc-a = IFFC JSON-in-text + live tool-name GBNF "
+            "(args free; not CD pass-2; not Plan-to-Act)."
         ),
     )
     parser.add_argument(
