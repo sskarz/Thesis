@@ -55,6 +55,113 @@ Converter (`sft/format_apigen_mt.py`): ShareGPT `human`→user, `function_call`�
 
 **Thesis test:** BFCL v4 `multi_turn_base` only. Do not add BFCL prompts or past scored responses to these JSONL files.
 
+## SFT v9 (lever2 action-class quotas — scaffolding, **unscored**)
+
+New experiment id `sft-v9` / internal **lever2**. Seed **49**. Dirs: `splits-v9` / `mlx-v9` / `adapters-v9`. **Do not invent a v9 BFCL score.** **Do not prepare/LoRA on Mac until this scaffold is reviewed and conversation + action-class gates PASS.**
+
+**Why:** lever1 (v8 / v8.1) teacher observe→same / consecutive-identical drops failed to transfer stop/advance into Gemma-4-E2B LoRA. lever2 quota-trains the action classes BFCL multi-turn needs (ToolACE-style coverage), not another loop filter.
+
+**Conversation pool (locked):** ToolACE **45–55%** + xLAM **15–20%** + APIGen-MT **20–30%** (hard cap **≤35%**, floor **≥15%**). Abort if ToolACE+xLAM < 55%.
+
+**Unroll quotas (PRIMARY; assistant gold, `--mask-prompt`):**
+
+| Class | Target | Hard band |
+|---|---|---|
+| `mt_tool_chain_advance` | 30–38% | [28, 42] |
+| `tool_call_start` | 12–18% | [10, 20] |
+| `final_after_obs` (loose) | 20–24% | [18, 26] |
+| `ask` | 8–12% | [6, 14] |
+| `refuse` | 3–5% (floor 2% OK) | abort if ≈0 |
+| `irrelevance_[]` | 5–8% | max 10%; abort >12% |
+
+Soft-exclude observe→same / consecutive identical from keep (sampler exclusion only — **not** a teacher traj filter). Keep v4 empty/recovery on filler; **ban** v5 synth complete-turn0. `final_after_obs` classified **loose**; when duplicating prefer advancing prior tools; log stricter subtype, don't hard-filter. max_seq **8192** + existing `budget_seq`. Stage B exact-prefix DPO is now the primary post-quota path. Mining remains guarded by `python -m sft.pref_pairs_antiloop_v9 --dry-run`; real training is limited to the fixed `--smoke-100` entrypoint documented below.
+
+**Standing constraints:** no BoN / no v7 resume / no full LoRA on failed v8 / no teacher observe→same as primary / no v5 synth turn0. Later BFCL under **plain iffc** regardless of stop-repeat harness.
+
+**Probe IDs (later):** prior v8 10-ID plus VC regressors `_52,_60,_74,_76,_83,_96` (optional `_186`).
+
+```bash
+# Scaffold only in this PR — do NOT run prepare/mix on Mac yet without review.
+uv run python -m sft.build_mix_v9 --out sft/data/splits-v9
+uv run python -m sft.mix_stats_v9 --splits sft/data/splits-v9 --gate
+# After gates reviewed:
+# uv run python -m sft.train_mlx --prepare-only --recipe v9 \
+#   --splits-dir sft/data/splits-v9 --mlx-dir sft/data/mlx-v9
+# uv run python -m sft.mix_stats_v9 --splits sft/data/splits-v9 \
+#   --mlx-dir sft/data/mlx-v9 --gate
+# Stage B stub (no training):
+uv run python -m sft.pref_pairs_antiloop_v9 --dry-run
+```
+
+Modules: `action_class_v9.py`, `quota_sample_v9.py`, `build_mix_v9.py`, `mix_stats_v9.py`, `label_toolace_v9.py`, `pref_pairs_antiloop_v9.py`, `drop_identical_call.py` (predicates reused as sampler exclusion). Tests: `tests/sft/test_action_class_v9.py`, `test_quota_sample_v9.py`, `test_sft_v9.py`.
+
+### Stage B: exact-prefix anti-loop DPO with one guarded smoke path
+
+The failed v9/v9.1/v9.2 quota smokes isolate the missing preference: after a
+successful observation, an advancing call or genuine final must outrank
+repeating the call that just executed. Stage B is therefore the primary
+post-v9-quota path. The miner constructs the reject at the **same prefix** by
+copying the immediately preceding executed call set into canonical IFFC; it
+never attaches a later response to an earlier prompt.
+
+Mine source-only pairs and inspect counts, samples, exclusions, and gates:
+
+```bash
+# Report only (default); does not write data or train.
+python -m sft.pref_pairs_antiloop_v9 --dry-run \
+  --splits sft/data/splits-v9
+
+# Explicit write, only after all gates pass. Data remains untracked.
+python -m sft.pref_pairs_antiloop_v9 --write \
+  --splits sft/data/splits-v9 --out-dir sft/data/pref-v9
+
+# Dependency-free objective/config and fake-backend wiring checks. These never
+# import MLX, download weights, or start training.
+python -m sft.train_dpo_mlx --dry-run
+python -m sft.train_dpo_mlx --check-wiring
+python -m sft.train_dpo_mlx --check-fixtures sft/data/pref-v9/train.jsonl
+```
+
+Required data gates are zero BFCL-looking IDs/content, byte-identical shared
+prompt hashes, non-identical canonical chosen/rejected responses, rejects equal
+to the immediately preceding executed call set, retry-valid observations
+excluded, parent-disjoint splits, and dedupe/caps by parent and tool family.
+Treat any failure as a data kill. Report the actual strict pair count; do not
+pad the set with BFCL or prefix-mismatched negatives.
+
+The locked recipe is reference-anchored DPO on assistant continuation tokens
+only: untouched `google/gemma-4-e2b-it` for both policy initialization and
+frozen reference, LoRA rank 16 / scale 32 / 16 layers, `beta=0.1`, learning
+rate `1e-6`, batch size 1, and an 8192-token budget. **Do not initialize from
+`adapters-v9-smoke`, `adapters-v9-smoke91`, or `adapters-v9-smoke92`.** Runtime
+validation rejects those paths.
+
+The Stage B wiring keeps dependency-free protocol boundaries for inspection
+and tests. It builds one shared prompt plus intact
+chosen/rejected continuations, masks every prompt token, and raises a kill gate
+instead of truncating either continuation. Frozen reference scores are computed
+twice with adapters disabled, keyed by prompt/chosen/rejected SHA-256, validated
+on JSONL load, and refused when adapters are enabled. `dpo_train_step` computes
+the reference-anchored loss, applies one backend optimizer update, rejects
+non-LoRA gradients, and proves base parameters did not change. The synthetic
+fake policy lowers DPO loss and improves its preference margin without MLX or a
+model download; `--check-wiring` exercises all of this on CPU.
+
+The only real-training entrypoint is the fixed local command below. It samples
+128 source/action-stratified pairs with the real tokenizer, drops every pair
+that would truncate at 8192, freezes base continuation log-probabilities, and
+runs exactly 100 batch-1 updates at the locked recipe. It refuses an existing
+output directory and every failed v9 smoke adapter initializer. Ordinary
+inspection commands do not import MLX.
+
+```bash
+python -m sft.train_dpo_mlx --smoke-100
+```
+
+The adapter is written to `sft/adapters-dpo-smoke100/`; loss/margin telemetry
+and machine-readable status are written under `/tmp/sft_logs`. This is not a
+general `--run` path and must not be used for a beta/LR sweep or full training.
+
 ## Base model
 
 `benchmark/config.py` registers Gemma as GGUF:
@@ -235,6 +342,7 @@ Verified data gaps (inspect `sft/format_iffc.py`, not a guessed root cause):
 | *(default)* / `--recipe v5` | **v5** | v4 + underspecified drop + complete-turn0 synth + state-inconsistent drop. **Run 17 scored 11.5%** (regression vs v4). |
 | `--recipe v6` | **v6** | v4 empty/recovery + **only** `drop_state_inconsistent`. Turn-0 rewrites **off**. Distinct from v4. **Run 18 scored 13.0%** (miss vs v4). |
 | `--recipe v7` | **v7** | New mix (APIGen-MT core). v4 empty/recovery on ToolACE/xLAM filler; light empty-after-exec on `apigen_mt`; **no** v5 complete-turn0; then cap non-tool unrolls (~15%). **Unscored.** |
+| `--recipe v9` | **v9** | lever2. ToolACE-primary pool + action-class quotas (`quota_sample_v9`). v4 empty/recovery on filler; **no** v5 synth; **no** teacher observe→same traj filter. max_seq 8192. **Unscored. Do not prepare until reviewed.** |
 | `--recipe v4` | v4 | Empty-target curriculum only (Run 15 mix, 15.0%) |
 | `--keep-underspecified-turn0` **and** `--keep-state-inconsistent` **and** `--no-synthetic-complete-turn0` | v4 | Same as `--recipe v4` |
 | `--keep-underspecified-turn0` **and** `--no-synthetic-complete-turn0` | v6 | Same as `--recipe v6` |
@@ -411,6 +519,16 @@ sft/
 ├── mix_stats_v7.py           # v7 taxonomy / source / empty-after-exec CLI
 ├── build_mix_v7.py           # assemble splits-v7 (seed 47; NC license in MANIFEST)
 ├── student_filter_v7.py      # Phase 3 stub (MLX Jaccard loop not in this PR)
+├── drop_identical_call.py    # call canonicalization / observe→same predicates
+├── action_class_v9.py        # lever2 action-class labels
+├── quota_sample_v9.py        # unroll action-class quotas (replaces cap for v9)
+├── build_mix_v9.py           # assemble splits-v9 (seed 49; ToolACE-primary)
+├── mix_stats_v9.py           # v9 source + action-class gates
+├── label_toolace_v9.py       # optional action_labels attachment
+├── pref_pairs_antiloop_v9.py # Stage B exact-prefix miner (explicit write only)
+├── train_dpo_mlx.py          # dependency-free wiring + guarded --smoke-100
+├── run_dpo_smoke_mlx.py      # fixed local-only 100-update MLX execution
+├── dpo_config.yaml           # locked base/r16/alpha32/beta/lr design
 ├── split_data.py
 ├── train_mlx.py              # unroll + filter + mlx_lm.lora wrapper
 ├── train_mlx.sh

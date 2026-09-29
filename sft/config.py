@@ -44,6 +44,12 @@ VALID_JSONL_V7 = SPLITS_DIR_V7 / "valid.jsonl"
 CORPUS_TEST_JSONL_V7 = SPLITS_DIR_V7 / "corpus_test.jsonl"
 MANIFEST_PATH_V7 = SPLITS_DIR_V7 / "MANIFEST.json"
 
+# SFT v8 dirs (path constants only on main — full v8 mix lives on lever1 branches).
+# Listed so v9 can refuse to overwrite them.
+SPLITS_DIR_V8 = DATA_DIR / "splits-v8"
+MLX_DATA_DIR_V8 = DATA_DIR / "mlx-v8"
+ADAPTER_DIR_V8 = SFT_ROOT / "adapters-v8"
+
 LORA_CONFIG_PATH = SFT_ROOT / "lora_config.yaml"
 
 # ---------------------------------------------------------------------------
@@ -176,3 +182,79 @@ SKIPPED_DATASETS_V1 = (
     "glaiveai/glaive-function-calling-v2",
     "NousResearch/hermes-function-calling-v1 (optional backup only)",
 )
+
+# ---------------------------------------------------------------------------
+# SFT v9 mix (lever 2; seed 49; do not reopen v7/v8 dirs or seeds)
+# ---------------------------------------------------------------------------
+# lever1 (v8 / v8.1) failed: teacher observe→same / consecutive-identical
+# drops did not transfer stop/advance into Gemma-4-E2B LoRA. lever2 pivots
+# to ToolACE-style **action-class quotas** for state_mismatch + under-call.
+# Conversation pool: ToolACE 45–55% + xLAM 15–20% + APIGen 20–30% (cap 35%).
+# Unroll quotas replace v7/v8 single pct_nontool band. No BoN / no v7 resume /
+# no full LoRA on failed v8 / no teacher loop-filter as primary / no v5 synth.
+SEED_V9 = 49
+SPLITS_DIR_V9 = DATA_DIR / "splits-v9"
+MLX_DATA_DIR_V9 = DATA_DIR / "mlx-v9"
+ADAPTER_DIR_V9 = SFT_ROOT / "adapters-v9"
+TRAIN_JSONL_V9 = SPLITS_DIR_V9 / "train.jsonl"
+VALID_JSONL_V9 = SPLITS_DIR_V9 / "valid.jsonl"
+CORPUS_TEST_JSONL_V9 = SPLITS_DIR_V9 / "corpus_test.jsonl"
+MANIFEST_PATH_V9 = SPLITS_DIR_V9 / "MANIFEST.json"
+V9_EXPERIMENT = "sft-v9"
+V9_LEVER = "lever2"
+V9_MAX_SEQ_LENGTH = 8192  # + existing budget_seq; do not silently reuse 4096
+
+# Conversation-level pool targets (shares of conversations).
+V9_TARGET_TOOLACE_FRAC = 0.50
+V9_MIN_TOOLACE_FRAC = 0.45
+V9_MAX_TOOLACE_FRAC = 0.55
+V9_TARGET_XLAM_FRAC = 0.175
+V9_MIN_XLAM_FRAC = 0.15
+V9_MAX_XLAM_FRAC = 0.20
+V9_TARGET_APIGEN_FRAC = 0.25
+V9_MIN_APIGEN_FRAC = 0.15
+V9_MAX_APIGEN_FRAC = 0.35  # hard ceiling (CONFIRM)
+V9_MIN_TOOLACE_XLAM_FRAC = 0.55  # ToolACE + xLAM floor
+V9_ABORT_IRRELEVANCE_FRAC = 0.12
+V9_MAX_IRRELEVANCE_CONV_FRAC = 0.10
+
+# Unrolled assistant-turn action-class quotas (PRIMARY lever).
+# Each value is (target_lo, target_hi, hard_lo, hard_hi).
+# refuse hard_lo is a soft floor (2% OK); abort only if refuse ≈ 0.
+V9_ACTION_MT_TOOL_CHAIN_ADVANCE = (0.30, 0.38, 0.28, 0.42)
+V9_ACTION_TOOL_CALL_START = (0.12, 0.18, 0.10, 0.20)
+V9_ACTION_FINAL_AFTER_OBS = (0.20, 0.24, 0.18, 0.26)
+V9_ACTION_ASK = (0.08, 0.12, 0.06, 0.14)
+V9_ACTION_REFUSE = (0.03, 0.05, 0.02, 0.06)  # floor 2% OK; abort if ≈0
+V9_ACTION_IRRELEVANCE = (0.05, 0.08, 0.0, 0.10)  # abort >0.12 separately
+V9_ABORT_IRRELEVANCE_UNROLL_FRAC = 0.12
+V9_ABORT_REFUSE_MIN = 0.005  # ≈0 → abort; 2% floor is soft
+V9_MAX_OBSERVE_SAME_OF_TOOL = 0.01  # sampler exclusion working
+
+# Formal 10-ID plain-IFFC gate (denominators /10). Do NOT fold VC into this.
+V9_PROBE_IDS = (
+    "_4",
+    "_38",
+    "_46",
+    "_64",
+    "_84",
+    "_95",
+    "_30",
+    "_82",
+    "_3",
+    "_163",
+)
+# VehicleControl regressors: required diagnostic sidecar; never inflate the 10-ID denom.
+V9_PROBE_IDS_VC_SIDECAR = (
+    "_52",
+    "_60",
+    "_74",
+    "_76",
+    "_83",
+    "_96",
+)
+# Optional later (not required for scaffold): "_186"
+V9_PROBE_IDS_OPTIONAL = ("_186",)
+
+# Stage B exact-prefix preference schema. Pair mining/scaffold only: no training.
+V9_PREF_PAIRS_SCHEMA_VERSION = 2

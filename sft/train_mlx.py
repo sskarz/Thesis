@@ -8,8 +8,12 @@ and env-state consistency; see ``sft.filter_empty_after_exec``). Pass
 Pass ``--recipe v7`` for the APIGen-MT mix (defaults ``splits-v7`` /
 ``mlx-v7`` / ``adapters-v7``; v4 empty/recovery on filler, no v5
 complete-turn0, then ``sft.cap_nontool_v7`` so mlx-v7 ``pct_nontool`` is
-~15%). Does **not** run training in CI; on Linux this prints the
-command.
+~15%). Pass ``--recipe v9`` for lever2 (defaults ``splits-v9`` /
+``mlx-v9`` / ``adapters-v9``; ToolACE-primary pool; v4 empty/recovery
+on filler; **no** v5 complete-turn0; **no** teacher observe→same traj
+filter; then ``sft.quota_sample_v9`` action-class quotas; max_seq
+8192 + budgeter). Does **not** run training in CI; on Linux this
+prints the command.
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ from typing import Any
 from sft.config import (
     ADAPTER_DIR,
     ADAPTER_DIR_V7,
+    ADAPTER_DIR_V9,
     FUSED_DIR,
     HF_INSTRUCT_ID,
     LORA_BATCH_SIZE,
@@ -39,17 +44,21 @@ from sft.config import (
     MLX_CONVERT_QLORA_HINT,
     MLX_DATA_DIR,
     MLX_DATA_DIR_V7,
+    MLX_DATA_DIR_V9,
     MLX_MODEL_DIR,
     SMOKE_TRAIN_ROWS,
     SMOKE_VALID_ROWS,
     SPLITS_DIR,
     SPLITS_DIR_V7,
+    SPLITS_DIR_V9,
+    V9_MAX_SEQ_LENGTH,
     TRAIN_JSONL,
     VALID_JSONL,
 )
 from sft.filter_empty_after_exec import (
     RECIPE_IDS,
     RECIPE_V7,
+    RECIPE_V9,
     RECIPES_WITH_RECOVERY,
     compare_recipe_unroll,
     format_recipe_comparison,
@@ -91,7 +100,9 @@ def prepare_mlx_data(
     empty/recovery plus only ``drop_state_inconsistent``. Pass ``recipe="v7"``
     for the APIGen-MT mix (v4 empty/recovery on filler; no complete-turn0;
     then cap non-tool unrolls and hard-gate token-budgeted targets — splits-v7
-    conversations stay full).
+    conversations stay full). Pass ``recipe="v9"`` for lever2 (v4 empty/
+    recovery on filler; no complete-turn0; quota_sample_v9 action-class
+    bands; max_seq 8192 + budgeter — splits-v9 conversations stay full).
     Conversation-level splits are unchanged.
     """
     if recipe is None:
@@ -133,11 +144,20 @@ def prepare_mlx_data(
     train_u, train_stats = unroll_and_filter(train, **filter_kwargs)
     valid_u, valid_stats = unroll_and_filter(valid, **filter_kwargs)
     train_cap = valid_cap = None
+    train_quota = valid_quota = None
     if recipe == RECIPE_V7:
         from sft.cap_nontool_v7 import cap_nontool_unrolls, format_cap_report
 
         train_u, train_cap = cap_nontool_unrolls(train_u)
         valid_u, valid_cap = cap_nontool_unrolls(valid_u)
+    if recipe == RECIPE_V9:
+        from sft.quota_sample_v9 import (
+            format_quota_report,
+            quota_sample_unrolls,
+        )
+
+        train_u, train_quota = quota_sample_unrolls(train_u, skip_gates=True)
+        valid_u, valid_quota = quota_sample_unrolls(valid_u, skip_gates=True)
     format_kwargs = dict(
         recipe=recipe,
         drop_nonterminal_empty_after_exec=drop_nonterminal_empty_after_exec,
@@ -154,6 +174,9 @@ def prepare_mlx_data(
     if train_cap is not None:
         print(format_cap_report(train_cap))
         print(format_cap_report(valid_cap))
+    if train_quota is not None:
+        print(format_quota_report(train_quota))
+        print(format_quota_report(valid_quota))
     if compare_recipe:
         print(format_recipe_comparison(
             compare_recipe_unroll(
@@ -170,21 +193,33 @@ def prepare_mlx_data(
     if smoke:
         train_u = train_u[:smoke_train_rows]
         valid_u = valid_u[:smoke_valid_rows]
-    if recipe == RECIPE_V7:
-        from sft.budget_seq import budget_unrolled_rows, format_budget_report
+    if recipe in (RECIPE_V7, RECIPE_V9):
+        from sft.budget_seq import (
+            DEFAULT_MODEL_DIR,
+            budget_unrolled_rows,
+            format_budget_report,
+        )
 
-        train_u, train_budget = budget_unrolled_rows(
-            train_u,
-            max_seq_length=max_seq_length,
-            tokenizer=budget_tokenizer,
-        )
-        valid_u, valid_budget = budget_unrolled_rows(
-            valid_u,
-            max_seq_length=max_seq_length,
-            tokenizer=budget_tokenizer,
-        )
-        print(format_budget_report(train_budget, "v7 train"))
-        print(format_budget_report(valid_budget, "v7 valid"))
+        tag = "v9" if recipe == RECIPE_V9 else "v7"
+        if budget_tokenizer is None and not DEFAULT_MODEL_DIR.exists():
+            print(
+                f"token budget ({tag}): skipped "
+                f"(no tokenizer and {DEFAULT_MODEL_DIR} missing; "
+                "Mac prepare with local MLX weights will hard-gate)"
+            )
+        else:
+            train_u, train_budget = budget_unrolled_rows(
+                train_u,
+                max_seq_length=max_seq_length,
+                tokenizer=budget_tokenizer,
+            )
+            valid_u, valid_budget = budget_unrolled_rows(
+                valid_u,
+                max_seq_length=max_seq_length,
+                tokenizer=budget_tokenizer,
+            )
+            print(format_budget_report(train_budget, f"{tag} train"))
+            print(format_budget_report(valid_budget, f"{tag} valid"))
     if mlx_dir.exists():
         shutil.rmtree(mlx_dir)
     mlx_dir.mkdir(parents=True, exist_ok=True)
@@ -207,6 +242,13 @@ def prepare_mlx_data(
             f"{(train_cap or {}).get('pct_nontool_before')}→"
             f"{(train_cap or {}).get('pct_nontool_after')}"
             if train_cap is not None
+            else ""
+        )
+        + (
+            f"; v9_quota=on n="
+            f"{(train_quota or {}).get('n_after')} "
+            f"pct={(train_quota or {}).get('pct_by_class')}"
+            if train_quota is not None
             else ""
         )
         + ")"
@@ -298,7 +340,7 @@ def main(argv: list[str] | None = None) -> int:
         "--recipe",
         choices=list(RECIPE_IDS),
         default=None,
-        help="Unroll recipe id. Default v5. v7/v6/v4/v3/v2/v1 are other recipes.",
+        help="Unroll recipe id. Default v5. v9/v7/v6/v4/v3/v2/v1 are other recipes.",
     )
     parser.add_argument(
         "--compare-recipe",
@@ -396,6 +438,15 @@ def main(argv: list[str] | None = None) -> int:
             mlx_dir = MLX_DATA_DIR_V7
         if adapter_path == ADAPTER_DIR:
             adapter_path = ADAPTER_DIR_V7
+    elif recipe == RECIPE_V9:
+        if splits_dir == SPLITS_DIR:
+            splits_dir = SPLITS_DIR_V9
+        if mlx_dir == MLX_DATA_DIR:
+            mlx_dir = MLX_DATA_DIR_V9
+        if adapter_path == ADAPTER_DIR:
+            adapter_path = ADAPTER_DIR_V9
+        if args.max_seq_length == LORA_MAX_SEQ_LENGTH:
+            args.max_seq_length = V9_MAX_SEQ_LENGTH
 
     if not (splits_dir / TRAIN_JSONL.name).exists():
         parser.error(
@@ -469,9 +520,12 @@ def main(argv: list[str] | None = None) -> int:
     print("train command:")
     print(" ", " ".join(cmd))
 
-    fused_name = (
-        "gemma-4-e2b-it-iffc-v7" if recipe == RECIPE_V7 else "gemma-4-e2b-it-iffc"
-    )
+    if recipe == RECIPE_V9:
+        fused_name = "gemma-4-e2b-it-iffc-v9"
+    elif recipe == RECIPE_V7:
+        fused_name = "gemma-4-e2b-it-iffc-v7"
+    else:
+        fused_name = "gemma-4-e2b-it-iffc"
     fused = FUSED_DIR / fused_name
     fuse_cmd = fuse_command(model, adapter_path, fused)
     print("fuse command:")

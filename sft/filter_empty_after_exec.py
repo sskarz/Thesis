@@ -32,6 +32,13 @@ keeps gpt finals as NL, never auto-``[]``). After that filter, ``sft.cap_nontool
 downsamples clarify / final / irrelevance unrolls so mlx-v7 ``pct_nontool``
 is ~15% (full conversations stay in ``splits-v7``). Unscored — do not invent
 a v7 BFCL number.
+
+SFT v9 (``--recipe v9``, lever2) is a **new mix** (ToolACE-primary
+pool + action-class quotas). v4 empty/recovery on filler; light
+empty-after-exec on ``apigen_mt``; **no** v5 complete-turn0; **no**
+teacher observe→same traj filter. After empty filter,
+``sft.quota_sample_v9`` enforces action-class bands (replaces
+``cap_nontool_*``). Unscored — do not invent a v9 BFCL number.
 """
 
 from __future__ import annotations
@@ -68,6 +75,7 @@ RECIPE_V4 = "v4"
 RECIPE_V5 = "v5"
 RECIPE_V6 = "v6"
 RECIPE_V7 = "v7"
+RECIPE_V9 = "v9"
 RECIPE_IDS = (
     RECIPE_V1,
     RECIPE_V2,
@@ -76,9 +84,11 @@ RECIPE_IDS = (
     RECIPE_V5,
     RECIPE_V6,
     RECIPE_V7,
+    RECIPE_V9,
 )
-RECIPES_WITH_RECOVERY = (RECIPE_V3, RECIPE_V4, RECIPE_V5, RECIPE_V6, RECIPE_V7)
-RECIPES_WITH_V4_EMPTY = (RECIPE_V4, RECIPE_V5, RECIPE_V6, RECIPE_V7)
+RECIPES_WITH_RECOVERY = (RECIPE_V3, RECIPE_V4, RECIPE_V5, RECIPE_V6, RECIPE_V7, RECIPE_V9)
+RECIPES_WITH_V4_EMPTY = (RECIPE_V4, RECIPE_V5, RECIPE_V6, RECIPE_V7, RECIPE_V9)
+RECIPES_APIGEN_MIX = (RECIPE_V7, RECIPE_V9)
 
 EMPTY_IFFC_TARGET = "[]"
 
@@ -207,6 +217,8 @@ def resolve_recipe(
     underspecified drop, no complete-turn0 synth).
     v4: all three v5 keep/no-synth flags (empty-target curriculum only).
     v7: explicit ``recipe="v7"`` only (not inferred from keep-flags).
+    v9: explicit ``recipe="v9"`` only (lever2 action-class quotas;
+    v4 empty/recovery on filler; no v5 synth; no teacher loop filter).
     v3: both ``--keep-first-assistant-empty`` and
     ``--keep-clarifying-empty-after-user`` (empty-after-exec + recovery only).
     v2: ``--keep-terminal-empty-after-exec`` (drop non-terminal only).
@@ -261,8 +273,8 @@ def recipe_v5_flags(recipe: str) -> tuple[bool, bool, bool, bool]:
 
     v5: all four on.
     v6: only state-inconsistent (v4 empty/recovery + ``drop_state_inconsistent``).
-    v7 / v4 and earlier: all off so v7 does **not** apply v5 synthetic
-    complete-turn0. v7 additionally special-cases ``source=apigen_mt`` inside
+    v7 / v9 / v4 and earlier: all off so v7/v9 do **not** apply v5 synthetic
+    complete-turn0. v7/v9 additionally special-case ``source=apigen_mt`` inside
     ``unroll_and_filter``.
     """
     if recipe == RECIPE_V5:
@@ -880,7 +892,7 @@ def unroll_and_filter(
             synth_c_row = synthesize_complete_turn0
             drop_abs_row = drop_absorbed_independent_followup
             synth_rec_row = synthesize_recovery_stop
-            if recipe == RECIPE_V7:
+            if recipe in RECIPES_APIGEN_MIX:
                 # Filler: v4 empty + recovery. APIGen-MT: light empty-after-exec
                 # only. Never apply v5 synthetic complete-turn0.
                 drop_u_row = False
@@ -1256,6 +1268,14 @@ def main(argv: list[str] | None = None) -> int:
 
             rows, cap_stats = cap_nontool_unrolls(rows)
             print(format_cap_report(cap_stats))
+        if recipe == RECIPE_V9:
+            from sft.quota_sample_v9 import (
+                format_quota_report,
+                quota_sample_unrolls,
+            )
+
+            rows, quota_stats = quota_sample_unrolls(rows, skip_gates=True)
+            print(format_quota_report(quota_stats))
         if args.compare_recipe:
             delta = compare_recipe_unroll(
                 recs,

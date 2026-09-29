@@ -1,0 +1,21 @@
+# Stage B reference-anchored DPO recipe lock. Real execution is available only
+# through train_dpo_mlx.py --smoke-100; inspection modes remain dependency-free.
+model: google/gemma-4-e2b-it
+reference_model: google/gemma-4-e2b-it
+policy_init: untouched_base
+reference_frozen: true
+precompute_reference_logprobs: true
+continuation_only: true
+beta: 0.1
+learning_rate: 1.0e-6
+batch_size: 1
+max_seq_length: 8192
+num_layers: 16
+lora_parameters:
+  rank: 16
+  scale: 32.0
+  dropout: 0.0
+forbidden_initializers:
+  - sft/adapters-v9-smoke
+  - sft/adapters-v9-smoke91
+  - sft/adapters-v9-smoke92
