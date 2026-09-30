@@ -59,6 +59,12 @@ def _notes_with_run_meta(args: argparse.Namespace) -> str | None:
     extra: list[str] = []
     if args.fc_mode != config.FC_NFC:
         extra.append(f"fc_mode={args.fc_mode}")
+    if args.fc_mode == config.FC_IFFC_DECISION:
+        import os
+        extra.append(
+            "decision_model="
+            + os.environ.get("DECISION_MODEL", "tev1:latest")
+        )
     if args.fc_mode == config.FC_IFFC_STATE_BON:
         extra.append(f"bon_n={config.BON_N}")
     if args.iffc_strip_empty_assistant:
@@ -200,7 +206,10 @@ def main():
             '({"tool_calls":[{name, arguments}]}; no native tools); '
             "iffc-stop-repeat = IFFC + harness force-stop on consecutive "
             "identical calls, or executed-call re-emits after 6 assistant "
-            "tool-turns in the current ask (baseline iffc unchanged)."
+            "tool-turns in the current ask (baseline iffc unchanged); "
+            "iffc-decision = IFFC + Decision sidecar (Ollama System One "
+            "Choice next-tool/noop before Gemma args; not composed with "
+            "stop-repeat)."
         ),
     )
     parser.add_argument(
@@ -332,6 +341,10 @@ def main():
             if args.fc_mode == config.FC_IFFC_STATE_BON
             else " (xLAM = JSON-in-text {\"tool_calls\":[...]} ; no native tools)"
             if args.fc_mode == config.FC_XLAM
+            else " (iffc-stop-repeat = IFFC + harness force-stop on identical re-calls)"
+            if args.fc_mode == config.FC_IFFC_STOP_REPEAT
+            else " (iffc-decision = IFFC + Decision sidecar Choice/noop before Gemma args)"
+            if args.fc_mode == config.FC_IFFC_DECISION
             else " (NFC = native tools)"
         )
     )
