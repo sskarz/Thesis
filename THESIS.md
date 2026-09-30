@@ -1917,7 +1917,7 @@ Do **not**:
 
 ### DPO β0.2 smoke100 10-ID PASS (Run 49) — health gate, not a BFCL %
 
-**Framing:** **PASS** health gate on a 100-update DPO smoke (`β=0.2`). This is **not** a BFCL `multi_turn_base` N=200 accuracy. **Do not invent** a Run 49 / 47 / 48 BFCL %. A capped full DPO train (`UPDATES_CAP=1000`) is **in flight / results pending** — not a scored N=200 win, and not a permanent HOLD on the path. PTC-A Run 46 FAIL **13.5%** is **banked and closed**; PTC-B **HOLD**. Path is **DPO**. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** — **do not merge** harness drafts as wins. **No BoN.** N=200 scoreboard **unchanged**: BoN **36.5%** / Run 42 **35.5%** / STATE **34.0%** / Run 30 **32.5%** / IFFC **30.5%** / SFT-v4 **15%** / Run 46 PTC-A **13.5%** FAIL.
+**Framing:** **PASS** health gate on a 100-update DPO smoke (`β=0.2`). This is **not** a BFCL `multi_turn_base` N=200 accuracy. **Do not invent** a Run 49 / 47 / 48 BFCL %. As of **2026-09-29** a capped full DPO train (`UPDATES_CAP=1000`) is **in flight / results pending** — no N=200 Acc yet. PTC-A Run 46 FAIL **13.5%** is **banked and closed**; PTC-B **HOLD**. Path is **DPO**. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** — **do not merge** harness drafts as wins. **No BoN.** N=200 scoreboard **unchanged**: BoN **36.5%** / Run 42 **35.5%** / STATE **34.0%** / Run 30 **32.5%** / IFFC **30.5%** / SFT-v4 **15%** / Run 46 PTC-A **13.5%** FAIL.
 
 #### Checkpoint identity (smoke only)
 
@@ -1941,7 +1941,7 @@ Gate band: avg API **≥4 and ≤8.3**, `hit_step_limit` **≤2/10**, `iffc_unpa
 #### Takeaways
 
 1. **Health-gate PASS, not a BFCL %.** Do **not** invent a `multi_turn_base` N=200 figure for Run 49 / 47 / 48.
-2. **Full DPO train in flight / results pending.** Capped `UPDATES_CAP=1000`. Do **not** invent an N=200 BFCL %; do **not** present the 10-ID smoke as a method win.
+2. **Full DPO train in flight as of 2026-09-29; no N=200 Acc yet.** Capped `UPDATES_CAP=1000`. Do **not** invent an N=200 BFCL %; do **not** present the 10-ID smoke as a method win.
 3. **N=200 winners unchanged.** BoN **36.5%** / Run 42 **35.5%** / STATE **34.0%** / Run 30 **32.5%** / IFFC **30.5%** / SFT-v4 **15%** / Run 46 PTC-A **13.5%** FAIL. Do **not** overwrite those rows.
 4. **PR #57 stays draft.** Do **not** merge harness drafts as wins. **No BoN.**
 

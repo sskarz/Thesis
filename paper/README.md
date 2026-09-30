@@ -5,7 +5,7 @@ Formal arXiv-style draft of Sanskar Thapa's master's thesis:
 
 This directory is the **formal paper**. Informal working notes remain in [`../THESIS.md`](../THESIS.md) and [`../METHODS.md`](../METHODS.md). The paper is written for a general ML/systems reader: method names are defined before use, results are grouped by what moved accuracy, and chronological evaluation-log IDs live in Appendix B.
 
-All own experimental numbers in `main.tex` are taken from measured MacBook Pro M4 Pro / llama.cpp Metal runs. Do not invent BFCL / `multi_turn_base` scores. Health-gate probes (SFT v9.2, DPO smoke) are not $N{=}200$ accuracies. A capped full DPO train is in flight; this draft reports no DPO BFCL percentage.
+All own experimental numbers in `main.tex` are taken from measured MacBook Pro M4 Pro / llama.cpp Metal runs. Do not invent BFCL / `multi_turn_base` scores. Health-gate probes (SFT v9.2, DPO smoke) are not $N{=}200$ accuracies. As of 2026-09-29 a capped full DPO train is in flight; this draft reports no DPO BFCL percentage.
 
 ## Build
 
