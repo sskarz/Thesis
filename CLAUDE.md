@@ -1,4 +1,4 @@
-# Thesis: Optimizing Tool Calling on Edge Devices Using RAG and Structured Output
+# Thesis: Optimizing Consecutive Tool Calling for Small Language Models on Edge Devices
 
 ## Project Overview
 

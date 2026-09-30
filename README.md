@@ -1,6 +1,8 @@
-# Optimizing Tool Calling on Edge Devices Using RAG and Structured Output
+# Optimizing Consecutive Tool Calling for Small Language Models on Edge Devices
 
 **Thesis:** *Optimized Tool Calling for On-Device LLMs in Resource Constraint Environments.*
+
+An earlier registered-title framing mentioned RAG; **retrieval-augmented generation is out of scope** for this thesis paper (not deferred as a near-term experiment). Body claims are local / on-device SLM serving on a MacBook Pro M4 Pro (48 GB); Jetson 8 GB deployment is unmeasured.
 
 Benchmark LLM tool/function-calling accuracy and inference performance on local hardware using [llama.cpp](https://github.com/ggml-org/llama.cpp) and the [Berkeley Function Calling Leaderboard (BFCL)](https://gorilla.cs.berkeley.edu/leaderboard.html).
 

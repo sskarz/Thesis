@@ -11,7 +11,7 @@ Each method in this section operates at inference time without modifying model w
 - [1. Guided-Structured Templates](#1-guided-structured-templates)
 - [2. Constrained Decoding and Grammar-Guided Generation](#2-constrained-decoding-and-grammar-guided-generation)
 - [27. PTC-Decoder: Plan-to-Act plus Tool-Name DFA](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa)
-- [3. RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval)
+- [3. RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval) (literature only; **out of scope** for this thesis paper)
 - [3a. Tool-Interface Granularity (MCP-GRANITE)](#3a-tool-interface-granularity-mcp-granite)
 - [4. Inference-Time Compute Scaling](#4-inference-time-compute-scaling)
 - [28. Looped Language Models for Compositional Tool Calling](#28-looped-language-models-for-compositional-tool-calling)
@@ -180,6 +180,8 @@ Paper results (Yu, Mu, & Wu, 2026; cite as **theirs**, not ours):
 
 ## 3. RAG-Based Tool Retrieval
 
+**Out of scope for this thesis paper (decision 2026-09-29).** RAG appeared in an earlier registered-title framing. This section is **literature only**. Do not implement, score, or roadmap RAG as a planned experiment before December 2026.
+
 ### Overview
 
 When the available tool set is large, Retrieval-Augmented Generation (RAG) reduces prompt bloat by embedding tool descriptions into a vector index and retrieving only the top-k most relevant tools per query, rather than presenting all tools to the LLM at once.
@@ -215,8 +217,8 @@ RAG-MCP triples tool selection accuracy and cuts prompt tokens by over 50%. Test
 
 - **BFCL categories:** Limited benefit for single-turn categories (2–4 tools per test case). Potentially significant for multi-turn categories where all function docs for involved classes are loaded (dozens of tools), and for `multi_turn_long_context` where large tool doc sets can exceed the 8192-token context window.
 - **Real-world deployment:** Essential. A production agent with 100+ tools cannot fit all descriptions in an SLM's context window.
-- **Thesis contribution:** Demonstrate the crossover point — at what tool count does RAG start providing benefit for 3B models? Create an extended benchmark by padding BFCL tool sets with distractor tools (20, 50, 100) and measuring accuracy with and without retrieval.
-- **Implementation:** Embed BFCL function descriptions with a small embedding model (e.g., `all-MiniLM-L6-v2`, ~22M params, <50MB, runs on CPU in <5ms per query). Build a FAISS index. Add a retrieval step in `_load_func_docs()` before calling llama-server.
+- **Thesis contribution:** **None.** Out of scope for this thesis paper — not a planned experiment and not a deferred near-term claim.
+- **Implementation:** Not planned. (Literature implementations use a small embedding model and a vector index; do not treat that as a thesis deliverable.)
 - **Complexity:** Medium
 - **Complement:** Retrieving a subset of tools is one knob. **How the same capability set is split into tools** is another — see [§3a Tool-Interface Granularity (MCP-GRANITE)](#3a-tool-interface-granularity-mcp-granite). That paper is **not** a scored thesis experiment.
 
@@ -234,7 +236,7 @@ RAG-MCP triples tool selection accuracy and cuts prompt tokens by over 50%. Test
 
 ### Overview
 
-How the **same capability set** is split into tools is a design knob. MCP leaves interface design unspecified; MCP-GRANITE holds capabilities fixed and varies only the granularity of the tool schema. For edge SLMs this is complementary to tool RAG: retrieval chooses *which* tools to show; granularity chooses *how many* tools the capability set is carved into.
+How the **same capability set** is split into tools is a design knob. MCP leaves interface design unspecified; MCP-GRANITE holds capabilities fixed and varies only the granularity of the tool schema. In the literature this is complementary to tool RAG; **RAG itself is out of scope** for this thesis paper.
 
 **Not a scored thesis experiment.** Do not invent a `multi_turn_base` number for this method. Paper numbers below are theirs.
 
@@ -262,7 +264,7 @@ Paper results (Paschalides et al., 2026; cite as theirs, not ours):
 
 ### Applicability
 
-- **BFCL categories:** System-design knob, not a generation-loop ablation. Relevant whenever the harness exposes a class of APIs (multi-turn function docs, padded tool sets, production MCP catalogs). Complements [§3 RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval): do not only retrieve; also redesign API-surface cardinality.
+- **BFCL categories:** System-design knob, not a generation-loop ablation. Relevant whenever the harness exposes a class of APIs (multi-turn function docs, padded tool sets, production MCP catalogs). Complements [§3 RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval) as **literature only** (RAG is out of scope for this thesis paper): that literature discusses retrieval; this section discusses API-surface cardinality.
 - **Edge SLM relevance:** High. Moderate ~4 task-class tools beat both a fine-grained dump and a single monolith on their suite.
 - **Implementation:** Redesign how BFCL / production tools are grouped (task-class wrappers vs primitive APIs). No weight change. No `--fc-mode`.
 - **Complexity:** Medium (schema / catalog design, not a decode-time trick)
@@ -1495,7 +1497,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 5b | **IFFC OODA card (`--fc-mode iffc-ooda-card`)** | One-pass `[OODA]` working-memory card on stop-repeat MIN=6 | **Measured** Run 42 on **BASE** Gemma: **71/200 = 35.5%** (`multi_turn_base` only; **200/200 responses**; finished `2026-09-29T05:51:02.787870+00:00`). Dedicated `--fc-mode` — **not** a flag on stop-repeat; **not** iffc-state; **not** 4-pass OODA. **+6 / +3.0 pp vs Run 30**; still **below BoN 36.5% (−1.0 pp)**; **above STATE 34.0% (+1.5 pp)**. `eval_errors`: state_mismatch **71**, empty **17**, missing_gt **41**, empty+missing **58**, total **129**. Gates: ≥65/200 **MET**; state_mismatch <60 **MISS**; empty+missing ≤75 **MET**; TTFT 517.8 vs Run 30 630.5 ms (≤1.25× **MET**). **Do not claim a clean gate sweep.** Calib Run 40 10-ID **PASS** (not a BFCL %). Run 41 orphan 0 responses — ignore. Do **not** overwrite Run 30. SFT parked. No BoN. Do **not** invent tok/s. Harness [PR #61](https://github.com/sskarz/Thesis/pull/61) draft @ `1dea341`. Still **best non-BoN harness Acc** after Run 46. | Done (docs for scored run; harness PR #61 separate) |
 | 5c | **IFFC PTC-A (`--fc-mode iffc-ptc-a`)** | Live tool-name DFA, args free (PTC-Decoder-inspired) | **Measured** Run 46 on **BASE** Gemma: **27/200 = 13.5%** (`multi_turn_base` only; **200/200 responses**; finished `2026-09-29T08:15:24.061478+00:00` = 2026-09-29 04:15 ET). Dedicated `--fc-mode` — live tool-name DFA, args free; **not** Yu et al. paper F1; **not** CD; **not** OODA-card; **not** STATE; **not** BoN. **NEW run** (never resume Run 30/42). **−22.0 pp vs Run 42**; **−19.0 pp vs Run 30**; **−17.0 pp vs IFFC**. `eval_errors`: state_mismatch **102**, empty **17**, missing_gt **54**, empty+missing **71**, total **173**. Gates: ≥71/200 **MISS** (27); state_mismatch ≤60 **MISS** (102); empty+missing ≤75 **MET** (71); wall ~42.1 min / ratio vs Run 30 **0.234485** (≤1.25× **MET**). **Scored FAIL / Acc regression; bank and close.** Calib Run 45 10-ID **PASS** (avg API **5.4**, turn0_tool **10/10**; exit 0; **not** a BFCL %). PTC-B **HOLD**. Next = **DPO** (β0.2 smoke100 10-ID Run 49 **PASS** health gate — **not** a BFCL %; full train **HOLD**; [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft**), **not** more PTC/OODA remix. Do **not** overwrite Run 30/42. SFT parked. No BoN. Do **not** invent tok/s. Harness [PR #63](https://github.com/sskarz/Thesis/pull/63) draft @ `3569311`. | Done (docs for scored FAIL; harness PR #63 separate; closed) |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level. Complements [PTC-Decoder §27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa) (paper F1 **theirs**; harness `--fc-mode iffc-ptc-a` **scored FAIL** Run 46 **13.5%** — closed). | Medium |
-| 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale. Complements [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite): retrieve tools **and** redesign API-surface cardinality (~4 task-class tools in that paper). Complements [HyperTool §30](#30-hypertool-code-block-execution-granularity) (execution granularity / code-block; **unscored**; MCP-Universe ≠ BFCL). **Unscored** on this harness. | Medium |
+| 7 | **RAG tool retrieval** | — | **OUT OF SCOPE** for this thesis paper (earlier title framing; not deferred; not a Dec 2026 roadmap item). Literature: Gao et al. RAG-MCP. Complements in METHODS remain **unscored** literature ([MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite); [HyperTool §30](#30-hypertool-code-block-execution-granularity)). Do not score RAG. | — |
 | 8 | **Schema-based verification loop** | Argument errors across categories | +3–10% with retries | Medium |
 | 9 | **DSPy prompt optimization** | Model-specific prompt tuning | Auto-discovered improvements | High |
 | 10 | **Looped LMs (logged, unscored)** | Compositional / nested tool calling | [§28](#28-looped-language-models-for-compositional-tool-calling) recurrent latent depth. Paper BFCL is static single-turn; **not** our `multi_turn_base`. Needs a looped backbone we do not run. | High (architecture) |
