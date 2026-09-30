@@ -50,7 +50,7 @@ pdflatex main.tex
 | `figures/` | Measured charts copied from the Mac comparison / multi-turn scoreboard |
 | `Makefile` | `latexmk -pdf` wrapper |
 
-The complete multi-turn scoreboard is the table in the paper body. The `multiturn_scoreboard.pdf` figure covers the earlier Gemma set (through SFT-v6) and is captioned as such; later rows are table-only.
+The complete multi-turn scoreboard is the table in the paper body. The `multiturn_scoreboard.pdf` figure covers the earlier Gemma set (through SFT-v6) and is captioned as such; later rows are table-only. Single-turn accuracy / performance / memory PDFs are **three-model** plots (FunctionGemma is in the tables). `failure_buckets.pdf` is SFT-v4–v6 only.
 
 ## Caveats (defined in Appendix A)
 
