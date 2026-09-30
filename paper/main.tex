@@ -81,7 +81,7 @@ Retrieval-augmented generation (RAG) appeared in an earlier registered-title fra
   \item \textbf{Preference optimization is the open training path.} A Direct Preference Optimization (DPO) smoke run passed a 10-example health gate. As of 2026-09-29 a capped full train is in flight; this draft reports no $N{=}200$ DPO accuracy.
 \end{enumerate}
 
-Section~\ref{sec:related} defines BFCL and the methods we compare. Section~\ref{sec:method} describes each intervention once. Section~\ref{sec:setup} states the experimental setup. Sections~\ref{sec:results-st}--\ref{sec:results-fail} report results by what helped, what did not beat IFFC, residual errors, and serving cost. Section~\ref{sec:discussion} discusses format versus reasoning and cost. Section~\ref{sec:roadmap} is the roadmap. Appendix~\ref{app:runs} maps \texttt{multi\_turn\_base} ($N{=}200$) scoreboard names to local evaluation-log IDs; it is not a map of the single-turn matrix.
+Section~\ref{sec:related} defines BFCL and the methods we compare. Section~\ref{sec:method} describes each intervention once. Section~\ref{sec:setup} states the experimental setup. Sections~\ref{sec:results-st}--\ref{sec:results-fail} report results by what helped, what did not beat IFFC, residual errors, and serving cost. Section~\ref{sec:discussion} discusses format versus reasoning and cost. Section~\ref{sec:roadmap} discusses limitations and the roadmap. Appendix~\ref{app:runs} maps \texttt{multi\_turn\_base} ($N{=}200$) scoreboard names to local evaluation-log IDs; it is not a map of the single-turn matrix.
 
 \section{Background and Related Work}
 \label{sec:related}
@@ -140,11 +140,11 @@ Figure~\ref{fig:channels} summarizes the interventions. Every multi-turn method 
 \node[win, right=0.55cm of state] (bon) {Best-of-N\\[-1pt]{\scriptsize 36.5\% majority vote}};
 
 \node[box, below=0.7cm of nfc] (gst) {GST$+$NFC\\[-1pt]{\scriptsize 30.5\% ties IFFC}};
-\node[win, below=0.7cm of iffc] (stop) {Gated stop-repeat\\[-1pt]{\scriptsize 32.5\% after 6 repeats}};
+\node[win, below=0.7cm of iffc] (stop) {Gated stop-on-repeat\\[-1pt]{\scriptsize 32.5\% after 6 repeats}};
 \node[win, below=0.7cm of state] (ooda) {OODA-card\\[-1pt]{\scriptsize 35.5\% best non-BoN}};
 \node[neg, below=0.7cm of bon] (ptc) {PTC-A\\[-1pt]{\scriptsize 13.5\% scored failure}};
 \node[neg, below=0.7cm of gst] (cd) {Constrained dec.\\[-1pt]{\scriptsize 10.5\% not XGrammar-2}};
-\node[neg, below=0.7cm of stop] (ungated) {Ungated stop\\[-1pt]{\scriptsize 27.0\% miss vs IFFC}};
+\node[neg, below=0.7cm of stop] (ungated) {Ungated stop-on-repeat\\[-1pt]{\scriptsize 27.0\% miss vs IFFC}};
 \node[recov, below=0.7cm of ooda] (sft) {SFT-v4\\[-1pt]{\scriptsize 15.0\% best SFT; $<$IFFC}};
 \node[neg, below=0.7cm of ptc] (xlam) {xLAM-1b\\[-1pt]{\scriptsize NFC 0\% / JSON 3\%}};
 
@@ -156,13 +156,14 @@ Figure~\ref{fig:channels} summarizes the interventions. Every multi-turn method 
 \draw[arr] (stop) -- (ooda);
 % Route around the gated-stop node rather than through it.
 \draw[arr] (iffc.west) -- ++(-0.32,0) |- (ungated.west);
-\draw[arr] (iffc) -- (cd);
+% Route around GST rather than through it (west gutter).
+\draw[arr] (iffc.west) -- ++(-0.72,0) |- (cd.east);
 \draw[arr] (iffc.south) -- ++(0,-0.15) -| (ptc.north);
 % Dashed SFT derivation: around the stop/OODA column, not through it.
 \draw[arr, densely dashed] (iffc.south east) -- ++(0.18,-0.12)
   -- ++(1.55,0) |- (sft.east);
 \end{tikzpicture}
-\caption{Channel families on BFCL v4 \texttt{multi\_turn\_base} ($n{=}200$), Gemma-4-E2B-it Q4\_K\_M unless noted, MacBook Pro M4~Pro / llama.cpp Metal. Arrows show stacking or derivation, not a strict experimental DAG. PTC-A is a solo name-DFA on base IFFC, not on stop-repeat. Dashed: SFT starts from the IFFC channel. Green: point estimates above plain IFFC (30.5\%) on the \emph{base} checkpoint. Orange: best supervised recovery, still below IFFC. Red: scored misses. xLAM is an external published checkpoint (JSON-in-text adapter 3\%). SFT v1/v2 collapse (0.5\%) is omitted for space; see Table~\ref{tab:scoreboard}.}
+\caption{Channel families on BFCL v4 \texttt{multi\_turn\_base} ($n{=}200$), Gemma-4-E2B-it Q4\_K\_M unless noted, MacBook Pro M4~Pro / llama.cpp Metal. Arrows show stacking or derivation, not a strict experimental DAG. PTC-A is a solo name-DFA on base IFFC, not on stop-on-repeat. Dashed: SFT starts from the IFFC channel. Green: point estimates above plain IFFC (30.5\%) on the \emph{base} checkpoint. Orange: best supervised recovery, still below IFFC. Red: scored misses. xLAM is an external published checkpoint (JSON-in-text adapter 3\%). SFT v1/v2 collapse (0.5\%) is omitted for space; see Table~\ref{tab:scoreboard}.}
 \label{fig:channels}
 \end{figure}
 
@@ -356,13 +357,13 @@ Unless noted, scores are Gemma-4-E2B-it Q4\_K\_M on BFCL v4 \texttt{multi\_turn\
 Condition & Score & Acc. & vs IFFC / note \\
 \midrule
 Best-of-N $N{=}5$ on IFFC$+$STATE & 73/200 & \textbf{36.5\%} & ${+}6.0$\pp; ${\sim}7\times$ generate wall \\
-OODA-card on gated stop-repeat & 71/200 & 35.5\% & ${+}5.0$\pp; best non-BoN point est. \\
+OODA-card on gated stop-on-repeat & 71/200 & 35.5\% & ${+}5.0$\pp; best non-BoN point est. \\
 IFFC$+$STATE (harness memory) & 68/200 & 34.0\% & ${+}3.5$\pp \\
-Gated stop-repeat (\texttt{MIN}${}=6$) & 65/200 & 32.5\% & ${+}2.0$\pp; harness guardrail \\
+Gated stop-on-repeat (\texttt{MIN}${}=6$) & 65/200 & 32.5\% & ${+}2.0$\pp; harness guardrail \\
 IFFC (JSON-in-text) & 61/200 & 30.5\% & baseline channel \\
 GST$+$NFC (He Detail prompt) & 61/200 & 30.5\% & ${\pm}0.0$\pp vs IFFC; ${+}3.5$\pp vs NFC \\
 NFC (native \texttt{tool\_calls}) & 54/200 & 27.0\% & ${-}3.5$\pp; served at \texttt{-np 8} \\
-Ungated stop-repeat & 54/200 & 27.0\% & ${-}3.5$\pp; same level as NFC, different method \\
+Ungated stop-on-repeat & 54/200 & 27.0\% & ${-}3.5$\pp; same level as NFC, different method \\
 SFT-v4 IFFC (best SFT recovery) & 30/200 & 15.0\% & ${-}15.5$\pp; still below NFC \\
 PTC-A (live name DFA) & 27/200 & 13.5\% & ${-}17.0$\pp; scored failure \\
 SFT-v6 IFFC & 26/200 & 13.0\% & miss vs SFT-v4 \\
@@ -395,7 +396,7 @@ Working memory from executed tools scores 68/200 (34.0\%) on \emph{base} Gemma, 
 \paragraph{Gated stop-on-repeat (${+}2.0$\pp over IFFC).}
 Waiting until six observe-same tool-turns before forcing a stop scores 65/200 (32.5\%). Versus plain IFFC: shared 54, rescue 11, regress 7; McNemar $p{\approx}0.48$ (n.s.). Stop flags fall from 37/200 (ungated) to 3/200, all still failures. VehicleControl state-mismatch counts return to the IFFC baseline (22, versus 33 ungated). This is a harness guardrail on the base checkpoint, not a training win.
 
-\paragraph{OODA-card on gated stop-repeat (${+}3.0$\pp over gated stop-repeat).}
+\paragraph{OODA-card on gated stop-on-repeat (${+}3.0$\pp over gated stop-on-repeat).}
 The one-pass status card, stacked on $\mathrm{MIN}{=}6$ stop-on-repeat, scores 71/200 (35.5\%): best non-BoN point estimate, 1.0\pp\ below BoN. Versus gated stop-on-repeat: shared 45, rescue 26, regress 20; McNemar $p{\approx}0.46$ (n.s.). Empty-turn primaries fall 38$\to$17 while state mismatch rises 60$\to$71 and under-call 37$\to$41, consistent with anti-abstention rather than better state tracking. Median TTFT was 517.8~ms versus 630.5~ms on gated stop-on-repeat; we do not interpret that as a causal end-to-end speedup (card-build cost and generate wall were not the claim). An OODA-card on \emph{plain} IFFC remains unscored.
 
 \paragraph{Best-of-N majority vote on IFFC$+$STATE (${+}2.5$\pp over STATE, ${\sim}7\times$ generate wall).}
@@ -541,12 +542,12 @@ Failed entries & 146 & 139 & 179 & 139 & 132 & 127 & 199 & 199 & 196 & 170 & 174
 
 \begin{table}[htbp]
 \centering
-\caption{Primary failure buckets for later harness interventions on the same Gemma checkpoint and slice. Counts sum to failed entries (200 minus correct). OODA-card is stacked on gated stop-repeat. GT $=$ ground-truth execution.}
+\caption{Primary failure buckets for later harness interventions on the same Gemma checkpoint and slice. Counts sum to failed entries (200 minus correct). Columns Ungated / Gated MIN=6 are stop-on-repeat variants. OODA-card is stacked on gated stop-on-repeat. GT $=$ ground-truth execution.}
 \label{tab:fail-later}
 \small
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
-Bucket & Ungated stop & Gated stop & OODA-card & PTC-A \\
+Bucket & Ungated & Gated MIN=6 & OODA-card & PTC-A \\
 \midrule
 Empty turn & 40 & 38 & 17 & 17 \\
 Under-call / miss.\ GT & 31 & 37 & 41 & 54 \\
@@ -604,10 +605,10 @@ Mean prompt / generation throughput on the same 50-request collection: Qwen2.5-3
 \paragraph{Format versus reasoning.}
 Several large swings are format. IFFC versus NFC (with the \texttt{-np} confound), Llama type coercion on a separate snapshot, and xLAM's native-tools collapse all show that the channel the harness parses can dominate the score before agentic policy is tested. That is useful: format is often cheaper to fix than weights. It is also a warning. Publishing an overall BFCL number from a different channel, or treating NFC 0\% on xLAM as an ability floor, would mis-state the result.
 
-Once calls parse, consecutive accuracy is limited by environment-state tracking. IFFC still shares 124 failures with NFC. STATE and BoN move the point estimate by a few points and still leave VehicleControl and GorillaFileSystem mismatches as the mode. GST increases calling without reducing those mismatches. OODA-card on gated stop-repeat improves the point estimate while empty turns fall and state-mismatch counts stay above the IFFC baseline. Constrained name decoding (CD, PTC-A) improves or enforces syntax and \emph{lowers} execution accuracy. Validity of a call is not fidelity of a trajectory.
+Once calls parse, consecutive accuracy is limited by environment-state tracking. IFFC still shares 124 failures with NFC. STATE and BoN move the point estimate by a few points and still leave VehicleControl and GorillaFileSystem mismatches as the mode. GST increases calling without reducing those mismatches. OODA-card on gated stop-on-repeat improves the point estimate while empty turns fall and state-mismatch counts stay above the IFFC baseline. Constrained name decoding (CD, PTC-A) improves or enforces syntax and \emph{lowers} execution accuracy. Validity of a call is not fidelity of a trajectory.
 
 \paragraph{Cost--accuracy.}
-On base Gemma, the observed Pareto picture is: IFFC at 30.5\% as the cheap JSON channel; gated stop-repeat and OODA-card-on-stop-repeat as low-overhead harness additions (32.5\% and 35.5\%); STATE at 34.0\% with extra context tokens; BoN on IFFC$+$STATE at 36.5\% for about $7\times$ generate wall. For a local laptop agent, a 2.5\pp\ BoN point-estimate gain at $7\times$ wall is a research measurement, not an obvious default. We did not apply BoN to collapsed or below-IFFC SFT checkpoints: majority vote cannot be assumed to rescue a policy that abstains or drifts.
+On base Gemma, the observed Pareto picture is: IFFC at 30.5\% as the cheap JSON channel; gated stop-on-repeat and an OODA-card on gated stop-on-repeat as low-overhead harness additions (32.5\% and 35.5\%); STATE at 34.0\% with extra context tokens; BoN on IFFC$+$STATE at 36.5\% for about $7\times$ generate wall. For a local laptop agent, a 2.5\pp\ BoN point-estimate gain at $7\times$ wall is a research measurement, not an obvious default. We did not apply BoN to collapsed or below-IFFC SFT checkpoints: majority vote cannot be assumed to rescue a policy that abstains or drifts.
 
 \paragraph{Why SFT failed, then plateaued.}
 A supported hypothesis is that the first SFT mixes taught the model to stop after tools because ToolACE empty-list targets dominate post-execution assistant turns. Removing those targets restores calling (empty errors ${\approx}0$) but does not install BFCL-style state tracking. Further filters that try to complete turn~0 or drop state-inconsistent continues either over-call (v5) or miss the v4 recovery (v6). STATE, which helps the base model remember executed facts, is null or negative on the v4 checkpoint: the overlay is not a universal substitute for a policy that already mismatches the environment. Preference data that contrasts advance versus loop, rather than another supervised empty-list filter, is the remaining training hypothesis---untested at $N{=}200$ in this draft.
@@ -700,10 +701,10 @@ ID & Method name in this paper & Acc. & Role \\
 18 & SFT-v6 & 13.0\% & miss vs v4 \\
 19 & xLAM-1b NFC & 0.0\% & format collapse \\
 20 & xLAM-1b JSON channel & 3.0\% & JSON adapter, still low \\
-27 & Ungated stop-repeat & 27.0\% & miss vs IFFC \\
-30 & Gated stop-repeat & 32.5\% & ${+}2.0$\pp vs IFFC \\
+27 & Ungated stop-on-repeat & 27.0\% & miss vs IFFC \\
+30 & Gated stop-on-repeat & 32.5\% & ${+}2.0$\pp vs IFFC \\
 36 & SFT v9.2 smoke (10 IDs) & --- & health-gate FAIL; not BFCL \% \\
-42 & OODA-card on gated stop-repeat & 35.5\% & best non-BoN \\
+42 & OODA-card on gated stop-on-repeat & 35.5\% & best non-BoN \\
 46 & PTC-A & 13.5\% & scored failure; line closed \\
 49 & DPO $\beta0.2$ smoke (10 IDs) & --- & health-gate PASS; not BFCL \% \\
 \bottomrule
@@ -718,7 +719,7 @@ ID & Method name in this paper & Acc. & Role \\
   \item llama.cpp: build 8111, commit \texttt{11c325c6e}, \texttt{-DGGML\_METAL=ON}, \texttt{llama-server --jinja}, flash attention on, \texttt{-ngl 99}.
   \item Decoding: temperature 0.0 except BoN (0.7, $N{=}5$). Context \texttt{-c 65536}. Parallel slots \texttt{-np 4} except NFC \texttt{-np 8}.
   \item BFCL: v4, package \texttt{bfcl-eval} 2026.3.11. Exact BFCL git commit of the checker checkout is not logged here.
-  \item Channels: NFC; IFFC (Appendix~B JSON-in-text); GST overlay on NFC; CD two-pass; IFFC$+$STATE; BoN on IFFC$+$STATE; stop-repeat $\mathrm{MIN}{=}6$; OODA-card on stop-repeat; PTC-A name DFA on IFFC; xLAM JSON adapter.
+  \item Channels: NFC; IFFC (Appendix~B JSON-in-text); GST overlay on NFC; CD two-pass; IFFC$+$STATE; BoN on IFFC$+$STATE; gated stop-on-repeat $\mathrm{MIN}{=}6$; OODA-card on gated stop-on-repeat; PTC-A name DFA on IFFC; xLAM JSON adapter.
   \item Appendix~\ref{app:runs} IDs index a private \texttt{benchmark.db}. Seeds for BoN were not replicated. Some SFT/DPO hyperparameters live in \texttt{METHODS.md} rather than a frozen public config bundle.
 \end{itemize}
 
