@@ -26,6 +26,10 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
   ``OBSERVE_SAME_MIN_ASSISTANT_TOOL_TURNS`` (6) assistant tool-turns in the
   current BFCL ask. Short VehicleControl re-calls are not truncated.
   Baseline ``iffc`` is unchanged. Decode/harness lever only.
+- ``iffc-decision``: IFFC JSON-in-text plus Decision sidecar (Ollama System
+  One Choice) before each Gemma step. Gemma still fills parameters. Mass-based
+  noop + ``is_exec_observation`` position guard; Noul report-only; identical
+  veto OFF by default. Do not compose with ``iffc-stop-repeat`` in v0.
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits trailing
 IFFC assistant ``[]`` stop turns from ``chat_history`` before the next BFCL
@@ -46,6 +50,7 @@ from . import config, db
 from . import gst as gst_mode
 from . import iffc_state as iffc_state_mode
 from . import stop_on_repeat
+from . import decision_sidecar
 from . import xlam as xlam_mode
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
 from .iffc import (
@@ -83,6 +88,50 @@ def _load_func_docs(involved_classes: list[str]) -> list[dict]:
         funcs = load_jsonl(path)
         all_funcs.extend(funcs)
     return bfcl_to_openai_tools(all_funcs)
+
+
+def _name_to_class_map(involved_classes: list[str]) -> dict[str, str]:
+    """Map tool name → BFCL involved class (for Decision relevance clamp)."""
+    mapping: dict[str, str] = {}
+    for cls_name in involved_classes or []:
+        doc_file = MULTI_TURN_FUNC_DOC_FILE_MAPPING.get(cls_name)
+        if not doc_file:
+            continue
+        path = config.MULTI_TURN_FUNC_DOC_DIR / doc_file
+        if not path.exists():
+            continue
+        for func in load_jsonl(path):
+            name = func.get("name") if isinstance(func, dict) else None
+            if name:
+                mapping[str(name)] = cls_name
+    return mapping
+
+
+def _consume_decision_noop(
+    *,
+    soft_noop_used: bool,
+    turn_idx: int,
+    flags: list[str],
+) -> tuple[str, bool]:
+    """Decide soft vs hard noop for iffc-decision.
+
+    Returns ``(action, soft_noop_used)`` where action is:
+      - ``"soft"``: convert to bypass this step (Gemma free-acts; re-probe later)
+      - ``"hard"``: append [] and break the step loop
+    """
+    mode = decision_sidecar.noop_consumer_mode()
+    if mode == "hard":
+        flags.append(f"decision_noop_hard:turn_{turn_idx}")
+        return "hard", soft_noop_used
+    if mode == "noop_as_bypass":
+        flags.append(f"decision_noop_soft_bypass:turn_{turn_idx}")
+        return "soft", soft_noop_used
+    # soft_once (default): first noop → bypass; later Decision noop → hard
+    if not soft_noop_used:
+        flags.append(f"decision_noop_soft:turn_{turn_idx}")
+        return "soft", True
+    flags.append(f"decision_noop_hard:turn_{turn_idx}")
+    return "hard", soft_noop_used
 
 
 def _tool_calls_to_func_strings(tool_calls: list[dict]) -> list[str]:
@@ -149,10 +198,11 @@ def _resolve_strip_empty_assistant(
 
 
 def _iffc_family_mode(fc_mode: str) -> bool:
-    """Plain IFFC plus iffc-state / stop-repeat overlays (same ``[]`` stop)."""
+    """Plain IFFC plus iffc-state / stop-repeat / decision overlays (same ``[]`` stop)."""
     return (
         fc_mode == config.FC_IFFC
         or fc_mode == config.FC_IFFC_STOP_REPEAT
+        or fc_mode == config.FC_IFFC_DECISION
         or fc_mode in config.FC_IFFC_STATE_MODES
     )
 
@@ -239,8 +289,15 @@ def _complete_chat_sync(
     chat_history: list[dict],
     active_tools: list[dict],
     fc_mode: str,
+    *,
+    name_hint: str | None = None,
+    strong_name_hint: bool = False,
 ) -> tuple[dict, int]:
-    """One model step. CD may issue two constrained requests; BoN samples N."""
+    """One model step. CD may issue two constrained requests; BoN samples N.
+
+    *name_hint* is appended as a user-role message on a **non-persisted**
+    working copy (Decision sidecar); persistent ``chat_history`` is unchanged.
+    """
     if fc_mode == config.FC_CD:
         return cd_mode.complete_step(
             chat_history,
@@ -257,6 +314,14 @@ def _complete_chat_sync(
             n=config.BON_N,
         )
     payload = _build_chat_payload(chat_history, active_tools, fc_mode)
+    if name_hint:
+        working = list(chat_history)
+        working.append(
+            decision_sidecar.name_hint_user_message(
+                name_hint, strong=strong_name_hint
+            )
+        )
+        payload = {**payload, "messages": working}
     return _post_chat_sync(payload), 1
 
 
@@ -275,11 +340,21 @@ def _decide_assistant_step(
     chat_history: list[dict],
     fc_mode: str,
     parse_retries_left: int,
-) -> tuple[str, list[str] | None, list | None, int, str | None]:
+    *,
+    decision_name_hint: str | None = None,
+    name_bind_retries_left: int = 0,
+) -> tuple[str, list[str] | None, list | None, int, str | None, int]:
     """Interpret an assistant message.
 
-    Returns ``(action, func_strings, tool_calls_raw, parse_retries_left, flag)``
-    where *action* is ``execute``, ``end_turn``, or ``retry``.
+    Returns
+    ``(action, func_strings, tool_calls_raw, parse_retries_left, flag,
+    name_bind_retries_left)`` where *action* is ``execute``, ``end_turn``,
+    ``retry``, or ``retry_name_hint``.
+
+    When *decision_name_hint* is set (``iffc-decision`` execute path), name-bind
+    inside this function: keep-all calls matching ``T``; on any mismatch retry
+    once (non-persisted stronger hint), then bypass keeping Gemma's call with
+    ``name_mismatch`` flag.
     """
     if _is_json_text_mode(fc_mode):
         content = assistant_text(message)
@@ -296,10 +371,58 @@ def _decide_assistant_step(
                         None,
                         IFFC_PARSE_RETRIES,
                         f"stop_on_repeat_{reason}",
+                        name_bind_retries_left,
                     )
+            if decision_name_hint and fc_mode == config.FC_IFFC_DECISION:
+                def _call_name(call: dict) -> str:
+                    return str(
+                        call.get("function_name") or call.get("name") or ""
+                    )
+
+                names = [_call_name(c) for c in parsed]
+                if any(n != decision_name_hint for n in names):
+                    if name_bind_retries_left > 0:
+                        # Do not append mismatched content; retry with stronger hint.
+                        return (
+                            "retry_name_hint",
+                            None,
+                            None,
+                            parse_retries_left,
+                            None,
+                            name_bind_retries_left - 1,
+                        )
+                    # Bypass: keep Gemma call as-is + name_mismatch flag.
+                    func_strings = iffc_calls_to_func_strings(parsed)
+                    chat_history.append({"role": "assistant", "content": content})
+                    return (
+                        "execute",
+                        func_strings,
+                        None,
+                        IFFC_PARSE_RETRIES,
+                        "name_mismatch",
+                        0,
+                    )
+                # All names match T — keep-all (same-name multi-call OK).
+                func_strings = iffc_calls_to_func_strings(parsed)
+                chat_history.append({"role": "assistant", "content": content})
+                return (
+                    "execute",
+                    func_strings,
+                    None,
+                    IFFC_PARSE_RETRIES,
+                    None,
+                    name_bind_retries_left,
+                )
             func_strings = iffc_calls_to_func_strings(parsed)
             chat_history.append({"role": "assistant", "content": content})
-            return "execute", func_strings, None, IFFC_PARSE_RETRIES, None
+            return (
+                "execute",
+                func_strings,
+                None,
+                IFFC_PARSE_RETRIES,
+                None,
+                name_bind_retries_left,
+            )
         if parsed is None and parse_retries_left > 0:
             chat_history.append({"role": "assistant", "content": content})
             retry_msg = (
@@ -308,7 +431,14 @@ def _decide_assistant_step(
                 else IFFC_RETRY_USER_MESSAGE
             )
             chat_history.append({"role": "user", "content": retry_msg})
-            return "retry", None, None, parse_retries_left - 1, None
+            return (
+                "retry",
+                None,
+                None,
+                parse_retries_left - 1,
+                None,
+                name_bind_retries_left,
+            )
         chat_history.append({"role": "assistant", "content": content})
         if parsed is not None:
             flag = None
@@ -318,17 +448,38 @@ def _decide_assistant_step(
             flag = "xlam_unparseable"
         else:
             flag = "iffc_unparseable"
-        return "end_turn", None, None, parse_retries_left, flag
+        return (
+            "end_turn",
+            None,
+            None,
+            parse_retries_left,
+            flag,
+            name_bind_retries_left,
+        )
 
     tool_calls_raw = message.get("tool_calls")
     if tool_calls_raw:
         func_strings = _tool_calls_to_func_strings(tool_calls_raw)
         chat_history.append(message)
-        return "execute", func_strings, tool_calls_raw, parse_retries_left, None
+        return (
+            "execute",
+            func_strings,
+            tool_calls_raw,
+            parse_retries_left,
+            None,
+            name_bind_retries_left,
+        )
 
     content = message.get("content", "")
     chat_history.append({"role": "assistant", "content": content})
-    return "end_turn", None, None, parse_retries_left, None
+    return (
+        "end_turn",
+        None,
+        None,
+        parse_retries_left,
+        None,
+        name_bind_retries_left,
+    )
 
 
 def _append_execution_feedback(
@@ -387,6 +538,7 @@ def generate_for_entry(
     entry_id = entry["id"]
     initial_config = entry.get("initial_config", {})
     involved_classes = entry.get("involved_classes", [])
+    name_to_class = _name_to_class_map(involved_classes)
     questions = entry["question"]  # list of turns; each turn is list of messages
 
     # Handle miss_func: remove withheld tools initially
@@ -457,12 +609,52 @@ def generate_for_entry(
         # Inner step loop: model calls tools until it gives a text response
         step_results: list[list[str]] = []
         parse_retries_left = IFFC_PARSE_RETRIES
+        soft_noop_used = False  # Decision soft_once: one Gemma-act chance per turn
         for _step in range(config.MULTI_TURN_MAX_STEPS):
             _prepare_step_messages(chat_history, active_tools, fc_mode)
 
+            decision_name_hint: str | None = None
+            name_bind_retries_left = 0
+            strong_name_hint = False
+            soft_noop_this_step = False
+            if fc_mode == config.FC_IFFC_DECISION:
+                probe = decision_sidecar.probe_next_tool(
+                    chat_history,
+                    active_tools,
+                    entry_id=entry.get("id"),
+                    turn=turn_idx,
+                    step=_step,
+                    name_to_class=name_to_class,
+                )
+                pol = probe.policy
+                if pol.action == decision_sidecar.ACTION_NOOP:
+                    noop_act, soft_noop_used = _consume_decision_noop(
+                        soft_noop_used=soft_noop_used,
+                        turn_idx=turn_idx,
+                        flags=flags,
+                    )
+                    if noop_act == "hard":
+                        chat_history.append({"role": "assistant", "content": "[]"})
+                        _maybe_strip_trailing_empty_assistant(
+                            chat_history, fc_mode, strip_empty_assistant
+                        )
+                        break
+                    # soft: fall through as bypass so Gemma acts → new obs → re-probe
+                    soft_noop_this_step = True
+                elif pol.action == decision_sidecar.ACTION_BYPASS:
+                    reason = pol.bypass_reason or "client_exception"
+                    flags.append(f"decision_bypass_{reason}:turn_{turn_idx}")
+                elif pol.action == decision_sidecar.ACTION_EXECUTE and pol.tool_name:
+                    decision_name_hint = pol.tool_name
+                    name_bind_retries_left = 1
+
             try:
                 data, n_calls = _complete_chat_sync(
-                    chat_history, active_tools, fc_mode
+                    chat_history,
+                    active_tools,
+                    fc_mode,
+                    name_hint=decision_name_hint,
+                    strong_name_hint=strong_name_hint,
                 )
                 api_calls += n_calls
             except requests.exceptions.HTTPError as e:
@@ -493,16 +685,72 @@ def generate_for_entry(
             choice = data["choices"][0]
             message = choice["message"]
 
-            action, func_strings, tool_calls_raw, parse_retries_left, flag = (
-                _decide_assistant_step(
-                    message, chat_history, fc_mode, parse_retries_left
-                )
+            (
+                action,
+                func_strings,
+                tool_calls_raw,
+                parse_retries_left,
+                flag,
+                name_bind_retries_left,
+            ) = _decide_assistant_step(
+                message,
+                chat_history,
+                fc_mode,
+                parse_retries_left,
+                decision_name_hint=decision_name_hint,
+                name_bind_retries_left=name_bind_retries_left,
             )
             if flag:
-                flags.append(f"{flag}:turn_{turn_idx}")
+                if flag == "name_mismatch":
+                    flags.append(f"decision_bypass_name_mismatch:turn_{turn_idx}")
+                else:
+                    flags.append(f"{flag}:turn_{turn_idx}")
+            if action == "retry_name_hint" and decision_name_hint:
+                # Re-call Gemma with stronger non-persisted hint; no history append.
+                strong_name_hint = True
+                try:
+                    data, n_calls = _complete_chat_sync(
+                        chat_history,
+                        active_tools,
+                        fc_mode,
+                        name_hint=decision_name_hint,
+                        strong_name_hint=True,
+                    )
+                    api_calls += n_calls
+                except Exception as e:
+                    step_results.append([f"ERROR: {e}"])
+                    break
+                if not data.get("choices"):
+                    step_results.append(["ERROR: empty choices in response"])
+                    break
+                message = data["choices"][0]["message"]
+                (
+                    action,
+                    func_strings,
+                    tool_calls_raw,
+                    parse_retries_left,
+                    flag,
+                    name_bind_retries_left,
+                ) = _decide_assistant_step(
+                    message,
+                    chat_history,
+                    fc_mode,
+                    parse_retries_left,
+                    decision_name_hint=decision_name_hint,
+                    name_bind_retries_left=name_bind_retries_left,
+                )
+                if flag:
+                    if flag == "name_mismatch":
+                        flags.append(
+                            f"decision_bypass_name_mismatch:turn_{turn_idx}"
+                        )
+                    else:
+                        flags.append(f"{flag}:turn_{turn_idx}")
             if action == "retry":
                 continue
             if action == "end_turn":
+                if soft_noop_this_step:
+                    flags.append(f"decision_noop_soft_noact:turn_{turn_idx}")
                 # Optional: strip immediately after the within-turn ``[]`` stop
                 # as well as before the next BFCL user turn.
                 _maybe_strip_trailing_empty_assistant(
@@ -579,6 +827,7 @@ async def _generate_entry_async(
     entry_id = entry["id"]
     initial_config = entry.get("initial_config", {})
     involved_classes = entry.get("involved_classes", [])
+    name_to_class = _name_to_class_map(involved_classes)
     questions = entry["question"]
     fc_mode = _resolve_fc_mode(fc_mode)
 
@@ -640,12 +889,61 @@ async def _generate_entry_async(
 
         step_results: list[list[str]] = []
         parse_retries_left = IFFC_PARSE_RETRIES
+        soft_noop_used = False  # Decision soft_once: one Gemma-act chance per turn
         for _step in range(config.MULTI_TURN_MAX_STEPS):
             _prepare_step_messages(chat_history, active_tools, fc_mode)
 
             async def _gated_post(payload: dict) -> dict:
                 async with semaphore:
                     return await _post_chat_async(session, payload)
+
+            decision_name_hint: str | None = None
+            name_bind_retries_left = 0
+            soft_noop_this_step = False
+            if fc_mode == config.FC_IFFC_DECISION:
+                loop = asyncio.get_running_loop()
+                _ch, _tools, _eid, _t, _s, _n2c = (
+                    chat_history,
+                    active_tools,
+                    entry.get("id"),
+                    turn_idx,
+                    _step,
+                    name_to_class,
+                )
+                probe = await loop.run_in_executor(
+                    None,
+                    lambda ch=_ch, tools=_tools, eid=_eid, t=_t, s=_s, n2c=_n2c: (
+                        decision_sidecar.probe_next_tool(
+                            ch,
+                            tools,
+                            entry_id=eid,
+                            turn=t,
+                            step=s,
+                            name_to_class=n2c,
+                        )
+                    ),
+                )
+                pol = probe.policy
+                if pol.action == decision_sidecar.ACTION_NOOP:
+                    noop_act, soft_noop_used = _consume_decision_noop(
+                        soft_noop_used=soft_noop_used,
+                        turn_idx=turn_idx,
+                        flags=flags,
+                    )
+                    if noop_act == "hard":
+                        chat_history.append({"role": "assistant", "content": "[]"})
+                        _maybe_strip_trailing_empty_assistant(
+                            chat_history, fc_mode, strip_empty_assistant
+                        )
+                        break
+                    # soft: fall through as bypass so Gemma acts → new obs → re-probe
+                    soft_noop_this_step = True
+                elif pol.action == decision_sidecar.ACTION_BYPASS:
+                    reason = pol.bypass_reason or "client_exception"
+                    flags.append(f"decision_bypass_{reason}:turn_{turn_idx}")
+                elif pol.action == decision_sidecar.ACTION_EXECUTE and pol.tool_name:
+                    decision_name_hint = pol.tool_name
+                    name_bind_retries_left = 1
 
             try:
                 if fc_mode == config.FC_CD:
@@ -667,6 +965,14 @@ async def _generate_entry_async(
                     payload = _build_chat_payload(
                         chat_history, active_tools, fc_mode
                     )
+                    if decision_name_hint:
+                        working = list(chat_history)
+                        working.append(
+                            decision_sidecar.name_hint_user_message(
+                                decision_name_hint, strong=False
+                            )
+                        )
+                        payload = {**payload, "messages": working}
                     data = await _gated_post(payload)
                     n_calls = 1
                 api_calls += n_calls
@@ -696,16 +1002,74 @@ async def _generate_entry_async(
             choice = data["choices"][0]
             message = choice["message"]
 
-            action, func_strings, tool_calls_raw, parse_retries_left, flag = (
-                _decide_assistant_step(
-                    message, chat_history, fc_mode, parse_retries_left
-                )
+            (
+                action,
+                func_strings,
+                tool_calls_raw,
+                parse_retries_left,
+                flag,
+                name_bind_retries_left,
+            ) = _decide_assistant_step(
+                message,
+                chat_history,
+                fc_mode,
+                parse_retries_left,
+                decision_name_hint=decision_name_hint,
+                name_bind_retries_left=name_bind_retries_left,
             )
             if flag:
-                flags.append(f"{flag}:turn_{turn_idx}")
+                if flag == "name_mismatch":
+                    flags.append(f"decision_bypass_name_mismatch:turn_{turn_idx}")
+                else:
+                    flags.append(f"{flag}:turn_{turn_idx}")
+            if action == "retry_name_hint" and decision_name_hint:
+                try:
+                    payload = _build_chat_payload(
+                        chat_history, active_tools, fc_mode
+                    )
+                    working = list(chat_history)
+                    working.append(
+                        decision_sidecar.name_hint_user_message(
+                            decision_name_hint, strong=True
+                        )
+                    )
+                    payload = {**payload, "messages": working}
+                    data = await _gated_post(payload)
+                    api_calls += 1
+                except Exception as e:
+                    step_results.append([f"ERROR: {e}"])
+                    break
+                if not data.get("choices"):
+                    step_results.append(["ERROR: empty choices in response"])
+                    break
+                message = data["choices"][0]["message"]
+                (
+                    action,
+                    func_strings,
+                    tool_calls_raw,
+                    parse_retries_left,
+                    flag,
+                    name_bind_retries_left,
+                ) = _decide_assistant_step(
+                    message,
+                    chat_history,
+                    fc_mode,
+                    parse_retries_left,
+                    decision_name_hint=decision_name_hint,
+                    name_bind_retries_left=name_bind_retries_left,
+                )
+                if flag:
+                    if flag == "name_mismatch":
+                        flags.append(
+                            f"decision_bypass_name_mismatch:turn_{turn_idx}"
+                        )
+                    else:
+                        flags.append(f"{flag}:turn_{turn_idx}")
             if action == "retry":
                 continue
             if action == "end_turn":
+                if soft_noop_this_step:
+                    flags.append(f"decision_noop_soft_noact:turn_{turn_idx}")
                 _maybe_strip_trailing_empty_assistant(
                     chat_history, fc_mode, strip_empty_assistant
                 )
@@ -821,6 +1185,8 @@ def generate_for_category(
     fc_mode = _resolve_fc_mode(fc_mode)
     if run_id is None:
         run_id = config.RUN_ID
+    if fc_mode == config.FC_IFFC_DECISION:
+        decision_sidecar.prewarm()
 
     done_ids = _done_entry_ids(run_id, category)
     pending = pending_multi_turn_entries(entries, done_ids)
@@ -832,6 +1198,7 @@ def generate_for_category(
     for entry in tqdm(pending, desc=f"  {category}", unit="entry"):
         involved_classes = entry.get("involved_classes", [])
         all_tools = _load_func_docs(involved_classes)
+        name_to_class = _name_to_class_map(involved_classes)
 
         turn_results, timing = generate_for_entry(
             entry, category, all_tools, fc_mode=fc_mode
@@ -881,6 +1248,9 @@ async def _generate_for_category_async(
     fc_mode = _resolve_fc_mode(fc_mode)
     if run_id is None:
         run_id = config.RUN_ID
+    if fc_mode == config.FC_IFFC_DECISION:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, decision_sidecar.prewarm)
 
     done_ids = _done_entry_ids(run_id, category)
     pending = pending_multi_turn_entries(entries, done_ids)
@@ -895,6 +1265,7 @@ async def _generate_for_category_async(
     for entry in pending:
         involved_classes = entry.get("involved_classes", [])
         all_tools = _load_func_docs(involved_classes)
+        name_to_class = _name_to_class_map(involved_classes)
         tasks.append(
             _generate_and_checkpoint(
                 session,
@@ -940,6 +1311,12 @@ async def _run_async(
         f"[multi-turn generate] fc-mode={fc_mode}  categories={list(cats)}"
         f"  run_id={run_id}{extra}"
     )
+    if fc_mode == config.FC_IFFC_DECISION:
+        print(
+            f"[multi-turn generate] Decision sidecar prewarm "
+            f"model={decision_sidecar.DECISION_MODEL} "
+            f"endpoint={decision_sidecar.DECISION_ENDPOINT}"
+        )
     if run_id is None:
         print(
             "[multi-turn generate] WARNING: RUN_ID is unset; completed entries "
@@ -948,6 +1325,9 @@ async def _run_async(
         )
 
     async with aiohttp.ClientSession() as session:
+        if fc_mode == config.FC_IFFC_DECISION:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, decision_sidecar.prewarm)
         for category, info in cats.items():
             print(f"[multi-turn generate] Category: {category}")
             results, timings = await _generate_for_category_async(
