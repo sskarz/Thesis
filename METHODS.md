@@ -1415,7 +1415,7 @@ Worse than Run 33 v9.1 (**17.6** / **5/10**) and Run 31 v9 (**22.5** / **5/10**)
 
 ### DPO β0.2 smoke100 10-ID PASS (Run 49) — health gate, not a BFCL %
 
-**PASS** health gate. Formal **plain-IFFC 10-ID** on DPO smoke100 β=0.2 (Mac `run_id=49`). This is **not** a BFCL `multi_turn_base` accuracy. **Do not invent** a Run 49 / 47 / 48 BFCL %. A capped full DPO train (`UPDATES_CAP=1000`) is **in flight / results pending** — not a scored N=200 win, and not a permanent HOLD on the path. PTC-A Run 46 FAIL **13.5%** is **banked and closed**; PTC-B **HOLD**. Path is **DPO**. [PR #57](https://github.com/sskarz/Thesis/pull/57) DPO pair-audit stays **draft** — **do not merge** harness drafts as wins. **No BoN.**
+**PASS** health gate. Formal **plain-IFFC 10-ID** on DPO smoke100 β=0.2 (Mac `run_id=49`). This is **not** a BFCL `multi_turn_base` accuracy. **Do not invent** a Run 49 / 47 / 48 BFCL %. As of **2026-09-29** a capped full DPO train (`UPDATES_CAP=1000`) is **in flight / results pending** — no N=200 Acc yet, and not a scored win. PTC-A Run 46 FAIL **13.5%** is **banked and closed**; PTC-B **HOLD**. Path is **DPO**. [PR #57](https://github.com/sskarz/Thesis/pull/57) DPO pair-audit stays **draft** — **do not merge** harness drafts as wins. **No BoN.**
 
 Identity (verified 2026-09-29, live Mac `benchmark.db`):
 
