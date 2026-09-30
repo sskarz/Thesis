@@ -99,13 +99,11 @@ Strengthens the thesis narrative and fills gaps in current evaluation.
 - **Why:** Thesis mentions "resource-constrained hardware" — running on real edge hardware solidifies the claim
 - **Effort:** High (hardware setup, CUDA build, full benchmark re-run)
 
-### 9. RAG Tool Retrieval (METHODS §3)
+### 9. RAG Tool Retrieval — **OUT OF SCOPE** (METHODS §3 literature only)
 
-- **What:** Embed BFCL function descriptions with `all-MiniLM-L6-v2`, build FAISS index, retrieve top-k tools per query
-- **Why:** Only valuable with extended benchmark (50+ distractor tools). BFCL's 2–4 tools per test case won't show the benefit
-- **Effort:** Medium-High (need to create extended benchmark with padded tool sets)
-- **Complement (unscored):** Tool-interface granularity (METHODS §3a, MCP-GRANITE arXiv:2609.24161) — same capability set split into tools is a design knob; paper reports moderate ~4 task-class tools beat fine-grained and monolith on their edge/IoT suite. Redesign the API surface, don't only retrieve. **Not a scored thesis experiment.** Execution-granularity complement: HyperTool (METHODS §30, arXiv:2606.13663) folds multi-tool chains into one code-block outer call (MCP-Universe numbers are **theirs**; **not** BFCL `multi_turn_base`).
-- **Source:** Gao et al., "RAG-MCP," arXiv:2505.03275
+Retrieval-augmented generation appeared in an earlier registered-title framing. **We are not using RAG.** It is **out of scope** for this thesis paper: not evaluated, and **not** deferred as a near-term claim before December 2026. Do not roadmap or score RAG. Gao et al. (RAG-MCP, arXiv:2505.03275) remains related-work literature in METHODS §3 only.
+
+MCP-GRANITE (METHODS §3a) and HyperTool (METHODS §30) stay **unscored** literature, not RAG substitutes to run before Dec 2026.
 
 ## Thesis Narrative
 
