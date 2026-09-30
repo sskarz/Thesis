@@ -11,7 +11,7 @@ Each method in this section operates at inference time without modifying model w
 - [1. Guided-Structured Templates](#1-guided-structured-templates)
 - [2. Constrained Decoding and Grammar-Guided Generation](#2-constrained-decoding-and-grammar-guided-generation)
 - [27. PTC-Decoder: Plan-to-Act plus Tool-Name DFA](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa)
-- [3. RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval)
+- [3. RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval) (literature only; **out of scope** for this thesis paper)
 - [3a. Tool-Interface Granularity (MCP-GRANITE)](#3a-tool-interface-granularity-mcp-granite)
 - [4. Inference-Time Compute Scaling](#4-inference-time-compute-scaling)
 - [28. Looped Language Models for Compositional Tool Calling](#28-looped-language-models-for-compositional-tool-calling)
@@ -32,9 +32,9 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
 - [Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)](#experiment-mlx-sft-v1-gemma-4-e2b-iffc-mix)
 - [SFT v9.2 smoke-gate FAIL (Run 36; HOLD / park)](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold) (plain-IFFC 10-ID; **not** a `multi_turn_base` %; quota remix **HOLD**)
-- [DPO β0.2 smoke100 10-ID PASS (Run 49; health gate)](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-) (plain-IFFC 10-ID; **not** a BFCL %; full DPO train **HOLD**)
+- [DPO β0.2 smoke100 10-ID PASS (Run 49; health gate)](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-) (plain-IFFC 10-ID; **not** a BFCL %; full DPO train **in flight / results pending**)
 - [Prioritized Recommendations](#prioritized-recommendations)
-- [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; Run 46 iffc-ptc-a **13.5%** scored FAIL / closed; Run 42 **35.5%** still best non-BoN; Run 30 **32.5%** untouched; SFT HOLD; DPO β0.2 smoke100 Run 49 **PASS** / full train **HOLD**; PR #57 stays draft, **not** more PTC/OODA remix)
+- [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; Run 46 iffc-ptc-a **13.5%** scored FAIL / closed; Run 42 **35.5%** still best non-BoN; Run 30 **32.5%** untouched; SFT HOLD; DPO β0.2 smoke100 Run 49 **PASS** / full train **in flight / results pending**; PR #57 stays draft, **not** more PTC/OODA remix)
 - [References](#references)
 
 ---
@@ -180,6 +180,8 @@ Paper results (Yu, Mu, & Wu, 2026; cite as **theirs**, not ours):
 
 ## 3. RAG-Based Tool Retrieval
 
+**Out of scope for this thesis paper (decision 2026-09-29).** RAG appeared in an earlier registered-title framing. This section is **literature only**. Do not implement, score, or roadmap RAG as a planned experiment before December 2026.
+
 ### Overview
 
 When the available tool set is large, Retrieval-Augmented Generation (RAG) reduces prompt bloat by embedding tool descriptions into a vector index and retrieving only the top-k most relevant tools per query, rather than presenting all tools to the LLM at once.
@@ -215,8 +217,8 @@ RAG-MCP triples tool selection accuracy and cuts prompt tokens by over 50%. Test
 
 - **BFCL categories:** Limited benefit for single-turn categories (2–4 tools per test case). Potentially significant for multi-turn categories where all function docs for involved classes are loaded (dozens of tools), and for `multi_turn_long_context` where large tool doc sets can exceed the 8192-token context window.
 - **Real-world deployment:** Essential. A production agent with 100+ tools cannot fit all descriptions in an SLM's context window.
-- **Thesis contribution:** Demonstrate the crossover point — at what tool count does RAG start providing benefit for 3B models? Create an extended benchmark by padding BFCL tool sets with distractor tools (20, 50, 100) and measuring accuracy with and without retrieval.
-- **Implementation:** Embed BFCL function descriptions with a small embedding model (e.g., `all-MiniLM-L6-v2`, ~22M params, <50MB, runs on CPU in <5ms per query). Build a FAISS index. Add a retrieval step in `_load_func_docs()` before calling llama-server.
+- **Thesis contribution:** **None.** Out of scope for this thesis paper — not a planned experiment and not a deferred near-term claim.
+- **Implementation:** Not planned. (Literature implementations use a small embedding model and a vector index; do not treat that as a thesis deliverable.)
 - **Complexity:** Medium
 - **Complement:** Retrieving a subset of tools is one knob. **How the same capability set is split into tools** is another — see [§3a Tool-Interface Granularity (MCP-GRANITE)](#3a-tool-interface-granularity-mcp-granite). That paper is **not** a scored thesis experiment.
 
@@ -234,7 +236,7 @@ RAG-MCP triples tool selection accuracy and cuts prompt tokens by over 50%. Test
 
 ### Overview
 
-How the **same capability set** is split into tools is a design knob. MCP leaves interface design unspecified; MCP-GRANITE holds capabilities fixed and varies only the granularity of the tool schema. For edge SLMs this is complementary to tool RAG: retrieval chooses *which* tools to show; granularity chooses *how many* tools the capability set is carved into.
+How the **same capability set** is split into tools is a design knob. MCP leaves interface design unspecified; MCP-GRANITE holds capabilities fixed and varies only the granularity of the tool schema. In the literature this is complementary to tool RAG; **RAG itself is out of scope** for this thesis paper.
 
 **Not a scored thesis experiment.** Do not invent a `multi_turn_base` number for this method. Paper numbers below are theirs.
 
@@ -262,7 +264,7 @@ Paper results (Paschalides et al., 2026; cite as theirs, not ours):
 
 ### Applicability
 
-- **BFCL categories:** System-design knob, not a generation-loop ablation. Relevant whenever the harness exposes a class of APIs (multi-turn function docs, padded tool sets, production MCP catalogs). Complements [§3 RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval): do not only retrieve; also redesign API-surface cardinality.
+- **BFCL categories:** System-design knob, not a generation-loop ablation. Relevant whenever the harness exposes a class of APIs (multi-turn function docs, padded tool sets, production MCP catalogs). Complements [§3 RAG-Based Tool Retrieval](#3-rag-based-tool-retrieval) as **literature only** (RAG is out of scope for this thesis paper): that literature discusses retrieval; this section discusses API-surface cardinality.
 - **Edge SLM relevance:** High. Moderate ~4 task-class tools beat both a fine-grained dump and a single monolith on their suite.
 - **Implementation:** Redesign how BFCL / production tools are grouped (task-class wrappers vs primitive APIs). No weight change. No `--fc-mode`.
 - **Complexity:** Medium (schema / catalog design, not a decode-time trick)
@@ -1415,7 +1417,7 @@ Worse than Run 33 v9.1 (**17.6** / **5/10**) and Run 31 v9 (**22.5** / **5/10**)
 
 ### DPO β0.2 smoke100 10-ID PASS (Run 49) — health gate, not a BFCL %
 
-**PASS** health gate. Formal **plain-IFFC 10-ID** on DPO smoke100 β=0.2 (Mac `run_id=49`). This is **not** a BFCL `multi_turn_base` accuracy. **Do not invent** a Run 49 / 47 / 48 BFCL %. Full DPO train remains **HOLD** pending Sanskar GO + Codex verify. PTC-A Run 46 FAIL **13.5%** is **banked and closed**; PTC-B **HOLD**. Path is **DPO**. [PR #57](https://github.com/sskarz/Thesis/pull/57) DPO pair-audit stays **draft** until GO — **do not merge** harness drafts as wins. **No BoN.**
+**PASS** health gate. Formal **plain-IFFC 10-ID** on DPO smoke100 β=0.2 (Mac `run_id=49`). This is **not** a BFCL `multi_turn_base` accuracy. **Do not invent** a Run 49 / 47 / 48 BFCL %. As of **2026-09-29** a capped full DPO train (`UPDATES_CAP=1000`) is **in flight / results pending** — no N=200 Acc yet, and not a scored win. PTC-A Run 46 FAIL **13.5%** is **banked and closed**; PTC-B **HOLD**. Path is **DPO**. [PR #57](https://github.com/sskarz/Thesis/pull/57) DPO pair-audit stays **draft** — **do not merge** harness drafts as wins. **No BoN.**
 
 Identity (verified 2026-09-29, live Mac `benchmark.db`):
 
@@ -1426,7 +1428,7 @@ Identity (verified 2026-09-29, live Mac `benchmark.db`):
 - harness tip: `d344123fe`
 - gguf: `sft/fused/gemma-4-e2b-it-dpo-smoke100-beta02-Q4_K_M.gguf`
 
-**Train recipe (smoke only; not a full DPO train):** 100-update smoke from **untouched** `gemma-4-e2b-it-mlx`; β=**0.2**; LR 1e-6; LoRA r16/s32; `adapters-dpo-smoke100-beta02` → fused Q4. Probe wall ~225s. Do **not** claim full DPO train started or succeeded.
+**Train recipe (smoke only; not a full DPO train):** 100-update smoke from **untouched** `gemma-4-e2b-it-mlx`; β=**0.2**; LR 1e-6; LoRA r16/s32; `adapters-dpo-smoke100-beta02` → fused Q4. Probe wall ~225s. Do **not** invent a smoke / Run 49 BFCL %. A capped full train is **in flight / results pending** (not a scored N=200 win).
 
 **Formal 10-ID gate (Run 49) — PASS** vs gate `avg api ≥4 and ≤8.3`, `hit_step_limit ≤2/10`, `iffc_unparseable ≤1/10`, `turn0_tool ≥6/10`:
 
@@ -1441,11 +1443,11 @@ All four gates **MET → PASS**. β0.2 improves turn0 vs β0.1 (7 vs 6) while st
 
 **Do not** treat this PASS as a method win on the N=200 ladder. Scoreboard BFCL N=200 **unchanged**: BoN **36.5%** / Run 42 iffc-ooda-card **35.5%** / STATE **34.0%** / Run 30 **32.5%** / IFFC **30.5%** / SFT-v4 **15.0%** / Run 46 iffc-ptc-a **13.5%** (FAIL / closed). Run 30 / Run 42 / BoN / IFFC / SFT-v4 / Run 46 **untouched**.
 
-**Next:** full DPO train still **HOLD** until Sanskar GO + Codex verify. Do **not** BoN this smoke ckpt. Do **not** merge PR #57. Do **not** more PTC/OODA remix. Do **not** unpark SFT quota remix.
+**Next:** capped full DPO train is **in flight / results pending**. Do **not** invent an N=200 BFCL % until that train is scored. Do **not** BoN this smoke ckpt. Do **not** merge PR #57. Do **not** more PTC/OODA remix. Do **not** unpark SFT quota remix.
 
 ### Anti-recommendations
 
-Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 mix **or** the v5 mix **or** the v6 mix; BoN / IFFC+STATE on the Run 12, Run 13, Run 15, Run 17, or Run 18 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT or multi-turn; present Run 14’s 2.0% as a method win or a training-time recovery; present Run 15’s 15.0% as beating IFFC or NFC; present Run 16’s 13.0% as a STATE win on SFT-v4; present Run 17’s 11.5% as a method win; present Run 18’s 13.0% as a method win; invent tok/s for Run 15, Run 16, or Run 17 (`inference_metrics=0`); **propose BoN as the next win on the SFT-v4, SFT-v5, or SFT-v6 checkpoint**; invent a v9 / v9.1 / v9.2 BFCL `multi_turn_base` %; cite Run 35 (INVALID — server died); fold Run 37 into the 10-ID denominator; start full LoRA on the failed v9.2 mix; merge [PR #57](https://github.com/sskarz/Thesis/pull/57); treat iffc-stop-repeat as an SFT fix; run a third quota remix; invent a Run 49 / 47 / 48 BFCL `multi_turn_base` %; present the Run 49 10-ID **PASS** as a N=200 score or a method win; claim full DPO train started or succeeded; BoN the DPO smoke100 ckpt.
+Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 mix **or** the v5 mix **or** the v6 mix; BoN / IFFC+STATE on the Run 12, Run 13, Run 15, Run 17, or Run 18 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT or multi-turn; present Run 14’s 2.0% as a method win or a training-time recovery; present Run 15’s 15.0% as beating IFFC or NFC; present Run 16’s 13.0% as a STATE win on SFT-v4; present Run 17’s 11.5% as a method win; present Run 18’s 13.0% as a method win; invent tok/s for Run 15, Run 16, or Run 17 (`inference_metrics=0`); **propose BoN as the next win on the SFT-v4, SFT-v5, or SFT-v6 checkpoint**; invent a v9 / v9.1 / v9.2 BFCL `multi_turn_base` %; cite Run 35 (INVALID — server died); fold Run 37 into the 10-ID denominator; start full LoRA on the failed v9.2 mix; merge [PR #57](https://github.com/sskarz/Thesis/pull/57); treat iffc-stop-repeat as an SFT fix; run a third quota remix; invent a Run 49 / 47 / 48 BFCL `multi_turn_base` %; present the Run 49 10-ID **PASS** as a N=200 score or a method win; invent a full-DPO `multi_turn_base` % before that train is scored; BoN the DPO smoke100 ckpt.
 
 ### Next (Sanskar decides)
 
@@ -1495,7 +1497,7 @@ Ranked by expected impact × feasibility for the current setup (Qwen2.5-3B, Llam
 | 5b | **IFFC OODA card (`--fc-mode iffc-ooda-card`)** | One-pass `[OODA]` working-memory card on stop-repeat MIN=6 | **Measured** Run 42 on **BASE** Gemma: **71/200 = 35.5%** (`multi_turn_base` only; **200/200 responses**; finished `2026-09-29T05:51:02.787870+00:00`). Dedicated `--fc-mode` — **not** a flag on stop-repeat; **not** iffc-state; **not** 4-pass OODA. **+6 / +3.0 pp vs Run 30**; still **below BoN 36.5% (−1.0 pp)**; **above STATE 34.0% (+1.5 pp)**. `eval_errors`: state_mismatch **71**, empty **17**, missing_gt **41**, empty+missing **58**, total **129**. Gates: ≥65/200 **MET**; state_mismatch <60 **MISS**; empty+missing ≤75 **MET**; TTFT 517.8 vs Run 30 630.5 ms (≤1.25× **MET**). **Do not claim a clean gate sweep.** Calib Run 40 10-ID **PASS** (not a BFCL %). Run 41 orphan 0 responses — ignore. Do **not** overwrite Run 30. SFT parked. No BoN. Do **not** invent tok/s. Harness [PR #61](https://github.com/sskarz/Thesis/pull/61) draft @ `1dea341`. Still **best non-BoN harness Acc** after Run 46. | Done (docs for scored run; harness PR #61 separate) |
 | 5c | **IFFC PTC-A (`--fc-mode iffc-ptc-a`)** | Live tool-name DFA, args free (PTC-Decoder-inspired) | **Measured** Run 46 on **BASE** Gemma: **27/200 = 13.5%** (`multi_turn_base` only; **200/200 responses**; finished `2026-09-29T08:15:24.061478+00:00` = 2026-09-29 04:15 ET). Dedicated `--fc-mode` — live tool-name DFA, args free; **not** Yu et al. paper F1; **not** CD; **not** OODA-card; **not** STATE; **not** BoN. **NEW run** (never resume Run 30/42). **−22.0 pp vs Run 42**; **−19.0 pp vs Run 30**; **−17.0 pp vs IFFC**. `eval_errors`: state_mismatch **102**, empty **17**, missing_gt **54**, empty+missing **71**, total **173**. Gates: ≥71/200 **MISS** (27); state_mismatch ≤60 **MISS** (102); empty+missing ≤75 **MET** (71); wall ~42.1 min / ratio vs Run 30 **0.234485** (≤1.25× **MET**). **Scored FAIL / Acc regression; bank and close.** Calib Run 45 10-ID **PASS** (avg API **5.4**, turn0_tool **10/10**; exit 0; **not** a BFCL %). PTC-B **HOLD**. Next = **DPO** (β0.2 smoke100 10-ID Run 49 **PASS** health gate — **not** a BFCL %; full train **HOLD**; [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft**), **not** more PTC/OODA remix. Do **not** overwrite Run 30/42. SFT parked. No BoN. Do **not** invent tok/s. Harness [PR #63](https://github.com/sskarz/Thesis/pull/63) draft @ `3569311`. | Done (docs for scored FAIL; harness PR #63 separate; closed) |
 | 6 | **LLGuidance build** | Type enforcement (Llama issue) | Stricter schema at grammar level. Complements [PTC-Decoder §27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa) (paper F1 **theirs**; harness `--fc-mode iffc-ptc-a` **scored FAIL** Run 46 **13.5%** — closed). | Medium |
-| 7 | **RAG tool retrieval** | Large tool sets, real-world demo | 3x accuracy at scale. Complements [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite): retrieve tools **and** redesign API-surface cardinality (~4 task-class tools in that paper). Complements [HyperTool §30](#30-hypertool-code-block-execution-granularity) (execution granularity / code-block; **unscored**; MCP-Universe ≠ BFCL). **Unscored** on this harness. | Medium |
+| 7 | **RAG tool retrieval** | — | **OUT OF SCOPE** for this thesis paper (earlier title framing; not deferred; not a Dec 2026 roadmap item). Literature: Gao et al. RAG-MCP. Complements in METHODS remain **unscored** literature ([MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite); [HyperTool §30](#30-hypertool-code-block-execution-granularity)). Do not score RAG. | — |
 | 8 | **Schema-based verification loop** | Argument errors across categories | +3–10% with retries | Medium |
 | 9 | **DSPy prompt optimization** | Model-specific prompt tuning | Auto-discovered improvements | High |
 | 10 | **Looped LMs (logged, unscored)** | Compositional / nested tool calling | [§28](#28-looped-language-models-for-compositional-tool-calling) recurrent latent depth. Paper BFCL is static single-turn; **not** our `multi_turn_base`. Needs a looped backbone we do not run. | High (architecture) |

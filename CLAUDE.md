@@ -1,8 +1,8 @@
-# Thesis: Optimizing Tool Calling on Edge Devices Using RAG and Structured Output
+# Thesis: Optimizing Consecutive Tool Calling for Small Language Models on Edge Devices
 
 ## Project Overview
 
-Evaluate LLM tool/function calling on local hardware using llama.cpp + BFCL v4 (Berkeley Function Calling Leaderboard). Developed on Mac (Apple Silicon), now running on Ubuntu desktop with NVIDIA RTX 4090. Future target: NVIDIA Jetson Orin Nano Super.
+Evaluate LLM tool/function calling on local hardware using llama.cpp + BFCL v4 (Berkeley Function Calling Leaderboard). **Primary measurement environment for the paper is a MacBook Pro with Apple M4 Pro (Metal).** Ubuntu with NVIDIA RTX 4090 is a secondary machine, not the source of reported Acc. Future target: NVIDIA Jetson Orin Nano Super.
 
 ## Repository Structure
 
@@ -68,17 +68,22 @@ Thesis/
 
 ## Development Environments
 
-### Current: Ubuntu Desktop (NVIDIA RTX 4090)
+### Primary (paper measurements): Mac (Apple M4 Pro)
+- **Machine:** MacBook Pro with Apple M4 Pro (48 GB unified memory)
+- **OS:** macOS 26.3 (Tahoe)
+- **GPU backend:** Metal (Apple Silicon)
+- **Build:** `cmake -B build -DGGML_METAL=ON`
+- **Role:** All own BFCL Acc numbers in `paper/` are from this stack.
+
+### Secondary: Ubuntu Desktop (NVIDIA RTX 4090)
 - **Machine:** Ubuntu desktop with NVIDIA GeForce RTX 4090 (24 GB VRAM)
 - **OS:** Linux 6.17.0-19-generic
 - **GPU backend:** CUDA 13.0
 - **Build:** `cmake -B build -DGGML_CUDA=ON -DLLAMA_OPENSSL=ON`
+- **Role:** Local CUDA serving experiments; **not** the paper's reported Acc table.
 
-### Previous: Mac (Apple M4 Pro)
-- **Machine:** Mac with Apple M4 Pro
-- **OS:** macOS 26.3 (Tahoe)
-- **GPU backend:** Metal (Apple Silicon)
-- **Build:** `cmake -B build -DGGML_METAL=ON`
+### Future target: NVIDIA Jetson Orin Nano Super
+- CUDA, 8 GB. Replication of Mac M4 Pro results is **not run**.
 
 ## BFCL Version
 
