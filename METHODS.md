@@ -368,7 +368,7 @@ ACON optimizes compression guidelines through natural language feedback using co
 
 ### Evidence
 
-ACON results (Xu et al., 2025):
+ACON results (Kang et al., 2025):
 
 | Benchmark | Baseline Accuracy | ACON Accuracy | Peak Token Reduction |
 |-----------|-------------------|---------------|---------------------|
@@ -397,7 +397,7 @@ The most recent ~10% of the context window is preserved verbatim as active worki
 
 ### Sources
 
-- Xu, Z., et al. "ACON: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025. https://arxiv.org/abs/2510.00615
+- Kang et al. "ACON: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025. https://arxiv.org/abs/2510.00615
 - LangChain. "Context Management for Deep Agents." 2025. https://blog.langchain.com/context-management-for-deepagents/
 - JetBrains Research. "Cutting Through the Noise: Smarter Context Management for LLM-Powered Agents." 2025. https://blog.jetbrains.com/research/2025/12/efficient-context-management/
 - Google. "Context Compression — Agent Development Kit (ADK)." 2025. https://google.github.io/adk-docs/context/compaction/
@@ -945,7 +945,7 @@ uv run python -m benchmark.run_all --model gemma4-e2b --only-multi-turn \
 
 ### Sources
 
-- Xu, Z., et al. "ACON: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025. https://arxiv.org/abs/2510.00615
+- Kang et al. "ACON: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025. https://arxiv.org/abs/2510.00615
 - Instruction-Followed Function Calling: arXiv:2608.22472 Appendix B (the IFFC channel this overlay sits on)
 
 ---
@@ -1620,7 +1620,7 @@ The first four are directly measurable on BFCL v4 without changes to the benchma
 23. Wei, J., et al. "Chain-of-Thought Prompting Elicits Reasoning in Large Language Models." NeurIPS 2022. arXiv:2201.11903.
 24. Willard, B. T. & Louf, R. "Efficient Guided Generation for Large Language Models." arXiv:2307.09702, 2023.
 25. Xu, B., et al. "ReWOO: Decoupling Reasoning from Observations for Efficient Augmented Language Models." arXiv:2305.18323, 2023.
-26. Xu, Z., et al. "ACON: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025.
+26. Kang et al. "ACON: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025.
 27. Yan, F., et al. "Berkeley Function Calling Leaderboard." arXiv:2402.15491, 2024.
 28. Yao, S., et al. "ReAct: Synergizing Reasoning and Acting in Language Models." ICLR 2023. arXiv:2210.03629.
 29. Yuan, S., et al. "CRAFT: Customizing LLMs by Creating and Retrieving from Specialized Toolsets." arXiv:2309.17428, 2024.
@@ -1652,7 +1652,7 @@ Each method in this section involves modifying model weights — via supervised 
 - [31. RC-GRPO: Reward-Conditioned GRPO](#31-rc-grpo-reward-conditioned-grpo)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
-- [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling)
+- [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling) (survey; planned Choice/router KD **path B first** — **separate Acc track**; **not** an Acc claim)
 - [23. Curriculum Learning for Progressive Tool Mastery](#23-curriculum-learning-for-progressive-tool-mastery)
 - [Training-Time Prioritized Recommendations](#training-time-prioritized-recommendations)
 - [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28)
@@ -2346,20 +2346,68 @@ Two primary approaches:
 ### Evidence
 
 - **GPT-4o mini:** OpenAI's distilled version of GPT-4o maintains strong tool-calling performance at a fraction of the size and cost. Demonstrates commercial viability.
-- **ACON distillation:** Xu et al. (2025) distilled context compression capabilities from GPT-4.1 to Qwen3-8B and Phi-4, "preserving over 95% of the teacher's accuracy."
+- **ACON distillation:** Kang et al. (2025, arXiv:2510.00615) distilled context compression capabilities from GPT-4.1 to Qwen3-8B and Phi-4, "preserving over 95% of the teacher's accuracy." **Author correction:** earlier METHODS drafts credited Xu; arXiv lists **Kang et al.** ReWOO remains Xu B. (arXiv:2305.18323); FunReason-MT remains Xu et al. (arXiv:2510.24645).
 - **Multi-teacher distillation:** Recent work (2024–2025) leverages knowledge from multiple teacher models to create more robust student models that generalize better across tool-calling domains.
 
 ### Applicability
 
-- **Dataset generation:** The most practical form of distillation for this thesis is response-based: use a strong model (GPT-4, Claude) to generate correct tool calls for BFCL-format queries, then fine-tune the SLMs on these outputs.
+- **Dataset generation:** The most practical form of distillation for this thesis is response-based: use a strong model (GPT-4, Claude) to generate correct tool calls for BFCL-format queries, then fine-tune the SLMs on these outputs. **Choice/router KD plan below:** Claude is **paused** — **no Claude-as-teacher**.
 - **Complementary to SFT:** Distillation produces the training data; SFT/LoRA consumes it. Works with all the fine-tuning methods above.
 - **Cost consideration:** Generating distillation data from API models has a monetary cost. For BFCL's ~1,390 single-turn + 800 multi-turn test cases, this is modest.
 - **Complexity:** Low (if using existing distillation datasets) to Medium (if generating custom data from teacher models).
+
+### Planned: Choice/router KD (path B first) — survey only; separate Acc track
+
+**Docs/plan only.** No train, no harness scaffold, no Acc launch in this write-up. Plan source (summarized, not dumped): Codex `codex_KD_TOOLCHOICE_RESEARCH.md`, `codex_KD_TOOLCHOICE_PLAN.md`, `codex_KD_TOOLCHOICE_FEASIBILITY.md`, `codex_KD_TOOLCHOICE_DOCS_STATUS.md` (2026-10-01).
+
+**Motivation (sourced Acc only — not a forecast):** Run 61 Decision+OODA **52/200 = 26.0%** and Run 58 Decision **50/200 = 25.0%** did **not** fix `MODEL_WEAK_RANKING` (R58 WHY: tev1 turn-0 gold top-1 ≈ **38.8%** when Choice returned). Both sit well below IFFC **30.5%** / Run 30 **32.5%** / Run 42 **35.5%**. **Do not forecast post-KD Acc.** Decision Acc stays parked for tev1 @ these levers.
+
+**Separate tracks:** Choice/ranking KD is **not** the Acc ladder. Ranking metrics are **not** BFCL `%`. Acc only after explicit Acc GOs, on **new** `run_id`s. **Never resume 30/42/51–61.** **No Claude-as-teacher** (Claude paused).
+
+**ELI5:** practical tool-calling KD is mostly “copy the teacher’s next-tool answers” (response SFT). Soft logits help when a local open teacher can emit menu probabilities. Multi-turn is brittle: one wrong tool poisons later labels (error cascade, state/history, noop/irrelevance, vocab mismatch for closed APIs).
+
+**What transfers (lit, not Acc):**
+
+| Family | Mechanism | Thesis Choice fit |
+|--------|-----------|-------------------|
+| Response-based KD | Teacher tool-call / Choice strings → student SFT/LoRA | **Primary** — ToolACE / xLAM / glaive pattern; closed teachers OK |
+| Logit / soft KD | Student matches teacher distribution over tools | **Optional** — local open teacher only; unavailable for closed API |
+| Preference | gold ≻ wrong Choice / trajectory DPO | DiaTool-DPO; Magnet (SFT + multi-turn DPO) |
+
+Also logged (paper suites **theirs**, not our harness): ODIA (response-based FC KD + router; arXiv:2507.08877); Agent Distillation (Kang et al., trajectory imitation into 0.5B–3B; arXiv:2505.17612); ACON compressor distill (Kang et al., arXiv:2510.00615) as evidence that distilling an **auxiliary head** can work — ACON itself is context compression, **not** next-tool Choice.
+
+**Prefer path B first** (Choice/router student: next_tool ∈ `active ∪ {noop}`):
+
+| Path | Student | Role |
+|------|---------|------|
+| **(B)** | Choice / router (tev1 successor or Choice-schema SLM) | **FIRST** — direct `MODEL_WEAK_RANKING` lever |
+| **(A)** | Gemma-4-E2B-it Q4 IFFC | Secondary Acc-track SFT lane — **not** the primary Decision fix |
+| **(C)** | Both | **Only after (B) ranking gate passes** |
+
+**Teachers (when a later implement GO exists):** (1) BFCL gold next-tool / checker-aligned trajectories (preferred; no API); (2) local larger open mid-size for diversity / optional menu soft ranks; (3) API non-Claude only with explicit spend GO. **Forbidden:** Claude. **Forbidden as primary:** tev1 argmax (copies `MODEL_WEAK`; hard-negative / rejected side only). Optional preference mine from read-only R58/R61 `DECISION_LOG` where gold was on menu but tev1 top-1 ≠ gold.
+
+**Gates (later implement — ordered):**
+
+1. **Smoke** — Choice schema parse / menu clamp / noop legal; sidecar HTTP healthy. Ops, **not** Acc.
+2. **Ranking pre-gate (NOT Acc)** — held-out Decision states: gold **top-1 / top-3 / mean-rank** (same family as R58 WHY). Suggest beating frozen tev1 on the **same** probe IDs (R58-era turn-0 top-1 ≈ 38.8% is a WHY baseline, not a BFCL %). Exact margin is a GO-time contract.
+3. **≤10-ID Acc** — only on **explicit Acc GO**; new `run_id`; llama.cpp + BFCL v4 `multi_turn_base`.
+4. **Full-200 Acc** — only on a **separate Acc GO**; new `run_id`; **never resume 30/42/51–61**.
+
+Leakage: hold out `entry_id`s used for Acc claims; ranking probe set ≠ Acc claim set (or disclose overlap and do not claim Acc). Label/train offline; never co-schedule with Acc llama.cpp + Ollama. Ranking lift ≠ trajectory PASS (args, STATE, empty/`[]`, OODA/stop-repeat still matter). Acc only beats R58/R61 (25–26%) → **HOLD** (same class as weak Decision). **Do not invent a predicted Acc.**
+
+**This docs pass:** GO for survey/plan. **NO-GO:** train, fuse, GGUF swap, ranking probe run, Acc, Claude teacher, Thesis harness edits, resume 30/42/51–61.
 
 ### Sources
 
 - Gu, Y., et al. "MiniLLM: Knowledge Distillation of Large Language Models." ICLR 2024. arXiv:2306.08543. https://arxiv.org/abs/2306.08543
 - Microsoft. "Distillation: Turning Smaller Models into High-Performance, Cost-Effective Solutions." 2024. https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/distillation-turning-smaller-models-into-high-performance-cost-effective-solutio/4355029
+- Hinton, G., Vinyals, O., & Dean, J. "Distilling the Knowledge in a Neural Network." arXiv:1503.02531, 2015.
+- Kang et al. "Acon: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025. https://arxiv.org/abs/2510.00615
+- Kang et al. "Distilling LLM Agent into Small Models with Retrieval and Code Tools." NeurIPS 2025. arXiv:2505.17612.
+- Zhang, Yang, Li, He, Gong. "ODIA." arXiv:2507.08877, 2025.
+- Yin et al. "Magnet: Multi-turn Tool-use Data Synthesis and Distillation via Graph Translation." ACL 2025. arXiv:2503.07826.
+- Jung et al. "DiaTool-DPO." SIGdial 2025. arXiv:2504.02882 (see [§21](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)).
+- Codex notes (plan source, 2026-10-01): `codex_KD_TOOLCHOICE_RESEARCH.md`, `codex_KD_TOOLCHOICE_PLAN.md`, `codex_KD_TOOLCHOICE_FEASIBILITY.md`, `codex_KD_TOOLCHOICE_DOCS_STATUS.md`.
 
 ---
 
@@ -2530,7 +2578,7 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 - **SFT v9.2 10-ID smoke-gate FAIL** (Run 36): avg `api_calls` **25.7** (gate ≤8.3), `hit_step_limit` **6/10** (gate ≤2). Smoke@100 healthy (val→**0.645**); full LoRA never started. Worse than Run 33 v9.1 (17.6 / 5/10) and Run 31 v9 (22.5 / 5/10). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **Do not cite Run 35** (INVALID — server died). Run 37 VC sidecar diagnostic only — not in /10. Codex **`HOLD_sft_quota_remix`**. Details: [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold).
 - **DPO β0.2 smoke100 10-ID PASS** (Run 49): avg API **4.4**, `hit_step_limit` **0/10**, `iffc_unparseable` **0/10**, `turn0_tool` **7/10** — all gates **MET**. Same 10 IDs as Run 47 (β0.1 turn0 **6/10**, avg **4.50**) / Run 48 (BASE turn0 **10/10**, avg **6.80**). **Health gate, not a BFCL %.** **Do not invent** a Run 49 / 47 / 48 `multi_turn_base` %. Full DPO train still **HOLD** pending Sanskar GO + Codex verify. Details: [DPO β0.2 smoke100 PASS](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-).
 
-**Tightened stop-repeat PASSES** (Run 30 **32.5%**). Run 42 iffc-ooda-card **scored 35.5%** (`state_mismatch` gate **MISS**; still below BoN). SFT v9.2 smoke-gate **FAIL → park**. Quota remix **HOLD**. DPO β0.2 smoke100 10-ID **PASS**; DPO-full Run 51 **53/200 = 26.5%** scored (**not** a method win); Run 61 Decision+OODA **26.0% FAIL**; Run 58 Decision **25.0% FAIL**. Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 / Run 49 BFCL %.**
+**Tightened stop-repeat PASSES** (Run 30 **32.5%**). Run 42 iffc-ooda-card **scored 35.5%** (`state_mismatch` gate **MISS**; still below BoN). SFT v9.2 smoke-gate **FAIL → park**. Quota remix **HOLD**. DPO β0.2 smoke100 10-ID **PASS**; DPO-full Run 51 **53/200 = 26.5%** scored (**not** a method win); Run 61 Decision+OODA **26.0% FAIL**; Run 58 Decision **25.0% FAIL**. Planned next ranking track (not Acc): Choice/router KD **path B first** — [§22](#22-knowledge-distillation-for-tool-calling). Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 / Run 49 BFCL %.**
 
 ### Theme
 
@@ -2613,3 +2661,6 @@ Teacher loop-filter-only; stop-on-repeat / CRI-like decode; recovery-targeted SF
 58. Chai, H., et al. "PARL-MT: Learning to Call Functions in Multi-Turn Conversation with Progress Awareness." ACL 2026 Findings. arXiv:2509.23206, 2025. https://arxiv.org/abs/2509.23206
 59. Du, Y., Zhou, Y., et al. "HyperTool: Beyond Step-Wise Tool Calls for Tool-Augmented Agents." arXiv:2606.13663, 2026. https://arxiv.org/abs/2606.13663
 60. Zhong, H., Zhai, J., Song, L., Bian, J., Liu, Q., & Tan, T. "RC-GRPO: Reward-Conditioned Group Relative Policy Optimization for Multi-Turn Tool Calling Agents." arXiv:2602.03025, 2026. https://arxiv.org/abs/2602.03025
+61. Kang et al. "Acon: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025. https://arxiv.org/abs/2510.00615 (**not** Xu; ReWOO remains Xu B.)
+62. Kang et al. "Distilling LLM Agent into Small Models with Retrieval and Code Tools." NeurIPS 2025. arXiv:2505.17612.
+63. Zhang, Yang, Li, He, Gong. "ODIA." arXiv:2507.08877, 2025.
