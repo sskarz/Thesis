@@ -52,9 +52,9 @@ A useful assistant has to \emph{do} things, not just describe them: check a cale
 
 We measure four small open models on a MacBook Pro (M4~Pro, 48~GB) with the Berkeley Function Calling Leaderboard (BFCL) v4. On single-turn tool selection the best model exceeds 80\%. On multi-step agent episodes---200 tasks, graded by whether the environment ends in the right state---the same class of model fails most of the time.
 
-Nine interventions on Gemma-4-E2B-it tell a two-part story. Parsing tool calls from ordinary text lifts native structured calling from 27.0\% to 30.5\%. A harness-written scratchpad reaches 34.0\%; hanging up on repeating turns reaches 32.5\%; a four-line status cheat sheet on that hang-up reaches 35.5\%; a majority vote of five candidates reaches 36.5\% at roughly $7\times$ generation time. Forcing valid tool names hurts (a live name automaton scores 13.5\%). Fine-tuning on public corpora also hurts: the best repaired mix scores 15.0\%, below the untuned model, because the original data taught the model to emit an empty list and stop after the first tool result.
+The interventions we scored on Gemma-4-E2B-it tell a two-part story. Parsing tool calls from ordinary text lifts native structured calling from 27.0\% to 30.5\%. A harness-written scratchpad reaches 34.0\%; hanging up on repeating turns reaches 32.5\%; a four-line status cheat sheet on that hang-up reaches 35.5\%; a majority vote of five candidates reaches 36.5\% at roughly $7\times$ generation time. Forcing valid tool names hurts (a live name automaton scores 13.5\%). Asking a second small model to rank the next tool also hurts (25.0\%). Fine-tuning on public corpora also hurts: the best repaired mix scores 15.0\%, below the untuned model, because the original data taught the model to emit an empty list and stop after the first tool result. Preference training on the same channel scores 26.5\%, still below the untuned JSON baseline.
 
-Two conclusions matter more than the ladder. First, plumbing---how calls are written and parsed---can swing scores by tens of points. Second, remaining errors are state tracking, not malformed JSON. Everything we tried sits below 40\%: about one in three episodes succeed at the 36.5\% best. With 200 tasks, neighbour gaps of a few points sit inside ordinary noise (${\sim}{\pm}7$ percentage points); the ordering is observed, not proven. Preference training is open and in flight, with no 200-task score yet. A ${\sim}15$~GB serving footprint is not an 8~GB embedded board.
+Two conclusions matter more than the ladder. First, plumbing---how calls are written and parsed---can swing scores by tens of points. Second, remaining errors are state tracking, not malformed JSON. Everything we tried sits below 40\%: about one in three episodes succeed at the 36.5\% best. With 200 tasks, neighbour gaps of a few points sit inside ordinary noise (${\sim}{\pm}7$ percentage points); the ordering is observed, not proven. A ${\sim}15$~GB serving footprint is not an 8~GB embedded board.
 \end{abstract}
 
 \section{Introduction}
@@ -104,9 +104,9 @@ A glossary of acronyms is in Appendix~\ref{app:acro}. Differences are reported i
 \begin{enumerate}
   \item \textbf{A Mac-local baseline.} Four small open models on single-turn tool selection, plus Gemma-4-E2B-it on multi-step agent episodes, all served with llama.cpp on the MacBook Pro above.
   \item \textbf{Plumbing is first-order.} How the model writes a call, and how the harness parses it, can swing scores by tens of points---including a published specialist checkpoint that looks dead on the native channel and merely very low once the channel matches training. A separate Llama diagnostic is consistent with argument serialization, not tool selection, as the gap. Native versus JSON-in-text on Gemma is a real point-estimate lift; the native run used more parallel server slots, so part of that gap may be serving (disclosed in Results).
-  \item \textbf{Cheap harness tricks help a little; forcing valid names can hurt.} A scratchpad, hanging up on repeated calls, a four-line status cheat sheet, and a five-way majority vote all sit above the JSON-in-text baseline as an observed ranking. Validity-forcing (constrained decoding; a live tool-name automaton) scores well below that baseline. Adjacent gaps are small relative to a 200-task sample; missing stacks are listed in Section~\ref{sec:roadmap}.
+  \item \textbf{Cheap harness tricks help a little; forcing valid names---or a second model ranking the next name---can hurt.} A scratchpad, hanging up on repeated calls, a four-line status cheat sheet, and a five-way majority vote all sit above the JSON-in-text baseline as an observed ranking. Validity-forcing (constrained decoding; a live tool-name automaton) and a Decision sidecar score well below that baseline. Adjacent gaps among the winners are small relative to a 200-task sample; missing stacks are listed in Section~\ref{sec:roadmap}.
   \item \textbf{Supervised fine-tuning on public corpora can teach the model to hang up.} Empty-list targets after tool results in the mix produce a checkpoint that almost never continues. Repairing the mix restores calling but still underperforms the untuned model. The scratchpad that helps the base model does not help that checkpoint. This is a supported reading of the mix, not a single-factor ablation.
-  \item \textbf{Preference optimization is the open training path.} Direct Preference Optimization (DPO) passed a 10-example health gate. As of 2026-09-29 a capped full train is in flight; this draft reports no 200-task DPO accuracy.
+  \item \textbf{Preference optimization is scored and still below the untuned JSON channel.} Direct Preference Optimization (DPO) passed a 10-example health gate. The full-train checkpoint scores 53/200 (26.5\%) on plain JSON-in-text---below IFFC 30.5\% and NFC 27.0\%. That is a scored row, not a method win.
 \end{enumerate}
 
 Section~\ref{sec:related} defines BFCL and the methods we compare. Section~\ref{sec:method} is a plain-English map, then each intervention once. Section~\ref{sec:setup} states the experimental setup. Sections~\ref{sec:results-st}--\ref{sec:results-fail} report results by what helped, what did not, residual errors, and serving cost. Section~\ref{sec:discussion} discusses format versus reasoning and cost. Section~\ref{sec:roadmap} discusses limitations and the roadmap. Appendix~\ref{app:acro} lists acronyms. Appendix~\ref{app:runs} maps \texttt{multi\_turn\_base} ($N{=}200$) scoreboard names to local evaluation-log IDs; it is not a map of the single-turn matrix.
@@ -145,7 +145,7 @@ Guo et al.\ propose OODA-Tool, a typed observe--orient--decide--act controller, 
 Error taxonomies for sub-7B callers often rank type mismatch among dominant failures~\cite{liu2024apigen}. Specialist models such as FunctionGemma~\cite{google2025functiongemma}, Hammer~\cite{ye2025hammer}, and xLAM~\cite{zhang2024xlam} show that fine-tuning and format design can make small models competitive. We treat type coercion as an inference-time mitigation that does not change weights, and we score a published xLAM-1b GGUF on \emph{this} harness rather than citing the public overall figure (${\sim}78.94\%$) as a reproduction.
 
 \subsection{Training-time methods}
-QLoRA is the standard efficient-finetuning reference~\cite{dettmers2023qlora}; we train LoRA adapters with MLX on Apple Silicon~\cite{mlx}, not QLoRA-on-CUDA. ToolACE~\cite{liu2024toolace} and xLAM supply the IFFC JSON-in-text mix. Direct Preference Optimization~\cite{rafailov2023dpo} and dialogue-level variants such as DiaTool-DPO~\cite{jung2025diatool} motivate a preference path after SFT proved brittle; our DPO evidence in this draft is a health gate, not a BFCL score.
+QLoRA is the standard efficient-finetuning reference~\cite{dettmers2023qlora}; we train LoRA adapters with MLX on Apple Silicon~\cite{mlx}, not QLoRA-on-CUDA. ToolACE~\cite{liu2024toolace} and xLAM supply the IFFC JSON-in-text mix. Direct Preference Optimization~\cite{rafailov2023dpo} and dialogue-level variants such as DiaTool-DPO~\cite{jung2025diatool} motivate a preference path after SFT proved brittle; our DPO evidence is a 10-ID health gate plus a scored full-train row of 26.5\% on plain IFFC, which does not beat the untuned JSON baseline.
 
 \section{Method}
 \label{sec:method}
@@ -169,7 +169,9 @@ Stop-on-repeat & Hang up if the model keeps proposing the same call. & Retrainin
 OODA-card & A four-line status cheat sheet (goal / facts / last / next). & Boyd's loop; 4-pass OODA-Tool \\
 BoN & Sample five candidates and majority-vote the call. & A learned verifier \\
 CD / PTC-A & Force valid JSON / valid tool names at decode time. & Full XGrammar-2; Yu et al.\ F1 \\
+Decision sidecar & A second small model ranks the next tool name and may hang up. & A dead helper; the OODA-card; a scored win \\
 SFT & Fine-tune on public JSON-in-text corpora. & A win over the untuned model \\
+DPO & Preference-train the Gemma checkpoint, then score plain IFFC. & A harness overlay; a win over IFFC \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -212,7 +214,7 @@ SFT & Fine-tune on public JSON-in-text corpora. & A win over the untuned model \
 % Dashed SFT derivation: down the iffc/state gutter, then into SFT from the west.
 \draw[arr, densely dashed] (iffc.east) -- ++(0.28,0) |- (sft.west);
 \end{tikzpicture}
-\caption{Channel families on BFCL v4 \texttt{multi\_turn\_base} ($n{=}200$), Gemma-4-E2B-it Q4\_K\_M unless noted, MacBook Pro M4~Pro / llama.cpp Metal. Table~\ref{tab:method-map} is the jargon-free glossary (scratchpad, hang-up, status cheat sheet, vote of five). Arrows show stacking or derivation, not a strict experimental DAG. PTC-A is a solo name-DFA on base IFFC, not on stop-on-repeat. Dashed: SFT starts from the IFFC channel. Green: point estimates above plain IFFC (30.5\%) on the \emph{base} checkpoint. Orange: best supervised recovery, still below IFFC. Red: scored misses. xLAM is an external published checkpoint (JSON-in-text adapter 3\%). SFT v1/v2 collapse (0.5\%) is omitted for space; see Table~\ref{tab:scoreboard}.}
+\caption{Channel families on BFCL v4 \texttt{multi\_turn\_base} ($n{=}200$), Gemma-4-E2B-it Q4\_K\_M unless noted, MacBook Pro M4~Pro / llama.cpp Metal. Table~\ref{tab:method-map} is the jargon-free glossary (scratchpad, hang-up, status cheat sheet, vote of five). Arrows show stacking or derivation, not a strict experimental DAG. PTC-A is a solo name-DFA on base IFFC, not on stop-on-repeat. Dashed: SFT starts from the IFFC channel. Green: point estimates above plain IFFC (30.5\%) on the \emph{base} checkpoint. Orange: best supervised recovery, still below IFFC. Red: scored misses. xLAM is an external published checkpoint (JSON-in-text adapter 3\%). SFT v1/v2 collapse (0.5\%), Decision sidecar (25.0\% FAIL), and DPO-full (26.5\%) are omitted for space; see Table~\ref{tab:scoreboard}.}
 \label{fig:channels}
 \end{figure}
 
@@ -287,6 +289,9 @@ Example shape:
 
 This is not Guo et al.'s four-pass Specialized OODA-Tool~\cite{guo2026ooda} and not the STATE overlay. An OODA-card on \emph{plain} IFFC (without stop-on-repeat) remains unscored.
 
+\paragraph{Decision sidecar.}
+A second small model (\texttt{tev1:latest}) ranks the next tool name on the IFFC channel and may execute, skip, or hang up. Name hints are injected on a working copy of the messages; the persistent transcript stays IFFC-clean. As shipped this overlay does \emph{not} carry the OODA-card or gated hang-up (a recipe confound versus the 35.5\% row). A composed mode (\texttt{iffc-decision-ooda}) later landed locally (Thesis \texttt{50b743f} on branch \texttt{cursor/harness-iffc-decision-ooda}, not pushed; OODA source \texttt{1dea341}). STATUS records a smoke PASS only; Acc was not run. This paper reports no compose accuracy. The scored solo Decision run is treatment-only: there is no same-session plain-IFFC twin.
+
 \paragraph{TagDispatch-style constrained decoding (CD).}
 Stock llama-server does not expose intra-request tag-triggered grammar switches. We approximate TagDispatch with two requests and never send \texttt{tools}, so native tools GBNF does not activate. Pass~1 constrains the completion to an empty list or a list of live \texttt{function\_name} values. Pass~2 constrains arguments for the selected names via \texttt{json\_schema}. This is not full XGrammar-2 (no intra-request tag switch, two HTTP requests per tool invocation).
 
@@ -308,7 +313,7 @@ When \texttt{tools} are present, llama-server may compile a tools grammar whose 
 
 We train LoRA adapters on Gemma-4-E2B-it with mlx-lm~\cite{mlx} using an IFFC JSON-in-text mix (ToolACE multi-turn~\cite{liu2024toolace} plus stratified xLAM~\cite{zhang2024xlam}), fuse a best-validation checkpoint, quantize to Q4\_K\_M, and evaluate under IFFC on \texttt{multi\_turn\_base}. Mix variants drop empty-list assistant targets after tool results, drop first-turn empty answers, and try turn-0 / state-consistency filters. A serve-time diagnostic strips trailing assistant \texttt{[]} from chat history without retraining; we do not treat that diagnostic as a method.
 
-A 100-update DPO smoke ($\beta{=}0.2$) from the untouched Gemma MLX base is used only as a health gate (call volume, parseability, first-turn tool use on 10 IDs). As of 2026-09-29 a capped full DPO train is in flight. This paper does not report a DPO \texttt{multi\_turn\_base} accuracy.
+A 100-update DPO smoke ($\beta{=}0.2$) from the untouched Gemma MLX base is used only as a health gate (call volume, parseability, first-turn tool use on 10 IDs). A later full DPO checkpoint is scored on plain IFFC at 53/200 (26.5\%); other serving fields for that run are not verified here. That score is below IFFC and NFC. It is not a method win.
 
 \section{Experimental Setup}
 \label{sec:setup}
@@ -393,7 +398,7 @@ Unless noted, scores are Gemma-4-E2B-it Q4\_K\_M on BFCL v4 \texttt{multi\_turn\
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=0.98\textwidth]{multiturn_scoreboard.pdf}
-\caption{Gemma-4-E2B-it Q4\_K\_M execution accuracy on \texttt{multi\_turn\_base} for native calling through SFT-v6 (the subset drawn in this chart). Hardware: MacBook Pro M4~Pro, llama.cpp Metal. The embedded chart title is a lab notebook string, including local run IDs; this caption is authoritative, and Appendix~\ref{app:runs} maps scoreboard names to those IDs. Later conditions---stop-on-repeat, OODA-card, PTC-A, and xLAM---are in Table~\ref{tab:scoreboard}, which is the complete scoreboard. Constrained decoding is a TagDispatch-style two-pass approximation, not full XGrammar-2.}
+\caption{Gemma-4-E2B-it Q4\_K\_M execution accuracy on \texttt{multi\_turn\_base} for native calling through SFT-v6 (the subset drawn in this chart). Hardware: MacBook Pro M4~Pro, llama.cpp Metal. The embedded chart title is a lab notebook string, including local run IDs; this caption is authoritative, and Appendix~\ref{app:runs} maps scoreboard names to those IDs. Later conditions---stop-on-repeat, OODA-card, PTC-A, Decision sidecar, DPO-full, and xLAM---are in Table~\ref{tab:scoreboard}, which is the complete scoreboard. Constrained decoding is a TagDispatch-style two-pass approximation, not full XGrammar-2.}
 \label{fig:scoreboard}
 \end{figure}
 
@@ -415,6 +420,8 @@ IFFC (JSON-in-text) & 61/200 & 30.5\% & baseline channel \\
 GST$+$NFC (He Detail prompt) & 61/200 & 30.5\% & ${\pm}0.0$\pp vs IFFC; ${+}3.5$\pp vs NFC \\
 NFC (native \texttt{tool\_calls}) & 54/200 & 27.0\% & ${-}3.5$\pp; served at \texttt{-np 8} \\
 Ungated stop-on-repeat & 54/200 & 27.0\% & ${-}3.5$\pp; same level as NFC, different method \\
+DPO-full (plain IFFC) & 53/200 & 26.5\% & ${-}4.0$\pp; scored, not a win \\
+Decision sidecar (tev1; treatment-only) & 50/200 & 25.0\% & ${-}5.5$\pp; scored failure / no lift \\
 SFT-v4 IFFC (best SFT recovery) & 30/200 & 15.0\% & ${-}15.5$\pp; still below NFC \\
 PTC-A (live name DFA) & 27/200 & 13.5\% & ${-}17.0$\pp; scored failure \\
 SFT-v6 IFFC & 26/200 & 13.0\% & miss vs SFT-v4 \\
@@ -490,6 +497,9 @@ The two-pass name-then-args approximation scores 21/200: ${-}16.5$\pp versus NFC
 \paragraph{PTC-A (13.5\%, scored failure).}
 A live tool-name automaton on \emph{base IFFC} scores 27/200: ${-}22.0$\pp\ versus OODA-card on gated stop-on-repeat, ${-}19.0$\pp\ versus gated stop-on-repeat, ${-}17.0$\pp\ versus IFFC. Measured residuals: state mismatch 102, empty turn 17, under-call 54. Yu et al.\ report F1 in a different setting~\cite{yu2026ptc}; those F1 numbers are not this harness Acc. A token-level diagnosis of forced-name decoding versus loop behavior is not fully audited; we report those residuals without a mechanism claim. We treat PTC-A as a scored failure and do not remix prefix constraints as the next accuracy bet. A second PTC variant is unscored.
 
+\paragraph{Decision sidecar (25.0\%, scored failure / no lift).}
+A second small model ranking the next tool name on \emph{plain} IFFC (no OODA-card, no gated hang-up) scores 50/200: ${-}10.5$\pp versus OODA-card, ${-}7.5$\pp versus gated stop-on-repeat, ${-}5.5$\pp versus IFFC. The helper was alive (${\sim}92.7\%$ HTTP 200), not a crashed sidecar. Empty-turn errors rise 17$\to$48 versus OODA-card. The run is treatment-only: no same-session plain-IFFC twin. We park the Decision accuracy claim for this helper and lever set. A composed \texttt{iffc-decision-ooda} mode later landed locally (Thesis \texttt{50b743f} on \texttt{cursor/harness-iffc-decision-ooda}, not pushed; OODA source \texttt{1dea341}); STATUS records a smoke PASS only. Acc was not run. This paper reports no compose accuracy.
+
 \paragraph{xLAM on this harness (0\% then 3\%).}
 Under NFC, the published xLAM-1b-fc-r Q4\_K\_M GGUF scores 0/200: every error is an empty turn-0 tool-call list. The server generated tokens (mean 3.63 llama-server requests), but NFC never parses assistant \texttt{content}. The JSON-in-text adapter scores 6/200 (3.0\%): tools actually run (mean 50.47 server requests) and then over-call, fail to parse (111/200 unparseable flags), and drift (128 state mismatches). Neither 0\% nor 3\% is the published overall BFCL figure of ${\sim}78.94\%$, which is a different mixture of categories and serving. Same-slice contrast: Gemma NFC is 27.0\%.
 
@@ -550,12 +560,12 @@ SFT-v6 keeps v4 empty/recovery plus only the state-inconsistency drop (turn-0 un
 
 Thin filter ablations on this ToolACE$+$xLAM IFFC family did not beat v4. A later 10-ID quota-remix smoke failed a health gate (mean 25.7 llama-server requests, 6/10 traces hit the step limit); that gate is not a BFCL percentage, and no $N{=}200$ score is claimed.
 
-\subsection{DPO: health gate passed, full-train results pending}
+\subsection{DPO: scored 26.5\%, not a method win}
 \label{sec:results-dpo}
 
 A 100-update DPO smoke ($\beta{=}0.2$, LoRA, fused Q4\_K\_M) passed the same style of 10-ID health gate used to reject collapsed SFT smokes: mean llama-server requests 4.4 (band 4--8.3), 0/10 step-limit hits, 0/10 unparseable IFFC, 7/10 first-turn tool uses. That is evidence the training stack did not immediately collapse. It is not a \texttt{multi\_turn\_base} score.
 
-As of 2026-09-29 a capped full DPO train is in flight. This draft reports no $N{=}200$ DPO accuracy, does not treat the smoke checkpoint as a scoreboard row, and does not claim a method win. Whether to add an $N{=}200$ row when that train is scored remains an open documentation choice (Section~\ref{sec:roadmap}).
+A later full DPO checkpoint, scored on plain IFFC, is 53/200 (26.5\%): ${-}4.0$\pp versus IFFC and ${-}0.5$\pp versus NFC. Other serving fields for that run (throughput, gates) are not verified here. We treat DPO-full as a scored row below the untuned JSON baseline, not as a method win, and we do not treat the 10-ID smoke as a scoreboard percentage.
 
 \FloatBarrier
 
@@ -563,14 +573,14 @@ As of 2026-09-29 a capped full DPO train is in flight. This draft reports no $N{
 \label{sec:results-fail}
 
 \subsection{Residual errors are state mismatch and under-call}
-Once calls parse, the remaining mistakes are about the simulated world, not about JSON. Figure~\ref{fig:fail} shows SFT-v4 through SFT-v6 only. Tables~\ref{tab:fail}--\ref{tab:fail-later} cover the full ladder with one primary error per failed entry. After IFFC, residual errors are state mismatch and under-call, not parse failure. BoN cuts state mismatch (64$\to$53) while empty turns rise slightly (31$\to$36). SFT v1/v2 collapse into empty-turn dominance. SFT-v4 largely fixes empty turns and shifts the residual onto state mismatch and under-call; later SFT mixes keep empty rare and worsen or fail to beat that state residual. Gated stop-on-repeat returns state-mismatch counts to the IFFC baseline; OODA-card on gated stop-on-repeat still leaves 71 state mismatches (empty 38$\to$17); PTC-A inflates state mismatch to 102.
+Once calls parse, the remaining mistakes are about the simulated world, not about JSON. Figure~\ref{fig:fail} shows SFT-v4 through SFT-v6 only. Tables~\ref{tab:fail}--\ref{tab:fail-later} cover the full ladder with one primary error per failed entry. After IFFC, residual errors are state mismatch and under-call, not parse failure. BoN cuts state mismatch (64$\to$53) while empty turns rise slightly (31$\to$36). SFT v1/v2 collapse into empty-turn dominance. SFT-v4 largely fixes empty turns and shifts the residual onto state mismatch and under-call; later SFT mixes keep empty rare and worsen or fail to beat that state residual. Gated stop-on-repeat returns state-mismatch counts to the IFFC baseline; OODA-card on gated stop-on-repeat still leaves 71 state mismatches (empty 38$\to$17); PTC-A inflates state mismatch to 102; Decision sidecar inflates empty turns to 48 (versus 17 on OODA-card) with 150 failed entries.
 
 On IFFC$+$STATE, 64 state-mismatch entries concentrate in VehicleControl (22) and GorillaFileSystem (21). BoN keeps VehicleControl at 22 and cuts filesystem mismatches to 13. Those two backends remain the practical bottleneck for consecutive correctness.
 
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=0.98\textwidth]{failure_buckets.pdf}
-\caption{Grouped primary failure-bucket bars for SFT-v4, SFT-v4$+$STATE, SFT-v5, and SFT-v6 on Gemma-4-E2B-it Q4\_K\_M, \texttt{multi\_turn\_base} ($n{=}200$), Mac M4~Pro / llama.cpp Metal. One primary label per failed entry. The embedded chart title is a lab notebook string. Native calling through BoN, plus SFT v1/v2/strip, are in Table~\ref{tab:fail}; later harness rows (stop-on-repeat, OODA-card, PTC-A) are in Table~\ref{tab:fail-later}.}
+\caption{Grouped primary failure-bucket bars for SFT-v4, SFT-v4$+$STATE, SFT-v5, and SFT-v6 on Gemma-4-E2B-it Q4\_K\_M, \texttt{multi\_turn\_base} ($n{=}200$), Mac M4~Pro / llama.cpp Metal. One primary label per failed entry. The embedded chart title is a lab notebook string. Native calling through BoN, plus SFT v1/v2/strip, are in Table~\ref{tab:fail}; later harness rows (stop-on-repeat, OODA-card, PTC-A, Decision sidecar) are in Table~\ref{tab:fail-later}.}
 \label{fig:fail}
 \end{figure}
 
@@ -595,19 +605,19 @@ Failed entries & 146 & 139 & 179 & 139 & 132 & 127 & 199 & 199 & 196 & 170 & 174
 
 \begin{table}[htbp]
 \centering
-\caption{Primary failure buckets for later harness interventions on the same Gemma checkpoint and slice. Counts sum to failed entries (200 minus correct). Columns Ungated / Gated MIN=6 are stop-on-repeat variants. OODA-card is stacked on gated stop-on-repeat. GT $=$ ground-truth execution.}
+\caption{Primary failure buckets for later harness interventions on the same Gemma checkpoint and slice. Counts sum to failed entries (200 minus correct). Columns Ungated / Gated MIN=6 are stop-on-repeat variants. OODA-card is stacked on gated stop-on-repeat. Decision is the tev1 sidecar on plain IFFC (treatment-only). GT $=$ ground-truth execution.}
 \label{tab:fail-later}
 \small
-\begin{tabular}{@{}lrrrr@{}}
+\begin{tabular}{@{}lrrrrr@{}}
 \toprule
-Bucket & Ungated & Gated MIN=6 & OODA-card & PTC-A \\
+Bucket & Ungated & Gated MIN=6 & OODA-card & PTC-A & Decision \\
 \midrule
-Empty turn & 40 & 38 & 17 & 17 \\
-Under-call / miss.\ GT & 31 & 37 & 41 & 54 \\
-State mismatch & 75 & 60 & 71 & 102 \\
+Empty turn & 40 & 38 & 17 & 17 & 48 \\
+Under-call / miss.\ GT & 31 & 37 & 41 & 54 & 34 \\
+State mismatch & 75 & 60 & 71 & 102 & 68 \\
 \midrule
-Failed entries & 146 & 135 & 129 & 173 \\
-Accuracy & 27.0\% & 32.5\% & 35.5\% & 13.5\% \\
+Failed entries & 146 & 135 & 129 & 173 & 150 \\
+Accuracy & 27.0\% & 32.5\% & 35.5\% & 13.5\% & 25.0\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -658,13 +668,13 @@ Mean prompt / generation throughput on the same 50-request collection: Qwen2.5-3
 \paragraph{Format versus reasoning.}
 Several large swings are format. IFFC versus NFC (with the serving-slot caveat), Llama type coercion on a separate snapshot, and xLAM's native-tools collapse all show that the channel the harness parses can dominate the score before agentic policy is tested. That is useful: format is often cheaper to fix than weights. It is also a warning. Publishing an overall BFCL number from a different channel, or treating NFC 0\% on xLAM as an ability floor, would mis-state the result.
 
-Once calls parse, consecutive accuracy is limited by environment-state tracking. IFFC still shares 124 failures with NFC. STATE and BoN move the point estimate by a few points and still leave VehicleControl and GorillaFileSystem mismatches as the mode. GST increases calling without reducing those mismatches. OODA-card on gated stop-on-repeat improves the point estimate while empty turns fall and state-mismatch counts stay above the IFFC baseline. Constrained name decoding (CD, PTC-A) improves or enforces syntax and \emph{lowers} execution accuracy. Validity of a call is not fidelity of a trajectory.
+Once calls parse, consecutive accuracy is limited by environment-state tracking. IFFC still shares 124 failures with NFC. STATE and BoN move the point estimate by a few points and still leave VehicleControl and GorillaFileSystem mismatches as the mode. GST increases calling without reducing those mismatches. OODA-card on gated stop-on-repeat improves the point estimate while empty turns fall and state-mismatch counts stay above the IFFC baseline. Constrained name decoding (CD, PTC-A) and a Decision sidecar both \emph{lower} execution accuracy. Validity of a call, and a second model ranking the next name, are not fidelity of a trajectory.
 
 \paragraph{Cost--accuracy.}
 On base Gemma, the observed Pareto picture is: IFFC at 30.5\% as the cheap JSON channel; gated hang-up and a status cheat sheet on that hang-up as low-overhead harness additions (32.5\% and 35.5\%); STATE at 34.0\% with extra context tokens; BoN on IFFC$+$STATE at 36.5\% for about $7\times$ generate wall. For a local laptop agent, a 2.5\pp\ BoN point-estimate gain at $7\times$ wall is a research measurement, not an obvious default. We did not apply BoN to collapsed or below-IFFC SFT checkpoints: majority vote cannot be assumed to rescue a policy that abstains or drifts.
 
 \paragraph{Why SFT failed, then plateaued.}
-The first SFT mixes taught the model to hang up after tools, because empty-list targets dominate post-execution assistant turns in ToolACE. Removing those targets restores calling (empty errors ${\approx}0$) but does not install BFCL-style state tracking. Further filters that try to complete turn~0 or drop state-inconsistent continues either over-call (v5) or miss the v4 recovery (v6). STATE, which helps the base model remember executed facts, is null or negative on the v4 checkpoint: the overlay is not a universal substitute for a policy that already mismatches the environment. Preference data that contrasts advance versus loop, rather than another supervised empty-list filter, is the remaining training hypothesis---untested at $N{=}200$ in this draft.
+The first SFT mixes taught the model to hang up after tools, because empty-list targets dominate post-execution assistant turns in ToolACE. Removing those targets restores calling (empty errors ${\approx}0$) but does not install BFCL-style state tracking. Further filters that try to complete turn~0 or drop state-inconsistent continues either over-call (v5) or miss the v4 recovery (v6). STATE, which helps the base model remember executed facts, is null or negative on the v4 checkpoint: the overlay is not a universal substitute for a policy that already mismatches the environment. Preference data that contrasts advance versus loop, rather than another supervised empty-list filter, was the remaining training hypothesis. A full DPO checkpoint later scored 53/200 (26.5\%) on plain IFFC---still below the untuned JSON baseline.
 
 \paragraph{Paper IFFC versus the IFFC paper.}
 Large lifts in~\cite{taheri2026iffc} are reported on single-turn Live/Non-Live suites, often where NFC is already weak, and often under dual QA / small-reasoner decoupling. Our Appendix~B-only multi-turn setup sits in a modest-gain band (${+}3.5$\pp point estimate, with the serving-slot caveat above). That is a different claim, not a refutation of theirs.
@@ -677,7 +687,8 @@ All accuracy numbers are from the MacBook Pro in Section~\ref{sec:intro}. The re
 The following items remain open. No additional accuracies are reported here.
 
 \begin{description}
-  \item[DPO full train.] As of 2026-09-29 a $\beta{=}0.2$ 100-update smoke passed a 10-ID health gate and a capped full train is in flight. There is no $N{=}200$ DPO accuracy in this draft. When that train is scored, the natural place for the row is Table~\ref{tab:scoreboard}; until then the result stays pending.
+  \item[DPO full train.] A $\beta{=}0.2$ 100-update smoke passed a 10-ID health gate. The full-train checkpoint is scored at 53/200 (26.5\%) on plain IFFC (Table~\ref{tab:scoreboard})---below IFFC 30.5\% and NFC 27.0\%. Other serving fields for that run are not verified. It is not a method win.
+  \item[Decision compose.] Solo Decision on plain IFFC is a scored failure (50/200 $=$ 25.0\%). Mode \texttt{iffc-decision-ooda} landed locally at Thesis \texttt{50b743f} on \texttt{cursor/harness-iffc-decision-ooda} (not pushed; OODA source \texttt{1dea341}). STATUS is smoke PASS only; Acc was not run. No compose accuracy is claimed.
   \item[Missing inference ablations.] An OODA-card on plain IFFC is unscored, as is Best-of-N on plain IFFC. NFC at \texttt{-np 4} is an optional matched re-run; Contribution~2 remains the observed ${+}3.5$\pp under the disclosed eight-versus-four serving-slot asymmetry. Multi-seed BoN, parallel-category re-score after the GBNF bypass, and a unified type-coercion re-score with logged run IDs are likewise future work.
   \item[Other models' multi-turn.] Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B, and FunctionGemma-270M have single-turn numbers only.
   \item[Jetson Orin Nano Super.] CUDA / 8~GB replication of the Mac result in Section~\ref{sec:intro} is not run.
@@ -685,7 +696,7 @@ The following items remain open. No additional accuracies are reported here.
   \item[Parallel categories.] Re-run after the llama-server tools GBNF truncation fix; tables still report 0\%.
   \item[OODA factorial.] The scored card is stacked on gated stop-on-repeat. OODA-on-plain-IFFC remains a missing ablation. The \texttt{next} field is the deterministic advisory rule in Section~\ref{sec:method-overlays} (executed-tool history and the live user utterance; no reference trajectory). Whether the card can be revised without losing the 35.5\% point estimate is open.
   \item[Prefix constraints.] PTC-A is a scored failure (measured residuals in Table~\ref{tab:fail-later}). Token-level forced-name versus loop diagnosis is not fully audited. A second PTC variant is unscored and is not the next accuracy bet.
-  \item[SFT after v4.] Further quota remixes are not scored at $N{=}200$. The remaining training path is preference/DPO, results pending---not more epochs on v5/v6 and not BoN on those checkpoints.
+  \item[SFT after v4.] Further quota remixes are not scored at $N{=}200$. Preference/DPO is scored at 26.5\% and does not beat IFFC---not more epochs on v5/v6 and not BoN on those checkpoints.
   \item[Type-coercion protocol.] Table~\ref{tab:single-turn} versus Table~\ref{tab:coerce} Llama \texttt{multiple} baselines remain two snapshots; config/run IDs for the 41.5\% cell were not recovered from the evaluation database. A unified re-score with logged IDs is future work.
   \item[Preference-pair audit.] Contrastive advance-versus-loop pairs are an engineering draft, not a scored method.
   \item[IFFC serving metrics.] A 50-request metrics collect for the IFFC baseline remains pending; Table~\ref{tab:perf} therefore has no IFFC row.
@@ -696,9 +707,9 @@ The following items remain open. No additional accuracies are reported here.
 
 Quantized small models on a MacBook Pro M4~Pro with llama.cpp already achieve strong single-turn tool selection in the Qwen 3--4B family (weighted non-parallel AST up to 82.53\%). FunctionGemma-270M is the generation-throughput winner and has the second-lowest median TTFT (Table~\ref{tab:perf}; not plotted in Figures~\ref{fig:perf}--\ref{fig:mem}). A separate type-coercion diagnostic is consistent with Llama \texttt{multiple} gaps being partly serialization, but that diagnostic is not a recovery of the single-turn table.
 
-For consecutive tool calling on Gemma-4-E2B-it, cheap harness changes move the 200-task point estimate from failing most episodes (27.0\%) to finishing about one in three (36.5\% at roughly $7\times$ generate wall). Parsing calls from ordinary text, a scratchpad, hanging up on repeats, and a four-line status cheat sheet all sit in the low-to-mid 30s. Constrained decoding and a live name automaton hurt. Supervised IFFC fine-tuning is easy to get spectacularly wrong (0.5\%) and, even after repairing empty-list hang-ups, stalls at 15.0\%---below the untuned model. Residual failures are environment-state mismatches, especially on VehicleControl and filesystem backends, not unparsable JSON. Neighbour gaps on 200 tasks sit inside ordinary noise; treat the ranking as observed. The native-versus-JSON comparison used more parallel server slots on the native run.
+For consecutive tool calling on Gemma-4-E2B-it, cheap harness changes move the 200-task point estimate from failing most episodes (27.0\%) to finishing about one in three (36.5\% at roughly $7\times$ generate wall). Parsing calls from ordinary text, a scratchpad, hanging up on repeats, and a four-line status cheat sheet all sit in the low-to-mid 30s. Constrained decoding, a live name automaton, and a second-model Decision sidecar hurt (25.0\%). Supervised IFFC fine-tuning is easy to get spectacularly wrong (0.5\%) and, even after repairing empty-list hang-ups, stalls at 15.0\%---below the untuned model. Preference training scores 26.5\%, still below the JSON baseline. Residual failures are environment-state mismatches, especially on VehicleControl and filesystem backends, not unparsable JSON. Neighbour gaps on 200 tasks sit inside ordinary noise; treat the ranking as observed. The native-versus-JSON comparison used more parallel server slots on the native run.
 
-Preference optimization is the open training question: a DPO smoke is healthy, a full train is in flight as of 2026-09-29, and this paper stops short of a BFCL conclusion. Completing that train, optional NFC at four server slots, other models' multi-turn baselines, dual-model IFFC, and parallel re-runs after the GBNF fix will determine how far local serving of this size can be pushed on the measured Mac stack before December 2026. RAG is out of scope.
+Best-of-N remains the best measured inference point estimate (36.5\%); OODA-card remains the best non-BoN harness (35.5\%). Optional NFC at four server slots, other models' multi-turn baselines, dual-model IFFC, and parallel re-runs after the GBNF fix will determine how far local serving of this size can be pushed on the measured Mac stack before December 2026. RAG is out of scope.
 
 \bibliographystyle{unsrtnat}
 \bibliography{references}
@@ -720,7 +731,8 @@ These distinctions are part of the method identity:
   \item STATE on SFT-v4 (13.0\%) is a null/negative overlay: STATE helps base Gemma, not that checkpoint.
   \item xLAM 0\% / 3\% are this harness's native versus JSON channels, not published overall BFCL ${\sim}78.94\%$.
   \item PTC-A (13.5\%) is execution accuracy on this harness, not Yu et al.'s reported F1~\cite{yu2026ptc}. Token-level forced-name versus loop diagnosis is not fully audited.
-  \item The DPO 10-ID result is a health-gate pass, not a BFCL percentage. Full train in flight as of 2026-09-29; no $N{=}200$ Acc yet.
+  \item Decision sidecar (25.0\%) is a scored failure on plain IFFC (treatment-only). The helper was not dead. Compose mode \texttt{iffc-decision-ooda} landed locally at \texttt{50b743f} (not pushed); smoke PASS only; Acc was not run.
+  \item The DPO 10-ID result is a health-gate pass, not a BFCL percentage. Full DPO on plain IFFC is scored at 26.5\% (Run~51) and is not a win over IFFC or NFC.
   \item RAG appeared in an earlier registered-title framing and is out of scope for this paper---not evaluated, not deferred.
   \item Title ``edge devices'' is registered/local branding; measured accuracies are the MacBook Pro of Section~\ref{sec:intro}.
 \end{itemize}
@@ -732,7 +744,7 @@ Table~\ref{tab:runs} maps the \texttt{multi\_turn\_base} ($N{=}200$) method name
 
 \begin{table}[htbp]
 \centering
-\caption{Chronological \emph{local} SQLite IDs for scored \texttt{multi\_turn\_base} ($N{=}200$) rows, plus health gates that are not BFCL percentages. Gemma-4-E2B-it Q4\_K\_M unless noted. Not a map of single-turn or coercion runs.}
+\caption{Chronological \emph{local} SQLite IDs for scored \texttt{multi\_turn\_base} ($N{=}200$) rows, plus 10-ID probes that are not BFCL $N{=}200$ percentages. Gemma-4-E2B-it Q4\_K\_M unless noted. Not a map of single-turn or coercion runs. Compose mode \texttt{iffc-decision-ooda} has no Acc row (local smoke PASS at \texttt{50b743f}; Acc not run).}
 \label{tab:runs}
 \footnotesize
 \begin{tabular}{@{}rllr@{}}
@@ -760,6 +772,10 @@ ID & Method name in this paper & Acc. & Role \\
 42 & OODA-card on gated stop-on-repeat & 35.5\% & best non-BoN \\
 46 & PTC-A & 13.5\% & scored failure; line closed \\
 49 & DPO $\beta0.2$ smoke (10 IDs) & --- & health-gate PASS; not BFCL \% \\
+51 & DPO-full (plain IFFC) & 26.5\% & scored; not a win \\
+56 & Decision 10-ID treatment & --- & 0/10; not BFCL \% \\
+57 & Decision 10-ID control & --- & 0/10; not BFCL \% \\
+58 & Decision sidecar & 25.0\% & scored failure; park Acc \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -772,7 +788,7 @@ ID & Method name in this paper & Acc. & Role \\
   \item llama.cpp: build 8111, commit \texttt{11c325c6e}, \texttt{-DGGML\_METAL=ON}, \texttt{llama-server --jinja}, flash attention on, \texttt{-ngl 99}.
   \item Decoding: temperature 0.0 except BoN (0.7, $N{=}5$). Context \texttt{-c 65536}. Parallel slots \texttt{-np 4} except NFC \texttt{-np 8}.
   \item BFCL: v4, package \texttt{bfcl-eval} 2026.3.11. Exact BFCL git commit of the checker checkout is not logged here.
-  \item Channels: NFC; IFFC (Appendix~B JSON-in-text); GST overlay on NFC; CD two-pass; IFFC$+$STATE; BoN on IFFC$+$STATE; gated stop-on-repeat $\mathrm{MIN}{=}6$; OODA-card on gated stop-on-repeat; PTC-A name DFA on IFFC; xLAM JSON adapter.
+  \item Channels: NFC; IFFC (Appendix~B JSON-in-text); GST overlay on NFC; CD two-pass; IFFC$+$STATE; BoN on IFFC$+$STATE; gated stop-on-repeat $\mathrm{MIN}{=}6$; OODA-card on gated stop-on-repeat; PTC-A name DFA on IFFC; Decision sidecar on IFFC; DPO-full on IFFC; xLAM JSON adapter. Compose mode \texttt{iffc-decision-ooda} is local smoke only (Thesis \texttt{50b743f}, not pushed); Acc was not run.
   \item Appendix~\ref{app:runs} IDs index a private \texttt{benchmark.db}. Seeds for BoN were not replicated. Some SFT/DPO hyperparameters live in \texttt{METHODS.md} rather than a frozen public config bundle.
 \end{itemize}
 
