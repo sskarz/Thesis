@@ -29,7 +29,17 @@ Function-calling modes (``--fc-mode`` / ``config.FC_MODE``):
 - ``iffc-decision``: IFFC JSON-in-text plus Decision sidecar (Ollama System
   One Choice) before each Gemma step. Gemma still fills parameters. Mass-based
   noop + ``is_exec_observation`` position guard; Noul report-only; identical
-  veto OFF by default. Do not compose with ``iffc-stop-repeat`` in v0.
+  veto OFF by default. Plain mode preserves the R58 archaeology recipe
+  (no OODA / no stop-repeat).
+- ``iffc-ooda-card``: IFFC JSON-in-text plus a one-pass harness-written
+  ``[OODA]`` card (goal / slots / last / next) prefixed on each decision
+  turn, stacked on the same stop-repeat MIN=6 gate. **Not** ``iffc-state``.
+  **Not** a Specialized 4-pass loop.
+- ``iffc-decision-ooda``: Compose tev1 Decision sidecar + R42 OODA card +
+  stop-repeat MIN=6. Precedence: Decision hard-noop pre-Gemma = sole stop
+  that step; soft_once first noop ≠ ``[]`` (bypass); working copy = OODA
+  card then Decision hint (non-persisted); stop-repeat post-Gemma only;
+  OODA ``next`` advisory; ≤1 harness ``[]`` / step.
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits trailing
 IFFC assistant ``[]`` stop turns from ``chat_history`` before the next BFCL
@@ -49,6 +59,7 @@ from . import cd as cd_mode
 from . import config, db
 from . import gst as gst_mode
 from . import iffc_state as iffc_state_mode
+from . import ooda_card as ooda_card_mode
 from . import stop_on_repeat
 from . import decision_sidecar
 from . import xlam as xlam_mode
@@ -133,6 +144,14 @@ def _consume_decision_noop(
     flags.append(f"decision_noop_hard:turn_{turn_idx}")
     return "hard", soft_noop_used
 
+def _uses_decision(fc_mode: str) -> bool:
+    """True for plain ``iffc-decision`` and compose ``iffc-decision-ooda``."""
+    return fc_mode in config.FC_IFFC_DECISION_MODES
+
+
+def _uses_ooda(fc_mode: str) -> bool:
+    """True for plain ``iffc-ooda-card`` and compose ``iffc-decision-ooda``."""
+    return fc_mode in config.FC_IFFC_OODA_MODES
 
 def _tool_calls_to_func_strings(tool_calls: list[dict]) -> list[str]:
     """Convert OpenAI tool_calls to func-call strings for bfcl_eval execution.
@@ -198,11 +217,11 @@ def _resolve_strip_empty_assistant(
 
 
 def _iffc_family_mode(fc_mode: str) -> bool:
-    """Plain IFFC plus iffc-state / stop-repeat / decision overlays (same ``[]`` stop)."""
+    """Plain IFFC plus iffc-state / stop-repeat / ooda / decision overlays."""
     return (
         fc_mode == config.FC_IFFC
-        or fc_mode == config.FC_IFFC_STOP_REPEAT
-        or fc_mode == config.FC_IFFC_DECISION
+        or fc_mode in config.FC_IFFC_STOP_REPEAT_MODES
+        or _uses_decision(fc_mode)
         or fc_mode in config.FC_IFFC_STATE_MODES
     )
 
@@ -229,20 +248,30 @@ def _build_chat_payload(
     chat_history: list[dict],
     active_tools: list[dict],
     fc_mode: str,
+    ooda_tracker: ooda_card_mode.OodaCardTracker | None = None,
 ) -> dict:
-    """Build a chat-completions payload. IFFC/CD/iffc-state/iffc-state-bon/xlam never send tools/tool_choice.
+    """Build a chat-completions payload. IFFC family never send tools/tool_choice.
 
     GST uses the NFC tools channel (``tools`` + ``tool_choice=auto``).
     BoN sampling uses temperature=0.7 via :mod:`benchmark.bon`; this helper
     still emits 0.7 for ``iffc-state-bon`` so a stray single-sample path
     would not silently go greedy.
+
+    OODA modes inject the ``[OODA]`` card on a **copy** of messages so the
+    persistent transcript stays IFFC-clean for stop-on-repeat + Decision.
     """
     temperature = (
         config.BON_TEMPERATURE if fc_mode == config.FC_IFFC_STATE_BON else 0.0
     )
+    messages: list[dict] = chat_history
+    if _uses_ooda(fc_mode):
+        tracker = ooda_tracker or ooda_card_mode.OodaCardTracker()
+        messages = ooda_card_mode.inject_card(
+            chat_history, tracker, has_tools=bool(active_tools)
+        )
     payload: dict = {
         "model": config.MODEL_NAME,
-        "messages": chat_history,
+        "messages": messages,
         "temperature": temperature,
     }
     if _is_json_text_mode(fc_mode):
@@ -268,6 +297,8 @@ def _prepare_step_messages(
             iffc_state_mode.ensure_iffc_state_system_message(chat_history, active_tools)
         elif fc_mode == config.FC_XLAM:
             xlam_mode.ensure_xlam_system_message(chat_history, active_tools)
+        elif _uses_ooda(fc_mode):
+            ooda_card_mode.ensure_ooda_system_message(chat_history, active_tools)
         else:
             ensure_iffc_system_message(chat_history, active_tools)
         return
@@ -292,11 +323,13 @@ def _complete_chat_sync(
     *,
     name_hint: str | None = None,
     strong_name_hint: bool = False,
+    ooda_tracker: ooda_card_mode.OodaCardTracker | None = None,
 ) -> tuple[dict, int]:
     """One model step. CD may issue two constrained requests; BoN samples N.
 
-    *name_hint* is appended as a user-role message on a **non-persisted**
-    working copy (Decision sidecar); persistent ``chat_history`` is unchanged.
+    Working-copy order for compose (``iffc-decision-ooda``):
+    history → OODA ``inject_card`` → Decision name-hint last.
+    Neither card nor hint mutates persistent ``chat_history``.
     """
     if fc_mode == config.FC_CD:
         return cd_mode.complete_step(
@@ -313,9 +346,12 @@ def _complete_chat_sync(
             model=config.MODEL_NAME,
             n=config.BON_N,
         )
-    payload = _build_chat_payload(chat_history, active_tools, fc_mode)
+    payload = _build_chat_payload(
+        chat_history, active_tools, fc_mode, ooda_tracker=ooda_tracker
+    )
     if name_hint:
-        working = list(chat_history)
+        # Append after OODA inject (payload messages may already be a copy).
+        working = list(payload["messages"])
         working.append(
             decision_sidecar.name_hint_user_message(
                 name_hint, strong=strong_name_hint
@@ -351,7 +387,7 @@ def _decide_assistant_step(
     name_bind_retries_left)`` where *action* is ``execute``, ``end_turn``,
     ``retry``, or ``retry_name_hint``.
 
-    When *decision_name_hint* is set (``iffc-decision`` execute path), name-bind
+    When *decision_name_hint* is set (Decision execute path), name-bind
     inside this function: keep-all calls matching ``T``; on any mismatch retry
     once (non-persisted stronger hint), then bypass keeping Gemma's call with
     ``name_mismatch`` flag.
@@ -360,7 +396,9 @@ def _decide_assistant_step(
         content = assistant_text(message)
         parsed = try_parse_iffc_response(content)
         if parsed:
-            if fc_mode == config.FC_IFFC_STOP_REPEAT:
+            # stop-repeat post-Gemma only (R42 / compose). Skipped when
+            # Decision hard-noop already ended the step pre-Gemma.
+            if fc_mode in config.FC_IFFC_STOP_REPEAT_MODES:
                 reason = stop_on_repeat.force_stop_reason(chat_history, content)
                 if reason is not None:
                     # Force a clean [] stop; do not re-execute the looped calls.
@@ -373,7 +411,7 @@ def _decide_assistant_step(
                         f"stop_on_repeat_{reason}",
                         name_bind_retries_left,
                     )
-            if decision_name_hint and fc_mode == config.FC_IFFC_DECISION:
+            if decision_name_hint and _uses_decision(fc_mode):
                 def _call_name(call: dict) -> str:
                     return str(
                         call.get("function_name") or call.get("name") or ""
@@ -489,6 +527,7 @@ def _append_execution_feedback(
     tool_calls_raw: list | None,
     exec_results: list,
     state_tracker: iffc_state_mode.StateTracker | None = None,
+    ooda_tracker: ooda_card_mode.OodaCardTracker | None = None,
 ) -> None:
     if _is_json_text_mode(fc_mode):
         if fc_mode in config.FC_IFFC_STATE_MODES and state_tracker is not None:
@@ -501,6 +540,10 @@ def _append_execution_feedback(
             )
         else:
             content = format_iffc_execution_user_message(func_strings, exec_results)
+            if _uses_ooda(fc_mode) and ooda_tracker is not None:
+                ooda_card_mode.record_execution(
+                    ooda_tracker, func_strings, exec_results
+                )
         chat_history.append({
             "role": "user",
             "content": content,
@@ -576,6 +619,9 @@ def generate_for_entry(
         if fc_mode in config.FC_IFFC_STATE_MODES
         else None
     )
+    ooda_tracker = (
+        ooda_card_mode.OodaCardTracker() if _uses_ooda(fc_mode) else None
+    )
 
     for turn_idx, turn_messages in enumerate(questions):
         # Before the next BFCL user turn: drop the previous turn's IFFC ``[]``
@@ -617,7 +663,7 @@ def generate_for_entry(
             name_bind_retries_left = 0
             strong_name_hint = False
             soft_noop_this_step = False
-            if fc_mode == config.FC_IFFC_DECISION:
+            if _uses_decision(fc_mode):
                 probe = decision_sidecar.probe_next_tool(
                     chat_history,
                     active_tools,
@@ -655,6 +701,7 @@ def generate_for_entry(
                     fc_mode,
                     name_hint=decision_name_hint,
                     strong_name_hint=strong_name_hint,
+                    ooda_tracker=ooda_tracker,
                 )
                 api_calls += n_calls
             except requests.exceptions.HTTPError as e:
@@ -715,6 +762,7 @@ def generate_for_entry(
                         fc_mode,
                         name_hint=decision_name_hint,
                         strong_name_hint=True,
+                        ooda_tracker=ooda_tracker,
                     )
                     api_calls += n_calls
                 except Exception as e:
@@ -780,6 +828,7 @@ def generate_for_entry(
                 tool_calls_raw,
                 exec_results,
                 state_tracker=state_tracker,
+                ooda_tracker=ooda_tracker,
             )
         else:
             # Loop completed without break — model never gave a text response
@@ -862,6 +911,9 @@ async def _generate_entry_async(
         if fc_mode in config.FC_IFFC_STATE_MODES
         else None
     )
+    ooda_tracker = (
+        ooda_card_mode.OodaCardTracker() if _uses_ooda(fc_mode) else None
+    )
     strip_empty_assistant = _resolve_strip_empty_assistant(None)
 
     for turn_idx, turn_messages in enumerate(questions):
@@ -900,7 +952,7 @@ async def _generate_entry_async(
             decision_name_hint: str | None = None
             name_bind_retries_left = 0
             soft_noop_this_step = False
-            if fc_mode == config.FC_IFFC_DECISION:
+            if _uses_decision(fc_mode):
                 loop = asyncio.get_running_loop()
                 _ch, _tools, _eid, _t, _s, _n2c = (
                     chat_history,
@@ -963,10 +1015,14 @@ async def _generate_entry_async(
                     )
                 else:
                     payload = _build_chat_payload(
-                        chat_history, active_tools, fc_mode
+                        chat_history,
+                        active_tools,
+                        fc_mode,
+                        ooda_tracker=ooda_tracker,
                     )
                     if decision_name_hint:
-                        working = list(chat_history)
+                        # OODA card first (in payload), Decision hint last.
+                        working = list(payload["messages"])
                         working.append(
                             decision_sidecar.name_hint_user_message(
                                 decision_name_hint, strong=False
@@ -1025,9 +1081,12 @@ async def _generate_entry_async(
             if action == "retry_name_hint" and decision_name_hint:
                 try:
                     payload = _build_chat_payload(
-                        chat_history, active_tools, fc_mode
+                        chat_history,
+                        active_tools,
+                        fc_mode,
+                        ooda_tracker=ooda_tracker,
                     )
-                    working = list(chat_history)
+                    working = list(payload["messages"])
                     working.append(
                         decision_sidecar.name_hint_user_message(
                             decision_name_hint, strong=True
@@ -1102,6 +1161,7 @@ async def _generate_entry_async(
                 tool_calls_raw,
                 exec_results,
                 state_tracker=state_tracker,
+                ooda_tracker=ooda_tracker,
             )
         else:
             flags.append(f"hit_step_limit:turn_{turn_idx}")
@@ -1185,7 +1245,7 @@ def generate_for_category(
     fc_mode = _resolve_fc_mode(fc_mode)
     if run_id is None:
         run_id = config.RUN_ID
-    if fc_mode == config.FC_IFFC_DECISION:
+    if _uses_decision(fc_mode):
         decision_sidecar.prewarm()
 
     done_ids = _done_entry_ids(run_id, category)
@@ -1248,7 +1308,7 @@ async def _generate_for_category_async(
     fc_mode = _resolve_fc_mode(fc_mode)
     if run_id is None:
         run_id = config.RUN_ID
-    if fc_mode == config.FC_IFFC_DECISION:
+    if _uses_decision(fc_mode):
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, decision_sidecar.prewarm)
 
@@ -1311,7 +1371,7 @@ async def _run_async(
         f"[multi-turn generate] fc-mode={fc_mode}  categories={list(cats)}"
         f"  run_id={run_id}{extra}"
     )
-    if fc_mode == config.FC_IFFC_DECISION:
+    if _uses_decision(fc_mode):
         print(
             f"[multi-turn generate] Decision sidecar prewarm "
             f"model={decision_sidecar.DECISION_MODEL} "
@@ -1325,7 +1385,7 @@ async def _run_async(
         )
 
     async with aiohttp.ClientSession() as session:
-        if fc_mode == config.FC_IFFC_DECISION:
+        if _uses_decision(fc_mode):
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, decision_sidecar.prewarm)
         for category, info in cats.items():

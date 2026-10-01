@@ -284,8 +284,17 @@ MULTI_TURN_MAX_STEPS = 20
 # iffc-decision = IFFC JSON-in-text plus Decision sidecar (Ollama System One
 #        Choice next-tool / noop) before each Gemma step. Gemma still owns
 #        args. Mass-based noop + is_exec_observation position guard; Noul
-#        report-only; identical veto OFF by default. Do not compose with
-#        iffc-stop-repeat in v0. Side package: Documents/decision-probe.
+#        report-only; identical veto OFF by default. Plain mode keeps the
+#        R58 archaeology recipe (no OODA / no stop-repeat). Side package:
+#        Documents/decision-probe.
+# iffc-ooda-card = IFFC JSON-in-text plus a one-pass harness-written
+#        [OODA] card (goal/slots/last/next) stacked on iffc-stop-repeat
+#        MIN=6. Not iffc-state. Not a Specialized 4-pass OODA loop.
+# iffc-decision-ooda = Compose: tev1 Decision sidecar + R42 OODA card +
+#        stop-repeat MIN=6. Precedence: Decision hard-noop pre-Gemma =
+#        sole stop that step; soft_once first noop != []; working copy =
+#        OODA card then Decision hint (non-persisted); stop-repeat
+#        post-Gemma only; OODA next advisory; <=1 harness []/step.
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
@@ -296,6 +305,8 @@ FC_IFFC_STATE_BON = "iffc-state-bon"
 FC_XLAM = "xlam"
 FC_IFFC_STOP_REPEAT = "iffc-stop-repeat"
 FC_IFFC_DECISION = "iffc-decision"
+FC_IFFC_OODA_CARD = "iffc-ooda-card"
+FC_IFFC_DECISION_OODA = "iffc-decision-ooda"
 FC_MODES = (
     FC_NFC,
     FC_IFFC,
@@ -306,6 +317,8 @@ FC_MODES = (
     FC_XLAM,
     FC_IFFC_STOP_REPEAT,
     FC_IFFC_DECISION,
+    FC_IFFC_OODA_CARD,
+    FC_IFFC_DECISION_OODA,
 )
 FC_JSON_TEXT_MODES = (
     FC_IFFC,
@@ -315,8 +328,20 @@ FC_JSON_TEXT_MODES = (
     FC_XLAM,
     FC_IFFC_STOP_REPEAT,
     FC_IFFC_DECISION,
+    FC_IFFC_OODA_CARD,
+    FC_IFFC_DECISION_OODA,
 )
 FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON)
+# stop-repeat MIN=6 stack (R42 / compose share the same gate)
+FC_IFFC_STOP_REPEAT_MODES = (
+    FC_IFFC_STOP_REPEAT,
+    FC_IFFC_OODA_CARD,
+    FC_IFFC_DECISION_OODA,
+)
+# Decision probe / name-bind / soft_once / hard-noop
+FC_IFFC_DECISION_MODES = (FC_IFFC_DECISION, FC_IFFC_DECISION_OODA)
+# OODA card inject + system addendum + tracker
+FC_IFFC_OODA_MODES = (FC_IFFC_OODA_CARD, FC_IFFC_DECISION_OODA)
 FC_MODE: str = FC_NFC
 
 # Best-of-N (only used by --fc-mode iffc-state-bon)
