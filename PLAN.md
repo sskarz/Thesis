@@ -80,7 +80,7 @@ Strengthens the thesis narrative and fills gaps in current evaluation.
 - **Target categories:** All multi-turn, especially `multi_turn_long_context`
 - **Expected impact:** -30–50% tokens, improved multi-turn accuracy
 - **Effort:** Medium
-- **Source:** Xu et al., "ACON," arXiv:2510.00615
+- **Source:** Kang et al., "ACON," arXiv:2510.00615
 
 ### 7. Parallel Calling Investigation
 
