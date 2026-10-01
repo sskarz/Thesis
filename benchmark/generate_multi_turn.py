@@ -1372,10 +1372,16 @@ async def _run_async(
         f"  run_id={run_id}{extra}"
     )
     if _uses_decision(fc_mode):
+        knobs = decision_sidecar.hygiene_knobs()
         print(
             f"[multi-turn generate] Decision sidecar prewarm "
             f"model={decision_sidecar.DECISION_MODEL} "
-            f"endpoint={decision_sidecar.DECISION_ENDPOINT}"
+            f"endpoint={decision_sidecar.DECISION_ENDPOINT} "
+            f"timeout_s={knobs['DECISION_TIMEOUT_S']} "
+            f"retries={knobs['DECISION_TIMEOUT_RETRIES']} "
+            f"max_inflight={knobs['DECISION_MAX_INFLIGHT']} "
+            f"prewarm_slots={knobs['DECISION_PREWARM_SLOTS']} "
+            f"OLLAMA_NUM_PARALLEL={knobs['OLLAMA_NUM_PARALLEL']}"
         )
     if run_id is None:
         print(

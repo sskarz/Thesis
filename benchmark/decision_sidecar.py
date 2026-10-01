@@ -11,6 +11,14 @@ Kill-switches (HARNESS_FIX_PLAN levers 1+2+3)::
     DECISION_NOOP_SOFT          soft_once|noop_as_bypass|hard (default soft_once)
     DECISION_NOOP_HARD_BREAK    0|1 (default 0; 1 forces hard break)
     DECISION_CLAMP_STRATEGY     lex|relevant (default relevant)
+
+Turn-0 timeout hygiene (R58 ~87% first-call timeout_warm under load)::
+
+    DECISION_TIMEOUT_S          float (default 45; was 20)
+    DECISION_TIMEOUT_RETRIES    int (default 1; retry once on Timeout*)
+    DECISION_MAX_INFLIGHT       int (default 2; 0=unlimited; caps concurrent tev1 POSTs)
+    DECISION_PREWARM_SLOTS      int (default = MAX_INFLIGHT or 2; parallel tiny prewarms)
+    DECISION_KEEP_ALIVE         str (default 30m)
 """
 
 from __future__ import annotations
@@ -84,12 +92,26 @@ def _env_int(name: str, default: int) -> int:
 DECISION_ENDPOINT = _env_str("DECISION_ENDPOINT", DEFAULT_ENDPOINT)
 DECISION_MODEL = _env_str("DECISION_MODEL", DEFAULT_MODEL)
 DECISION_API_KEY = _env_str("DECISION_API_KEY", "ollama")
+# Default 45s: R58 first-call timeout_warm storm hit the old 20s wall under
+# PARALLEL_SLOTS gather stampede (Decision was ungated vs OLLAMA_NUM_PARALLEL).
 DECISION_TIMEOUT_S = _env_float("DECISION_TIMEOUT_S", DEFAULT_TIMEOUT_S)
 DECISION_CHOICE_MIN = _env_float("DECISION_CHOICE_MIN", 0.35)
 DECISION_NOOP_MIN = _env_float("DECISION_NOOP_MIN", 0.30)  # placeholder
 DECISION_IDENTICAL_VETO = _env_int("DECISION_IDENTICAL_VETO", 0)  # OFF
 DECISION_KEEP_ALIVE = _env_str("DECISION_KEEP_ALIVE", "30m")
 DECISION_RECENCY_MASK = _env_int("DECISION_RECENCY_MASK", 0)
+DECISION_TIMEOUT_RETRIES = _env_int("DECISION_TIMEOUT_RETRIES", 1)
+DECISION_MAX_INFLIGHT = _env_int("DECISION_MAX_INFLIGHT", 2)  # 0 = unlimited
+_prewarm_slots_env = os.environ.get("DECISION_PREWARM_SLOTS")
+if _prewarm_slots_env is None or _prewarm_slots_env == "":
+    DECISION_PREWARM_SLOTS = (
+        DECISION_MAX_INFLIGHT if DECISION_MAX_INFLIGHT > 0 else 2
+    )
+else:
+    try:
+        DECISION_PREWARM_SLOTS = max(1, int(_prewarm_slots_env))
+    except ValueError:
+        DECISION_PREWARM_SLOTS = 2
 
 # Lever kill-switches (defaults ON for shipped levers)
 DECISION_DESC_MODE = _env_str("DECISION_DESC_MODE", "short")
@@ -105,6 +127,99 @@ _PREWARM_TOOL = "__prewarm__"
 _prewarm_lock = threading.Lock()
 _prewarmed = False
 _prewarm_was_cold = True
+_inflight_lock = threading.Lock()
+_inflight_sem: threading.Semaphore | None = None
+
+
+def _get_inflight_sem() -> threading.Semaphore | None:
+    """Lazy semaphore so tests can monkeypatch DECISION_MAX_INFLIGHT."""
+    global _inflight_sem
+    n = int(DECISION_MAX_INFLIGHT or 0)
+    if n <= 0:
+        return None
+    with _inflight_lock:
+        if _inflight_sem is None:
+            _inflight_sem = threading.Semaphore(n)
+        return _inflight_sem
+
+
+def reset_inflight_gate() -> None:
+    """Test helper: drop cached semaphore after monkeypatching MAX_INFLIGHT."""
+    global _inflight_sem
+    with _inflight_lock:
+        _inflight_sem = None
+
+
+def _is_timeout_client_error(error: str | None) -> bool:
+    if not error:
+        return False
+    if error in ("timeout_cold", "timeout_warm"):
+        return True
+    if "Timeout" in error or "timeout" in error.lower():
+        return True
+    return False
+
+
+def _post_systemone_gated(**kwargs) -> SystemOneResult:
+    """POST System One under DECISION_MAX_INFLIGHT (queue wait ≠ HTTP timeout)."""
+    sem = _get_inflight_sem()
+    if sem is None:
+        return post_systemone(**kwargs)
+    sem.acquire()
+    try:
+        return post_systemone(**kwargs)
+    finally:
+        sem.release()
+
+
+def _post_systemone_with_retries(**kwargs) -> tuple[SystemOneResult, int]:
+    """Gate + retry once (default) on Timeout*. Returns (result, attempts_used)."""
+    attempts = 1 + max(0, int(DECISION_TIMEOUT_RETRIES or 0))
+    last: SystemOneResult | None = None
+    used = 0
+    for i in range(attempts):
+        used = i + 1
+        last = _post_systemone_gated(**kwargs)
+        if last.ok or not _is_timeout_client_error(last.error):
+            return last, used
+        # timeout → retry (if attempts remain)
+    assert last is not None
+    return last, used
+
+
+def _ollama_num_parallel() -> str:
+    """Best-effort: process env, then macOS launchctl getenv."""
+    env = os.environ.get("OLLAMA_NUM_PARALLEL")
+    if env:
+        return env
+    try:
+        import subprocess
+
+        out = subprocess.run(
+            ["launchctl", "getenv", "OLLAMA_NUM_PARALLEL"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        val = (out.stdout or "").strip()
+        if val:
+            return val
+    except Exception:  # noqa: BLE001
+        pass
+    return "(unset)"
+
+
+def hygiene_knobs() -> dict[str, object]:
+    """Snapshot of turn0 timeout hygiene knobs (for logs / STATUS)."""
+    return {
+        "DECISION_TIMEOUT_S": DECISION_TIMEOUT_S,
+        "DECISION_TIMEOUT_RETRIES": DECISION_TIMEOUT_RETRIES,
+        "DECISION_MAX_INFLIGHT": DECISION_MAX_INFLIGHT,
+        "DECISION_PREWARM_SLOTS": DECISION_PREWARM_SLOTS,
+        "DECISION_KEEP_ALIVE": DECISION_KEEP_ALIVE,
+        "OLLAMA_NUM_PARALLEL": _ollama_num_parallel(),
+    }
 
 
 @dataclass
@@ -139,47 +254,70 @@ def noop_consumer_mode() -> str:
     return mode
 
 
+def _one_prewarm_post() -> SystemOneResult:
+    """Single legal prewarm Choice POST (dummy tool + noop)."""
+    state = (
+        f"available_tools:\n  - {_PREWARM_TOOL}\n"
+        "transcript:\n  [user] warmup"
+    )
+    questions = build_questions(
+        [_PREWARM_TOOL], include_noul=False, desc_mode="off"
+    )
+    questions.pop("_meta", None)
+    criteria = list(questions["next_tool"]["criteria"].keys())
+    assert 2 <= len(criteria) <= MAX_CHOICE_CRITERIA, (
+        f"prewarm criteria out of range: {len(criteria)}"
+    )
+    result, _attempts = _post_systemone_with_retries(
+        state=state,
+        questions=questions,
+        model=DECISION_MODEL,
+        endpoint=DECISION_ENDPOINT,
+        api_key=DECISION_API_KEY,
+        timeout_s=DECISION_TIMEOUT_S,
+        criteria_names=criteria,
+        keep_alive=DECISION_KEEP_ALIVE or None,
+    )
+    return result
+
+
 def prewarm(*, force: bool = False) -> SystemOneResult | None:
-    """One tiny System One call so cold load is not the first real step.
+    """Tiny System One call(s) so cold load is not the first real step.
 
     Must be a **legal** Choice question: 2–26 criteria. Uses a dummy tool
     ``__prewarm__`` plus deploy ``noop`` (never noop-only).
+
+    Fires ``DECISION_PREWARM_SLOTS`` parallel tiny calls (gated by
+    ``DECISION_MAX_INFLIGHT``) so multiple Ollama slots get a warm KV touch
+    before the gather stampede.
     """
     global _prewarmed, _prewarm_was_cold
     with _prewarm_lock:
         if _prewarmed and not force:
             return None
-        state = (
-            f"available_tools:\n  - {_PREWARM_TOOL}\n"
-            "transcript:\n  [user] warmup"
-        )
-        questions = build_questions(
-            [_PREWARM_TOOL], include_noul=False, desc_mode="off"
-        )
-        # Strip telemetry before post
-        questions.pop("_meta", None)
-        criteria = list(questions["next_tool"]["criteria"].keys())
-        assert 2 <= len(criteria) <= MAX_CHOICE_CRITERIA, (
-            f"prewarm criteria out of range: {len(criteria)}"
-        )
-        result = post_systemone(
-            state=state,
-            questions=questions,
-            model=DECISION_MODEL,
-            endpoint=DECISION_ENDPOINT,
-            api_key=DECISION_API_KEY,
-            timeout_s=DECISION_TIMEOUT_S,
-            criteria_names=criteria,
-            keep_alive=DECISION_KEEP_ALIVE or None,
-        )
-        # Only mark prewarmed on success so a failed warmup does not fake "warm".
-        if result.ok:
-            _prewarmed = True
-            _prewarm_was_cold = result.latency_ms >= 5000.0
+        n_slots = max(1, int(DECISION_PREWARM_SLOTS or 1))
+        results: list[SystemOneResult] = []
+        if n_slots == 1:
+            results.append(_one_prewarm_post())
         else:
-            # Still record cold/warm heuristic for logging on the attempt.
-            _prewarm_was_cold = result.latency_ms >= 5000.0
-        return result
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            with ThreadPoolExecutor(max_workers=n_slots) as pool:
+                futs = [pool.submit(_one_prewarm_post) for _ in range(n_slots)]
+                for fut in as_completed(futs):
+                    results.append(fut.result())
+        # Prefer any ok result for cold/warm heuristic; mark prewarmed if any ok.
+        ok_results = [r for r in results if r.ok]
+        if ok_results:
+            _prewarmed = True
+            # Cold if *any* slot looked cold (slow first touch).
+            _prewarm_was_cold = any(r.latency_ms >= 5000.0 for r in ok_results)
+            return ok_results[0]
+        # All failed — do not fake warm.
+        worst = max(results, key=lambda r: r.latency_ms) if results else None
+        if worst is not None:
+            _prewarm_was_cold = worst.latency_ms >= 5000.0
+        return worst
 
 
 def probe_next_tool(
@@ -227,7 +365,7 @@ def probe_next_tool(
         meta = dict(questions.pop("_meta", {}) or {})
         criteria = list(questions["next_tool"]["criteria"].keys())
         cold_or_warm = "cold" if (not _prewarmed) else "warm"
-        client = post_systemone(
+        client, attempts_used = _post_systemone_with_retries(
             state=state,
             questions=questions,
             model=DECISION_MODEL,
@@ -238,12 +376,7 @@ def probe_next_tool(
             keep_alive=DECISION_KEEP_ALIVE or None,
         )
         # Refine timeout bypass reason for policy mapping
-        if (
-            not client.ok
-            and client.error
-            and "Timeout" in client.error
-        ):
-            # Mutate a copy-like path via error string consumed by decide
+        if not client.ok and _is_timeout_client_error(client.error):
             tag = "timeout_cold" if cold_or_warm == "cold" else "timeout_warm"
             client = SystemOneResult(
                 ok=False,
@@ -290,6 +423,7 @@ def probe_next_tool(
         cold_or_warm = "warm"
         state = ""
         criteria = []
+        attempts_used = 0
 
     record = {
         "entry_id": entry_id,
@@ -325,7 +459,14 @@ def probe_next_tool(
         "noop_soft_mode": noop_consumer_mode(),
         "noop_min": DECISION_NOOP_MIN,
         "choice_min": DECISION_CHOICE_MIN,
-        "flags": [],
+        "decision_timeout_s": DECISION_TIMEOUT_S,
+        "decision_max_inflight": DECISION_MAX_INFLIGHT,
+        "decision_attempts": attempts_used,
+        "flags": (
+            [f"decision_timeout_retry:{attempts_used}"]
+            if attempts_used > 1
+            else []
+        ),
     }
     if log:
         try:
@@ -366,18 +507,23 @@ __all__ = [
     "DECISION_DESC_MODE",
     "DECISION_ENDPOINT",
     "DECISION_IDENTICAL_VETO",
+    "DECISION_MAX_INFLIGHT",
     "DECISION_MODEL",
     "DECISION_NOOP_ARGMAX",
     "DECISION_NOOP_HARD_BREAK",
     "DECISION_NOOP_MIN",
     "DECISION_NOOP_SOFT",
+    "DECISION_PREWARM_SLOTS",
+    "DECISION_TIMEOUT_RETRIES",
     "DECISION_TIMEOUT_S",
     "MAX_ACTIVE_TOOLS",
     "MAX_CHOICE_CRITERIA",
     "ProbeResult",
+    "hygiene_knobs",
     "is_noop_allowed",
     "name_hint_user_message",
     "noop_consumer_mode",
     "prewarm",
     "probe_next_tool",
+    "reset_inflight_gate",
 ]
