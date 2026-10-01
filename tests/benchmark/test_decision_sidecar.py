@@ -736,3 +736,116 @@ def test_short_survives_at_state_cap_1800():
     tf = sum(1 for m in per.values() if m == "template_fallback")
     assert tf / max(1, len(per)) < 0.05
 
+
+
+# === turn0 timeout hygiene (inflight gate + retry) ===
+
+
+def test_hygiene_knobs_defaults():
+    knobs = decision_sidecar.hygiene_knobs()
+    assert float(knobs["DECISION_TIMEOUT_S"]) >= 45.0
+    assert int(knobs["DECISION_TIMEOUT_RETRIES"]) >= 1
+    assert int(knobs["DECISION_MAX_INFLIGHT"]) == 2
+
+
+def test_timeout_retry_then_ok(monkeypatch):
+    decision_sidecar.reset_inflight_gate()
+    calls = {"n": 0}
+
+    def fake_post(**kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return SystemOneResult(
+                ok=False,
+                choice=None,
+                probabilities={},
+                confidence=None,
+                noul=None,
+                latency_ms=20001.0,
+                raw=None,
+                error="client_exception:TimeoutError: timed out",
+                http_status=None,
+                input_tokens=None,
+            )
+        return _ok_result("ls", {"ls": 0.8, "noop": 0.2})
+
+    monkeypatch.setattr(decision_sidecar, "post_systemone", fake_post)
+    monkeypatch.setattr(decision_sidecar, "DECISION_TIMEOUT_RETRIES", 1)
+    monkeypatch.setattr(decision_sidecar, "DECISION_MAX_INFLIGHT", 0)
+    decision_sidecar.reset_inflight_gate()
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "ls",
+                "description": "list",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    ]
+    probe = decision_sidecar.probe_next_tool(
+        [{"role": "user", "content": "list"}],
+        tools,
+        entry_id="t_retry",
+        turn=0,
+        step=0,
+        log=False,
+    )
+    assert calls["n"] == 2
+    assert probe.client.ok is True
+    assert probe.log_record["decision_attempts"] == 2
+
+
+def test_inflight_gate_peak_at_most_two(monkeypatch):
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    decision_sidecar.reset_inflight_gate()
+    inflight = 0
+    peak = 0
+    lock = threading.Lock()
+
+    def slow_post(**kwargs):
+        nonlocal inflight, peak
+        with lock:
+            inflight += 1
+            peak = max(peak, inflight)
+        time.sleep(0.03)
+        with lock:
+            inflight -= 1
+        return _ok_result("ls", {"ls": 0.9, "noop": 0.1})
+
+    monkeypatch.setattr(decision_sidecar, "post_systemone", slow_post)
+    monkeypatch.setattr(decision_sidecar, "DECISION_MAX_INFLIGHT", 2)
+    monkeypatch.setattr(decision_sidecar, "DECISION_TIMEOUT_RETRIES", 0)
+    decision_sidecar.reset_inflight_gate()
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "ls",
+                "description": "list",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    ]
+    hist = [{"role": "user", "content": "list"}]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futs = [
+            pool.submit(
+                decision_sidecar.probe_next_tool,
+                hist,
+                tools,
+                entry_id=f"p{i}",
+                turn=0,
+                step=0,
+                log=False,
+            )
+            for i in range(6)
+        ]
+        for f in as_completed(futs):
+            assert f.result().client.ok
+    assert peak <= 2
