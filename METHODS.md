@@ -29,7 +29,7 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: IFFC stop-on-repeat (`--fc-mode iffc-stop-repeat`)](#experiment-iffc-stop-on-repeat---fc-mode-iffc-stop-repeat) (Run 27 ungated miss 27.0%; Run 30 tighten **32.5%** scored win vs IFFC on BASE; **do not overwrite**; Run 42 OODA-card is now higher Acc)
 - [Experiment: IFFC OODA card (`--fc-mode iffc-ooda-card`)](#experiment-iffc-ooda-card---fc-mode-iffc-ooda-card) (Run 42 **71/200 = 35.5%**; +3.0 pp vs Run 30; `state_mismatch` gate **MISS**; still below BoN 36.5%)
 - [Experiment: IFFC PTC-A (`--fc-mode iffc-ptc-a`)](#experiment-iffc-ptc-a---fc-mode-iffc-ptc-a) (Run 46 **27/200 = 13.5%** scored FAIL / Acc regression; **bank and close**; PTC-B **HOLD**; next = DPO)
-- [Experiment: IFFC Decision sidecar (`--fc-mode iffc-decision`)](#experiment-iffc-decision-sidecar---fc-mode-iffc-decision) (Run 58 **50/200 = 25.0%** scored FAIL_METHOD / no lift; park Decision Acc; Runs 56/57 both **0/10**; `iffc-decision-ooda` landed locally `50b743f` / smoke PASS — **no Acc**)
+- [Experiment: IFFC Decision sidecar (`--fc-mode iffc-decision`)](#experiment-iffc-decision-sidecar---fc-mode-iffc-decision) (Run 58 **50/200 = 25.0%** scored FAIL_METHOD / no lift; park Decision Acc; Runs 56/57 both **0/10**; `iffc-decision-ooda` landed locally `50b743f` / smoke PASS — **no Acc**; turn-0 timeout hygiene `ee4d877` / probe `98f1b56` smoke/hygiene PASS — **Acc still not run**)
 - [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
 - [Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)](#experiment-mlx-sft-v1-gemma-4-e2b-iffc-mix)
 - [SFT v9.2 smoke-gate FAIL (Run 36; HOLD / park)](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold) (plain-IFFC 10-ID; **not** a `multi_turn_base` %; quota remix **HOLD**)
@@ -1189,7 +1189,7 @@ Primary WHY: **`MODEL_WEAK_RANKING`** (turn-0 gold top-1 ≈ **38.8%** when Choi
 
 ### Recipe-align / compose (smoke PASS; no Acc)
 
-As shipped on the Run 58 pin, `iffc-decision` **cannot** share Run 42’s OODA-card + stop-repeat MIN=6 recipe (**NO**). Compose mode **`iffc-decision-ooda`** **landed locally** as Thesis commit **`50b743f`** on branch `cursor/harness-iffc-decision-ooda` (**not pushed**); OODA source **`1dea341`**. STATUS `/tmp/sft_logs/codex_iffc_decision_ooda_compose_STATUS.md`: **smoke PASS only**; **Acc was not run**. **Do not invent a compose Acc.** Do **not** resume 30/42/51–58.
+As shipped on the Run 58 pin, `iffc-decision` **cannot** share Run 42’s OODA-card + stop-repeat MIN=6 recipe (**NO**). Compose mode **`iffc-decision-ooda`** **landed locally** as Thesis commit **`50b743f`** on branch `cursor/harness-iffc-decision-ooda` (**not pushed**); OODA source **`1dea341`**. STATUS `/tmp/sft_logs/codex_iffc_decision_ooda_compose_STATUS.md`: **smoke PASS only**; **Acc was not run**. Turn-0 Decision timeout hygiene landed Thesis **`ee4d877`** / probe **`98f1b56`** (STATUS smoke/hygiene **PASS**; **Acc still not run**). **Do not invent a compose Acc.** Do **not** resume 30/42/51–58.
 
 #### N=200 scoreboard after Run 58
 
