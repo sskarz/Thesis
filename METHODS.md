@@ -1652,7 +1652,7 @@ Each method in this section involves modifying model weights — via supervised 
 - [31. RC-GRPO: Reward-Conditioned GRPO](#31-rc-grpo-reward-conditioned-grpo)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
-- [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling) (survey; planned Choice/router KD **path B first** — **separate Acc track**; **not** an Acc claim)
+- [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling) (survey; Choice/router KD **path B first** ranking **HOLD** — **separate Acc track**; ranking ≠ Acc; Acc still **NO-GO**)
 - [23. Curriculum Learning for Progressive Tool Mastery](#23-curriculum-learning-for-progressive-tool-mastery)
 - [Training-Time Prioritized Recommendations](#training-time-prioritized-recommendations)
 - [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28)
@@ -2356,9 +2356,9 @@ Two primary approaches:
 - **Cost consideration:** Generating distillation data from API models has a monetary cost. For BFCL's ~1,390 single-turn + 800 multi-turn test cases, this is modest.
 - **Complexity:** Low (if using existing distillation datasets) to Medium (if generating custom data from teacher models).
 
-### Planned: Choice/router KD (path B first) — survey only; separate Acc track
+### Planned: Choice/router KD (path B first) — ranking HOLD; Acc still NO-GO
 
-**Docs/plan only.** No train, no harness scaffold, no Acc launch in this write-up. Plan source (summarized, not dumped): Codex `codex_KD_TOOLCHOICE_RESEARCH.md`, `codex_KD_TOOLCHOICE_PLAN.md`, `codex_KD_TOOLCHOICE_FEASIBILITY.md`, `codex_KD_TOOLCHOICE_DOCS_STATUS.md` (2026-10-01).
+**Survey/plan plus executed ranking trail.** Ranking probes **ran** and **HOLD**. Acc still **NO-GO** (no ≤10-ID / no full-200). Plan source (summarized, not dumped): Codex `codex_KD_TOOLCHOICE_RESEARCH.md`, `codex_KD_TOOLCHOICE_PLAN.md`, `codex_KD_TOOLCHOICE_FEASIBILITY.md`, `codex_KD_TOOLCHOICE_DOCS_STATUS.md` (2026-10-01). Ranking STATUS: `codex_KD_PATH_B_TRAIN_RANK_STATUS.md` (tiny HOLD), `codex_KD_PATH_B_RICHER_PIVOT_STATUS.md` (recipe lock), `codex_KD_PATH_B_RICHER_TRAIN_RANK_STATUS.md` (+ SCORE.json).
 
 **Motivation (sourced Acc only — not a forecast):** Run 61 Decision+OODA **52/200 = 26.0%** and Run 58 Decision **50/200 = 25.0%** did **not** fix `MODEL_WEAK_RANKING` (R58 WHY: tev1 turn-0 gold top-1 ≈ **38.8%** when Choice returned). Both sit well below IFFC **30.5%** / Run 30 **32.5%** / Run 42 **35.5%**. **Do not forecast post-KD Acc.** Decision Acc stays parked for tev1 @ these levers.
 
@@ -2386,16 +2386,28 @@ Also logged (paper suites **theirs**, not our harness): ODIA (response-based FC 
 
 **Teachers (when a later implement GO exists):** (1) BFCL gold next-tool / checker-aligned trajectories (preferred; no API); (2) local larger open mid-size for diversity / optional menu soft ranks; (3) API non-Claude only with explicit spend GO. **Forbidden:** Claude. **Forbidden as primary:** tev1 argmax (copies `MODEL_WEAK`; hard-negative / rejected side only). Optional preference mine from read-only R58/R61 `DECISION_LOG` where gold was on menu but tev1 top-1 ≠ gold.
 
-**Gates (later implement — ordered):**
+**Gates (ordered — ranking executed HOLD; Acc still later):**
 
 1. **Smoke** — Choice schema parse / menu clamp / noop legal; sidecar HTTP healthy. Ops, **not** Acc.
-2. **Ranking pre-gate (NOT Acc)** — held-out Decision states: gold **top-1 / top-3 / mean-rank** (same family as R58 WHY). Suggest beating frozen tev1 on the **same** probe IDs (R58-era turn-0 top-1 ≈ 38.8% is a WHY baseline, not a BFCL %). Exact margin is a GO-time contract.
+2. **Ranking pre-gate (NOT Acc)** — held-out Decision states: gold **top-1 / top-3 / mean-rank** (same family as R58 WHY). Suggest beating frozen tev1 on the **same** probe IDs (R58-era turn-0 top-1 ≈ 38.8% is a WHY baseline, not a BFCL %). Exact margin is a GO-time contract. **Executed:** tiny then richer students both **HOLD** (trail below). Acc still **NO-GO**.
 3. **≤10-ID Acc** — only on **explicit Acc GO**; new `run_id`; llama.cpp + BFCL v4 `multi_turn_base`.
 4. **Full-200 Acc** — only on a **separate Acc GO**; new `run_id`; **never resume 30/42/51–61**.
 
-Leakage: hold out `entry_id`s used for Acc claims; ranking probe set ≠ Acc claim set (or disclose overlap and do not claim Acc). Label/train offline; never co-schedule with Acc llama.cpp + Ollama. Ranking lift ≠ trajectory PASS (args, STATE, empty/`[]`, OODA/stop-repeat still matter). Acc only beats R58/R61 (25–26%) → **HOLD** (same class as weak Decision). **Do not invent a predicted Acc.**
+Leakage: hold out `entry_id`s used for Acc claims; ranking probe set ≠ Acc claim set (or disclose overlap and do not claim Acc). Label/train offline; never co-schedule with Acc llama.cpp + Ollama. Ranking lift ≠ trajectory PASS (args, STATE, empty/`[]`, OODA/stop-repeat still matter). Acc only beats R58/R61 (25–26%) → **HOLD** (same class as weak Decision). **Do not invent a predicted Acc.** Ranking metrics **are not** BFCL `%`.
 
-**This docs pass:** GO for survey/plan. **NO-GO:** train, fuse, GGUF swap, ranking probe run, Acc, Claude teacher, Thesis harness edits, resume 30/42/51–61.
+**Executed ranking trail (path B; ranking ≠ Acc):** CPU numpy students (Metal-safe; llama-server not contended). Teacher = **BFCL gold** next-tool. Frozen tev1 = ranking baseline / rejected side in prefs **only** — **not** teacher. Fit: gold **train** 426 rows / 117 `entry_id`s. Leakage **OK**: train ⊥ rank_holdout ⊥ acc_holdout by `entry_id`; acc_holdout unused for train and ranking. Prior-tool bag uses **gold previous tools** (oracle history — Acc would use executed). R61 Decision Acc remains parked at **52/200 = 26.0%** (unchanged; do not re-score). **Do not invent Acc.**
+
+| Student | Probe | n | student top-1 / top-3 / mean_rank | frozen tev1 | Gate |
+|---------|-------|---|-----------------------------------|-------------|------|
+| Tiny `small_classifier_tool_vocab_hard_CE` | R58-aligned | 115 | **23.5%** (0.2348) / 49.6% (0.4957) / 5.43 | **73.9%** (0.7391) / 87.8% / 1.90 | **HOLD** (FAIL ranking) |
+| Richer `rich_classifier_v2_ce_plus_pref` | R58-aligned (primary) | 115 | **67.0%** (0.6696) / **86.1%** (0.8609) / **2.04** | **73.9%** / **87.8%** / **1.90** | **HOLD** (~7 pp top-1) |
+| Same richer | R61-aligned (secondary) | 141 | **65.3%** / **83.7%** / **2.31** | **73.8%** / **87.9%** / **1.99** | **HOLD** |
+
+Tiny: hard CE only (prefs unused); ask hash dim 64. Richer recipe lock: ask uni+bi hash **512**; tool↔ask overlap; CE on train gold (426/117) then Bradley-Terry on **190** train prefs (gold≻tev1-wrong); model `kd_choice/data/choice_rich_v2_train.json`. Big lift vs tiny (**+43.5 pp** top-1 on R58) but **does not clearly beat tev1** → ranking gate **HOLD**. Acc still **NO-GO**.
+
+**Preferred next lever:** soft-menu KD (local Gemma logprobs via llama-server → rich student). Sequential MLX LoRA Choice-SLM only with a Metal plan. **Do not Acc** until ranking PASS + separate Acc GO + new `run_id`s.
+
+**This docs pass:** GO for survey/plan + bank ranking **HOLD** trail (tiny → richer). Ranking probes **ran**; ranking still **HOLD**. Acc still **NO-GO**. **NO-GO:** fuse, GGUF swap, ≤10-ID Acc, full-200 Acc, Claude teacher, Thesis harness edits, resume 30/42/51–61.
 
 ### Sources
 
@@ -2407,7 +2419,7 @@ Leakage: hold out `entry_id`s used for Acc claims; ranking probe set ≠ Acc cla
 - Zhang, Yang, Li, He, Gong. "ODIA." arXiv:2507.08877, 2025.
 - Yin et al. "Magnet: Multi-turn Tool-use Data Synthesis and Distillation via Graph Translation." ACL 2025. arXiv:2503.07826.
 - Jung et al. "DiaTool-DPO." SIGdial 2025. arXiv:2504.02882 (see [§21](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)).
-- Codex notes (plan source, 2026-10-01): `codex_KD_TOOLCHOICE_RESEARCH.md`, `codex_KD_TOOLCHOICE_PLAN.md`, `codex_KD_TOOLCHOICE_FEASIBILITY.md`, `codex_KD_TOOLCHOICE_DOCS_STATUS.md`.
+- Codex notes (plan source, 2026-10-01): `codex_KD_TOOLCHOICE_RESEARCH.md`, `codex_KD_TOOLCHOICE_PLAN.md`, `codex_KD_TOOLCHOICE_FEASIBILITY.md`, `codex_KD_TOOLCHOICE_DOCS_STATUS.md`. Ranking trail (same day): `codex_KD_PATH_B_TRAIN_RANK_STATUS.md` (tiny HOLD), `codex_KD_PATH_B_RICHER_PIVOT_STATUS.md`, `codex_KD_PATH_B_RICHER_TRAIN_RANK_STATUS.md` (+ SCORE.json).
 
 ---
 
@@ -2578,7 +2590,7 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 - **SFT v9.2 10-ID smoke-gate FAIL** (Run 36): avg `api_calls` **25.7** (gate ≤8.3), `hit_step_limit` **6/10** (gate ≤2). Smoke@100 healthy (val→**0.645**); full LoRA never started. Worse than Run 33 v9.1 (17.6 / 5/10) and Run 31 v9 (22.5 / 5/10). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **Do not cite Run 35** (INVALID — server died). Run 37 VC sidecar diagnostic only — not in /10. Codex **`HOLD_sft_quota_remix`**. Details: [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold).
 - **DPO β0.2 smoke100 10-ID PASS** (Run 49): avg API **4.4**, `hit_step_limit` **0/10**, `iffc_unparseable` **0/10**, `turn0_tool` **7/10** — all gates **MET**. Same 10 IDs as Run 47 (β0.1 turn0 **6/10**, avg **4.50**) / Run 48 (BASE turn0 **10/10**, avg **6.80**). **Health gate, not a BFCL %.** **Do not invent** a Run 49 / 47 / 48 `multi_turn_base` %. Full DPO train still **HOLD** pending Sanskar GO + Codex verify. Details: [DPO β0.2 smoke100 PASS](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-).
 
-**Tightened stop-repeat PASSES** (Run 30 **32.5%**). Run 42 iffc-ooda-card **scored 35.5%** (`state_mismatch` gate **MISS**; still below BoN). SFT v9.2 smoke-gate **FAIL → park**. Quota remix **HOLD**. DPO β0.2 smoke100 10-ID **PASS**; DPO-full Run 51 **53/200 = 26.5%** scored (**not** a method win); Run 61 Decision+OODA **26.0% FAIL**; Run 58 Decision **25.0% FAIL**. Planned next ranking track (not Acc): Choice/router KD **path B first** — [§22](#22-knowledge-distillation-for-tool-calling). Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 / Run 49 BFCL %.**
+**Tightened stop-repeat PASSES** (Run 30 **32.5%**). Run 42 iffc-ooda-card **scored 35.5%** (`state_mismatch` gate **MISS**; still below BoN). SFT v9.2 smoke-gate **FAIL → park**. Quota remix **HOLD**. DPO β0.2 smoke100 10-ID **PASS**; DPO-full Run 51 **53/200 = 26.5%** scored (**not** a method win); Run 61 Decision+OODA **26.0% FAIL**; Run 58 Decision **25.0% FAIL**. Choice/router KD **path B first** ranking **HOLD** (tiny top-1 **23.5%** → richer **67.0%** vs frozen tev1 **73.9%** on R58-aligned n=115; ranking ≠ Acc; Acc still **NO-GO**) — [§22](#22-knowledge-distillation-for-tool-calling). Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 / Run 49 BFCL %.**
 
 ### Theme
 
