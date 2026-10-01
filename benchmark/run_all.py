@@ -18,6 +18,8 @@ Function-calling modes (``--fc-mode``):
   ``xlam-1b`` (Run 19 NFC 0/200 was format-channel collapse; Run 20
   ``--fc-mode xlam`` scored 6/200 = 3.0% --- still very low, not published
   ~78.94%).
+- ``iffc-stop-repeat`` / ``iffc-ooda-card`` / ``iffc-decision`` /
+  ``iffc-decision-ooda``: see ``benchmark.config`` / ``generate_multi_turn``.
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits
 trailing IFFC assistant ``[]`` from ``chat_history`` before the next BFCL
@@ -59,7 +61,7 @@ def _notes_with_run_meta(args: argparse.Namespace) -> str | None:
     extra: list[str] = []
     if args.fc_mode != config.FC_NFC:
         extra.append(f"fc_mode={args.fc_mode}")
-    if args.fc_mode == config.FC_IFFC_DECISION:
+    if args.fc_mode in config.FC_IFFC_DECISION_MODES:
         import os
         extra.append(
             "decision_model="
@@ -208,8 +210,11 @@ def main():
             "identical calls, or executed-call re-emits after 6 assistant "
             "tool-turns in the current ask (baseline iffc unchanged); "
             "iffc-decision = IFFC + Decision sidecar (Ollama System One "
-            "Choice next-tool/noop before Gemma args; not composed with "
-            "stop-repeat)."
+            "Choice next-tool/noop before Gemma args; plain R58 recipe); "
+            "iffc-ooda-card = IFFC + one-pass [OODA] card stacked on "
+            "stop-repeat MIN=6 (R42 recipe); "
+            "iffc-decision-ooda = Decision sidecar + OODA card + "
+            "stop-repeat MIN=6 (compose)."
         ),
     )
     parser.add_argument(
