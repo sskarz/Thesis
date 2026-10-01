@@ -2027,7 +2027,7 @@ R58’s distinctive regression vs R42 is **empty_response (+31)**. Sidecar: HTTP
 
 #### Recipe-align / compose (smoke PASS; no Acc)
 
-As shipped on the Run 58 pin (`04348af`), `--fc-mode iffc-decision` **cannot** share Run 42’s OODA-card + stop-repeat MIN=6 recipe (modes exclusive; Decision and OODA lived on divergent trees). Compose mode **`iffc-decision-ooda`** later **landed locally** as Thesis commit **`50b743f`** on branch `cursor/harness-iffc-decision-ooda` (**not pushed**); OODA source **`1dea341`**. STATUS `/tmp/sft_logs/codex_iffc_decision_ooda_compose_STATUS.md`: **smoke PASS only**; **Acc was not run**. **Do not invent a compose Acc.** Do **not** resume 30/42/51–58.
+As shipped on the Run 58 pin (`04348af`), `--fc-mode iffc-decision` **cannot** share Run 42’s OODA-card + stop-repeat MIN=6 recipe (modes exclusive; Decision and OODA lived on divergent trees). Compose mode **`iffc-decision-ooda`** later **landed locally** as Thesis commit **`50b743f`** on branch `cursor/harness-iffc-decision-ooda` (**not pushed**); OODA source **`1dea341`**. STATUS `/tmp/sft_logs/codex_iffc_decision_ooda_compose_STATUS.md`: **smoke PASS only**; **Acc was not run**. Turn-0 Decision timeout hygiene landed Thesis **`ee4d877`** / probe **`98f1b56`** (STATUS smoke/hygiene **PASS**; **Acc still not run**). **Do not invent a compose Acc.** Do **not** resume 30/42/51–58.
 
 #### Takeaways
 
@@ -2035,7 +2035,7 @@ As shipped on the Run 58 pin (`04348af`), `--fc-mode iffc-decision` **cannot** s
 2. **Sidecar was not dead** (~93% HTTP 200). Ranking + soft-noop empties + missing OODA/stop-repeat are the honest WHY.
 3. **Treatment-only caveat.** No same-session plain-IFFC twin for Run 58.
 4. **Park Decision Acc** for tev1 @ these levers. Do not overwrite BoN / Run 42 / STATE / Run 30 / IFFC / SFT-v4.
-5. **Compose has no Acc.** `iffc-decision-ooda` landed locally at `50b743f` (not pushed); smoke PASS only; Acc was not run.
+5. **Compose has no Acc.** `iffc-decision-ooda` landed locally at `50b743f` (not pushed); smoke PASS only. Turn-0 timeout hygiene landed Thesis `ee4d877` / probe `98f1b56` (smoke/hygiene PASS). Acc was not run.
 
 #### Anti-recommendations
 
