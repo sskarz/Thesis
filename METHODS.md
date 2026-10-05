@@ -1353,6 +1353,7 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 **Related options (logged 2026-10-05, all unscored; paper numbers are theirs; no Acc/train from this pass):**
 
 - **2026-10-05 training-relevant sweep ([§32](#32-cita-comparative-inference-for-tool-use-agents)–[§37](#37-tool-schema-bias-action-space-shaping)):** CITA, HAT, PG-SFT, SAP, Keyword Harnesses Fail Open, Tool-schema bias. All **unscored** lit notes. Do **not** invent `multi_turn_base` Acc. Do **not** train from this pass. Do **not** unlock GRPO as the main path.
+- **SAP** ([§35](#35-sap-state-guided-synthesis-with-argument-provenance)) — tagged **`FUTURE_EXPLORE` / unscored**. Promising data lever **after SFT-v10 G3**; **not** pausing current train. Optional later: mlx-v10 arg-chain vs SAP → maybe v11 mix. Paper BFCL v4 MT **theirs**. No Acc/train from this note.
 
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
@@ -1547,6 +1548,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
+5. **SAP §35 tagged `FUTURE_EXPLORE` / unscored** — after SFT-v10 G3; optional later mlx-v10 arg-chain vs SAP / v11 mix; **no Acc/train from this note**. See [§35](#35-sap-state-guided-synthesis-with-argument-provenance).
 
 `--fc-mode iffc --iffc-strip-empty-assistant` on `--model gemma4-e2b-sft-iffc-v2` is **scored** as Run 14: **4/200 = 2.0%** (**DIAGNOSTIC**; did **not** rescue). Do **not** re-run to overwrite that `runs` row. Default remains **off** for standard IFFC (Run 5–18 bookkeeping unchanged unless the diagnostic flag is set).
 
@@ -1569,7 +1571,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Li, Zhang, Liu, Yang, Cai, & Feng. CITA. arXiv:2610.02330. https://arxiv.org/abs/2610.02330 ([§32](#32-cita-comparative-inference-for-tool-use-agents); **not scored**; not a GRPO unlock)
 - Yang, Chai, & Wen. Harness Annealing (HAT). arXiv:2610.01235. https://arxiv.org/abs/2610.01235 ([§33](#33-harness-annealing-hat); **not scored**)
 - Li, Liang, Li, & Liu. PG-SFT. arXiv:2610.00949. https://arxiv.org/abs/2610.00949 ([§34](#34-pg-sft-privilege-guided-sft); **not scored**; their BFCL ≠ our sheet)
-- Tian, Chen, Gong, Zhang, & Liu. SAP. arXiv:2609.06124. https://arxiv.org/abs/2609.06124 ([§35](#35-sap-state-guided-synthesis-with-argument-provenance); **not scored**; not a substitute for locked SFT)
+- Tian, Chen, Gong, Zhang, & Liu. SAP. arXiv:2609.06124. https://arxiv.org/abs/2609.06124 ([§35](#35-sap-state-guided-synthesis-with-argument-provenance); **`FUTURE_EXPLORE` / unscored**; after SFT-v10 G3; not a substitute for locked SFT; not a pause on current train)
 - Santillana. Keyword Harnesses Fail Open. arXiv:2610.02142. https://arxiv.org/abs/2610.02142 ([§36](#36-keyword-harnesses-fail-open); **not scored**; do **not** claim Choice Acc from this paper)
 - Liu, Tan, Wang, & Guo. Tool-Schema Bias. arXiv:2609.34971. https://arxiv.org/abs/2609.34971 ([§37](#37-tool-schema-bias-action-space-shaping); **not scored**)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
@@ -2385,7 +2387,7 @@ Li, R., Liang, Z., Li, Z., & Liu, S. "Balancing Capability Acquisition and Reten
 
 SAP (Tian, Chen, Gong, Zhang, & Liu, 2026) synthesizes multi-turn function-calling data with an **FSM** whose edges carry per-argument **provenance tags** `{Pi, Po, Pc, Pu, Pf}` (initial state, prior observation, created, user, fallback). Each tool call is **executed immediately**; failures retry locally rather than discarding the whole trajectory. They train **SAP-4B** (Qwen3-4B-Instruct-2507, SFT only) and report it competitive on BFCL v4 multi-turn and τ².
 
-**Train vs infer: training-time data generation** (+ SFT on the dump). **Not a scored thesis experiment.** Complement near [§24 Data Turnstile](#24-data-turnstile-open-function-calling-data-generation) / APIGen-MT — **not** a substitute for the locked SFT path. Paper BFCL v4 MT / τ² are **theirs**.
+**Train vs infer: training-time data generation** (+ SFT on the dump). **Tag: `FUTURE_EXPLORE` / unscored.** Not a scored thesis experiment. Complement near [§24 Data Turnstile](#24-data-turnstile-open-function-calling-data-generation) / APIGen-MT — **not** a substitute for the locked SFT path and **not** a pause on SFT-v10 G3. Paper BFCL v4 MT / τ² are **theirs**.
 
 ### Mechanism
 
@@ -2398,18 +2400,40 @@ SAP (Tian, Chen, Gong, Zhang, & Liu, 2026) synthesizes multi-turn function-calli
 
 Paper results (Tian et al., 2026; cite as **theirs**, not ours):
 
-- SAP-4B on **their** BFCL v4 multi-turn split: Avg **30.4** / Base **38.0** / miss_func **23.0** / miss_param **24.5** / long_context **36.0**. Provenance-tag ablation drops Avg **30.4→24.0**.
+- SAP-4B on **their** BFCL v4 multi-turn split: Avg **22.1 → 30.4 (+8.3)**; Base **26.5 → 38.0 (+11.5)** (their Qwen3-4B-Instruct backbone → SAP-4B; **not** our DPO-full **26.5%**); miss_func **23.0** / miss_param **24.5** / long_context **36.0**. Provenance-tag ablation drops Avg **30.4→24.0**.
 - Competitive on τ² Retail/Airline vs several larger / RL-trained 8B methods in **their** table (SFT-only 4B).
 - Open-source dumps they diagnose (ToolACE, APIGen-MT) have shallower argument-propagation chains than SAP.
+- Public **code / data / weights**: https://github.com/Zichen1024/SAP. arXiv: https://arxiv.org/abs/2609.06124
 
 **Metric mismatch:** their BFCL v4 MT overall (and Base **38.0**) ≠ this repo’s 200-entry `multi_turn_base` Mac sheet. Do **not** write 30.4 / 38.0 as a thesis Acc. Do **not** confuse their Base 38.0 with our BoN **36.5%**.
 
 ### Applicability
 
-- **Thesis role:** Logged 2026-10-05; **unscored** data-gen complement near Data Turnstile / APIGen-MT. Not a substitute for locked SFT. Not scored Acc.
+- **Thesis role:** Logged 2026-10-05; **`FUTURE_EXPLORE` / unscored** data-gen complement near Data Turnstile / APIGen-MT. Promising **data lever AFTER SFT-v10 G3**. **Not** pausing current train. Not a substitute for locked SFT. Not scored Acc. Do **not** unlock SAP as the current train path.
 - **BFCL categories:** Paper reports all four MT slices on **their** split. Relevance to our `multi_turn_base` is hypothesis only until scored.
 - **Complexity:** High to run their live-executor synthesizer; low to *cite* as a v7-related option.
 - **Limitation:** Pipeline reuses BFCL / τ² schemas as the environment (sampled independently of the test split — still not our harness). Live-executor cost. English, single-agent.
+
+#### FUTURE_EXPLORE (unscored; after SFT-v10 G3)
+
+Plain-language: multi-turn SFT data where **every tool arg must declare provenance**, then **execute-validate** each call, **retry only the failed call** (not the whole trajectory), **then** write the dialogue. Map to paper tags `{Pi, Po, Pc, Pu, Pf}` as already listed:
+
+| Source (plain) | Tag |
+|----------------|-----|
+| initial state | `Pi` |
+| prior tool return | `Po` |
+| new this turn (created) | `Pc` |
+| prior user message | `Pu` |
+| runtime fallback | `Pf` |
+
+Targets **wrong / stale / hallucinated args** — matches our SFT-v10 **soft10** (Run 65: early state/args fail + `state_mismatch`) / Run 64 arg/state failure-mode family. **Not** a scored fix.
+
+**Framing for us:**
+
+- Tag: **`FUTURE_EXPLORE` / unscored**. Do **not** unlock SAP as the current train path.
+- Promising **data lever AFTER SFT-v10 G3**. **Not** pausing current train (G3 full CE on `mlx-v10` stays in flight).
+- **Next optional step later** (not now): measure our **mlx-v10** arg-chain depth vs SAP, then maybe mix a SAP-style / SAP-released slice into **v11**.
+- Caveats: synthesis cost (big LLMs + live executor); their train was **full-param multi-GPU** (verl, 8×80GB, 10 epochs), not Mac LoRA; Acc must be **re-scored on our harness** (`multi_turn_base`). Do **not** claim their 30.4 / 38.0 as thesis Acc.
 
 ### Source
 
