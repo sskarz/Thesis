@@ -33,7 +33,8 @@ Each method in this section operates at inference time without modifying model w
 - [Experiment: Best-of-N majority voting (`--fc-mode iffc-state-bon`)](#experiment-best-of-n-majority-voting---fc-mode-iffc-state-bon)
 - [Experiment: MLX SFT v1 (Gemma-4-E2B, IFFC mix)](#experiment-mlx-sft-v1-gemma-4-e2b-iffc-mix)
 - [SFT v9.2 smoke-gate FAIL (Run 36; HOLD / park)](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold) (plain-IFFC 10-ID; **not** a `multi_turn_base` %; quota remix **HOLD**)
-- [Run 65 — SFT-v10 soft10 Acc (0/10 FAIL; not N=200)](#run-65--sft-v10-soft10-acc-010-fail-not-n200) (plain `iffc`; Acc-track SFT smoke; undertraining; READY_FOR_FULL_TRAIN=yes; Acc/full-200 **NO-GO**; **not** Path-B; **not** N=200)
+- [Run 65 — SFT-v10 soft10 Acc (0/10 FAIL; not N=200)](#run-65--sft-v10-soft10-acc-010-fail-not-n200) (plain `iffc`; Acc-track SFT smoke; undertraining; G3 full CE train **PASS**; Acc/full-200 **NO-GO**; **not** Path-B; **not** N=200)
+- [G3 SFT-v10 full CE train PASS (unscored Acc)](#g3-sft-v10-full-ce-train-pass-unscored-acc) (train gate only; early-stop @1200; best@700; fuse `adapters-v10-best700/`; **do not** fuse `adapters-v10/adapters.safetensors`; READY_FOR_SOFT10_RETRY=yes; Acc **NO-GO**; **not** N=200)
 - [DPO β0.2 smoke100 10-ID PASS (Run 49; health gate)](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-) (plain-IFFC 10-ID; **not** a BFCL %; full DPO **scored** Run 51 **53/200 = 26.5%** — **not** a method win)
 - [Prioritized Recommendations](#prioritized-recommendations)
 - [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; Run 46 iffc-ptc-a **13.5%** scored FAIL / closed; Run 42 **35.5%** still best non-BoN; Run 30 **32.5%** untouched; SFT HOLD; DPO β0.2 smoke100 Run 49 **PASS**; DPO-full Run 51 **26.5%** scored / not a win; Run 61 Decision+OODA **26.0% FAIL**; Run 58 Decision **25.0% FAIL**; Run 64 Choice-SLM **5.5% FAIL**; PR #57 stays draft, **not** more PTC/OODA remix)
@@ -1353,7 +1354,7 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 **Related options (logged 2026-10-05, all unscored; paper numbers are theirs; no Acc/train from this pass):**
 
 - **2026-10-05 training-relevant sweep ([§32](#32-cita-comparative-inference-for-tool-use-agents)–[§37](#37-tool-schema-bias-action-space-shaping)):** CITA, HAT, PG-SFT, SAP, Keyword Harnesses Fail Open, Tool-schema bias. All **unscored** lit notes. Do **not** invent `multi_turn_base` Acc. Do **not** train from this pass. Do **not** unlock GRPO as the main path.
-- **SAP** ([§35](#35-sap-state-guided-synthesis-with-argument-provenance)) — tagged **`FUTURE_EXPLORE` / unscored**. Promising data lever **after SFT-v10 G3**; **not** pausing current train. Optional later: mlx-v10 arg-chain vs SAP → maybe v11 mix. Paper BFCL v4 MT **theirs**. No Acc/train from this note.
+- **SAP** ([§35](#35-sap-state-guided-synthesis-with-argument-provenance)) — tagged **`FUTURE_EXPLORE` / unscored**. Promising data lever **after SFT-v10 G3** (G3 full CE train is **complete / PASS**; soft10 retry remains **NO-GO** without a separate Sanskar GO). Optional later: mlx-v10 arg-chain vs SAP → maybe v11 mix. Paper BFCL v4 MT **theirs**. No Acc/train from this note.
 
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
@@ -1502,11 +1503,71 @@ Worse than Run 33 v9.1 (**17.6** / **5/10**) and Run 31 v9 (**22.5** / **5/10**)
 
 **Autopsy CONFIRM (2026-10-05):** primary cause is **undertraining** (100 CE steps / 200-row `mlx-v10-smoke`, not full `mlx-v10`). Split: **5/10** identical-call loops to `hit_step_limit` (`_101,_126,_130,_26,_34`; streaks up to **×~20**); **5/10** early state/args fail without long loops (`_11,_6,_18,_27,_32`). Error classes: `state_mismatch` **8**, `missing_gt_exec_results` **2**, `hit_step_limit_entries` **5**. Plain `iffc` — **no** stop-repeat seatbelt on this Acc. G1 mix holdouts OK (recipe not dead). Autopsy did **not** train / Acc / fuse / full-200.
 
-**READY_FOR_FULL_TRAIN = yes** → G3 full CE on budgeted `mlx-v10` (new `adapters-v10/`). Sanskar already **GO’d G3** (in flight elsewhere). **Acc / full-200 remain NO-GO.** **READY_FOR_FULL200 = no.** This docs pass launches **neither** train nor Acc.
+**READY_FOR_FULL_TRAIN = yes** was the autopsy lock. G3 full CE on budgeted `mlx-v10` is now **PASS** (train gate; early-stop @1200; best@700; see [G3 SFT-v10 full CE train PASS](#g3-sft-v10-full-ce-train-pass-unscored-acc)). **READY_FOR_SOFT10_RETRY = yes.** **Acc / full-200 remain NO-GO** until a separate Sanskar GO. **READY_FOR_FULL200 = no.** Soft10 retry was **not** launched.
 
-**This docs pass:** bank Run 65 as **0/10 FAIL** + autopsy undertraining lock. Keep ranking PASS / Acc harness IMPL / Run 64 Acc **separate** — this is Acc-track SFT, not Path-B. Scoreboard N=200 winners **unchanged**: BoN **36.5%** / R42 **35.5%** / STATE **34.0%** / R30 **32.5%** / IFFC **30.5%** / SFT-v4 **15.0%**. Run 64 Choice-SLM Decision **5.5% FAIL** stays as written.
+**This docs pass:** bank Run 65 as **0/10 FAIL** + autopsy undertraining lock, and bank G3 as train-gate **PASS** (unscored Acc). Keep ranking PASS / Acc harness IMPL / Run 64 Acc **separate** — this is Acc-track SFT, not Path-B. Scoreboard N=200 winners **unchanged**: BoN **36.5%** / R42 **35.5%** / STATE **34.0%** / R30 **32.5%** / IFFC **30.5%** / SFT-v4 **15.0%**. Run 64 Choice-SLM Decision **5.5% FAIL** stays as written.
 
-**Do not:** invent Acc beyond **0/10**; treat soft10 as N=200 or PE bar; present as a method win or SFT-v4 peer; launch Acc / full-200 from this fail; launch train from this docs pass; resume **30 / 42 / 51–65**; BoN this ckpt; more-epochs the smoke slice; mix this with Path-B Decision/Choice Acc.
+**Do not:** invent Acc beyond **0/10**; treat soft10 as N=200 or PE bar; present as a method win or SFT-v4 peer; launch Acc / full-200 from this fail; resume **30 / 42 / 51–65**; BoN this ckpt; more-epochs the smoke slice; mix this with Path-B Decision/Choice Acc.
+
+### G3 SFT-v10 full CE train PASS (unscored Acc)
+
+**Codex CONFIRM 2026-10-05 ~13:12 EDT.** Gate `G3_SFT_V10_FULL_CE_TRAIN`. Train-gate **PASS** (converged, no NaN, early-stopped by design, usable best ckpt). **Unscored Acc.** Soft10 retry **not** launched. **READY_FOR_SOFT10_RETRY = YES.** Acc **NO-GO** until a separate Sanskar GO. **Not** a method win. **Not** N=200. Ranking ≠ Acc. Scoreboard N=200 winners **unchanged**.
+
+| Field | Value |
+|-------|--------|
+| Gate | `G3_SFT_V10_FULL_CE_TRAIN` |
+| Verdict | **PASS** (train gate only) |
+| Wall | ~09:45 → 13:00 EDT 2026-10-05 |
+| Stop | Early-stop SIGINT at iter **1200/2000** (val hadn’t beaten iter 700 for 5 evals; `min_iters=1000`, `patience=5`) |
+| Best val | **0.445 @ iter 700** |
+| Iter 1200 val | **0.893** (spike; triggered stop) |
+| **Fuse target** | **`sft/adapters-v10-best700/`** (= `adapters-v10/0000700_adapters.safetensors`; sha256 `dea1e880…09f0fb`) |
+| **DO NOT fuse** | `adapters-v10/adapters.safetensors` — that is **iter-1200 spiked** |
+| Acc | **NO-GO** (soft10 / full-200 **not** launched) |
+| Missing exit file | wrapper `set -e` on SIGINT nonzero — artifact, not a crash |
+
+**Val loss curve** (25 val batches each; noisy): 1:1.497 → 100:0.725 → 200:0.696 → 300:0.584 → 400:0.609 → 500:0.521 → 600:0.633 → **700:0.445 (best)** → 800:0.479 → 900:0.562 → 1000:0.503 → 1100:0.490 → 1200:0.893. Train loss @700=0.745, @1100=0.323, @1200=0.607. No NaN.
+
+| iter | val |
+|------|-----|
+| 1 | 1.497 |
+| 100 | 0.725 |
+| 200 | 0.696 |
+| 300 | 0.584 |
+| 400 | 0.609 |
+| 500 | 0.521 |
+| 600 | 0.633 |
+| **700** | **0.445 (best)** |
+| 800 | 0.479 |
+| 900 | 0.562 |
+| 1000 | 0.503 |
+| 1100 | 0.490 |
+| 1200 | 0.893 (spike; triggered stop) |
+
+**Recipe** (Phase B / autopsy §4; CE only — **no DPO**; `pref-v10/` untouched):
+
+| Knob | Value |
+|------|-------|
+| Base MLX | `sft/models/gemma-4-e2b-it-mlx` |
+| Data source | `sft/data/mlx-v10/` (50253 / 2817) |
+| Data train | `sft/data/mlx-v10-budgeted/` after `budget_seq.budget_unrolled_rows` @8192 |
+| Empty-mask budget | train 2857→0 / valid 173→0 (kept 50253/2817) |
+| Adapters | `sft/adapters-v10/` **NEW** (not smoke) |
+| LoRA | r16 / α32 / 16 layers / q_proj+v_proj |
+| LR / batch / iters | 1e-5 / 1 / **2000** (val early-stop: pick **best val** ckpt) |
+| max_seq / mask_prompt / grad_ckpt / accum | 8192 / true / true / 4 |
+| steps_per_eval / save_every / report | 100 / 100 / 10 |
+| val_batches | 25 |
+| Seed | 53 |
+
+**Caveats:**
+- Only ~**2.4% of one epoch** seen (1200 iters × batch 1; mlx_lm counts each micro-batch as an iter; accum 4 → ~300 optimizer updates). Undertraining is still possible despite the val plateau.
+- Val is **noisy** (only **25 batches**, swings ±0.1 between evals); iter 700 best may be partly luck. 1100 (0.490) is a reasonable alternate.
+- `adapters-v10/adapters.safetensors` is the iter-1200 (spiked) weights — **do NOT fuse** that one. Use **`adapters-v10-best700/`**.
+
+**This docs pass:** bank G3 as train-gate **PASS** + fuse-target lock. Soft10 retry is the next Acc gate and remains **NO-GO** without GO. Do **not** invent Acc. Do **not** overwrite scoreboard N=200 winners: BoN **36.5%** / R42 **35.5%** / STATE **34.0%** / R30 **32.5%** / IFFC **30.5%** / SFT-v4 **15.0%**.
+
+**Do not:** invent a G3 Acc %; claim soft10 ran; fuse `adapters-v10/adapters.safetensors`; resume **30 / 42 / 51–65**; launch Acc / soft10 / full-200 / DPO from this docs pass; present train-gate PASS as a BFCL method win.
 
 ### DPO β0.2 smoke100 10-ID PASS (Run 49) — health gate, not a BFCL %
 
@@ -1540,7 +1601,7 @@ All four gates **MET → PASS**. β0.2 improves turn0 vs β0.1 (7 vs 6) while st
 
 ### Anti-recommendations
 
-Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 mix **or** the v5 mix **or** the v6 mix; BoN / IFFC+STATE on the Run 12, Run 13, Run 15, Run 17, or Run 18 checkpoint; fuse `final@2000` as the first fix; claim the `[]` filter fixed SFT or multi-turn; present Run 14’s 2.0% as a method win or a training-time recovery; present Run 15’s 15.0% as beating IFFC or NFC; present Run 16’s 13.0% as a STATE win on SFT-v4; present Run 17’s 11.5% as a method win; present Run 18’s 13.0% as a method win; invent tok/s for Run 15, Run 16, or Run 17 (`inference_metrics=0`); **propose BoN as the next win on the SFT-v4, SFT-v5, or SFT-v6 checkpoint**; invent a v9 / v9.1 / v9.2 BFCL `multi_turn_base` %; cite Run 35 (INVALID — server died); fold Run 37 into the 10-ID denominator; start full LoRA on the failed v9.2 mix; merge [PR #57](https://github.com/sskarz/Thesis/pull/57); treat iffc-stop-repeat as an SFT fix; run a third quota remix; invent a Run 49 / 47 / 48 BFCL `multi_turn_base` %; present the Run 49 10-ID **PASS** as a N=200 score or a method win; present Run 51 **26.5%** as beating IFFC/NFC; BoN the DPO smoke100 ckpt; invent a Run 65 N=200 Acc; present Run 65 **0/10** as a method win or SFT-v4 peer; launch full-200 from the SFT-v10 soft10 fail; resume **30 / 42 / 51–65**.
+Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 mix **or** the v5 mix **or** the v6 mix; BoN / IFFC+STATE on the Run 12, Run 13, Run 15, Run 17, or Run 18 checkpoint; fuse `final@2000` as the first fix; fuse `adapters-v10/adapters.safetensors` (iter-1200 spike — use **`adapters-v10-best700/`**); claim the `[]` filter fixed SFT or multi-turn; present Run 14’s 2.0% as a method win or a training-time recovery; present Run 15’s 15.0% as beating IFFC or NFC; present Run 16’s 13.0% as a STATE win on SFT-v4; present Run 17’s 11.5% as a method win; present Run 18’s 13.0% as a method win; invent tok/s for Run 15, Run 16, or Run 17 (`inference_metrics=0`); **propose BoN as the next win on the SFT-v4, SFT-v5, or SFT-v6 checkpoint**; invent a v9 / v9.1 / v9.2 BFCL `multi_turn_base` %; cite Run 35 (INVALID — server died); fold Run 37 into the 10-ID denominator; start full LoRA on the failed v9.2 mix; merge [PR #57](https://github.com/sskarz/Thesis/pull/57); treat iffc-stop-repeat as an SFT fix; run a third quota remix; invent a Run 49 / 47 / 48 BFCL `multi_turn_base` %; present the Run 49 10-ID **PASS** as a N=200 score or a method win; present Run 51 **26.5%** as beating IFFC/NFC; BoN the DPO smoke100 ckpt; invent a Run 65 N=200 Acc; present Run 65 **0/10** as a method win or SFT-v4 peer; launch full-200 from the SFT-v10 soft10 fail; invent a G3 Acc; claim G3 soft10 ran; launch soft10 / Acc without a separate Sanskar GO; resume **30 / 42 / 51–65**.
 
 ### Next (Sanskar decides)
 
@@ -1548,7 +1609,8 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
-5. **SAP §35 tagged `FUTURE_EXPLORE` / unscored** — after SFT-v10 G3; optional later mlx-v10 arg-chain vs SAP / v11 mix; **no Acc/train from this note**. See [§35](#35-sap-state-guided-synthesis-with-argument-provenance).
+5. **SAP §35 tagged `FUTURE_EXPLORE` / unscored** — after SFT-v10 G3 (G3 full CE train is **complete / PASS**; soft10 retry remains **NO-GO** without GO); optional later mlx-v10 arg-chain vs SAP / v11 mix; **no Acc/train from this note**. See [§35](#35-sap-state-guided-synthesis-with-argument-provenance).
+6. **G3 SFT-v10 full CE train is PASS** (train gate; unscored Acc). Next Acc gate is **soft10 retry** on **`adapters-v10-best700/`** — **NO-GO** until a separate Sanskar GO. Do **not** fuse `adapters-v10/adapters.safetensors` (iter-1200 spike). See [G3 SFT-v10 full CE train PASS](#g3-sft-v10-full-ce-train-pass-unscored-acc).
 
 `--fc-mode iffc --iffc-strip-empty-assistant` on `--model gemma4-e2b-sft-iffc-v2` is **scored** as Run 14: **4/200 = 2.0%** (**DIAGNOSTIC**; did **not** rescue). Do **not** re-run to overwrite that `runs` row. Default remains **off** for standard IFFC (Run 5–18 bookkeeping unchanged unless the diagnostic flag is set).
 
@@ -1571,7 +1633,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Li, Zhang, Liu, Yang, Cai, & Feng. CITA. arXiv:2610.02330. https://arxiv.org/abs/2610.02330 ([§32](#32-cita-comparative-inference-for-tool-use-agents); **not scored**; not a GRPO unlock)
 - Yang, Chai, & Wen. Harness Annealing (HAT). arXiv:2610.01235. https://arxiv.org/abs/2610.01235 ([§33](#33-harness-annealing-hat); **not scored**)
 - Li, Liang, Li, & Liu. PG-SFT. arXiv:2610.00949. https://arxiv.org/abs/2610.00949 ([§34](#34-pg-sft-privilege-guided-sft); **not scored**; their BFCL ≠ our sheet)
-- Tian, Chen, Gong, Zhang, & Liu. SAP. arXiv:2609.06124. https://arxiv.org/abs/2609.06124 ([§35](#35-sap-state-guided-synthesis-with-argument-provenance); **`FUTURE_EXPLORE` / unscored**; after SFT-v10 G3; not a substitute for locked SFT; not a pause on current train)
+- Tian, Chen, Gong, Zhang, & Liu. SAP. arXiv:2609.06124. https://arxiv.org/abs/2609.06124 ([§35](#35-sap-state-guided-synthesis-with-argument-provenance); **`FUTURE_EXPLORE` / unscored**; after SFT-v10 G3 — G3 train **PASS** complete; soft10 retry still gated; not a substitute for locked SFT)
 - Santillana. Keyword Harnesses Fail Open. arXiv:2610.02142. https://arxiv.org/abs/2610.02142 ([§36](#36-keyword-harnesses-fail-open); **not scored**; do **not** claim Choice Acc from this paper)
 - Liu, Tan, Wang, & Guo. Tool-Schema Bias. arXiv:2609.34971. https://arxiv.org/abs/2609.34971 ([§37](#37-tool-schema-bias-action-space-shaping); **not scored**)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
@@ -2387,7 +2449,7 @@ Li, R., Liang, Z., Li, Z., & Liu, S. "Balancing Capability Acquisition and Reten
 
 SAP (Tian, Chen, Gong, Zhang, & Liu, 2026) synthesizes multi-turn function-calling data with an **FSM** whose edges carry per-argument **provenance tags** `{Pi, Po, Pc, Pu, Pf}` (initial state, prior observation, created, user, fallback). Each tool call is **executed immediately**; failures retry locally rather than discarding the whole trajectory. They train **SAP-4B** (Qwen3-4B-Instruct-2507, SFT only) and report it competitive on BFCL v4 multi-turn and τ².
 
-**Train vs infer: training-time data generation** (+ SFT on the dump). **Tag: `FUTURE_EXPLORE` / unscored.** Not a scored thesis experiment. Complement near [§24 Data Turnstile](#24-data-turnstile-open-function-calling-data-generation) / APIGen-MT — **not** a substitute for the locked SFT path and **not** a pause on SFT-v10 G3. Paper BFCL v4 MT / τ² are **theirs**.
+**Train vs infer: training-time data generation** (+ SFT on the dump). **Tag: `FUTURE_EXPLORE` / unscored.** Not a scored thesis experiment. Complement near [§24 Data Turnstile](#24-data-turnstile-open-function-calling-data-generation) / APIGen-MT — **not** a substitute for the locked SFT path. SFT-v10 G3 full CE train is **complete (PASS)**; soft10 retry remains **NO-GO** without a separate Sanskar GO. Paper BFCL v4 MT / τ² are **theirs**.
 
 ### Mechanism
 
@@ -2409,12 +2471,12 @@ Paper results (Tian et al., 2026; cite as **theirs**, not ours):
 
 ### Applicability
 
-- **Thesis role:** Logged 2026-10-05; **`FUTURE_EXPLORE` / unscored** data-gen complement near Data Turnstile / APIGen-MT. Promising **data lever AFTER SFT-v10 G3**. **Not** pausing current train. Not a substitute for locked SFT. Not scored Acc. Do **not** unlock SAP as the current train path.
+- **Thesis role:** Logged 2026-10-05; **`FUTURE_EXPLORE` / unscored** data-gen complement near Data Turnstile / APIGen-MT. Promising **data lever AFTER SFT-v10 G3** (G3 full CE train **PASS** / complete). Soft10 retry remains **NO-GO** without GO. Not a substitute for locked SFT. Not scored Acc. Do **not** unlock SAP as the current train path.
 - **BFCL categories:** Paper reports all four MT slices on **their** split. Relevance to our `multi_turn_base` is hypothesis only until scored.
 - **Complexity:** High to run their live-executor synthesizer; low to *cite* as a v7-related option.
 - **Limitation:** Pipeline reuses BFCL / τ² schemas as the environment (sampled independently of the test split — still not our harness). Live-executor cost. English, single-agent.
 
-#### FUTURE_EXPLORE (unscored; after SFT-v10 G3)
+#### FUTURE_EXPLORE (unscored; after SFT-v10 G3 — G3 train PASS complete)
 
 Plain-language: multi-turn SFT data where **every tool arg must declare provenance**, then **execute-validate** each call, **retry only the failed call** (not the whole trajectory), **then** write the dialogue. Map to paper tags `{Pi, Po, Pc, Pu, Pf}` as already listed:
 
@@ -2431,7 +2493,7 @@ Targets **wrong / stale / hallucinated args** — matches our SFT-v10 **soft10**
 **Framing for us:**
 
 - Tag: **`FUTURE_EXPLORE` / unscored**. Do **not** unlock SAP as the current train path.
-- Promising **data lever AFTER SFT-v10 G3**. **Not** pausing current train (G3 full CE on `mlx-v10` stays in flight).
+- Promising **data lever AFTER SFT-v10 G3** (G3 full CE train **PASS** / complete). Soft10 retry is the next Acc gate and remains **NO-GO** without a separate Sanskar GO.
 - **Next optional step later** (not now): measure our **mlx-v10** arg-chain depth vs SAP, then maybe mix a SAP-style / SAP-released slice into **v11**.
 - Caveats: synthesis cost (big LLMs + live executor); their train was **full-param multi-GPU** (verl, 8×80GB, 10 epochs), not Mac LoRA; Acc must be **re-scored on our harness** (`multi_turn_base`). Do **not** claim their 30.4 / 38.0 as thesis Acc.
 
@@ -2718,7 +2780,7 @@ Tiny: hard CE only (prefs unused); ask hash dim 64. Richer recipe lock: ask uni+
 
 **Preferred next:** none. Ranking **PASS** already banked (MLX LoRA Choice-SLM **80.0%** vs tev1 **73.9%**). Run 64 Acc is **scored FAIL** **11/200 = 5.5%** (**Codex CONFIRM**). Ranking PASS is **not** this Acc. Acc remains **not** a GO. **No** new Acc. **Do not** propose a rerun. **Do not** launch or resume Acc (including 30/42/51–65). No Claude-as-teacher.
 
-**This docs pass:** lock Run 64 Choice-SLM Decision Acc as **scored FAIL** **11/200 = 5.5%** (DB scores id=37; 189 eval errors; generate 200/200; `choice_slm_chat` + `menu_ll`; **Codex CONFIRM**). Ranking **PASS** already on main ([PR #73](https://github.com/sskarz/Thesis/pull/73); MLX LoRA Choice-SLM **80.0%** vs tev1 **73.9%**) — keep that; **do not conflate** with Run 64 Acc. Acc harness IMPL remains **CONFIRM_PASS_WITH_FLAGS**. Acc remains **not** a GO. **Separately**, bank **Run 65** Acc-track SFT-v10 soft10 as **0/10 FAIL** (plain `iffc`; **not** Path-B; **not** N=200; autopsy **undertraining**; READY_FOR_FULL_TRAIN=yes; Acc/full-200 **NO-GO**; READY_FOR_FULL200=no) — see [Run 65](#run-65--sft-v10-soft10-acc-010-fail-not-n200). **No** new Acc. **Do not** propose a rerun. **Do not** resume 30/42/51–65.
+**This docs pass:** lock Run 64 Choice-SLM Decision Acc as **scored FAIL** **11/200 = 5.5%** (DB scores id=37; 189 eval errors; generate 200/200; `choice_slm_chat` + `menu_ll`; **Codex CONFIRM**). Ranking **PASS** already on main ([PR #73](https://github.com/sskarz/Thesis/pull/73); MLX LoRA Choice-SLM **80.0%** vs tev1 **73.9%**) — keep that; **do not conflate** with Run 64 Acc. Acc harness IMPL remains **CONFIRM_PASS_WITH_FLAGS**. Acc remains **not** a GO. **Separately**, bank **Run 65** Acc-track SFT-v10 soft10 as **0/10 FAIL** (plain `iffc`; **not** Path-B; **not** N=200; autopsy **undertraining**) and bank **G3** full CE train as **PASS** (unscored Acc; READY_FOR_SOFT10_RETRY=yes; Acc/full-200 **NO-GO**; READY_FOR_FULL200=no) — see [Run 65](#run-65--sft-v10-soft10-acc-010-fail-not-n200) and [G3](#g3-sft-v10-full-ce-train-pass-unscored-acc). **No** new Acc. **Do not** propose a rerun. **Do not** resume 30/42/51–65.
 
 **Acc harness IMPL (CONFIRM_PASS_WITH_FLAGS; not Acc):** Choice-SLM Acc harness is implemented + dual-server smoke confirmed (2026-10-02). This is **harness/impl readiness**, **not** a BFCL Acc score. Independent verify **CONFIRM_PASS_WITH_FLAGS** (`codex_KD_PATH_B_CHOICE_SLM_ACC_HARNESS_IMPL_CONFIRM.md`, 11:38 ET) after impl **PASS_WITH_FLAGS** (`codex_KD_PATH_B_CHOICE_SLM_ACC_HARNESS_IMPL_STATUS.md`, 11:31 ET) and smoke H1–H12 (`choice_slm_acc_harness_smoke.md`).
 
@@ -2912,10 +2974,11 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 - Best inference BoN **36.5%** (Run 11). Second inference Run 42 **35.5%**. Best SFT v4 IFFC **15.0%** (Run 15). Do **not** overwrite BoN / IFFC / SFT-v4 / Run 30.
 - Teacher loop-filters v8/v8.1 failed; ungated stop-on-repeat helped collapsed smoke but hurt healthy base; **gated recover** past IFFC.
 - **SFT v9.2 10-ID smoke-gate FAIL** (Run 36): avg `api_calls` **25.7** (gate ≤8.3), `hit_step_limit` **6/10** (gate ≤2). Smoke@100 healthy (val→**0.645**); full LoRA never started. Worse than Run 33 v9.1 (17.6 / 5/10) and Run 31 v9 (22.5 / 5/10). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **Do not cite Run 35** (INVALID — server died). Run 37 VC sidecar diagnostic only — not in /10. Codex **`HOLD_sft_quota_remix`**. Details: [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold).
-- **Run 65 SFT-v10 soft10 Acc FAIL (0/10; not N=200):** Acc-track SFT smoke, plain `iffc`, `model_key` `gemma4-e2b-sft-iffc-v10-smoke` (100 CE / 200-row `mlx-v10-smoke` → fused Q4). **0/10 = 0.0%** (DB `run_id=65`; scores id=**38**). **Not** Path-B. Autopsy: **undertraining** primary; **5/10** identical-call loops (`_101,_126,_130,_26,_34`, ×~20) / **5/10** early state-fail (`_11,_6,_18,_27,_32`); **no** stop-repeat seatbelt; G1 holdouts OK; loss drop ≠ Acc. **READY_FOR_FULL_TRAIN = yes** (G3 full CE on `mlx-v10`, new `adapters-v10/`; Sanskar GO’d elsewhere). **Acc / full-200 NO-GO.** **READY_FOR_FULL200 = no.** Beat-PE still **R42 35.5%**. **Do not** invent Acc beyond **0/10**. **Do not** resume 30/42/51–65. Details: [Run 65](#run-65--sft-v10-soft10-acc-010-fail-not-n200).
+- **Run 65 SFT-v10 soft10 Acc FAIL (0/10; not N=200):** Acc-track SFT smoke, plain `iffc`, `model_key` `gemma4-e2b-sft-iffc-v10-smoke` (100 CE / 200-row `mlx-v10-smoke` → fused Q4). **0/10 = 0.0%** (DB `run_id=65`; scores id=**38**). **Not** Path-B. Autopsy: **undertraining** primary; **5/10** identical-call loops (`_101,_126,_130,_26,_34`, ×~20) / **5/10** early state-fail (`_11,_6,_18,_27,_32`); **no** stop-repeat seatbelt; G1 holdouts OK; loss drop ≠ Acc. G3 full CE train is now **PASS** (early-stop @1200; best@700; fuse **`adapters-v10-best700/`**; **do not** fuse `adapters-v10/adapters.safetensors`). **READY_FOR_SOFT10_RETRY = yes.** **Acc / full-200 NO-GO** until a separate Sanskar GO. **READY_FOR_FULL200 = no.** Soft10 retry was **not** launched. Beat-PE still **R42 35.5%**. **Do not** invent Acc beyond **0/10**. **Do not** resume 30/42/51–65. Details: [Run 65](#run-65--sft-v10-soft10-acc-010-fail-not-n200) and [G3](#g3-sft-v10-full-ce-train-pass-unscored-acc).
+- **G3 SFT-v10 full CE train PASS (unscored Acc):** Codex CONFIRM 2026-10-05. Gate `G3_SFT_V10_FULL_CE_TRAIN` **PASS** (no NaN; early-stop SIGINT @ **1200/2000**; `min_iters=1000`, `patience=5`; best val **0.445 @ 700**; iter 1200 val **0.893** spike). Fuse **`sft/adapters-v10-best700/`** only. **Do not** fuse `adapters-v10/adapters.safetensors` (iter-1200). Caveats: ~**2.4% of one epoch**; val noisy (**25 batches**). **READY_FOR_SOFT10_RETRY = YES.** Acc **NO-GO**. Soft10 **not** launched. **Not** N=200. Recipe: LoRA r16/α32/16 layers q+v; LR 1e-5; batch 1; iters 2000; max_seq 8192; mask_prompt; grad_ckpt; accum 4; seed 53; CE only; budgeted `mlx-v10` (empty_mask 2857→0 / 173→0). Details: [G3 SFT-v10 full CE train PASS](#g3-sft-v10-full-ce-train-pass-unscored-acc).
 - **DPO β0.2 smoke100 10-ID PASS** (Run 49): avg API **4.4**, `hit_step_limit` **0/10**, `iffc_unparseable` **0/10**, `turn0_tool` **7/10** — all gates **MET**. Same 10 IDs as Run 47 (β0.1 turn0 **6/10**, avg **4.50**) / Run 48 (BASE turn0 **10/10**, avg **6.80**). **Health gate, not a BFCL %.** **Do not invent** a Run 49 / 47 / 48 `multi_turn_base` %. Full DPO train still **HOLD** pending Sanskar GO + Codex verify. Details: [DPO β0.2 smoke100 PASS](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-).
 
-**Tightened stop-repeat PASSES** (Run 30 **32.5%**). Run 42 iffc-ooda-card **scored 35.5%** (`state_mismatch` gate **MISS**; still below BoN). SFT v9.2 smoke-gate **FAIL → park**. Quota remix **HOLD**. Run 65 SFT-v10 soft10 Acc **0/10 FAIL** (Acc-track undertraining; **READY_FOR_FULL_TRAIN=yes**; Acc/full-200 **NO-GO**; **not** N=200). DPO β0.2 smoke100 10-ID **PASS**; DPO-full Run 51 **53/200 = 26.5%** scored (**not** a method win); Run 61 Decision+OODA **26.0% FAIL**; Run 58 Decision **25.0% FAIL**. Choice/router KD **path B first** ranking **PASS** (tiny ~**23.5%** / richer ~**67.0%** / soft-menu ~**66.1%** HOLD vs tev1 ~**73.9%**; MLX LoRA Choice-SLM **80.0%** vs tev1 **73.9%**, Δ **+6.09 pp**, clear_top1; ranking ≠ Acc; Acc harness IMPL **CONFIRM_PASS_WITH_FLAGS**, H7 **24/24**, FLAG `greedy_only`; Run 64 Acc **11/200 = 5.5% scored FAIL**; ranking ≠ Acc; Acc remains **not** a GO; **no** new Acc; **do not** propose a rerun) — [§22](#22-knowledge-distillation-for-tool-calling). Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 / Run 49 / Run 65 BFCL %, no full-200 from Run 65.** Do **not** resume 30/42/51–65.
+**Tightened stop-repeat PASSES** (Run 30 **32.5%**). Run 42 iffc-ooda-card **scored 35.5%** (`state_mismatch` gate **MISS**; still below BoN). SFT v9.2 smoke-gate **FAIL → park**. Quota remix **HOLD**. Run 65 SFT-v10 soft10 Acc **0/10 FAIL** (Acc-track undertraining; **not** N=200). G3 full CE train **PASS** (early-stop @1200; best@700; **READY_FOR_SOFT10_RETRY=yes**; Acc/full-200 **NO-GO**; soft10 **not** launched). DPO β0.2 smoke100 10-ID **PASS**; DPO-full Run 51 **53/200 = 26.5%** scored (**not** a method win); Run 61 Decision+OODA **26.0% FAIL**; Run 58 Decision **25.0% FAIL**. Choice/router KD **path B first** ranking **PASS** (tiny ~**23.5%** / richer ~**67.0%** / soft-menu ~**66.1%** HOLD vs tev1 ~**73.9%**; MLX LoRA Choice-SLM **80.0%** vs tev1 **73.9%**, Δ **+6.09 pp**, clear_top1; ranking ≠ Acc; Acc harness IMPL **CONFIRM_PASS_WITH_FLAGS**, H7 **24/24**, FLAG `greedy_only`; Run 64 Acc **11/200 = 5.5% scored FAIL**; ranking ≠ Acc; Acc remains **not** a GO; **no** new Acc; **do not** propose a rerun) — [§22](#22-knowledge-distillation-for-tool-calling). Next after Thursday advisor: Stage B **advance_vs_loop** pref pairs (stub → audited same-prefix builder), **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes, no invented v9 / Run 49 / Run 65 / G3 BFCL %, no full-200 from Run 65, no soft10 without GO.** Do **not** resume 30/42/51–65. Do **not** fuse `adapters-v10/adapters.safetensors`.
 
 ### Theme
 
