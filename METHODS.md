@@ -272,6 +272,7 @@ Paper results (Paschalides et al., 2026; cite as theirs, not ours):
 - **Complexity:** Medium (schema / catalog design, not a decode-time trick)
 - **Limitation:** Paper suite is MCP edge/IoT, **not** our BFCL v4 `multi_turn_base`. Do **not** equate +16.4% / +33.6% TC to a thesis harness score. Unscored.
 - **Complement (unscored, 2026-09-28):** [§30 HyperTool](#30-hypertool-code-block-execution-granularity) changes **execution granularity** (code-block folds multi-tool chains into one outer call) rather than schema cardinality. MCP-Universe numbers are **theirs**; not BFCL `multi_turn_base`.
+- **Complement (unscored, 2026-10-05):** [§37 Tool-Schema Bias](#37-tool-schema-bias-action-space-shaping) — equivalent rewrites of the **same** action space (nine operators) can swing success **0–97%** by schema wording/factorization alone. Cardinality (this section) and schema surface are distinct knobs. Paper numbers are **theirs**.
 
 ### Source
 
@@ -1219,7 +1220,7 @@ Run 62 treatment Choice-SLM Decision **0/10**; Run 63 control **0/10**. **Do not
 
 ### Run 64 — full-200 Choice-SLM Decision (11/200 = 5.5%) — scored FAIL (Codex CONFIRM)
 
-**Measured: 11/200 = 5.5%** (DB scores id=37; 189 eval errors). BASE Gemma; **treatment-only** Choice helper (`choice_slm_chat`) with menu log-likelihood scoring (`menu_ll`). Generate **200/200**. **`finished_at` NULL** at confirm (metrics row still open; left alone) — **not** a reason to unlock. **No** same-session control. Versus Run 58 Decision **50/200 = 25.0%**: **−39 / −19.5 pp**. Versus Run 61 Decision+OODA **52/200 = 26.0%**: **−41 / −20.5 pp**. Versus Run 30 tighten **65/200 = 32.5%**: **−54 / −27.0 pp**. Versus Run 42 OODA-card **71/200 = 35.5%**: **−60 / −30.0 pp**. **FAIL.** Ranking is **not** Acc: first-tool top-1 **0.800** vs tev1 **0.739** does **not** grade the whole chore. Loops: **107/200** entries repeat one tool **≥8** times (max streak **60**; confidence **~0.81**). Miss split: **81** wrong final state, **62** empty turns, **46** missing required calls. Context overflows on port **8080** during generate (**43 of 44** `"exceeds 16384"`), not metrics-only. The ≤10-ID **0/10** was a hard tiny bank; this 200-set is the real drop. **Do not** overwrite BoN / Run 42 / STATE / Run 30 / IFFC / SFT-v4 / Run 58 / Run 61. Acc remains **not** a GO. **No** new Acc. **Do not** propose a rerun.
+**Measured: 11/200 = 5.5%** (DB scores id=37; 189 eval errors). BASE Gemma; **treatment-only** Choice helper (`choice_slm_chat`) with menu log-likelihood scoring (`menu_ll`). Generate **200/200**. **`finished_at` NULL** at confirm (metrics row still open; left alone) — **not** a reason to unlock. **No** same-session control. Versus Run 58 Decision **50/200 = 25.0%**: **−39 / −19.5 pp**. Versus Run 61 Decision+OODA **52/200 = 26.0%**: **−41 / −20.5 pp**. Versus Run 30 tighten **65/200 = 32.5%**: **−54 / −27.0 pp**. Versus Run 42 OODA-card **71/200 = 35.5%**: **−60 / −30.0 pp**. **FAIL.** Ranking is **not** Acc: first-tool top-1 **0.800** vs tev1 **0.739** does **not** grade the whole chore. Loops: **107/200** entries repeat one tool **≥8** times (max streak **60**; confidence **~0.81**). Miss split: **81** wrong final state, **62** empty turns, **46** missing required calls. Context overflows on port **8080** during generate (**43 of 44** `"exceeds 16384"`), not metrics-only. The ≤10-ID **0/10** was a hard tiny bank; this 200-set is the real drop. **Do not** overwrite BoN / Run 42 / STATE / Run 30 / IFFC / SFT-v4 / Run 58 / Run 61. Acc remains **not** a GO. **No** new Acc. **Do not** propose a rerun. Adjacent lit note: [§36 Keyword Harnesses Fail Open](#36-keyword-harnesses-fail-open) — **unscored** warning that keyword / lenient tool-use gates fail open on SLMs; **do not** claim this Choice Acc from that paper. Complements FLAG `greedy_only` ≠ ranking.
 
 ### How to run
 
@@ -1348,6 +1349,10 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 - **PARL-MT / PROGRA** ([§29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling)) — **training-time** progress-aware PAG-RL. Logged research option after healthy SFT; **do not** unlock GRPO as the main path.
 - **HyperTool** ([§30](#30-hypertool-code-block-execution-granularity)) — **train + infer** code-block execution granularity. Complements MCP-GRANITE §3a. Not MCP-Universe ≡ BFCL.
 - **RC-GRPO** ([§31](#31-rc-grpo-reward-conditioned-grpo)) — **training-time** reward-conditioned GRPO. RL-stabilization if we ever GRPO; **do not** unlock GRPO as the main path.
+
+**Related options (logged 2026-10-05, all unscored; paper numbers are theirs; no Acc/train from this pass):**
+
+- **2026-10-05 training-relevant sweep ([§32](#32-cita-comparative-inference-for-tool-use-agents)–[§37](#37-tool-schema-bias-action-space-shaping)):** CITA, HAT, PG-SFT, SAP, Keyword Harnesses Fail Open, Tool-schema bias. All **unscored** lit notes. Do **not** invent `multi_turn_base` Acc. Do **not** train from this pass. Do **not** unlock GRPO as the main path.
 
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
@@ -1538,7 +1543,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 
 ### Next (Sanskar decides)
 
-1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Tightened stop-repeat PASSES** (Run 30 **32.5%** vs IFFC **30.5%**). Run 42 `--fc-mode iffc-ooda-card` **scored** **71/200 = 35.5%** (still best non-BoN; SFT still **HOLD**). Run 46 `--fc-mode iffc-ptc-a` **scored FAIL** **27/200 = 13.5%** — **bank and close**; PTC-B **HOLD**. **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg `api_calls` **25.7**, `hit_step_limit` **6/10**) → **`HOLD_sft_quota_remix` / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **DPO β0.2 smoke100 10-ID PASS** (Run 49 avg API **4.4**, `hit_step_limit` **0/10**, `iffc_unparseable` **0/10**, `turn0_tool` **7/10**) — **health gate, not a BFCL %**; DPO-full **scored** Run 51 **53/200 = 26.5%** (plain IFFC; **not** a method win) — see [DPO β0.2 smoke100 PASS](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-). Next path = **DPO**, **not** more PTC/OODA remix, **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes.** Historical ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) still stands as a later SFT path (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Magnet/Critical-State then mDPO; **not** decode bans) — action-class **quota remix is HOLD**. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)): Guo et al. paper **unscored**; one-pass `[OODA]` card **scored** Run 42; `--fc-mode iffc-ptc-a` **scored FAIL** Run 46 (**bank and close**; PTC-B **HOLD**); remaining sweep paper numbers are **theirs**. **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
+1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Tightened stop-repeat PASSES** (Run 30 **32.5%** vs IFFC **30.5%**). Run 42 `--fc-mode iffc-ooda-card` **scored** **71/200 = 35.5%** (still best non-BoN; SFT still **HOLD**). Run 46 `--fc-mode iffc-ptc-a` **scored FAIL** **27/200 = 13.5%** — **bank and close**; PTC-B **HOLD**. **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg `api_calls` **25.7**, `hit_step_limit` **6/10**) → **`HOLD_sft_quota_remix` / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **DPO β0.2 smoke100 10-ID PASS** (Run 49 avg API **4.4**, `hit_step_limit` **0/10**, `iffc_unparseable` **0/10**, `turn0_tool` **7/10**) — **health gate, not a BFCL %**; DPO-full **scored** Run 51 **53/200 = 26.5%** (plain IFFC; **not** a method win) — see [DPO β0.2 smoke100 PASS](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-). Next path = **DPO**, **not** more PTC/OODA remix, **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes.** Historical ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) still stands as a later SFT path (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Magnet/Critical-State then mDPO; **not** decode bans) — action-class **quota remix is HOLD**. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)): Guo et al. paper **unscored**; one-pass `[OODA]` card **scored** Run 42; `--fc-mode iffc-ptc-a` **scored FAIL** Run 46 (**bank and close**; PTC-B **HOLD**); remaining sweep paper numbers are **theirs**. 2026-10-05 training-relevant sweep ([§32](#32-cita-comparative-inference-for-tool-use-agents)–[§37](#37-tool-schema-bias-action-space-shaping)): **all unscored**; no Acc/train from this pass. **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
@@ -1561,6 +1566,12 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Chai et al. PARL-MT. arXiv:2509.23206. https://arxiv.org/abs/2509.23206 ([§29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling); **not scored**; not a GRPO unlock)
 - Du, Zhou, et al. HyperTool. arXiv:2606.13663. https://arxiv.org/abs/2606.13663 ([§30](#30-hypertool-code-block-execution-granularity); **not scored**)
 - Zhong et al. RC-GRPO. arXiv:2602.03025. https://arxiv.org/abs/2602.03025 ([§31](#31-rc-grpo-reward-conditioned-grpo); **not scored**; not a GRPO unlock)
+- Li, Zhang, Liu, Yang, Cai, & Feng. CITA. arXiv:2610.02330. https://arxiv.org/abs/2610.02330 ([§32](#32-cita-comparative-inference-for-tool-use-agents); **not scored**; not a GRPO unlock)
+- Yang, Chai, & Wen. Harness Annealing (HAT). arXiv:2610.01235. https://arxiv.org/abs/2610.01235 ([§33](#33-harness-annealing-hat); **not scored**)
+- Li, Liang, Li, & Liu. PG-SFT. arXiv:2610.00949. https://arxiv.org/abs/2610.00949 ([§34](#34-pg-sft-privilege-guided-sft); **not scored**; their BFCL ≠ our sheet)
+- Tian, Chen, Gong, Zhang, & Liu. SAP. arXiv:2609.06124. https://arxiv.org/abs/2609.06124 ([§35](#35-sap-state-guided-synthesis-with-argument-provenance); **not scored**; not a substitute for locked SFT)
+- Santillana. Keyword Harnesses Fail Open. arXiv:2610.02142. https://arxiv.org/abs/2610.02142 ([§36](#36-keyword-harnesses-fail-open); **not scored**; do **not** claim Choice Acc from this paper)
+- Liu, Tan, Wang, & Guo. Tool-Schema Bias. arXiv:2609.34971. https://arxiv.org/abs/2609.34971 ([§37](#37-tool-schema-bias-action-space-shaping); **not scored**)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
@@ -1683,6 +1694,12 @@ Each method in this section involves modifying model weights — via supervised 
 - [29. PARL-MT: Progress Awareness for Multi-Turn Function Calling](#29-parl-mt-progress-awareness-for-multi-turn-function-calling)
 - [30. HyperTool: Code-Block Execution Granularity](#30-hypertool-code-block-execution-granularity)
 - [31. RC-GRPO: Reward-Conditioned GRPO](#31-rc-grpo-reward-conditioned-grpo)
+- [32. CITA: Comparative Inference for Tool-Use Agents](#32-cita-comparative-inference-for-tool-use-agents)
+- [33. Harness Annealing (HAT)](#33-harness-annealing-hat)
+- [34. PG-SFT: Privilege-Guided SFT](#34-pg-sft-privilege-guided-sft)
+- [35. SAP: State-Guided Synthesis with Argument Provenance](#35-sap-state-guided-synthesis-with-argument-provenance)
+- [36. Keyword Harnesses Fail Open](#36-keyword-harnesses-fail-open)
+- [37. Tool-Schema Bias: Action-Space Shaping](#37-tool-schema-bias-action-space-shaping)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
 - [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling) (survey; Choice/router KD **path B first** ranking **PASS**; Acc harness IMPL **CONFIRM_PASS_WITH_FLAGS**; Run 64 Acc **11/200 = 5.5% scored FAIL**; ranking ≠ Acc; Acc remains **not** a GO)
@@ -1775,7 +1792,7 @@ ToolACE-8B (LLaMA-3.1-8B fine-tuned with LoRA rank 16, alpha 32) on BFCL:
 - **For this thesis:** The ToolACE pipeline could generate synthetic training data in the BFCL v4 format to fine-tune the existing 3B models (Qwen2.5-3B, Llama-3.2-3B). The dual-layer verification ensures data quality without human annotation.
 - **Dataset availability:** The xlam-function-calling-60k dataset (derived from ToolBench, used by both ToolACE and xLAM) is publicly available on HuggingFace.
 - **Complexity:** High for building the full pipeline; medium if using the existing public datasets.
-- **Related (unscored):** [§24 Data Turnstile](#24-data-turnstile-open-function-calling-data-generation) is an **open** API-spec → multi-turn FC SFT generator (DAG roles + schema validation). Frame as an alternative / complement to Hub-gated APIGen-MT for **v7+ mixes**, not a scored thesis run.
+- **Related (unscored):** [§24 Data Turnstile](#24-data-turnstile-open-function-calling-data-generation) is an **open** API-spec → multi-turn FC SFT generator (DAG roles + schema validation). Frame as an alternative / complement to Hub-gated APIGen-MT for **v7+ mixes**, not a scored thesis run. [§35 SAP](#35-sap-state-guided-synthesis-with-argument-provenance) is a later **unscored** complement (FSM + argument provenance + turn-level execute/retry); paper BFCL v4 MT / τ² are **theirs**.
 - **Related (paper suite, not our harness):** **ToolACE-MT** (Zeng et al. 2025, ICLR 2026, [arXiv:2508.12685](https://arxiv.org/abs/2508.12685)) — non-AR skeleton → mask-fill → offline verify. Paper: Llama-3.1-8B MT **9.25%→40.25%** on **BFCL-v3** (vs MAS 31.38%). Do **not** write 40.25% as a thesis `multi_turn_base` score. Cross-link: [Post–Run27 consensus](#post-run27-consensus-2026-09-28).
 
 ### Sources
@@ -1810,7 +1827,7 @@ Paper results (Ramakrishnan & Sharma, 2026; cite as **theirs**, not ours):
 ### Applicability
 
 - **Thesis role:** Optional **open data-gen complement** to Hub-gated APIGen-MT for SFT **v7+** mixes. Logged 2026-09-24; **not scored**. Does not unlock a new mix or change the locked SFT path (v4 IFFC **15.0%** remains best SFT recovery; v7 remains **unscored**).
-- **Why it is interesting here:** Generates multi-turn FC SFT from **custom API specs** with schema-validated roles — a way to source MT-native trajs without relying only on Hub Accept datasets. Complements [§13 ToolACE](#13-toolace-automated-training-data-generation) (closed pipeline / public dumps) rather than replacing the v7 APIGen-MT core.
+- **Why it is interesting here:** Generates multi-turn FC SFT from **custom API specs** with schema-validated roles — a way to source MT-native trajs without relying only on Hub Accept datasets. Complements [§13 ToolACE](#13-toolace-automated-training-data-generation) (closed pipeline / public dumps) rather than replacing the v7 APIGen-MT core. Adjacent later note: [§35 SAP](#35-sap-state-guided-synthesis-with-argument-provenance) (FSM + `{Pi, Po, Pc, Pu, Pf}` provenance; **unscored**; not a substitute for locked SFT).
 - **BFCL categories:** Paper evidence is single-turn BFCL + τ² Telecom. Relevance to `multi_turn_base` / `miss_func` / `miss_param` is **hypothesis only** until scored. Empty-`[]` / stop-taxonomy control still matters (v1–v6 lesson).
 - **Complexity:** Medium–high to run their generator; low to *cite* as a v7-related option.
 - **Limitation:** Open teacher + synthetic domains are not BFCL GorillaFileSystem / VehicleControl transcripts. Schema-valid calls can still be state-wrong.
@@ -2064,7 +2081,7 @@ For tool calling, the reward function checks:
 - **Hardware requirement:** GRPO training requires sampling N responses per prompt, making it more compute-intensive than SFT. For 3B models with N=4, the RTX 4090 (24GB) is sufficient.
 - **Frameworks:** OpenRLHF, VeRL, TRL all support GRPO training.
 - **Complexity:** High. Requires setting up the RL training loop, reward function, and careful hyperparameter tuning.
-- **Not the main training path:** Blanket GRPO on full trajectories is **not** unlocked as the next bet. SFT remains locked (2026-09-23). See [§25 Critical-State RL](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) for occurrence-local RL on a diagnosed turn only — an **unscored** research option **after healthy SFT**, distinct from this section. Logged 2026-09-28 GRPO-family options (still **not** a main-path unlock): [§29 PARL-MT](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) (progress-aware PAG-RL) and [§31 RC-GRPO](#31-rc-grpo-reward-conditioned-grpo) (reward-token variance restoration).
+- **Not the main training path:** Blanket GRPO on full trajectories is **not** unlocked as the next bet. SFT remains locked (2026-09-23). See [§25 Critical-State RL](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) for occurrence-local RL on a diagnosed turn only — an **unscored** research option **after healthy SFT**, distinct from this section. Logged 2026-09-28 GRPO-family options (still **not** a main-path unlock): [§29 PARL-MT](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) (progress-aware PAG-RL) and [§31 RC-GRPO](#31-rc-grpo-reward-conditioned-grpo) (reward-token variance restoration). Logged 2026-10-05: [§32 CITA](#32-cita-comparative-inference-for-tool-use-agents) (CIM-guided GRPO + dense comparative reward) — **unscored**; **do not** unlock GRPO as the main path.
 
 ### Sources
 
@@ -2102,7 +2119,7 @@ Do **not** write these as thesis harness scores on `multi_turn_base`. Our measur
 
 ### Applicability
 
-- **Thesis role:** Post-healthy-SFT **local RL** research option. Logged 2026-09-24; **unscored**. Not a substitute for SFT v7. Not BoN-on-collapsed-SFT. Not more epochs on v5/v6.
+- **Thesis role:** Post-healthy-SFT **local RL** research option. Logged 2026-09-24; **unscored**. Not a substitute for SFT v7. Not BoN-on-collapsed-SFT. Not more epochs on v5/v6. Adjacent later note: [§32 CITA](#32-cita-comparative-inference-for-tool-use-agents) (comparative next-tool value before acting) — also **unscored**; still **do not** unlock GRPO as the main path.
 - **Why it is interesting here:** v4 restored calling (empty-`[]` largely fixed) but residual is state mismatch / under-call / never-start recovery. Nested sampling asks *which turn* to train rather than GRPO-ing the whole trajectory.
 - **BFCL categories:** Paper cells are `miss_func` and `miss_param` (train splits in their study). Our primary thesis slice remains `multi_turn_base`; `miss_func` / `miss_param` stay secondary stress tests until someone scores them.
 - **Complexity:** High (nested sampling + local RL loop). Higher than SFT mix work; not the next default after v7 scaffolding.
@@ -2141,7 +2158,7 @@ Do **not** paste these as thesis `multi_turn_base` scores. Our measured ladder a
 
 ### Applicability
 
-- **Thesis role:** Logged 2026-09-28 as a full section (was a light Post–Run27 cite). Guo et al. paper method remains **unscored**. Complements Post–Run27 “lightweight state prefix in **one pass**” — prefer Joint typed CoT over Specialized 4-call loop at edge. Relevant to VehicleControl / `state_mismatch`. The one-pass `[OODA]` **card** (`--fc-mode iffc-ooda-card`) is **scored** Run 42 **71/200 = 35.5%** (accuracy win vs Run 30; still below BoN; `state_mismatch` **71** gate **MISS**). That card is **not** this paper’s 4-pass Specialized loop.
+- **Thesis role:** Logged 2026-09-28 as a full section (was a light Post–Run27 cite). Guo et al. paper method remains **unscored**. Complements Post–Run27 “lightweight state prefix in **one pass**” — prefer Joint typed CoT over Specialized 4-call loop at edge. Relevant to VehicleControl / `state_mismatch`. The one-pass `[OODA]` **card** (`--fc-mode iffc-ooda-card`) is **scored** Run 42 **71/200 = 35.5%** (accuracy win vs Run 30; still below BoN; `state_mismatch` **71** gate **MISS**). That card is **not** this paper’s 4-pass Specialized loop. Adjacent later note: [§33 HAT](#33-harness-annealing-hat) (internalize harness control so runtime STATE / OODA / GST cards can shrink) and [§36 Keyword Harnesses](#36-keyword-harnesses-fail-open) (lenient keyword gates fail open on SLMs) — both **unscored**.
 - **BFCL categories:** Paper transfer includes BFCL Multi-turn (their suite). Our one-pass card on `multi_turn_base` is **measured** (Run 42); Guo et al. Specialized / Joint LoRA transfer is **not**.
 - **Complexity:** Medium for Joint one-pass typed CoT; high for Specialized multi-pass + stage LoRAs.
 - **Limitation:** Specialized latency (~2.4×) is a poor edge default. Direct-LoRA remains cheaper when one-pass latency is the constraint.
@@ -2238,7 +2255,7 @@ Paper BFCLv4 multi-turn validation (Zhong et al., 2026; cite as **theirs**, not 
 
 ### Applicability
 
-- **Thesis role:** Logged 2026-09-28; **unscored**. Addresses a real pathology **if** we ever do GRPO post-SFT. Still **do not unlock GRPO as the main path**.
+- **Thesis role:** Logged 2026-09-28; **unscored**. Addresses a real pathology **if** we ever do GRPO post-SFT. Still **do not unlock GRPO as the main path**. Adjacent later note: [§32 CITA](#32-cita-comparative-inference-for-tool-use-agents) also conditions GRPO on a learned value signal — **unscored**; same lock.
 - **BFCL categories:** Paper is BFCLv4 multi-turn validation overall — not our 200-entry `multi_turn_base` sheet.
 - **Complexity:** High (mixed-quality RCTP + GRPO). Higher than SFT mix work.
 - **Limitation:** Requires strong SFT first. Not a substitute for v7. Not BoN-on-collapsed-SFT.
@@ -2246,6 +2263,239 @@ Paper BFCLv4 multi-turn validation (Zhong et al., 2026; cite as **theirs**, not 
 ### Source
 
 Zhong, H., Zhai, J., Song, L., Bian, J., Liu, Q., & Tan, T. "RC-GRPO: Reward-Conditioned Group Relative Policy Optimization for Multi-Turn Tool Calling Agents." arXiv:2602.03025, 2026. https://arxiv.org/abs/2602.03025
+
+---
+
+## 32. CITA: Comparative Inference for Tool-Use Agents
+
+### Overview
+
+CITA (Li, Zhang, Liu, Yang, Cai, & Feng, 2026) trains a **Comparative Inference Model (CIM)** to estimate the long-horizon value of a possible **next tool** before acting. Logged trajectories only contain the invocation that was taken; CIM is therefore trained from **paired** signals (observed trajectories + a Bayesian tool-graph sandbox + LLM comparison). CIM then guides **GRPO** rollouts, supplies a dense comparative reward, and is reused for inference-time selection.
+
+**Train vs infer: both** (CIM training + GRPO; CIM-guided selection at inference). **Not a scored thesis experiment.** Paper Toolathlon / TOUCAN / TRAJECT-Bench Tool F1 and TSR are **theirs**. Do **not** equate those numbers to `multi_turn_base`. Do **not** unlock GRPO as the main path. Log next to [§25 Critical-State](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) / [§31 RC-GRPO](#31-rc-grpo-reward-conditioned-grpo) as an optional **post-healthy-SFT** inference-value / RL idea.
+
+### Mechanism
+
+1. **Paired CIM supervision** from three sources: matched real-trajectory forks, a Bayesian simulator over the tool transition graph (sandbox pairs without live APIs), and LLM comparison of the taken call vs a plausible alternative under the same context.
+2. **Rollout guide:** at each GRPO step the policy samples candidate next invocations; CIM picks the highest predicted success value.
+3. **Dense comparative reward:** CIM scores the realized sequence \(V(s_t, a_t)\); aggregated scores mix with a task-level matching reward for group-relative advantages.
+4. **Inference:** the same CIM-guided selection, without policy updates.
+
+### Evidence
+
+Paper results (Li et al., 2026; cite as **theirs**, not ours) on Toolathlon, TOUCAN, and TRAJECT-Bench with **Qwen2.5-7B** and **Llama3.1-8B**:
+
+- CITA is best in all six dataset–backbone cells on **Tool F1** and **TSR**. Average gains vs the strongest prior method: **+7.55** Tool F1 / **+9.93** TSR.
+- Ablation mean over six settings: full CITA Tool F1 **60.47** / TSR **49.70**; dropping the sandbox pairs or value-gap loss hurts most.
+
+**Metric mismatch:** Toolathlon / TOUCAN / TRAJECT-Bench Tool F1 and GPT-4o TSR ≠ our BFCL v4 `multi_turn_base` execution checker. Do **not** write 60.47 / 49.70 as a thesis Acc.
+
+### Applicability
+
+- **Thesis role:** Logged 2026-10-05; **unscored**. Optional post-healthy-SFT RL / inference-value idea. **Do not** unlock GRPO as the main path. **Do not** equate their Toolathlon/TSR numbers to `multi_turn_base`.
+- **BFCL categories:** Hypothesis only for long consecutive-call traces. No `--fc-mode`.
+- **Complexity:** High (CIM dataset + GRPO loop + inference CIM).
+- **Limitation:** Needs logged trajectories and a tool graph. Paper backbones are 7B/8B, not Gemma-4-E2B on this harness.
+
+### Source
+
+Li, Y., Zhang, Z., Liu, X., Yang, S., Cai, G., & Feng, L. "Choosing Before Acting: Comparative Value Estimation for Long-Horizon Tool-Use Agents." arXiv:2610.02330, 2026. https://arxiv.org/abs/2610.02330
+
+---
+
+## 33. Harness Annealing (HAT)
+
+### Overview
+
+HAT (Yang, Chai, & Wen, 2026) studies **harness internalization**: train the model to assume specified control responsibilities (state tracking, workflow, verification) so it keeps performance after that runtime support is withdrawn. **HAT** pairs explicit control supervision with a curriculum over teacher trajectories collected under **progressively weaker** harnesses (tools → state → workflow → verification).
+
+**Train vs infer: training-time** (curriculum SFT on annealed harness traces); evaluation is every checkpoint under every deployment harness. **Not a scored thesis experiment.** SWE-QA / SWE-QA-Pro numbers are **theirs**. Relevant to our harness vs training tension (IFFC / Choice / OODA cards) — **not** a scored Acc recipe.
+
+### Mechanism
+
+1. Start from a checkpoint trained on **full-harness** (H4) trajectories.
+2. Progressively introduce records from weaker source harnesses (drop verification, then workflow, then state) so tools-only (H1) is the end of the ladder.
+3. Explicit control annotations distinguish externally supplied information from judgments the model must emit. Replay and cue dropout supplement the curriculum.
+4. Score every checkpoint under all four deployment harnesses; pick the annealed checkpoint that holds tools-only performance.
+
+### Evidence
+
+Paper results (Yang, Chai, & Wen, 2026; cite as **theirs**, not ours) on SWE-QA / SWE-QA-Pro with **Qwen3.5-9B / 35B**:
+
+- Selected annealed checkpoints operating with **tools alone** approach the starting checkpoint deployed with the **full harness**.
+- 9B **H2-targeted** checkpoint: tools-only **+5.01 / +3.09** vs the H4-trained start on SWE-QA / SWE-QA-Pro (brief: under H1).
+- Gains vary with scale and deployment; further annealing does **not** uniformly improve.
+
+**Not** BFCL `multi_turn_base`. Do **not** equate +5.01 / +3.09 to a thesis harness score.
+
+### Applicability
+
+- **Thesis role:** Logged 2026-10-05; **unscored**. Frames whether IFFC STATE / OODA-card / GST should stay as runtime control or be trained in. Complements [§26 OODA-Tool](#26-ooda-tool-typed-observe-orient-decide-act) (paper method unscored; our one-pass card is **scored** Run 42) and [§36 Keyword Harnesses](#36-keyword-harnesses-fail-open) (fragile keyword gates). Not a scored Acc recipe.
+- **BFCL categories:** Hypothesis only. No `--fc-mode`.
+- **Complexity:** High (teacher bank × harness ladder × checkpoint-by-harness matrix).
+- **Limitation:** Paper env is SWE-QA, not GorillaFileSystem / VehicleControl. Preferred checkpoint is scale- and deployment-specific.
+
+### Source
+
+Yang, Y., Chai, H., & Wen, Y. "Harness Annealing: Learning to Act with Less External Control." arXiv:2610.01235, 2026. https://arxiv.org/abs/2610.01235
+
+---
+
+## 34. PG-SFT: Privilege-Guided SFT
+
+### Overview
+
+PG-SFT (Li, Liang, Li, & Liu, 2026) is a **turn-level** SFT objective for offline agent traces. Token-level imitation can raise the target task while hurting retained capabilities. PG-SFT sets a mixing weight **α** from **privileged** action-hint information: the base-model NLL gap between hint and no-hint on that turn. Compared with plain SFT / Base-KL / PSFT on the **same** traces.
+
+**Train vs infer: training-time** (SFT objective only; no hint at inference). **Not a scored thesis experiment.** Adjacent to the SFT v7–v10 path as a **retention** idea. Their BFCL cell ≠ our `multi_turn_base`-only sheet. **Do not** invent a BFCL %.
+
+### Mechanism
+
+1. Hold offline trajectories fixed; vary only the supervision objective.
+2. At each assistant turn, score privileged “next action” hints vs the unhinted base NLL; the gap sets **α** (how strongly that turn may leave the base distribution).
+3. Mix CE toward the demonstration with a base-anchored term using that **α**. High-gain turns (hint resolves the action) get more update; generic tokens stay closer to the base.
+4. Baselines on identical data: full SFT, SFT+Base-KL, proximal SFT (PSFT).
+
+### Evidence
+
+Paper results (Li, Liang, Li, & Liu, 2026; cite as **theirs**, not ours) on a SWE-bench subset + GPQA / BFCL / LiveCodeBench with **Qwen3.5-4B** and **Qwen3-4B-Thinking**:
+
+- Qwen3.5-4B: PG-SFT **59/89** (pass@3) on the selected SWE-bench subset — matches or beats plain SFT on target while retaining stronger non-target scores. Highest **Macro Avg** on both backbones (**62.10%** / **55.58%**); only objective that improves vs its own Base (**+1.49 / +2.07 pp**).
+- Plain SFT fits the target and regresses on non-target benches; Base-KL cuts drift without reliable retention; PSFT stays closest to base and learns least.
+- A matched **fixed** intensity at the same mean **α** does **not** reproduce PG-SFT’s downstream profile.
+
+**Metric mismatch:** their BFCL /200 retention cell ≠ this repo’s BFCL v4 `multi_turn_base` Mac harness. Do **not** invent or paste a thesis BFCL %.
+
+### Applicability
+
+- **Thesis role:** Logged 2026-10-05; **unscored** SFT-data / retention idea next to v7–v10. **Do not** invent a BFCL %. Not a substitute for Hub-gated APIGen-MT. Not more epochs on v5/v6.
+- **BFCL categories:** Paper uses BFCL as one **retention** bench among four. Our primary slice remains `multi_turn_base`.
+- **Complexity:** Medium (privileged NLL pass once per dataset/model, then weighted SFT).
+- **Limitation:** Two 4B backbones, one agent domain. Privileged scoring + full-vocab KL add compute over ordinary SFT.
+
+### Source
+
+Li, R., Liang, Z., Li, Z., & Liu, S. "Balancing Capability Acquisition and Retention in Offline Agent Fine-Tuning." arXiv:2610.00949, 2026. https://arxiv.org/abs/2610.00949
+
+---
+
+## 35. SAP: State-Guided Synthesis with Argument Provenance
+
+### Overview
+
+SAP (Tian, Chen, Gong, Zhang, & Liu, 2026) synthesizes multi-turn function-calling data with an **FSM** whose edges carry per-argument **provenance tags** `{Pi, Po, Pc, Pu, Pf}` (initial state, prior observation, created, user, fallback). Each tool call is **executed immediately**; failures retry locally rather than discarding the whole trajectory. They train **SAP-4B** (Qwen3-4B-Instruct-2507, SFT only) and report it competitive on BFCL v4 multi-turn and τ².
+
+**Train vs infer: training-time data generation** (+ SFT on the dump). **Not a scored thesis experiment.** Complement near [§24 Data Turnstile](#24-data-turnstile-open-function-calling-data-generation) / APIGen-MT — **not** a substitute for the locked SFT path. Paper BFCL v4 MT / τ² are **theirs**.
+
+### Mechanism
+
+1. From a toolset + docs, build a dialogue-phase FSM; each edge lists tools and a provenance map for every argument.
+2. Sample a state trajectory; fill tagged calls turn by turn; execute with environment rollback and local retry on failure.
+3. After the call sequence is verified, generate user/assistant messages. Filter into the final dump (~9k trajectories in the paper).
+4. SFT a 4B non-think backbone (SAP-4B). Code / data / weights: https://github.com/Zichen1024/SAP
+
+### Evidence
+
+Paper results (Tian et al., 2026; cite as **theirs**, not ours):
+
+- SAP-4B on **their** BFCL v4 multi-turn split: Avg **30.4** / Base **38.0** / miss_func **23.0** / miss_param **24.5** / long_context **36.0**. Provenance-tag ablation drops Avg **30.4→24.0**.
+- Competitive on τ² Retail/Airline vs several larger / RL-trained 8B methods in **their** table (SFT-only 4B).
+- Open-source dumps they diagnose (ToolACE, APIGen-MT) have shallower argument-propagation chains than SAP.
+
+**Metric mismatch:** their BFCL v4 MT overall (and Base **38.0**) ≠ this repo’s 200-entry `multi_turn_base` Mac sheet. Do **not** write 30.4 / 38.0 as a thesis Acc. Do **not** confuse their Base 38.0 with our BoN **36.5%**.
+
+### Applicability
+
+- **Thesis role:** Logged 2026-10-05; **unscored** data-gen complement near Data Turnstile / APIGen-MT. Not a substitute for locked SFT. Not scored Acc.
+- **BFCL categories:** Paper reports all four MT slices on **their** split. Relevance to our `multi_turn_base` is hypothesis only until scored.
+- **Complexity:** High to run their live-executor synthesizer; low to *cite* as a v7-related option.
+- **Limitation:** Pipeline reuses BFCL / τ² schemas as the environment (sampled independently of the test split — still not our harness). Live-executor cost. English, single-agent.
+
+### Source
+
+Tian, Z., Chen, J., Gong, C., Zhang, S., & Liu, R. "SAP: State-Guided Data Synthesis with Argument Provenance for Multi-Turn Tool Use." arXiv:2609.06124, 2026. https://arxiv.org/abs/2609.06124
+
+Code: https://github.com/Zichen1024/SAP
+
+---
+
+## 36. Keyword Harnesses Fail Open
+
+### Overview
+
+Santillana (2026) shows that **keyword-matching** tool-use harnesses can credit a small model for tool use it never performs — they **fail open**. A cheap diagnostic ladder (verbatim reproduction / first-token prior / novel-prompt generalization / embedding drift) separates a matched-architecture pair: **VectraYX-600M** (code-heavy mix, no dedicated SFT) vs **VectraYX-1B** (web-heavy + dedicated tool-SFT). The 600M emits structure by default; the 1B needed diagnosis-informed repair. Over-triggering is common.
+
+**Not a scored thesis experiment.** Warning for keyword / fragile harnesses. Relevant to Choice-SLM / menu harnesses and small-model edge. **Do not** claim our Choice Acc from this paper. Complements the Acc-harness IMPL FLAG (`greedy_only` ≠ ranking).
+
+### Mechanism
+
+1. **Verbatim / generalization check:** greedy-decode real training prompts; require well-formed tool-call JSON with **non-identical** arguments (not a byte copy).
+2. **First-token probe:** probability of the trigger token (e.g. `<|tool_call|>`) at the call-start position.
+3. **Novel-prompt battery** over unseen entities / tools.
+4. **Embedding-drift check** after any repair (did the trigger row move, or only routing?).
+
+Lenient keyword B4 scores can agree while this ladder disagrees completely.
+
+### Evidence
+
+Paper results (Santillana, 2026; cite as **theirs**, not ours):
+
+- Lenient B4: 600M **0.660** vs 1B **0.650** — nearly identical. Strict verbatim: 600M **6/6**; 1B **0/4–6** at every checkpoint. The harness credited prose mentions, not calls.
+- 1B first-token prior on `<|tool_call|>` was **10⁻⁴–10⁻⁵**; a later web-heavy phase erased an earlier memorized prior. Diagnosis-informed SFT repaired format emission (well-formed **0.100→0.959** on corpus rows; 600M **0.926**) — **their** repair, not ours.
+- Both over-trigger: no-call prompts that mention a CVE or shell command are answered **without** a call on only **0.09** (600M) and **0.17** (repaired 1B).
+
+**Not** BFCL `multi_turn_base`. Do **not** claim Run 64 Choice Acc (**11/200 = 5.5% FAIL**) from this paper. Ranking **PASS** remains ≠ Acc.
+
+### Applicability
+
+- **Thesis role:** Logged 2026-10-05; **unscored** warning. Use as a gate on keyword / menu / Choice claims. Complements FLAG `greedy_only` on the Choice Acc harness IMPL and Run 64 scored FAIL. Cross-link [IFFC Decision sidecar](#experiment-iffc-decision-sidecar---fc-mode-iffc-decision) / [§22](#22-knowledge-distillation-for-tool-calling). Do **not** treat this paper as a Choice Acc win.
+- **BFCL categories:** Diagnostic method, not a generation-loop ablation. No `--fc-mode`.
+- **Complexity:** Low (minutes of CPU for the ladder).
+- **Limitation:** Natural experiment on one Spanish security pair; incomplete 600M run (frozen at 64% of schedule); single-seed harness numbers. Not our Gemma / IFFC channel.
+
+### Source
+
+Santillana, J. S. "Keyword Harnesses Fail Open: A Cheap Diagnostic Ladder for Tool-Use Claims in Small Language Models." arXiv:2610.02142, 2026. https://arxiv.org/abs/2610.02142
+
+---
+
+## 37. Tool-Schema Bias: Action-Space Shaping
+
+### Overview
+
+Liu, Tan, Wang, & Guo (2026) treat a tool schema as **one representation** of an action space, not the action space itself. Nine operators rewrite **equivalent** schemas (merge/split, rename, multi-call protocols, …) while keeping executable actions and reachable states fixed. Success can swing **0–97%** by schema alone. Training repairs a variant **only when that variant appears in the training data**.
+
+**Not a scored thesis experiment.** Complements [§3a MCP-GRANITE](#3a-tool-interface-granularity-mcp-granite) (cardinality) with **schema wording / factorization** as a confound — do not treat one schema wording as the method. Repo: https://github.com/williamLyh/ToolSchemaSpace
+
+### Mechanism
+
+1. Native environment + schema \(S_0\); each call decodes to a native action.
+2. Nine operators produce verified-equivalent variants \(S_i\) (presentation-only vs interaction-structure changes).
+3. An execution adapter maps variant traces back to native actions; a validator checks same native actions and final states.
+4. Measure success across models and variants; try training-free fixes, SFT, and on-policy RL on native-only vs variant-mixture data.
+
+### Evidence
+
+Paper results (Liu, Tan, Wang, & Guo, 2026; cite as **theirs**, not ours):
+
+- Eleven LLMs (including two closed models), up to **32** schema variants. Success ranges from **complete failure to 97%** depending **solely** on the schema. Hardest variant is **model-family specific**.
+- Failures follow the variant (same break pattern across models); cost of a variant is model-specific.
+- Native-only SFT or RL leaves most of the bias. Training repairs a schema variant **only if that variant is in the training data**; RL on a variant mixture mitigates bias with less tax on the native score than SFT. Gains transfer to new **combinations** of trained changes, not to new **kinds** of change.
+
+**Not** BFCL `multi_turn_base`. Do **not** treat one BFCL tool-doc wording as the method. Do **not** paste 0–97% as a thesis Acc.
+
+### Applicability
+
+- **Thesis role:** Logged 2026-10-05; **unscored**. Schema surface is a confound for comparing `--fc-mode` / SFT recipes on a single catalog. Complements MCP-GRANITE §3a (how many tools) and HyperTool §30 (execution granularity).
+- **BFCL categories:** System-design / eval-robustness knob. No `--fc-mode`.
+- **Complexity:** Medium to *cite*; high to reproduce their operator suite.
+- **Limitation:** Paper tasks/schemas are not GorillaFileSystem / VehicleControl. Do not retune our catalog from their 0–97% grid.
+
+### Source
+
+Liu, Y., Tan, Z., Wang, Z., & Guo, Z. "Action-Space Shaping for LLM Agents: Measuring and Mitigating Tool-Schema Bias." arXiv:2609.34971, 2026. https://arxiv.org/abs/2609.34971
+
+Code: https://github.com/williamLyh/ToolSchemaSpace
 
 ---
 
@@ -2599,6 +2849,8 @@ Base model: Gemma-4-E2B-it (google/gemma-4-e2b-it)
       [OODA] card SCORED Run 42): OODA one-pass preferred;
       PTC / Looped LMs inference; PARL-MT / RC-GRPO training-time (not a
       GRPO unlock); HyperTool execution granularity.
+      2026-10-05 sweep (§32–§37 CITA/HAT/PG-SFT/SAP/keyword/schema-bias):
+      all unscored; no Acc/train from this pass; not a GRPO unlock.
       SFT path locked 2026-09-23 as the main path; inference wrappers secondary.
       Not another thin filter on the same family. Not decode bans as the win.
       Not a third quota remix. Not invented v9 BFCL %.
@@ -2662,6 +2914,7 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 | PARL-MT / PROGRA | Chai et al. ACL 2026 Findings, [arXiv:2509.23206](https://arxiv.org/abs/2509.23206) — [§29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) | Logged 2026-09-28; **unscored**. **Training-time** PAG + PAG-RL. **Not** a GRPO unlock |
 | HyperTool | Du*, Zhou*, et al. 2026, [arXiv:2606.13663](https://arxiv.org/abs/2606.13663) — [§30](#30-hypertool-code-block-execution-granularity) | Logged 2026-09-28; **unscored**. **Train + infer** code-block granularity. MCP-Universe ≠ BFCL |
 | RC-GRPO | Zhong et al. 2026, [arXiv:2602.03025](https://arxiv.org/abs/2602.03025) — [§31](#31-rc-grpo-reward-conditioned-grpo) | Logged 2026-09-28; **unscored**. **Training-time** reward-conditioned GRPO. Paper BFCLv4 val ≠ our 200-entry sheet. **Not** a GRPO unlock |
+| 2026-10-05 sweep | CITA / HAT / PG-SFT / SAP / Keyword Harnesses / Schema bias — [§32](#32-cita-comparative-inference-for-tool-use-agents)–[§37](#37-tool-schema-bias-action-space-shaping) | Logged 2026-10-05; **all unscored**; paper numbers **theirs**; **no Acc/train** from this pass. **Not** a GRPO unlock. **Not** a Choice Acc claim |
 | MCP-GRANITE | Paschalides et al. 2026, [arXiv:2609.24161](https://arxiv.org/abs/2609.24161) — [§3a](#3a-tool-interface-granularity-mcp-granite) | Already logged; **unscored**. Optional if the tool list is huge |
 | Data Turnstile | Ramakrishnan & Sharma (Amazon AGI) 2026, [arXiv:2607.29250](https://arxiv.org/abs/2607.29250) — [§24](#24-data-turnstile-open-function-calling-data-generation) | Already logged (same paper as §24); **unscored**. Harness ID/mask note, not the primary SFT-loop fix |
 | When2Call | Ross et al. 2025, NAACL 2025, [arXiv:2504.18851](https://arxiv.org/abs/2504.18851) | Light pointer: 4-way when-to-call |
@@ -2676,7 +2929,7 @@ Dated fold of small-LLM (≤5–8B) multi-turn tool-calling literature after Run
 3. **Anti-loop contrast (next lever):** Magnet-style pos/neg or Critical-State labels; **DPO** (smoke100 β0.2 10-ID **PASS**; full train **HOLD**) then mDPO / small preference **after** SFT ≫ decode bans ≫ another quota remix ≫ more PTC/OODA remix.
 4. **Lightweight state prefix** (goal / slots / last fact / next mode) in **one pass** — **scored** as `--fc-mode iffc-ooda-card` Run 42 **71/200 = 35.5%** ([experiment](#experiment-iffc-ooda-card---fc-mode-iffc-ooda-card); stacked on stop-repeat MIN=6; `next` advisory). Still **best non-BoN harness Acc**; still **below BoN 36.5%**; `state_mismatch` gate **MISS**. Guo et al. Specialized ~2.4× multi-pass remains **not** the edge default ([OODA-Tool §26](#26-ooda-tool-typed-observe-orient-decide-act)). **PTC-A** (`--fc-mode iffc-ptc-a`) is a **later scored FAIL** (Run 46 **13.5%**) — **bank and close**; do **not** remix as the next Acc bet.
 5. **Hold decode stops on the scored base.** Optional soft max-N identical successful signatures, then force answer.
-6. **Occurrence-local RL** only if SFT plateaus — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), **not** [§19 blanket GRPO](#19-reinforcement-learning-with-verifiable-rewards-grpo). [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) / [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo) remain logged research options; **do not** unlock GRPO as the main path.
+6. **Occurrence-local RL** only if SFT plateaus — [§25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), **not** [§19 blanket GRPO](#19-reinforcement-learning-with-verifiable-rewards-grpo). [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling) / [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo) / [CITA §32](#32-cita-comparative-inference-for-tool-use-agents) remain logged research options; **do not** unlock GRPO as the main path.
 7. **Optional MCP-GRANITE composites** if the tool list is huge — [§3a](#3a-tool-interface-granularity-mcp-granite).
 
 ### Anti-patterns
@@ -2685,7 +2938,7 @@ Teacher loop-filter-only; stop-on-repeat / CRI-like decode; recovery-targeted SF
 
 ### Already-logged options (cross-link, do not duplicate)
 
-[Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), [OODA-Tool §26](#26-ooda-tool-typed-observe-orient-decide-act), [PTC-Decoder §27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa), [Looped LMs §28](#28-looped-language-models-for-compositional-tool-calling), [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling), [HyperTool §30](#30-hypertool-code-block-execution-granularity), [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo), [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite), [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation), [APIGen-MT / xLAM §15](#15-xlam-large-action-models), [ToolACE §13](#13-toolace-automated-training-data-generation). Sweep entries remain **unscored** research options except the one-pass `[OODA]` **card** harness (Run 42 **scored**; not Guo et al. Specialized) and the live-name DFA `--fc-mode iffc-ptc-a` harness (Run 46 **scored FAIL 13.5%**; bank and close; PTC-B HOLD). Paper numbers are **theirs**.
+[Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls), [OODA-Tool §26](#26-ooda-tool-typed-observe-orient-decide-act), [PTC-Decoder §27](#27-ptc-decoder-plan-to-act-plus-tool-name-dfa), [Looped LMs §28](#28-looped-language-models-for-compositional-tool-calling), [PARL-MT §29](#29-parl-mt-progress-awareness-for-multi-turn-function-calling), [HyperTool §30](#30-hypertool-code-block-execution-granularity), [RC-GRPO §31](#31-rc-grpo-reward-conditioned-grpo), [CITA §32](#32-cita-comparative-inference-for-tool-use-agents), [HAT §33](#33-harness-annealing-hat), [PG-SFT §34](#34-pg-sft-privilege-guided-sft), [SAP §35](#35-sap-state-guided-synthesis-with-argument-provenance), [Keyword Harnesses §36](#36-keyword-harnesses-fail-open), [Tool-Schema Bias §37](#37-tool-schema-bias-action-space-shaping), [MCP-GRANITE §3a](#3a-tool-interface-granularity-mcp-granite), [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation), [APIGen-MT / xLAM §15](#15-xlam-large-action-models), [ToolACE §13](#13-toolace-automated-training-data-generation). Sweep entries remain **unscored** research options except the one-pass `[OODA]` **card** harness (Run 42 **scored**; not Guo et al. Specialized) and the live-name DFA `--fc-mode iffc-ptc-a` harness (Run 46 **scored FAIL 13.5%**; bank and close; PTC-B HOLD). Paper numbers are **theirs**. 2026-10-05 sweep (§32–§37) is **unscored**; no Acc/train from that pass.
 
 ---
 
@@ -2725,3 +2978,9 @@ Teacher loop-filter-only; stop-on-repeat / CRI-like decode; recovery-targeted SF
 61. Kang et al. "Acon: Optimizing Context Compression for Long-horizon LLM Agents." arXiv:2510.00615, 2025. https://arxiv.org/abs/2510.00615 (**not** Xu; ReWOO remains Xu B.)
 62. Kang et al. "Distilling LLM Agent into Small Models with Retrieval and Code Tools." NeurIPS 2025. arXiv:2505.17612.
 63. Zhang, Yang, Li, He, Gong. "ODIA." arXiv:2507.08877, 2025.
+64. Li, Y., Zhang, Z., Liu, X., Yang, S., Cai, G., & Feng, L. "Choosing Before Acting: Comparative Value Estimation for Long-Horizon Tool-Use Agents." arXiv:2610.02330, 2026. https://arxiv.org/abs/2610.02330
+65. Yang, Y., Chai, H., & Wen, Y. "Harness Annealing: Learning to Act with Less External Control." arXiv:2610.01235, 2026. https://arxiv.org/abs/2610.01235
+66. Li, R., Liang, Z., Li, Z., & Liu, S. "Balancing Capability Acquisition and Retention in Offline Agent Fine-Tuning." arXiv:2610.00949, 2026. https://arxiv.org/abs/2610.00949
+67. Tian, Z., Chen, J., Gong, C., Zhang, S., & Liu, R. "SAP: State-Guided Data Synthesis with Argument Provenance for Multi-Turn Tool Use." arXiv:2609.06124, 2026. https://arxiv.org/abs/2609.06124
+68. Santillana, J. S. "Keyword Harnesses Fail Open: A Cheap Diagnostic Ladder for Tool-Use Claims in Small Language Models." arXiv:2610.02142, 2026. https://arxiv.org/abs/2610.02142
+69. Liu, Y., Tan, Z., Wang, Z., & Guo, Z. "Action-Space Shaping for LLM Agents: Measuring and Mitigating Tool-Schema Bias." arXiv:2609.34971, 2026. https://arxiv.org/abs/2609.34971
