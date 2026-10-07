@@ -42,7 +42,7 @@
 \author{Sanskar Thapa\\[0.4em]
 {\normalsize Master's thesis draft (due December 2026)}\\[0.2em]
 {\normalsize \url{https://github.com/sskarz/Thesis}}}
-\date{September 2026}
+\date{October 2026}
 
 \begin{document}
 \maketitle
@@ -52,7 +52,7 @@ A useful assistant has to \emph{do} things, not just describe them: check a cale
 
 We measure four small open models on a MacBook Pro (M4~Pro, 48~GB) with the Berkeley Function Calling Leaderboard (BFCL) v4. On single-turn tool selection the best model exceeds 80\%. On multi-step agent episodes---200 tasks, graded by whether the environment ends in the right state---the same class of model fails most of the time.
 
-The interventions we scored on Gemma-4-E2B-it tell a two-part story. Parsing tool calls from ordinary text lifts native structured calling from 27.0\% to 30.5\%. A harness-written scratchpad reaches 34.0\%; hanging up on repeating turns reaches 32.5\%; a four-line status cheat sheet on that hang-up reaches 35.5\%; a majority vote of five candidates reaches 36.5\% at roughly $7\times$ generation time. Forcing valid tool names hurts (a live name automaton scores 13.5\%). Asking a second small model to rank the next tool also hurts (25.0\%). Fine-tuning on public corpora also hurts: the best repaired mix scores 15.0\%, below the untuned model, because the original data taught the model to emit an empty list and stop after the first tool result. Preference training on the same channel scores 26.5\%, still below the untuned JSON baseline.
+The interventions we scored on Gemma-4-E2B-it tell a two-part story. Parsing tool calls from ordinary text lifts native structured calling from 27.0\% to 30.5\%. A harness-written scratchpad reaches 34.0\%; hanging up on repeating turns reaches 32.5\%; a four-line status cheat sheet on that hang-up reaches 35.5\%; a majority vote of five candidates reaches 36.5\% at roughly $7\times$ generation time. Forcing valid tool names hurts (a live name automaton scores 13.5\%). Asking a second small model to rank the next tool also hurts (25.0\%). Fine-tuning on public corpora also hurts: the best repaired mix scores 15.0\%, below the untuned model, because the original data taught the model to emit an empty list and stop after the first tool result. Preference training on the same channel scores 26.5\%, still below the untuned JSON baseline. A later training mix still ties the untuned model on a 10-task early check that cannot separate training from prompt tricks, so we switched to a 20-task gate. A repaired mix is mid-training as of October 2026---paused, with no task accuracy yet. Beating the best prompt-engineering result (35.5\% on 200 tasks) with training remains open.
 
 Two conclusions matter more than the ladder. First, plumbing---how calls are written and parsed---can swing scores by tens of points. Second, remaining errors are state tracking, not malformed JSON. Everything we tried sits below 40\%: about one in three episodes succeed at the 36.5\% best. With 200 tasks, neighbour gaps of a few points sit inside ordinary noise (${\sim}{\pm}7$ percentage points); the ordering is observed, not proven. A ${\sim}15$~GB serving footprint is not an 8~GB embedded board.
 \end{abstract}
@@ -104,12 +104,13 @@ A glossary of acronyms is in Appendix~\ref{app:acro}. Differences are reported i
 \begin{enumerate}
   \item \textbf{A Mac-local baseline.} Four small open models on single-turn tool selection, plus Gemma-4-E2B-it on multi-step agent episodes, all served with llama.cpp on the MacBook Pro above.
   \item \textbf{Plumbing is first-order.} How the model writes a call, and how the harness parses it, can swing scores by tens of points---including a published specialist checkpoint that looks dead on the native channel and merely very low once the channel matches training. A separate Llama diagnostic is consistent with argument serialization, not tool selection, as the gap. Native versus JSON-in-text on Gemma is a real point-estimate lift; the native run used more parallel server slots, so part of that gap may be serving (disclosed in Results).
-  \item \textbf{Cheap harness tricks help a little; forcing valid names---or a second model ranking the next name---can hurt.} A scratchpad, hanging up on repeated calls, a four-line status cheat sheet, and a five-way majority vote all sit above the JSON-in-text baseline as an observed ranking. Validity-forcing (constrained decoding; a live tool-name automaton) and a Decision sidecar (25.0\%; composed Decision+OODA 26.0\%; Choice-SLM Decision 5.5\%) score well below that baseline. Adjacent gaps among the winners are small relative to a 200-task sample; missing stacks are listed in Section~\ref{sec:roadmap}.
-  \item \textbf{Supervised fine-tuning on public corpora can teach the model to hang up.} Empty-list targets after tool results in the mix produce a checkpoint that almost never continues. Repairing the mix restores calling but still underperforms the untuned model. The scratchpad that helps the base model does not help that checkpoint. This is a supported reading of the mix, not a single-factor ablation.
+  \item \textbf{Cheap harness tricks help a little; forcing valid names---or a second model ranking the next name---can hurt.} A scratchpad, hanging up on repeated calls, a four-line status cheat sheet, and a five-way majority vote all sit above the JSON-in-text baseline as an observed ranking. Validity-forcing (constrained decoding; a live tool-name automaton) scores well below that baseline. Asking a second small model to pick the next tool also hurts (about 25\%). Stacking that helper with the status cheat sheet still scores about 26\%. A trained picker in the same role scores about 5.5\%. Details and run IDs live in Results. Adjacent gaps among the winners are small relative to a 200-task sample; missing stacks are listed in Section~\ref{sec:roadmap}.
+  \item \textbf{Supervised fine-tuning on public corpora can teach the model to hang up.} Empty-list targets after tool results in the mix produce a checkpoint that almost never continues. Repairing the mix restores calling but still underperforms the untuned model. The scratchpad that helps the base model does not help that checkpoint. This is a supported reading of the mix, not a single-factor ablation. Later mix surgery is still an open result versus the 35.5\% prompt-engineering bar; the best historical trained accuracy is about 15\%. That is not a win.
   \item \textbf{Preference optimization is scored and still below the untuned JSON channel.} Direct Preference Optimization (DPO) passed a 10-example health gate. The full-train checkpoint scores 53/200 (26.5\%) on plain JSON-in-text---below IFFC 30.5\% and NFC 27.0\%. That is a scored row, not a method win.
+  \item \textbf{A 10-task early check cannot rank training; a 20-task gate now stands in; a repaired mix is training.} Trained and untuned models both score 3/10 on the same easy IDs. A 20-task check (no overlap with those ten) is the go/no-go gate. A repaired mix started full training and is paused mid-run, with no execution accuracy yet. Finishing that train is the December critical path. Beating the prompt-engineering bar (35.5\% on 200 tasks) with training remains open.
 \end{enumerate}
 
-Section~\ref{sec:related} defines BFCL and the methods we compare. Section~\ref{sec:method} is a plain-English map, then each intervention once. Section~\ref{sec:setup} states the experimental setup. Sections~\ref{sec:results-st}--\ref{sec:results-fail} report results by what helped, what did not, residual errors, and serving cost. Section~\ref{sec:discussion} discusses format versus reasoning and cost. Section~\ref{sec:roadmap} discusses limitations and the roadmap. Appendix~\ref{app:acro} lists acronyms. Appendix~\ref{app:runs} maps \texttt{multi\_turn\_base} ($N{=}200$) scoreboard names to local evaluation-log IDs; it is not a map of the single-turn matrix.
+Section~\ref{sec:related} defines BFCL and the methods we compare. Section~\ref{sec:method} is a plain-English map, then each intervention once. Section~\ref{sec:setup} states the experimental setup. Sections~\ref{sec:results-st}--\ref{sec:results-fail} report results by what helped, what did not, residual errors, and serving cost. Section~\ref{sec:discussion} discusses format versus reasoning and cost. Section~\ref{sec:roadmap} discusses limitations and the roadmap. Appendix~\ref{app:acro} lists acronyms. Appendix~\ref{app:runs} maps \texttt{multi\_turn\_base} ($N{=}200$) scoreboard names to local evaluation-log IDs, plus 10-task and 20-task probes that are not 200-task percentages; it is not a map of the single-turn matrix.
 
 \section{Background and Related Work}
 \label{sec:related}
@@ -315,6 +316,8 @@ We train LoRA adapters on Gemma-4-E2B-it with mlx-lm~\cite{mlx} using an IFFC JS
 
 A 100-update DPO smoke ($\beta{=}0.2$) from the untouched Gemma MLX base is used only as a health gate (call volume, parseability, first-turn tool use on 10 IDs). A later full DPO checkpoint is scored on plain IFFC at 53/200 (26.5\%); other serving fields for that run are not verified here. That score is below IFFC and NFC. It is not a method win.
 
+Later mixes (v10, then a repaired v11) keep the same LoRA-on-Gemma recipe. Before a 200-task score we use two early checks, defined once here and used in Section~\ref{sec:results-train}: a \emph{soft10} is a 10-task tripwire; a \emph{mid20} is a 20-task go/no-go gate (no overlap with those ten). Neither is the 200-task execution accuracy, and neither rewrites the prompt-engineering bar of 71/200 (35.5\%).
+
 \section{Experimental Setup}
 \label{sec:setup}
 
@@ -325,7 +328,7 @@ All own experiments run on the MacBook Pro with Apple M4~Pro (48~GB) stated in S
 Single-turn matrix (Q4\_K\_M unless noted): Qwen2.5-3B-Instruct~\cite{qwen25}, Llama-3.2-3B-Instruct~\cite{llama32}, Qwen3.5-4B~\cite{qwen35}, and FunctionGemma-270M-IT~\cite{google2025functiongemma} (bf16; the published precision). Multi-turn primary model: Gemma-4-E2B-it~\cite{gemma4e2b} Q4\_K\_M (Google's effective-2B instruct checkpoint, HuggingFace \texttt{google/gemma-4-e2b-it}; served from bartowski). External baseline: Salesforce xLAM-1b-fc-r~\cite{zhang2024xlam} Q4\_K\_M. Decoding for reported accuracy uses temperature 0.0 except BoN (temperature 0.7, $N{=}5$). Parallel server slots and context length are as in the hardware subsection above.
 
 \subsection{Evaluation protocol}
-Single-turn: BFCL AST checker. Multi-turn: BFCL execution checker. FunctionGemma control-token outputs are normalized with a dedicated parser when llama-server does not already map them to \texttt{tool\_calls}. Weighted single-turn averages exclude \texttt{parallel} and \texttt{parallel\_multiple} (990 remaining cases). Failure buckets use one primary error per failed entry unless noted as raw eval-error rows. In timing tables, \emph{API calls} means llama-server / model-server request count, not tools executed and not user turns; BoN inflates the count by about $N$ samples per agent step. Chronological IDs in Appendix~\ref{app:runs} are local SQLite bookkeeping for the \texttt{multi\_turn\_base} $N{=}200$ scoreboard only.
+Single-turn: BFCL AST checker. Multi-turn: BFCL execution checker. FunctionGemma control-token outputs are normalized with a dedicated parser when llama-server does not already map them to \texttt{tool\_calls}. Weighted single-turn averages exclude \texttt{parallel} and \texttt{parallel\_multiple} (990 remaining cases). Failure buckets use one primary error per failed entry unless noted as raw eval-error rows. In timing tables, \emph{API calls} means llama-server / model-server request count, not tools executed and not user turns; BoN inflates the count by about $N$ samples per agent step. Chronological IDs in Appendix~\ref{app:runs} are local SQLite bookkeeping for the \texttt{multi\_turn\_base} $N{=}200$ scoreboard, plus 10-task and 20-task probes that are not 200-task percentages.
 
 \section{Single-turn Results}
 \label{sec:results-st}
@@ -575,6 +578,23 @@ A 100-update DPO smoke ($\beta{=}0.2$, LoRA, fused Q4\_K\_M) passed the same sty
 
 A later full DPO checkpoint, scored on plain IFFC, is 53/200 (26.5\%): ${-}4.0$\pp versus IFFC and ${-}0.5$\pp versus NFC. Other serving fields for that run (throughput, gates) are not verified here. We treat DPO-full as a scored row below the untuned JSON baseline, not as a method win, and we do not treat the 10-ID smoke as a scoreboard percentage.
 
+\subsection{A 10-task early check cannot rank training}
+\label{sec:results-soft10}
+
+In plain language: before spending a night on 200 tasks, we ran a 10-task early check (soft10). Two later SFT-v10 checkpoints and the untuned model with the status cheat sheet all score 3/10, and they pass the same three easy IDs (\texttt{\_101}, \texttt{\_126}, \texttt{\_130}). An earlier smoke of the same mix collapsed to 0/10 from undertraining. The 10-task slice does not tell supervised fine-tuning from prompt engineering---the untuned base plus harness overlays. Across historically strong 200-task runs, that 10-task score barely agrees with the full ranking (rank correlation 0.118)---almost no help picking a winner---so we keep those three easy IDs as a regression tripwire only. We do not treat 3/10 as a 200-task percentage.
+
+The two trained 3/10 rows are SFT-v10 best-validation (hang-up harness) and a longer continuation of the same mix (no lift; format adherence worse). The matching 3/10 on the untuned model used the same status-cheat-sheet harness as the 35.5\% 200-task bar. Fail classes on the trained versus untuned 3/10 rows are not identical; the pass set is.
+
+\subsection{A 20-task gate replaces it}
+\label{sec:results-mid20}
+
+We replaced that 10-task check as a discriminator with a 20-task early check (mid20): twenty fixed IDs, no overlap with the 10-task set. On past runs, this 20-task score usually agrees with which methods look stronger on all 200 (leave-one-run-out rank correlation 0.857). The untuned model plus the status cheat sheet scores 17/20; that is the bar a trained model must clear before a full 200. It is not the 200-task prompt-engineering bar (71/200 $=$ 35.5\%). We once saw two more passes than an older slice of that 35.5\% run; we do not treat that ${+}2$ as a real method gain. Mid20 is not a 200-task percentage.
+
+\subsection{A repaired mix is training; no accuracy yet}
+\label{sec:results-v11}
+
+We rebuilt the training data so it matches how the checker grades: teach the model to end a turn with an empty list when it should stop, practice several calls in one turn, and copy values from earlier tool results. About half the rows are new simulated episodes we ran and checked; the rest are cleaned public tool-call chats. We did not copy the eval's tool names into the sims. The rebuilt mix passed quality checks and a short smoke that lowered validation loss (a training health signal, not task accuracy). Full training then started and paused mid-run on 7~October 2026 at 11{,}500 of 32{,}000 steps; best validation loss so far is 0.059 at step 11{,}250. There is still no soft10, mid20, or 200-task accuracy for this mix.\footnote{Recipe counts: 30{,}000 train / 1{,}500 validation / 300 held-out-template rows; mix 45/40/10/5 synthetic / APIGen / ToolACE / xLAM. Empty-list golds 22\% (all after an observation); prose 0\%. Multi-call golds 41.2\% of all rows---a different denominator than v10's 7.6\% of call golds. Leak suite empty versus all 200 tasks. Execute-validation covered 6{,}473 synthetic parent trajectories (not rows; synthetic train rows are 13{,}500). Smoke validation loss 1.362$\to$0.493.} Training in progress is the December critical path, not a scored win. The prompt-engineering bar remains 71/200 (35.5\%); the best historical trained execution accuracy remains SFT-v4 at 15.0\%.
+
 \FloatBarrier
 
 \section{Failure Modes and Serving Cost}
@@ -684,6 +704,8 @@ On base Gemma, the observed Pareto picture is: IFFC at 30.5\% as the cheap JSON 
 \paragraph{Why SFT failed, then plateaued.}
 The first SFT mixes taught the model to hang up after tools, because empty-list targets dominate post-execution assistant turns in ToolACE. Removing those targets restores calling (empty errors ${\approx}0$) but does not install BFCL-style state tracking. Further filters that try to complete turn~0 or drop state-inconsistent continues either over-call (v5) or miss the v4 recovery (v6). STATE, which helps the base model remember executed facts, is null or negative on the v4 checkpoint: the overlay is not a universal substitute for a policy that already mismatches the environment. Preference data that contrasts advance versus loop, rather than another supervised empty-list filter, was the remaining training hypothesis. A full DPO checkpoint later scored 53/200 (26.5\%) on plain IFFC---still below the untuned JSON baseline.
 
+A later mix (v10) improved validation loss and still tied the untuned model on the 10-task check; extra epochs hurt format adherence. The data, not more epochs on that mix, is the remaining hypothesis. A repaired mix is now training and paused mid-run (Section~\ref{sec:results-v11}). That is not an accuracy. Beating 35.5\% with training remains open; 15.0\% is still the best historical trained row.
+
 \paragraph{Paper IFFC versus the IFFC paper.}
 Large lifts in~\cite{taheri2026iffc} are reported on single-turn Live/Non-Live suites, often where NFC is already weak, and often under dual QA / small-reasoner decoupling. Our Appendix~B-only multi-turn setup sits in a modest-gain band (${+}3.5$\pp point estimate, with the serving-slot caveat above). That is a different claim, not a refutation of theirs.
 
@@ -696,7 +718,7 @@ The following items remain open. No additional accuracies are reported here.
 
 \begin{description}
   \item[DPO full train.] A $\beta{=}0.2$ 100-update smoke passed a 10-ID health gate. The full-train checkpoint is scored at 53/200 (26.5\%) on plain IFFC (Table~\ref{tab:scoreboard})---below IFFC 30.5\% and NFC 27.0\%. Other serving fields for that run are not verified. It is not a method win.
-  \item[Decision compose.] Solo Decision on plain IFFC is a scored failure (50/200 $=$ 25.0\%). Composed \texttt{iffc-decision-ooda} is also a scored failure (52/200 $=$ 26.0\%): it does not clear IFFC (30.5\%), gated stop-on-repeat (32.5\%), or OODA-card (35.5\%), and is only ${+}1.0$\pp over Run~58. Decision(+OODA) Acc is parked for tev1 at these levers on the full 200. Compose smoke and turn-0 timeout hygiene are PASS (Thesis \texttt{ee4d877} / probe \texttt{98f1b56}); those are not Acc claims. A 10-ID trail (Runs~59/60: 1/10 vs 0/10) is not $N{=}200$. Choice-SLM Decision is a later scored failure (11/200 $=$ 5.5\%; Run~64; ${-}19.5$\pp versus Run~58, ${-}20.5$\pp versus Run~61). Ranking is not Acc. We do not propose a rerun.
+  \item[Decision compose / knowledge distillation.] Second-model helpers that pick the next tool scored below the plain JSON baseline on the full 200 (about 25--26\%, and ${\sim}5.5\%$ for a trained picker). Small 10-task trails are not full scores. We park this path; no rerun proposed. Smoke checks that the wiring works are not accuracy.
   \item[Missing inference ablations.] An OODA-card on plain IFFC is unscored, as is Best-of-N on plain IFFC. NFC at \texttt{-np 4} is an optional matched re-run; Contribution~2 remains the observed ${+}3.5$\pp under the disclosed eight-versus-four serving-slot asymmetry. Multi-seed BoN, parallel-category re-score after the GBNF bypass, and a unified type-coercion re-score with logged run IDs are likewise future work.
   \item[Other models' multi-turn.] Qwen2.5-3B, Llama-3.2-3B, Qwen3.5-4B, and FunctionGemma-270M have single-turn numbers only.
   \item[Jetson Orin Nano Super.] CUDA / 8~GB replication of the Mac result in Section~\ref{sec:intro} is not run.
@@ -704,7 +726,8 @@ The following items remain open. No additional accuracies are reported here.
   \item[Parallel categories.] Re-run after the llama-server tools GBNF truncation fix; tables still report 0\%.
   \item[OODA factorial.] The scored card is stacked on gated stop-on-repeat. OODA-on-plain-IFFC remains a missing ablation. The \texttt{next} field is the deterministic advisory rule in Section~\ref{sec:method-overlays} (executed-tool history and the live user utterance; no reference trajectory). Whether the card can be revised without losing the 35.5\% point estimate is open.
   \item[Prefix constraints.] PTC-A is a scored failure (measured residuals in Table~\ref{tab:fail-later}). Token-level forced-name versus loop diagnosis is not fully audited. A second PTC variant is unscored and is not the next accuracy bet.
-  \item[SFT after v4.] Further quota remixes are not scored at $N{=}200$. Preference/DPO is scored at 26.5\% and does not beat IFFC---not more epochs on v5/v6 and not BoN on those checkpoints.
+  \item[SFT-v11 train (December critical path).] Data is ready; full cross-entropy training is paused mid-run (11{,}500/32{,}000 iterations; best validation loss 0.059 at 11{,}250). No accuracy yet---not on the 10-task tripwire, the 20-task gate, or the 200-task bar. Resume, finish, then the 20-task gate ($\geq$17/20); full 200 only with an explicit go. Still below the 35.5\% prompt-engineering bar until that 200 is scored. Best historical trained accuracy remains SFT-v4 at 15.0\%. Quota remixes after v4 are not scored at $N{=}200$. Preference/DPO is scored at 26.5\% and does not beat IFFC---not more epochs on v5/v6 and not BoN on those checkpoints.
+  \item[SAP (later explore).] State-guided synthesis with argument provenance is a literature note, not the current train path. The v11 mix already used a SAP-style execute-validate recipe; unlocking the public SAP dump is future work.
   \item[Type-coercion protocol.] Table~\ref{tab:single-turn} versus Table~\ref{tab:coerce} Llama \texttt{multiple} baselines remain two snapshots; config/run IDs for the 41.5\% cell were not recovered from the evaluation database. A unified re-score with logged IDs is future work.
   \item[Preference-pair audit.] Contrastive advance-versus-loop pairs are an engineering draft, not a scored method.
   \item[IFFC serving metrics.] A 50-request metrics collect for the IFFC baseline remains pending; Table~\ref{tab:perf} therefore has no IFFC row.
@@ -717,7 +740,7 @@ Quantized small models on a MacBook Pro M4~Pro with llama.cpp already achieve st
 
 For consecutive tool calling on Gemma-4-E2B-it, cheap harness changes move the 200-task point estimate from failing most episodes (27.0\%) to finishing about one in three (36.5\% at roughly $7\times$ generate wall). Parsing calls from ordinary text, a scratchpad, hanging up on repeats, and a four-line status cheat sheet all sit in the low-to-mid 30s. Constrained decoding, a live name automaton, and a second-model Decision sidecar hurt (25.0\%; composed Decision+OODA 26.0\%, still below IFFC; Choice-SLM Decision 5.5\%). Supervised IFFC fine-tuning is easy to get spectacularly wrong (0.5\%) and, even after repairing empty-list hang-ups, stalls at 15.0\%---below the untuned model. Preference training scores 26.5\%, still below the JSON baseline. Residual failures are environment-state mismatches, especially on VehicleControl and filesystem backends, not unparsable JSON. Neighbour gaps on 200 tasks sit inside ordinary noise; treat the ranking as observed. The native-versus-JSON comparison used more parallel server slots on the native run.
 
-Best-of-N remains the best measured inference point estimate (36.5\%); OODA-card remains the best non-BoN harness (35.5\%). Optional NFC at four server slots, other models' multi-turn baselines, dual-model IFFC, and parallel re-runs after the GBNF fix will determine how far local serving of this size can be pushed on the measured Mac stack before December 2026. RAG is out of scope.
+Best-of-N remains the best measured inference point estimate (36.5\%); OODA-card remains the best non-BoN harness (35.5\%). Training still sits below that prompt-engineering bar (35.5\%); 15.0\% is the best historical trained row. The December critical path is finishing the repaired-mix train, then measuring on the 20-task gate and---only with a go---the 200-task bar. Decision and ranking sidecars are parked. Optional NFC at four server slots, other models' multi-turn baselines, dual-model IFFC, and parallel re-runs after the GBNF fix will determine how far local serving of this size can be pushed on the measured Mac stack before December 2026. RAG is out of scope.
 
 \bibliographystyle{unsrtnat}
 \bibliography{references}
@@ -741,6 +764,8 @@ These distinctions are part of the method identity:
   \item PTC-A (13.5\%) is execution accuracy on this harness, not Yu et al.'s reported F1~\cite{yu2026ptc}. Token-level forced-name versus loop diagnosis is not fully audited.
   \item Decision sidecar (25.0\%) is a scored failure on plain IFFC (treatment-only). The helper was not dead. Composed \texttt{iffc-decision-ooda} is also a scored failure (52/200 $=$ 26.0\%; treatment-only; ${+}1.0$\pp over Run~58; still below IFFC--OODA). Choice-SLM Decision is a later scored failure (11/200 $=$ 5.5\%; treatment-only; ${-}19.5$\pp versus Run~58, ${-}20.5$\pp versus Run~61). Ranking is not Acc. Compose smoke and turn-0 timeout hygiene (Thesis \texttt{ee4d877} / probe \texttt{98f1b56}) are PASS; those are not Acc claims. Runs~59/60 (1/10 vs 0/10) and Runs~62/63 (0/10 vs 0/10) are 10-ID trails, not $N{=}200$.
   \item The DPO 10-ID result is a health-gate pass, not a BFCL percentage. Full DPO on plain IFFC is scored at 26.5\% (Run~51) and is not a win over IFFC or NFC.
+  \item Soft10 (10-task) is a regression tripwire only; mid20 (20-task) is a go/no-go gate. Neither is the 200-task prompt-engineering bar (71/200 $=$ 35.5\%).
+  \item SFT-v11 training is paused mid-run (11{,}500/32{,}000; best validation 0.059 at 11{,}250). No accuracy is claimed.
   \item RAG appeared in an earlier registered-title framing and is out of scope for this paper---not evaluated, not deferred.
   \item Title ``edge devices'' is registered/local branding; measured accuracies are the MacBook Pro of Section~\ref{sec:intro}.
 \end{itemize}
@@ -748,11 +773,11 @@ These distinctions are part of the method identity:
 \section{Evaluation-log run IDs}
 \label{app:runs}
 
-Table~\ref{tab:runs} maps the \texttt{multi\_turn\_base} ($N{=}200$) method names used in the body to chronological IDs in a \emph{local} SQLite evaluation log. IDs are bookkeeping; they are not a public artifact and they do not cover the single-turn matrix or the type-coercion diagnostic.
+Table~\ref{tab:runs} maps the \texttt{multi\_turn\_base} ($N{=}200$) method names used in the body to chronological IDs in a \emph{local} SQLite evaluation log. IDs are bookkeeping; they are not a public artifact and they do not cover the single-turn matrix or the type-coercion diagnostic. Runs~65--68 are 10-task probes and Run~69 is a 20-task probe; those fractions are not 200-task percentages. SFT-v11 full training has no evaluation-log accuracy row.
 
 \begin{table}[htbp]
 \centering
-\caption{Chronological \emph{local} SQLite IDs for scored \texttt{multi\_turn\_base} ($N{=}200$) rows, plus 10-ID probes that are not BFCL $N{=}200$ percentages. Gemma-4-E2B-it Q4\_K\_M unless noted. Not a map of single-turn or coercion runs. Compose mode \texttt{iffc-decision-ooda} is scored at Run~61 (52/200 $=$ 26.0\% FAIL). Choice-SLM Decision is scored at Run~64 (11/200 $=$ 5.5\% FAIL). Runs~59/60 and Runs~62/63 are 10-ID trails, not $N{=}200$.}
+\caption{Chronological \emph{local} SQLite IDs for scored \texttt{multi\_turn\_base} ($N{=}200$) rows, plus 10-task and 20-task probes that are not BFCL $N{=}200$ percentages. Gemma-4-E2B-it Q4\_K\_M unless noted. Not a map of single-turn or coercion runs. Compose mode \texttt{iffc-decision-ooda} is scored at Run~61 (52/200 $=$ 26.0\% FAIL). Choice-SLM Decision is scored at Run~64 (11/200 $=$ 5.5\% FAIL). Runs~59/60 and Runs~62/63 are 10-ID trails, not $N{=}200$. Runs~65--69 are early-check probes, not $N{=}200$. SFT-v11 training is paused mid-run with no Acc.}
 \label{tab:runs}
 \footnotesize
 \begin{tabular}{@{}rllr@{}}
@@ -790,6 +815,12 @@ ID & Method name in this paper & Acc. & Role \\
 62 & Choice-SLM 10-ID treatment & --- & 0/10; not BFCL \% \\
 63 & Choice-SLM 10-ID control & --- & 0/10; not BFCL \% \\
 64 & Choice-SLM Decision & 5.5\% & scored failure; ranking $\neq$ Acc \\
+65 & SFT-v10 smoke (10 IDs) & --- & 0/10 FAIL; not $N{=}200$ \\
+66 & SFT-v10 best700 (10 IDs) & --- & 3/10 tripwire; not $N{=}200$ \\
+67 & SFT-v10 long-best (10 IDs) & --- & 3/10; no lift vs 66; not $N{=}200$ \\
+68 & BASE$+$OODA (10 IDs) & --- & 3/10 calib; tripwire only \\
+69 & BASE$+$OODA (20 IDs) & --- & 17/20 mid20 bar; not $N{=}200$ \\
+n/a & SFT-v11 full CE train & --- & paused 11{,}500/32{,}000; no Acc \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -828,6 +859,11 @@ GST & Guided-structured templates (He et al.; prompt overlay here) \\
 IFFC & Instruction-followed function calling (JSON tool calls in ordinary text) \\
 NFC & Native function calling (OpenAI-style \texttt{tool\_calls}) \\
 OODA & Observe--orient--decide--act; here, a four-line status cheat sheet \\
+PE & Prompt engineering: the untuned base model plus harness overlays \\
+Acc & Execution accuracy on the multi-turn checker \\
+LoRA & Low-rank adapters for efficient fine-tuning \\
+soft10 & 10-task early check (tripwire only; not $N{=}200$) \\
+mid20 & 20-task early check (go/no-go gate; not the PE bar) \\
 pp & Percentage points \\
 PTC-A & Prefix-tree / DFA constraint on tool names, arguments free \\
 RSS & Resident set size (process memory; KV$+$weights dominated here) \\
