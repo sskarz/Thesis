@@ -1362,6 +1362,10 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 - **2026-10-05 training-relevant sweep ([§32](#32-cita-comparative-inference-for-tool-use-agents)–[§37](#37-tool-schema-bias-action-space-shaping)):** CITA, HAT, PG-SFT, SAP, Keyword Harnesses Fail Open, Tool-schema bias. All **unscored** lit notes. Do **not** invent `multi_turn_base` Acc. Do **not** train from this pass. Do **not** unlock GRPO as the main path.
 - **SAP** ([§35](#35-sap-state-guided-synthesis-with-argument-provenance)) — tagged **`FUTURE_EXPLORE` / unscored**. Promising data lever **after SFT-v10 G3** (G3 full CE train is **complete / PASS**; soft10 retry is **done** as Run 66 **3/10 = 30.0%**; v10-long CE continuation **PASS**; Run 67 **3/10 = 30.0%**, **no lift**; Run 68 BASE+OODA calib **3/10 = 30.0%**, soft10 **tripwire only**; **NO full-200**). mlx-v10 audit **done**; SAP-style mix **built** and banked as [SFT-v11 data build (READY_FOR_TRAIN; full CE train PAUSED; no Acc)](#sft-v11-data-build-ready_for_train-full-ce-train-paused-no-acc) — data **READY_FOR_TRAIN**; full CE **PAUSED** 11500/32000 (best val **0.059 @11250**); **no** Acc invented. Paper BFCL v4 MT **theirs**. **December critical path** = resume/finish v11 train then Acc gate.
 
+**Related options (logged 2026-10-08, all `CANDIDATE` / not run; paper numbers are theirs; docs only — no Acc/train from this pass):**
+
+- **2026-10-08 candidate sweep ([§38](#38-turnslide-fsm-walk-multi-turn-data-synthesis)–[§41](#41-balancesft-cot-vs-call-token-loss-balance)):** Turnslide (FSM-walk single-call MT data synthesis + phantom steps; closest to the v11 data-fix track), DART-SD (breakpoint-localized recovery self-distillation), Tool-Call Vector (inference-time call/no-call residual direction; turn-0 under/over-call lens), BalanceSFT (learnable CoT-vs-call loss balance + hard-data loop; limited fit since v11 has 0 think golds). Cites verified 2026-10-08; BalanceSFT arXiv:2505.20192 abstract page is still titled "FunReason" (v3 PDF = BalanceSFT; ACL version primary). Do **not** invent `multi_turn_base` Acc. Current state unchanged: v11 CE **PAUSED** 11500/32000 (best val **0.059 @11250**); mid20 bar **≥17/20**; PE bar R42 **35.5%**.
+
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
 **v1 (Run 12):** Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`.
@@ -2013,7 +2017,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 
 ### Next (Sanskar decides)
 
-1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Tightened stop-repeat PASSES** (Run 30 **32.5%** vs IFFC **30.5%**). Run 42 `--fc-mode iffc-ooda-card` **scored** **71/200 = 35.5%** (still best non-BoN; SFT still **HOLD**). Run 46 `--fc-mode iffc-ptc-a` **scored FAIL** **27/200 = 13.5%** — **bank and close**; PTC-B **HOLD**. **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg `api_calls` **25.7**, `hit_step_limit` **6/10**) → **`HOLD_sft_quota_remix` / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **DPO β0.2 smoke100 10-ID PASS** (Run 49 avg API **4.4**, `hit_step_limit` **0/10**, `iffc_unparseable` **0/10**, `turn0_tool` **7/10**) — **health gate, not a BFCL %**; DPO-full **scored** Run 51 **53/200 = 26.5%** (plain IFFC; **not** a method win) — see [DPO β0.2 smoke100 PASS](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-). Next path = **DPO**, **not** more PTC/OODA remix, **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes.** Historical ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) still stands as a later SFT path (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Magnet/Critical-State then mDPO; **not** decode bans) — action-class **quota remix is HOLD**. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)): Guo et al. paper **unscored**; one-pass `[OODA]` card **scored** Run 42; `--fc-mode iffc-ptc-a` **scored FAIL** Run 46 (**bank and close**; PTC-B **HOLD**); remaining sweep paper numbers are **theirs**. 2026-10-05 training-relevant sweep ([§32](#32-cita-comparative-inference-for-tool-use-agents)–[§37](#37-tool-schema-bias-action-space-shaping)): **all unscored**; no Acc/train from this pass. **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
+1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Tightened stop-repeat PASSES** (Run 30 **32.5%** vs IFFC **30.5%**). Run 42 `--fc-mode iffc-ooda-card` **scored** **71/200 = 35.5%** (still best non-BoN; SFT still **HOLD**). Run 46 `--fc-mode iffc-ptc-a` **scored FAIL** **27/200 = 13.5%** — **bank and close**; PTC-B **HOLD**. **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg `api_calls` **25.7**, `hit_step_limit` **6/10**) → **`HOLD_sft_quota_remix` / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **DPO β0.2 smoke100 10-ID PASS** (Run 49 avg API **4.4**, `hit_step_limit` **0/10**, `iffc_unparseable` **0/10**, `turn0_tool` **7/10**) — **health gate, not a BFCL %**; DPO-full **scored** Run 51 **53/200 = 26.5%** (plain IFFC; **not** a method win) — see [DPO β0.2 smoke100 PASS](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-). Next path = **DPO**, **not** more PTC/OODA remix, **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes.** Historical ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) still stands as a later SFT path (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Magnet/Critical-State then mDPO; **not** decode bans) — action-class **quota remix is HOLD**. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)): Guo et al. paper **unscored**; one-pass `[OODA]` card **scored** Run 42; `--fc-mode iffc-ptc-a` **scored FAIL** Run 46 (**bank and close**; PTC-B **HOLD**); remaining sweep paper numbers are **theirs**. 2026-10-05 training-relevant sweep ([§32](#32-cita-comparative-inference-for-tool-use-agents)–[§37](#37-tool-schema-bias-action-space-shaping)): **all unscored**; no Acc/train from this pass. 2026-10-08 candidate sweep ([§38](#38-turnslide-fsm-walk-multi-turn-data-synthesis)–[§41](#41-balancesft-cot-vs-call-token-loss-balance)): Turnslide / DART-SD / Tool-Call Vector / BalanceSFT — **`CANDIDATE` / not run**; docs only. **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
@@ -2045,6 +2049,10 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Tian, Chen, Gong, Zhang, & Liu. SAP. arXiv:2609.06124. https://arxiv.org/abs/2609.06124 ([§35](#35-sap-state-guided-synthesis-with-argument-provenance); **`FUTURE_EXPLORE` / unscored**; after SFT-v10 G3 — G3 train **PASS** complete; soft10 retry **done** as Run 66 **3/10**; v10-long **PASS**; Run 67 **3/10 no lift**; Run 68 **3/10 tripwire**; Run 69 mid20 **17/20** fresh bar; v11 data **READY_FOR_TRAIN**; full CE **PAUSED** 11500/32000 (no Acc); **NO full-200**; **December critical path** = finish v11 train then Acc gate; not a substitute for locked SFT)
 - Santillana. Keyword Harnesses Fail Open. arXiv:2610.02142. https://arxiv.org/abs/2610.02142 ([§36](#36-keyword-harnesses-fail-open); **not scored**; do **not** claim Choice Acc from this paper)
 - Liu, Tan, Wang, & Guo. Tool-Schema Bias. arXiv:2609.34971. https://arxiv.org/abs/2609.34971 ([§37](#37-tool-schema-bias-action-space-shaping); **not scored**)
+- Fainman, Kadlecová, et al. Turnslide. arXiv:2610.07070. https://arxiv.org/abs/2610.07070 ([§38](#38-turnslide-fsm-walk-multi-turn-data-synthesis); **`CANDIDATE` / not run**; closest to v11 data-fix track; their BFCL v4 70.7% ≠ our sheet)
+- Xu, Wang, Yang, Zhu, et al. DART-SD. arXiv:2608.18524. https://arxiv.org/abs/2608.18524 ([§39](#39-dart-sd-breakpoint-localized-self-distillation); **`CANDIDATE` / not run**; not a GRPO unlock)
+- Gong, Han, Zhang, Song, et al. Tool-Call Vector. arXiv:2610.09624. https://arxiv.org/abs/2610.09624 ([§40](#40-tool-call-vector-call-vs-no-call-steering); **`CANDIDATE` / not run**; inference-time; no BFCL Acc in paper)
+- Hao, Xu, Wang, Wen, et al. BalanceSFT. Findings of ACL 2026. https://aclanthology.org/2026.findings-acl.900/ ([§41](#41-balancesft-cot-vs-call-token-loss-balance); **`CANDIDATE` / not run**; preprint arXiv:2505.20192 abstract page still titled "FunReason"; their BFCL v3 ≠ our sheet)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
@@ -2173,6 +2181,10 @@ Each method in this section involves modifying model weights — via supervised 
 - [35. SAP: State-Guided Synthesis with Argument Provenance](#35-sap-state-guided-synthesis-with-argument-provenance)
 - [36. Keyword Harnesses Fail Open](#36-keyword-harnesses-fail-open)
 - [37. Tool-Schema Bias: Action-Space Shaping](#37-tool-schema-bias-action-space-shaping)
+- [38. Turnslide: FSM-Walk Multi-Turn Data Synthesis](#38-turnslide-fsm-walk-multi-turn-data-synthesis)
+- [39. DART-SD: Breakpoint-Localized Self-Distillation](#39-dart-sd-breakpoint-localized-self-distillation)
+- [40. Tool-Call Vector: Call vs No-Call Steering](#40-tool-call-vector-call-vs-no-call-steering)
+- [41. BalanceSFT: CoT vs Call-Token Loss Balance](#41-balancesft-cot-vs-call-token-loss-balance)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
 - [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling) (survey; Choice/router KD **path B first** ranking **PASS**; Acc harness IMPL **CONFIRM_PASS_WITH_FLAGS**; Run 64 Acc **11/200 = 5.5% scored FAIL**; ranking ≠ Acc; Acc remains **not** a GO)
@@ -2991,6 +3003,160 @@ Paper results (Liu, Tan, Wang, & Guo, 2026; cite as **theirs**, not ours):
 Liu, Y., Tan, Z., Wang, Z., & Guo, Z. "Action-Space Shaping for LLM Agents: Measuring and Mitigating Tool-Schema Bias." arXiv:2609.34971, 2026. https://arxiv.org/abs/2609.34971
 
 Code: https://github.com/williamLyh/ToolSchemaSpace
+
+---
+
+## 38. Turnslide: FSM-Walk Multi-Turn Data Synthesis
+
+### Overview
+
+Turnslide (Fainman, Kadlecová, et al., 2026) synthesizes multi-turn tool-calling SFT data cheaply. Each API is modeled as a **finite-state machine** over abstract states that decide when each tool may be called. A walk on the FSM gives a **state-valid tool sequence**. A blueprint (number of turns, tool sequence, task complexity) is then turned into a **whole multi-turn example in a single LLM call** (teacher GLM-5.1). Complexity is raised with **phantom tool calls** (`information_retrieval`, `arithmetic_computation`). They are not real API tools; they tell the generator that a value must be retrieved or computed before the next call can take its argument.
+
+**Train vs infer: training-time data generation** (+ SFT on the dump). **Tag: `CANDIDATE` / not run.** Logged 2026-10-08 (docs only; no Acc, no train). Closest fit to the [SFT-v11 data-fix track](#sft-v11-data-build-ready_for_train-full-ce-train-paused-no-acc). Sibling of [§35 SAP](#35-sap-state-guided-synthesis-with-argument-provenance) (also FSM-based; SAP executes every call, Turnslide does not). Paper BFCL v4 numbers are **theirs**.
+
+### Mechanism
+
+1. Per API, hand/LLM-specify an FSM: abstract states + which tools are legal in each state (e.g. VehicleControl: doors locked + brake pressed before `startEngine`).
+2. Sample a target distribution over turn count, tool sequence, and complexity (not "maximize diversity"). Walk the FSM for a state-valid tool sequence.
+3. Insert phantom retrieval / arithmetic steps before tools with numeric or string parameters.
+4. One LLM call writes the full multi-turn dialogue (user turns, calls, tool outputs, replies) from the blueprint. SFT students on the dump.
+
+### Evidence
+
+Paper results (Fainman et al., 2026; cite as **theirs**, not ours). NeurIPS 2026 SLM-Agents Workshop (non-archival).
+
+- **Main study (Table 1):** 5 BFCL v4 multi-turn API domains, domain-partitioned train/test, two-fold CV. Students **Qwen3.5-2B** and **Llama-3.2-3B-Instruct** (averaged). FSM blueprint vs unmutated baseline: regression **β = +10.1%** (p < 0.05); Markovian tool graph **β = +7.88%**. Gains largest in state-heavy domains (VehicleControl, Travel, TradingBot); ≈ Markov on GorillaFileSystem.
+- **Vs prior synthesizers (Table 2):** **single domain** (BFCL v4 TradingBot), **Qwen3.5-2B only**, fixed **20M-token** generation budget. Full-trajectory Acc **70.7%** (Turnslide) vs **63.4%** ToolFlow vs **53.7%** APIGen-MT; per-turn **87.2 / 85.7 / 80.1**. LLM calls per trajectory **1.0 / 34.3 / 107.2**; examples per 20M tokens **721 / 200 / 109** (3.6–6.6×).
+- Caveats from the paper: ToolFlow / APIGen-MT were **re-implemented** (no public code); test sets were topped up with LLM-generated, execution- and author-verified trajectories.
+
+**Metric mismatch:** their test sets are BFCL v4 domain splits after training on the **same BFCL APIs**. That is not our 200-entry `multi_turn_base` sheet. Do **not** write 70.7 / 63.4 / 53.7 as thesis Acc. The 70.7 vs 63.4 / 53.7 comparison is TradingBot-only on Qwen3.5-2B, not an average over both students.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run.** Fit: closest to the v11 data-fix track. v11 is already own-named isomorphic sims (D1 locked; leak suite 0 vs all 200 MTB; 0 BFCL tool names); its full CE train is **PAUSED** at **11500/32000** (best val **0.059 @11250**). Turnslide's FSM-walk + phantom steps could later make cheaper or more state-aware **own-named** v12 trajectories **only if** v11 misses its gates (soft10 tripwire; mid20 bar **≥17/20**; PE bar R42 **71/200 = 35.5%**). Do **not** copy their BFCL-API training setup; that would break our leak gate.
+- **BFCL categories:** Multi-turn state-dependent domains (hypothesis only). No `--fc-mode`.
+- **Complexity:** Medium (FSM spec per API + one teacher call per trajectory).
+- **Limitation:** Workshop paper; single-domain baseline comparison; FSMs need per-API specification; generated calls are not executed during synthesis.
+
+### Source
+
+Fainman, A., Kadlecová, G., Gryka, M., Kruszczyński, B., et al. "Turnslide: Scalable Multi-Turn Data Synthesis by Walking a Finite-State Machine." arXiv:2610.07070, 2026 (NeurIPS 2026 SLM-Agents Workshop, non-archival). https://arxiv.org/abs/2610.07070
+
+---
+
+## 39. DART-SD: Breakpoint-Localized Self-Distillation
+
+### Overview
+
+DART-SD (Xu, Wang, Yang, Zhu, et al., 2026) argues that tasks with order-independent sub-goals have many valid solutions. These solutions form a **"diamond" lattice**. Full-trajectory imitation forces one path and penalizes valid alternatives. DART-SD instead builds an **Interaction-State Transition Graph (ISTG)** from teacher rollouts (successful and failed). It finds the student's **Critical Topological Breakpoint (CTB)**, the first exit from the success-reachable region. It then supervises **only the recovery steps** after that point and keeps the valid prefix out of the loss.
+
+**Train vs infer: training-time** (progressive self-distillation SFT). **Tag: `CANDIDATE` / not run.** Logged 2026-10-08 (docs only). Not RL; **do not** unlock GRPO as the main path.
+
+### Mechanism
+
+1. Map teacher rollouts into an ISTG whose nodes are cumulative interaction/information states, so different tool orders that reach the same state merge.
+2. Roll out the student; project its states onto the empirical success-reachable region; the first projectable → non-projectable transition is the CTB.
+3. From the last valid anchor, retrieve a success-supported continuation from the ISTG and generate a recovery continuation (privileged teacher references in context).
+4. **Localized loss:** prefix masked, loss only on generated recovery steps. Repeat over several self-distillation rounds (5 in paper).
+
+### Evidence
+
+Paper results (Xu et al., 2026; cite as **theirs**, not ours). Students **Qwen3-4B / Qwen3-8B**; teacher pool Qwen3.6-27B + GLM-5.2; trained on FTRL; evaluated on FTRL (in-domain) + BFCL multi-turn avg, ToolHop, τ-bench, RoTBench (out-of-domain). BFCL version is not stated in the paper text.
+
+- Qwen3-4B: BFCL Multi-Turn **23.88** vs SFT **14.57** vs Base **10.14**; 5-bench Avg **39.17** vs SFT **37.62**.
+- Qwen3-8B: BFCL Multi-Turn **27.63** vs SFT **19.25**; Avg **45.58** vs SFT **41.64**. FTRL-GRPO is **higher** on BFCL MT for 8B (**35.25**).
+- The 8B student surpasses its teacher on FTRL, ToolHop, and τ-bench (their Fig. 3).
+
+**Metric mismatch:** their BFCL MT avg (4 sub-categories) ≠ our `multi_turn_base` 200-entry harness. Do **not** write 23.88 / 27.63 as thesis Acc.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run.** Fit: a possible **post-v11** fix if v11 resumes and still fails mid-trajectory (e.g. residual `state_mismatch` ×5 in Run 66 soft10). It needs student rollouts on executable own-named sims plus a teacher pool. Today v11 CE is **PAUSED** 11500/32000 (best val **0.059 @11250**). Gates are unchanged: soft10 tripwire, mid20 **≥17/20**, PE bar R42 **35.5%**.
+- **BFCL categories:** Multi-turn long-horizon (hypothesis only). No `--fc-mode`.
+- **Complexity:** High (ISTG construction + iterative student rollouts + recovery generation).
+- **Limitation:** 4B/8B Qwen3 students; in-domain FTRL training; GRPO baseline wins BFCL MT at 8B.
+
+### Source
+
+Xu, H., Wang, J., Yang, Y., Zhu, C., et al. "DART-SD: Diamond-topology Aware Retrieval and Tuning for Self-Distillation of Multi-Turn Tool-Calling Agents." arXiv:2608.18524, 2026. https://arxiv.org/abs/2608.18524
+
+---
+
+## 40. Tool-Call Vector: Call vs No-Call Steering
+
+### Overview
+
+Gong, Han, Zhang, Song, et al. (2026) is a **mechanistic-interpretability** study of how agentic LLMs decide to call a tool or answer directly. Minimal contrastive prompt pairs swap one request verb (execution "write" vs analysis "discuss"). They isolate a residual vector **µΔ** (Qwen3-8B, layer 24, first generated token) that is causally **necessary and sufficient** for the call/no-call decision. **Adding** µΔ induces `<tool_call>`; **subtracting** it suppresses calls. Transcoder analysis: the scaffold sets a **tool-call prior**; analysis verbs **suppress** it through "tool unnecessary" features, while execution verbs mostly leave it intact.
+
+**Train vs infer: inference-time** (activation add/subtract). The SFT-data reading below is **our** inference, not a paper claim. **Tag: `CANDIDATE` / not run.** Logged 2026-10-08 (docs only). NeurIPS 2026 (main, poster).
+
+### Mechanism
+
+1. Convert agentic prompts into 500 minimal pairs (Python/Java/C++ coding tasks; 300 discovery / 200 held out) where one verb flips the decision.
+2. µΔ = mean execution-minus-analysis residual difference at the prediction position (L24 for Qwen3-8B).
+3. Intervene on that single residual: add µΔ to analysis prompts or subtract it from execution prompts. Measure the `<tool_call>` top-1 and logit gap.
+4. Attribute formation (MLPs, layers 21–23 suppression features) and readout (scaffold-reading attention heads).
+
+### Evidence
+
+Paper results (Gong et al., 2026; cite as **theirs**, not ours):
+
+- Held-out Qwen3-8B: add µΔ → top-1 `<tool_call>` **0% → 100%**; remove → **100% → 0%** (sufficiency **1.03**, necessity **1.04**).
+- Transfer (1× gain): τ²-Bench native text **add 0% → 70.0%** calls; τ²-Bench native call **remove 99.5% → 63.0%**; verb-free requests **remove 100% → 6.9%** (100% at 1.5× vs **16.2%** for a norm-matched random vector).
+- Recurs across 7 models: Qwen3-4B/8B/14B, Qwen3.5-4B/9B, Mistral-Small-3.2-24B, Granite-3.3-8B. Code: https://github.com/XijieGo/MI4ToolCalling
+- **No BFCL accuracy** is reported (BFCL is only cited).
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run.** Fit: a diagnostic/steering lens on **turn-0 under/over-call** (cf. Run 49 `turn0_tool` **7/10** vs BASE Run 48 **10/10**; `[]` golds are **22%** of the v11 mix). It could probe whether a v11 ckpt's no-call vs call errors sit on one direction, and it implies `[]`/no-call SFT examples work against a scaffold prior. Not tested on Gemma-4-E2B; our llama.cpp path would need residual/control-vector hooks. No Acc claim. Current gates unchanged (v11 CE **PAUSED** 11500/32000; mid20 **≥17/20**; PE bar R42 **35.5%**).
+- **BFCL categories:** First-token call decision (turn 0 / irrelevance-style `[]`). No `--fc-mode`.
+- **Complexity:** Low–medium to probe on HF weights; higher to deploy in llama.cpp.
+- **Limitation:** Interpretability study; single first-token decision; does not measure task Acc or argument correctness.
+
+### Source
+
+Gong, X., Han, T., Zhang, J., Song, W., et al. "How Do Agentic LLMs Decide to Call Tools? A Tool-Call Vector Shaped by Suppression." arXiv:2610.09624, 2026 (NeurIPS 2026). https://arxiv.org/abs/2610.09624
+
+Code: https://github.com/XijieGo/MI4ToolCalling
+
+---
+
+## 41. BalanceSFT: CoT vs Call-Token Loss Balance
+
+### Overview
+
+BalanceSFT (Hao, Xu, Wang, Wen, et al., Findings of ACL 2026) targets two SFT imbalances in function calling. (1) **Imbalanced training signals:** long CoT tokens dominate the loss over short function-call tokens. (2) **Imbalanced data hardness:** too few hard examples. **Self-adjusted Signal Balancing (SSB)** loss: `L = α·L_think + (1−α)·L_result` with **learnable α** (init 0.7). **Hard Data Re-sampling (HDR):** a self-evolving loop that uses model errors to generate new, harder verified data.
+
+**Train vs infer: training-time** (SFT loss + data loop). **Tag: `CANDIDATE` / not run.** Logged 2026-10-08 (docs only). Name collision: **not** FunReason-MT (arXiv:2510.24645, already in the Post–Run27 cite map).
+
+### Mechanism
+
+1. Distil CoT + call data (QwQ-32B / GPT-4o CoT).
+2. Cold-start SFT with the SSB loss (α learned jointly).
+3. HDR: run the model on the data, find errors, use an LLM-as-judge ensemble to generate and score new hard samples, retrain. Iterate until convergence.
+
+### Evidence
+
+Paper results (Hao et al., 2026; cite as **theirs**, not ours). BFCL **v3** (leaderboard snapshot 2025-08-26, official script):
+
+- **BalanceSFT-7B** (Qwen2.5-Coder-7B-Instruct): Multi-Turn overall **47.00** (Base **53.50**) / Single-Turn overall **84.00**. Plain SFT on the same base: **38.25 / 81.73**. Untuned base: **3.88 / 76.82**. GRPO baseline: MT **40.75**, ST **84.60**.
+- **Llama-3.2-3B-Instruct** (ablation): plain SFT **73.67 / 33.25** (ST / MT) → SSB+HDR **78.99 / 36.12**.
+- Also reports ACEBench / APIBank results and claims 7B > GPT-5 on BFCL MT (**theirs**).
+
+**Metric mismatch:** BFCL **v3** MT overall ≠ our BFCL v4 `multi_turn_base` 200-entry harness. Do **not** write 47.00 / 84.00 as thesis Acc.
+
+**Cite check (2026-10-08):** ACL Anthology `2026.findings-acl.900` resolves and matches (pp. 18094–18112, DOI `10.18653/v1/2026.findings-acl.900`). arXiv:2505.20192 resolves, but its **abstract-page title is still "FunReason: Enhancing Large Language Models' Function Calling via Self-Refinement Multiscale Loss and Automated Data Refinement"** (v1 2025-05-26; v3 2025-11-25). The **v3 PDF** is titled BalanceSFT by the same author group (arXiv lists 12 authors incl. Dong Wang; ACL lists 11). Treat 2505.20192 as the **preprint lineage** of the same work. Cite the **ACL** version as primary.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run.** Fit: **limited as-is.** v11 golds are IFFC JSON-in-text with **0** NL/think golds, so the CoT-vs-call loss imbalance mostly does not arise. The **HDR** error-guided hard-example loop is the transferable part (cf. Post–Run27 "student-aware mid-difficulty filter"). Revisit only after v11 resumes (CE **PAUSED** 11500/32000; best val **0.059 @11250**) and hits the Acc gate (mid20 **≥17/20**; PE bar R42 **35.5%**).
+- **BFCL categories:** Single- + multi-turn (paper v3). No `--fc-mode`.
+- **Complexity:** Medium (learnable-α loss is cheap; HDR loop needs a judge ensemble + regeneration).
+- **Limitation:** Assumes CoT-bearing targets; 7B/3B bases; BFCL v3.
+
+### Source
+
+Hao, B., Xu, Z., Wang, M., Wen, Y., et al. "BalanceSFT: Improving LLM Function Calling with Balanced Training Signals and Data Hardness." Findings of ACL 2026, pp. 18094–18112. https://aclanthology.org/2026.findings-acl.900/ (DOI 10.18653/v1/2026.findings-acl.900). Preprint lineage: arXiv:2505.20192 (abstract-page title "FunReason…"; v3 PDF titled BalanceSFT). https://arxiv.org/abs/2505.20192
 
 ---
 
