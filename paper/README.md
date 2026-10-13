@@ -9,8 +9,8 @@ The paper has about 9.5 pages of main text plus an appendix, and is written for 
 
 - **Headline:** structured inference-time control. The status (OODA) card on gated stop-on-repeat scores **71/200 = 35.5%** (Wilson 95% 29.2–42.3) with no training. Best-of-5 voting (73/200 = 36.5%, about 7× generation time) is reported as the costly upper bound.
 - **Failure finding:** constrained decoding (10.5%) and the tool-name automaton PTC-A (13.5%) lower accuracy, because errors are about state, not syntax.
-- **Explanatory negative evidence:** SFT and DPO. The best SFT reached 15.0%. The rebuilt v11 mix scored 1–2/20 against the 20-task bar of 17/20. The Run 73 null test scored 15/20 (the pipeline is OK). Run 74 scored 8/20; its likely cause, the lookup share falling from 37.9% to 19.7%, is **unproven**. The rebalanced retrain is not reported.
-- **Statistics:** Wilson intervals are computed from counts. McNemar p-values are quoted only where they were logged during the experiments. No new McNemar tests were run, because per-task results are not in the repo.
+- **Explanatory negative evidence:** SFT and DPO. The best SFT reached 15.0%. The rebuilt v11 mix scored 1–2/20 against the 20-task bar of 17/20. The Run 73 null test scored 15/20 (the pipeline is OK). Run 74 scored 8/20. The retrains that rebalanced its mix also failed: R75 (stop share capped) scored 14/20, R76 (lookup episodes added) 12/20, and R77, a fresh 20-task bank, 2/20 vs the base model's 3/20. The mix shift (lookups falling from 37.9% to 19.7%) is therefore only a **candidate** cause.
+- **Statistics:** Wilson intervals are computed from counts. No McNemar p-values are quoted, because no source for them was found. No new tests were run, because per-task results are not in the repo.
 - **Future Work:** retrieval-augmented (RAG) tool selection is listed as future work and is not evaluated.
 
 All numbers come from measured MacBook Pro M4 Pro / llama.cpp Metal runs. Do not invent BFCL `multi_turn_base` scores. 10-task and 20-task checks are not 200-task accuracies.
