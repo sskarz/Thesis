@@ -40,11 +40,12 @@ for y, i in enumerate(order):
     hl = lab.startswith("HEADLINE")
     ax.barh(y, acc, color=C[kind], height=0.65, edgecolor="black" if hl else "none", linewidth=1.8 if hl else 0)
     ax.errorbar(acc, y, xerr=[[acc - lo], [hi - acc]], fmt="none", ecolor="black", capsize=3, lw=1)
-    ax.text(hi + 0.8, y, f"{k}/200 = {acc:.1f}%", va="center", fontsize=9, fontweight="bold" if hl else "normal")
+    ax.text(hi + 0.8, y, f"{k}/200 = {acc:.1f}%", va="center", fontsize=9, fontweight="bold" if hl else "normal",
+            bbox=dict(facecolor="white", edgecolor="none", pad=1.5), zorder=5)
 ax.set_yticks(range(len(order))); ax.set_yticklabels([rows[i][0] for i in order], fontsize=9)
 for t in ax.get_yticklabels():
     if t.get_text().startswith("HEADLINE"): t.set_fontweight("bold")
-ax.axvline(100 * 61 / 200, color="black", ls=":", lw=0.9)
+ax.axvline(100 * 61 / 200, color="black", ls=":", lw=0.9, zorder=1)
 ax.text(100 * 61 / 200 + 0.4, len(order) - 0.45, "IFFC baseline", fontsize=8)
 ax.set_xlim(0, 55); ax.set_ylim(-0.6, len(order) - 0.1); ax.set_xlabel("Tasks fully correct, % of 200 (error bars: Wilson 95% interval)")
 from matplotlib.patches import Patch
@@ -63,10 +64,10 @@ for x, (lab, k, kind) in enumerate(g):
     lo, hi = wilson(k, 20)
     ax.bar(x, k, color=C[kind], width=0.65)
     ax.errorbar(x, k, yerr=[[k - lo / 5], [hi / 5 - k]], fmt="none", ecolor="black", capsize=3, lw=1)
-    ax.text(x + 0.36, k + 0.3, f"{k}/20", ha="left", fontsize=8)
+    ax.text(x, hi / 5 + 0.35, f"{k}/20", ha="center", fontsize=8, bbox=dict(facecolor="white", edgecolor="none", pad=1.0), zorder=5)
 ax.axhline(17, color="black", ls=":", lw=0.9); ax.text(2.0, 17.4, "pass bar = 17/20", fontsize=8)
 ax.set_xticks(range(len(g))); ax.set_xticklabels([x[0] for x in g], fontsize=8)
-ax.set_ylim(0, 21.5); ax.set_ylabel("Tasks passed (of 20)")
+ax.set_ylim(0, 22); ax.set_ylabel("Tasks passed (of 20)")
 fig.tight_layout(); fig.savefig(OUT / "gate20.pdf"); plt.close(fig)
 
 # ---- Figure: failure anatomy (primary label per failed task) ----
