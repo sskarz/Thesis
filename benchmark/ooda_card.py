@@ -98,6 +98,19 @@ OODA_ADDENDUM = (
 )
 
 
+# Compose (``iffc-state-ooda``) wording: the card sits after the [STATE]
+# block rather than being prefixed. Same contract otherwise.
+OODA_ADDENDUM_AFTER_STATE = (
+    f"A {CARD_OPEN}...{CARD_CLOSE} block on the latest user message (placed "
+    "after any [STATE] block) is a harness-written one-pass snapshot (goal, "
+    "known slots, last execution fact, next-mode hint). It is not model text "
+    "and is not a second OODA pass. next is one of call, ask, final, refuse: "
+    "call = emit function calls; ask / final / refuse = return []. Continue "
+    'to answer only with a JSON list of dictionaries with "function_name" '
+    'and "parameters", or [].'
+)
+
+
 class OodaCardTracker:
     """Accumulates compact slots + last-exec fact from tool observations."""
 
@@ -155,6 +168,36 @@ def ensure_ooda_system_message(
 ) -> None:
     """Insert or refresh the IFFC+OODA system message when tools change."""
     content = build_ooda_system_prompt(tools_or_bfcl_docs)
+    if chat_history and chat_history[0].get("role") == "system":
+        if chat_history[0].get("content") != content:
+            chat_history[0] = {"role": "system", "content": content}
+        return
+    chat_history.insert(0, {"role": "system", "content": content})
+
+
+def build_state_ooda_system_prompt(tools_or_bfcl_docs: list[dict] | None) -> str:
+    """Appendix B IFFC prompt + STATE-trust addendum + card addendum.
+
+    Used by ``iffc-state-ooda``. Both addenda are appended (STATE first,
+    matching the in-message order); neither replaces the other.
+    """
+    from .iffc_state import STATE_ADDENDUM
+
+    return (
+        build_iffc_system_prompt(tools_or_bfcl_docs)
+        + "\n\n"
+        + STATE_ADDENDUM
+        + "\n\n"
+        + OODA_ADDENDUM_AFTER_STATE
+    )
+
+
+def ensure_state_ooda_system_message(
+    chat_history: list[dict],
+    tools_or_bfcl_docs: list[dict] | None,
+) -> None:
+    """Insert or refresh the IFFC+STATE+OODA system message when tools change."""
+    content = build_state_ooda_system_prompt(tools_or_bfcl_docs)
     if chat_history and chat_history[0].get("role") == "system":
         if chat_history[0].get("content") != content:
             chat_history[0] = {"role": "system", "content": content}
@@ -261,6 +304,43 @@ def inject_card(
             **messages[i],
             "content": f"{block}\n\n{body}" if body else block,
         }
+        break
+    return messages
+
+
+def inject_card_after_state(
+    chat_history: list[dict],
+    tracker: OodaCardTracker,
+    *,
+    has_tools: bool,
+) -> list[dict]:
+    """Like :func:`inject_card`, but STATE comes first, then the card.
+
+    For ``iffc-state-ooda``: when the latest user message carries a
+    ``[STATE]...[/STATE]`` block, the card is inserted right after
+    ``[/STATE]`` (before the IFFC "Respond with..." footer). Without a STATE
+    block (e.g. the BFCL question at step 0) the card is prefixed, as in
+    plain ``iffc-ooda-card``. Returns a copy; the transcript is untouched.
+    """
+    from .iffc_state import STATE_CLOSE
+
+    messages = [dict(m) for m in chat_history]
+    block = render_card(tracker, chat_history, has_tools=has_tools)
+    for i in range(len(messages) - 1, -1, -1):
+        if messages[i].get("role") != "user":
+            continue
+        original = messages[i].get("content") or ""
+        if not isinstance(original, str):
+            original = str(original)
+        body = _strip_existing_card(original).strip()
+        idx = body.rfind(STATE_CLOSE)
+        if idx >= 0:
+            cut = idx + len(STATE_CLOSE)
+            head, tail = body[:cut], body[cut:].lstrip()
+            content = f"{head}\n\n{block}" + (f"\n\n{tail}" if tail else "")
+        else:
+            content = f"{block}\n\n{body}" if body else block
+        messages[i] = {**messages[i], "content": content}
         break
     return messages
 

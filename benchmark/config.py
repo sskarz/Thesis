@@ -295,6 +295,11 @@ MULTI_TURN_MAX_STEPS = 20
 #        sole stop that step; soft_once first noop != []; working copy =
 #        OODA card then Decision hint (non-persisted); stop-repeat
 #        post-Gemma only; OODA next advisory; <=1 harness []/step.
+# iffc-state-ooda = Full stack: IFFC JSON-in-text + harness-written [STATE]
+#        snapshot (iffc-state) + one-pass [OODA] card (R42) + gated
+#        stop-repeat MIN=6. System = Appendix B + STATE addendum + OODA
+#        addendum (neither overwrites the other). Per step the latest user
+#        message carries the STATE dump first, then the card. Greedy (temp 0).
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
@@ -307,6 +312,7 @@ FC_IFFC_STOP_REPEAT = "iffc-stop-repeat"
 FC_IFFC_DECISION = "iffc-decision"
 FC_IFFC_OODA_CARD = "iffc-ooda-card"
 FC_IFFC_DECISION_OODA = "iffc-decision-ooda"
+FC_IFFC_STATE_OODA = "iffc-state-ooda"
 FC_MODES = (
     FC_NFC,
     FC_IFFC,
@@ -319,6 +325,7 @@ FC_MODES = (
     FC_IFFC_DECISION,
     FC_IFFC_OODA_CARD,
     FC_IFFC_DECISION_OODA,
+    FC_IFFC_STATE_OODA,
 )
 FC_JSON_TEXT_MODES = (
     FC_IFFC,
@@ -330,18 +337,20 @@ FC_JSON_TEXT_MODES = (
     FC_IFFC_DECISION,
     FC_IFFC_OODA_CARD,
     FC_IFFC_DECISION_OODA,
+    FC_IFFC_STATE_OODA,
 )
-FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON)
+FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON, FC_IFFC_STATE_OODA)
 # stop-repeat MIN=6 stack (R42 / compose share the same gate)
 FC_IFFC_STOP_REPEAT_MODES = (
     FC_IFFC_STOP_REPEAT,
     FC_IFFC_OODA_CARD,
     FC_IFFC_DECISION_OODA,
+    FC_IFFC_STATE_OODA,
 )
 # Decision probe / name-bind / soft_once / hard-noop
 FC_IFFC_DECISION_MODES = (FC_IFFC_DECISION, FC_IFFC_DECISION_OODA)
 # OODA card inject + system addendum + tracker
-FC_IFFC_OODA_MODES = (FC_IFFC_OODA_CARD, FC_IFFC_DECISION_OODA)
+FC_IFFC_OODA_MODES = (FC_IFFC_OODA_CARD, FC_IFFC_DECISION_OODA, FC_IFFC_STATE_OODA)
 FC_MODE: str = FC_NFC
 
 # Best-of-N (only used by --fc-mode iffc-state-bon)
