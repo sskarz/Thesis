@@ -214,7 +214,9 @@ def main():
             "iffc-ooda-card = IFFC + one-pass [OODA] card stacked on "
             "stop-repeat MIN=6 (R42 recipe); "
             "iffc-decision-ooda = Decision sidecar + OODA card + "
-            "stop-repeat MIN=6 (compose)."
+            "stop-repeat MIN=6 (compose); "
+            "iffc-state-ooda = full stack: IFFC + STATE + OODA card "
+            "(STATE before card) + stop-repeat MIN=6."
         ),
     )
     parser.add_argument(
@@ -350,6 +352,8 @@ def main():
             if args.fc_mode == config.FC_IFFC_STOP_REPEAT
             else " (iffc-decision = IFFC + Decision sidecar Choice/noop before Gemma args)"
             if args.fc_mode == config.FC_IFFC_DECISION
+            else " (iffc-state-ooda = IFFC + STATE + OODA card + stop-repeat MIN=6)"
+            if args.fc_mode == config.FC_IFFC_STATE_OODA
             else " (NFC = native tools)"
         )
     )

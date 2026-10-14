@@ -266,9 +266,12 @@ def _build_chat_payload(
     messages: list[dict] = chat_history
     if _uses_ooda(fc_mode):
         tracker = ooda_tracker or ooda_card_mode.OodaCardTracker()
-        messages = ooda_card_mode.inject_card(
-            chat_history, tracker, has_tools=bool(active_tools)
+        inject = (
+            ooda_card_mode.inject_card_after_state
+            if fc_mode == config.FC_IFFC_STATE_OODA
+            else ooda_card_mode.inject_card
         )
+        messages = inject(chat_history, tracker, has_tools=bool(active_tools))
     payload: dict = {
         "model": config.MODEL_NAME,
         "messages": messages,
@@ -293,7 +296,10 @@ def _prepare_step_messages(
         # working copy inside complete_step. iffc-state / iffc-state-bon
         # keep Appendix B + a short STATE-trust addendum. xlam uses the
         # Salesforce {"tool_calls":[...]} contract, not Appendix B.
-        if fc_mode in config.FC_IFFC_STATE_MODES:
+        if fc_mode == config.FC_IFFC_STATE_OODA:
+            # Full stack: STATE + OODA addenda merged (neither overwrites).
+            ooda_card_mode.ensure_state_ooda_system_message(chat_history, active_tools)
+        elif fc_mode in config.FC_IFFC_STATE_MODES:
             iffc_state_mode.ensure_iffc_state_system_message(chat_history, active_tools)
         elif fc_mode == config.FC_XLAM:
             xlam_mode.ensure_xlam_system_message(chat_history, active_tools)
@@ -534,6 +540,11 @@ def _append_execution_feedback(
             content = iffc_state_mode.record_and_format(
                 state_tracker, func_strings, exec_results
             )
+            if _uses_ooda(fc_mode) and ooda_tracker is not None:
+                # iffc-state-ooda: card tracker sees the same execution.
+                ooda_card_mode.record_execution(
+                    ooda_tracker, func_strings, exec_results
+                )
         elif fc_mode == config.FC_XLAM:
             content = xlam_mode.format_xlam_execution_user_message(
                 func_strings, exec_results
