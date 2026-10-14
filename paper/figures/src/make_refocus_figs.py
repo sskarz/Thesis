@@ -24,10 +24,10 @@ rows = [  # label, correct, kind
     ("Native tool API (NFC)", 54, "base"),
     ("JSON in text (IFFC)", 61, "base"),
     ("IFFC + stop on repeats", 65, "ctrl"),
-    ("IFFC + state scratchpad", 68, "ctrl"),
+    ("IFFC + state summary", 68, "ctrl"),
     ("IFFC + stop + status card\n(minimal recipe)", 71, "ctrl"),
-    ("Scratchpad + vote of 5 (BoN)\n(upper bound, ~7x time)", 73, "upper"),
-    ("HEADLINE: full stack\n(scratchpad+stop+card)", 77, "ctrl"),
+    ("Summary + vote of 5 (BoN)\n(compute-heavy, ~7x time)", 73, "upper"),
+    ("HEADLINE: full stack\n(summary+stop+card)", 77, "ctrl"),
     ("Constrained decoding", 21, "syntax"),
     ("Tool-name automaton", 27, "syntax"),
     ("Best fine-tuned model (SFT)", 30, "train"),
@@ -50,8 +50,8 @@ ax.axvline(100 * 61 / 200, color="black", ls=":", lw=0.9, zorder=1)
 ax.text(100 * 61 / 200 + 0.4, len(order) - 0.45, "IFFC baseline", fontsize=8)
 ax.set_xlim(0, 55); ax.set_ylim(-0.6, len(order) - 0.1); ax.set_xlabel("Tasks fully correct, % of 200 (error bars: Wilson 95% interval)")
 from matplotlib.patches import Patch
-ax.legend(handles=[Patch(color=C[k], label=l) for k, l in [("base", "Output format only"), ("ctrl", "Inference-time control"),
-          ("upper", "Costly upper bound"), ("syntax", "Forced valid syntax"), ("train", "Training")]],
+ax.legend(handles=[Patch(color=C[k], label=l) for k, l in [("base", "Output format only"), ("ctrl", "Harness control"),
+          ("upper", "Compute-heavy comparison"), ("syntax", "Forced valid syntax"), ("train", "Training")]],
           loc="upper center", bbox_to_anchor=(0.4, -0.13), ncol=3, fontsize=8, frameon=False)
 fig.tight_layout(); fig.savefig(OUT / "ladder_n200.pdf"); plt.close(fig)
 
@@ -73,10 +73,10 @@ fig.tight_layout(); fig.savefig(OUT / "gate20.pdf"); plt.close(fig)
 
 # ---- Figure: failure anatomy (primary label per failed task) ----
 f = [  # label, empty, under, state
-    ("NFC", 59, 19, 68), ("IFFC", 41, 38, 60), ("IFFC +\nscratchpad", 31, 37, 64),
-    ("IFFC + stop\n+ card", 17, 41, 71), ("BoN\n(vote of 5)", 36, 38, 53),
+    ("NFC", 59, 19, 68), ("IFFC", 41, 38, 60), ("IFFC + state\nsummary", 31, 37, 64),
+    ("Minimal\nrecipe", 17, 41, 71), ("FULL STACK\n(headline)", 20, 35, 68), ("BoN\n(vote of 5)", 36, 38, 53),
     ("Constrained\ndecoding", 14, 70, 95), ("Name\nautomaton", 17, 54, 102), ("Best\nSFT", 2, 59, 109)]
-fig, ax = plt.subplots(figsize=(6.5, 3.3))
+fig, ax = plt.subplots(figsize=(7.0, 3.4))
 xs = range(len(f)); b = [0] * len(f)
 for j, (name, col) in enumerate([("Empty turn (no call when one was needed)", "#adb5bd"),
                                  ("Under-call (a required tool never ran)", "#f08c00"),
@@ -85,7 +85,9 @@ for j, (name, col) in enumerate([("Empty turn (no call when one was needed)", "#
     ax.bar(xs, v, bottom=b, color=col, width=0.65, label=name)
     b = [p + q for p, q in zip(b, v)]
 for x, t in zip(xs, b): ax.text(x, t + 2, str(t), ha="center", fontsize=8)
-ax.set_xticks(list(xs)); ax.set_xticklabels([r[0] for r in f], fontsize=8.5)
+ax.set_xticks(list(xs)); ax.set_xticklabels([r[0] for r in f], fontsize=7.5)
+for t in ax.get_xticklabels():
+    if t.get_text().startswith("FULL"): t.set_fontweight("bold")
 ax.set_ylabel("Failed tasks (of 200)"); ax.set_ylim(0, 240)
 ax.legend(fontsize=8, frameon=False, loc="upper left", ncol=1)
 fig.tight_layout(); fig.savefig(OUT / "failure_anatomy.pdf"); plt.close(fig)

@@ -34,13 +34,13 @@
 \setcounter{totalnumber}{6}
 
 \hypersetup{
-  pdftitle={State, Not Syntax: Why Small Language Models Fail at Multi-Turn Tool Calling, and What Helps},
+  pdftitle={State, Not Syntax: Harness Optimization for Small-Model Multi-Turn Tool Calling},
   pdfauthor={Sanskar Thapa}
 }
 
 \newcommand{\pp}{\,pp\xspace}
 
-\title{State, Not Syntax: Why Small Language Models Fail\\ at Multi-Turn Tool Calling, and What Helps}
+\title{State, Not Syntax: Harness Optimization for\\ Small-Model Multi-Turn Tool Calling}
 \author{Sanskar Thapa\\[0.4em]
 {\normalsize Master's thesis draft (presentation end of November 2026)}\\[0.2em]
 {\normalsize \url{https://github.com/sskarz/Thesis}}}
@@ -50,15 +50,13 @@
 \maketitle
 
 \begin{abstract}
-Assistants that \emph{act}---edit a file, lock a car, place an order---do so by emitting \emph{tool calls} that a surrounding program executes. Running that loop on a local machine with a small language model (under five billion parameters) keeps data private and costs nothing per request, but small models often fail when a task takes several dependent calls. We study why, on the multi-turn base split of the Berkeley Function Calling Leaderboard (BFCL v4; 200 tasks graded by the final state of a simulated backend), using Gemma-4-E2B-it served locally on a MacBook Pro.
-
-Three findings stand out. First, the failures are about \emph{state}, not \emph{syntax}. Gemma-4-E2B-it itself scores 83.1\% on single-call selection (823/990), yet completes only 27.0\% of multi-turn tasks through the native tool API, and most remaining errors are tools that never ran or a world that ended in the wrong state. Forcing syntactically valid output makes things worse (10.5\% and 13.5\%). Second, \emph{structured inference-time control} helps without any training. Writing calls as JSON text (IFFC), a harness-written state scratchpad, stopping on repeated calls, and a four-line status card that pushes the model to act rather than abstain together reach 77/200 (38.5\%, 95\% interval 32.0--45.4\%), +8.0 points over JSON text alone (paired McNemar $p=0.023$, uncorrected for multiple comparisons). This configuration was chosen after earlier results on the same 200 tasks. It is on par with a five-sample majority vote (36.5\%; difference not significant) without that method's roughly sevenfold generation time. A three-part minimal recipe without the scratchpad reaches 35.5\%. Third, fine-tuning on public and synthetic tool data did not help. The best supervised fine-tune reached 15.0\%, clearly below the untuned model; preference tuning reached 26.5\%, within noise of it, and models trained on a rebuilt mix scored 1--2/20 on a 20-task gate where the untuned model with the status card scores 17/20. A null test that pushes the untuned model's own answers through the same pipeline scored 15/20, which rules out the pipeline; the exact data cause remains open. With 200 tasks, neighbouring differences of a few points are within noise; the gap between inference-time control and the best supervised fine-tune is not.
+Assistants that \emph{act} do so by emitting \emph{tool calls} that a surrounding program, the \emph{harness}, executes. Running that loop locally with a small language model keeps data private and costs nothing per request, but small models fail when a task needs several dependent calls. We study why on the multi-turn base split of the Berkeley Function Calling Leaderboard (BFCL v4; 200 tasks graded by the final state of a simulated backend), using Gemma-4-E2B-it served on a MacBook Pro. The failure is \emph{state}, not \emph{syntax}. The model scores 83.1\% on single-call selection yet completes only 27.0\% of multi-turn tasks through the native tool API, and forcing syntactically valid output makes it worse (10.5\% and 13.5\%). Optimizing the harness helps with no weight updates: JSON-in-text calls reach 30.5\%, a three-part minimal recipe 35.5\%, and the full stack---JSON text, a harness-written state summary, a gated stop-on-repeat rule and a four-line status card---77/200 (38.5\%; +8.0 points, McNemar $p=0.023$ uncorrected), on par with a five-sample majority vote (36.5\%) at about a seventh of its generation time. Training did not reach that level: the best supervised fine-tune scored 15.0\% ($p<0.001$ below JSON text) and preference tuning 26.5\%. A null test clears the training pipeline; the data mix remains the open suspect.
 \end{abstract}
 
 \section{Introduction}
 \label{sec:intro}
 
-A useful assistant has to act, not only chat. To check a calendar or lock a car, a language model emits a \emph{tool call}: a machine-readable request (a function name plus arguments) that a surrounding program---the \emph{harness}---runs against a \emph{backend}, here a simulated vehicle or filesystem, and whose result is fed back to the model (Figure~\ref{fig:vignette}). Real tasks need several dependent calls in a row (\emph{multi-turn} or \emph{consecutive} tool calling): look up a value, use it, check the outcome, and know when to stop.
+A useful assistant has to act, not only chat. To check a calendar or lock a car, a language model emits a \emph{tool call}: a machine-readable request (a function name plus arguments) that a surrounding program---the \emph{harness}---runs against a \emph{backend}, here a simulated vehicle or filesystem, and whose result is fed back to the model (Figure~\ref{fig:vignette}). Real tasks need several dependent calls in a row (\emph{multi-turn} tool calling): look up a value, use it, check the outcome, and know when to stop.
 
 \begin{figure}[!htbp]
 \centering
@@ -78,96 +76,76 @@ A useful assistant has to act, not only chat. To check a calendar or lock a car,
 \label{fig:vignette}
 \end{figure}
 
-Running this loop locally with a \emph{small language model} (SLM; under five billion parameters here) keeps private data on the device, works offline, and has no per-request cost. The catch is accuracy. We measure Gemma-4-E2B-it~\cite{gemma4e2b}, a two-billion-effective-parameter model, on BFCL v4~\cite{patil2024bfcl}, served with llama.cpp~\cite{llamacpp} on a MacBook Pro (Apple M4~Pro, 48~GB). Out of the box, through the native tool interface, it completes 27.0\% of 200 multi-turn tasks.
+Running this loop locally with a \emph{small language model} (SLM) keeps private data on the device, works offline, and has no per-request cost. The catch is accuracy. We measure Gemma-4-E2B-it~\cite{gemma4e2b}, a two-billion-effective-parameter model, on BFCL v4~\cite{patil2024bfcl}, served with llama.cpp~\cite{llamacpp} on a MacBook Pro. Out of the box, through the native tool interface, it completes 27.0\% of 200 multi-turn tasks.
 
-We tried two families of fixes over several months: changing what happens \emph{at inference time} (how calls are written, what the harness shows the model, when the harness stops), and changing the \emph{weights} with supervised fine-tuning and preference optimization. This paper reports what that body of measurements says about \emph{why} small models fail and \emph{what helps}. Our contributions:
+We treat this as a \emph{harness optimization} problem. The model weights stay fixed; what we change is the loop around the model: how calls are parsed, what state the harness records and shows back, when the harness stops a turn, and how the next step is framed. Two of these levers (the state summary and the status card) still reach the model as text in its context, so this is not ``prompt-free'': it is control computed by the harness from executed results, delivered partly through the context. We contrast it with two other families of fixes: forcing the model's output to be syntactically valid, and changing the weights by fine-tuning. Our contributions:
 
 \begin{enumerate}
-  \item \textbf{A failure anatomy: state, not syntax.} On the same hardware, the same model scores 83.1\% on single-call selection but fails most multi-turn tasks. After calls parse, the dominant errors are \emph{under-calls} (a required tool never ran) and \emph{state mismatches} (tools ran, but the world ended wrong). Decoders that force valid output lower accuracy to 10.5--13.5\% (Section~\ref{sec:fail}).
-  \item \textbf{Training-free control that helps.} JSON-text calls plus a state scratchpad, a gated stop rule and a status card reach 38.5\% (77/200) with no weight updates, +8.0\pp over JSON text alone (McNemar $p=0.023$ uncorrected; not significant after correcting for the eight tests we ran). This full stack was assembled after seeing earlier results on the same tasks. A minimal three-part recipe without the scratchpad reaches 35.5\%, and a five-sample vote reaches 36.5\% at about $7\times$ generation time. The card works mainly as an act-versus-abstain control. We report Wilson 95\% intervals and exact McNemar tests on per-task results (Section~\ref{sec:helps}).
-  \item \textbf{Evidence on how fine-tuning goes wrong, with controls.} Fine-tuning on public data taught the model to stop early (0.5\%); the best repair reached 15.0\%, below the untuned model. Models trained on a rebuilt mix collapsed on a 20-task gate (1--2/20 where the untuned model scores 17/20), and a null test (15/20) clears the training pipeline. An autopsy pointed to a shift in the kinds of calls in the training mix as a \emph{candidate} cause; targeted retrains did not confirm it (Section~\ref{sec:train}).
+  \item \textbf{A within-model failure anatomy: state, not syntax.} The same model, quantization and server score 83.1\% on single-call selection and 27.0\% on multi-turn tasks. Once calls parse, failures are tools that never ran and worlds that end in the wrong state, not malformed output; decoders that \emph{guarantee} valid output drop accuracy to 10.5\% and 13.5\% (Section~\ref{sec:fail}).
+  \item \textbf{A training-free harness ladder, with paired statistics, that is also the cheap option.} JSON-in-text 30.5\% $\rightarrow$ minimal recipe 35.5\% $\rightarrow$ full stack 38.5\% (77/200), +8.0\pp over JSON text, greedy throughout, and on par with five-sample majority voting (36.5\%) at about $1/7$ of the generation time. The status card works as an act-versus-abstain control rather than a state-tracking aid (Section~\ref{sec:helps}).
+  \item \textbf{A controlled negative result on fine-tuning a 2B tool caller.} No trained model beat the untuned model: best supervised fine-tune 15.0\% ($p<0.001$ below JSON text, surviving correction), preference tuning 26.5\% (within noise). Models trained on a rebuilt mix collapse on a 20-task gate, while a null test stays near the bar, which clears the training pipeline and points to the data (Section~\ref{sec:train}).
 \end{enumerate}
 
 \section{Background and Related Work}
 \label{sec:related}
 
-\paragraph{Benchmark.} The Berkeley Function Calling Leaderboard (BFCL) evaluates language models as API callers~\cite{patil2023gorilla,patil2024bfcl}. Its single-turn categories check one emitted call against a reference with an abstract-syntax-tree (AST) matcher. A \emph{turn} is one user request and everything the model does before handing control back. Its multi-turn categories run the model in an agent loop against simulated backends (for example VehicleControl and GorillaFileSystem, a sandboxed Unix-like filesystem) and compare the backends' final state to a reference. We use the \emph{multi-turn base} split (200 tasks, all tools available). Accuracy here is the fraction of the 200 tasks whose final state matches; it is not the public overall BFCL score, which averages many categories.
+\paragraph{Benchmark.} The Berkeley Function Calling Leaderboard (BFCL) evaluates language models as API callers~\cite{patil2023gorilla,patil2024bfcl}. Its single-turn categories check one emitted call against a reference with an abstract-syntax-tree (AST) matcher. A \emph{turn} is one user request and everything the model does before handing control back. Its multi-turn categories run the model in an agent loop against simulated backends (for example VehicleControl and GorillaFileSystem, a sandboxed Unix-like filesystem) and compare the backends' final state to a reference. We use the \emph{multi-turn base} split (200 tasks, all tools available). Accuracy is the fraction of the 200 tasks whose final state matches; it is not the public overall BFCL score.
 
-\paragraph{Output channel.} With \emph{native function calling} (NFC), the server receives a tool list and the model returns structured \texttt{tool\_calls}, as in most production APIs. With \emph{instruction-followed function calling} (IFFC), the model is instead asked in the prompt to write its calls as a JSON list in ordinary text, which the harness parses. Taheri et al.\ report that small models follow such JSON instructions more reliably than native tool APIs on single-turn BFCL~\cite{taheri2026iffc}; we use their single-model variant (their Appendix~B).
+\paragraph{Output channel.} With \emph{native function calling} (NFC), the server receives a tool list and the model returns structured \texttt{tool\_calls}, as in most production APIs. With \emph{instruction-followed function calling} (IFFC), the model is asked in the prompt to write its calls as a JSON list in ordinary text, which the harness parses. Taheri et al.\ report that small models follow such JSON instructions more reliably than native tool APIs on single-turn BFCL~\cite{taheri2026iffc}; we use their single-model variant.
 
-\paragraph{Constrained decoding.} Grammar-constrained generation restricts the next token so that output is always valid, for example to a JSON schema or to a list of tool names~\cite{willard2023outlines,dong2026xgrammar2}. Format restrictions can also reduce answer quality~\cite{tam2024format}. Yu et al.\ constrain tool names with a prefix-tree automaton~\cite{yu2026ptc}.
+\paragraph{Constrained decoding.} Grammar-constrained generation restricts the next token so that output is always valid, for example to a JSON schema or a list of tool names~\cite{willard2023outlines,dong2026xgrammar2}; Yu et al.\ constrain tool names with a prefix-tree automaton~\cite{yu2026ptc}. Format restrictions can also reduce answer quality~\cite{tam2024format}.
 
-\paragraph{Prompting and test-time compute.} Guided-structured templates add a reasoning scaffold before calls~\cite{he2025gst}. Context-compression methods summarize long histories~\cite{kang2025acon}; our scratchpad is instead written by the harness from executed results. Typed observe--orient--decide--act (OODA) controllers structure agent steps~\cite{guo2026ooda}; our status card borrows only the name. Spending extra inference compute, for example by sampling several answers and voting, is a standard alternative to scaling parameters~\cite{snell2024testtime}.
+\paragraph{Harness-side control and test-time compute.} Context-compression methods summarize long histories~\cite{kang2025acon}; our state summary is instead written by the harness from executed results. Typed observe--orient--decide--act (OODA) controllers structure agent steps~\cite{guo2026ooda}; our status card borrows only the name. Guided templates add a reasoning scaffold before calls~\cite{he2025gst}. Sampling several answers and voting is a standard way to buy accuracy with compute~\cite{snell2024testtime}.
 
-\paragraph{Training for tool use.} Specialist small callers such as xLAM~\cite{zhang2024xlam}, Hammer~\cite{ye2025hammer} and FunctionGemma~\cite{google2025functiongemma} are trained on synthetic tool data such as ToolACE~\cite{liu2024toolace} and APIGen~\cite{liu2024apigen}. \emph{Supervised fine-tuning} (SFT) trains the model to reproduce target responses; we use low-rank adapters (LoRA)~\cite{hu2021lora}, small trainable matrices added to a frozen model, with MLX~\cite{mlx}. \emph{Direct Preference Optimization} (DPO) instead trains on pairs of preferred and rejected responses~\cite{rafailov2023dpo,jung2025diatool}.
+\paragraph{Training for tool use.} Specialist small callers such as xLAM~\cite{zhang2024xlam} and Hammer~\cite{ye2025hammer} are trained on synthetic tool data such as ToolACE~\cite{liu2024toolace} and APIGen~\cite{liu2024apigen}. \emph{Supervised fine-tuning} (SFT) trains the model to reproduce target responses; we use low-rank adapters (LoRA)~\cite{hu2021lora} with MLX~\cite{mlx}. \emph{Direct Preference Optimization} (DPO) trains on pairs of preferred and rejected responses~\cite{rafailov2023dpo,jung2025diatool}.
 
 \section{Setup and Methods}
 \label{sec:setup}
 
-\paragraph{Models and serving.} The multi-turn model is Gemma-4-E2B-it, quantized with Q4\_K\_M (a 4-bit weight-quantization format of llama.cpp), served by \texttt{llama-server} (llama.cpp build 8111) with Metal acceleration on a MacBook Pro M4~Pro with 48~GB of memory. Decoding is greedy (temperature 0) except for majority voting. Most runs used four parallel server slots and a 65{,}536-token context; the native-API baseline used eight slots, a difference we return to in Section~\ref{sec:limits}. Peak process memory for the multi-turn jobs is about 15~GB. For the single-turn contrast we also serve Qwen2.5-3B~\cite{qwen25}, Llama-3.2-3B~\cite{llama32}, Qwen3.5-4B~\cite{qwen35} and FunctionGemma-270M~\cite{google2025functiongemma}.
+\paragraph{Model and serving.} All results use Gemma-4-E2B-it, quantized with Q4\_K\_M (a 4-bit weight format of llama.cpp), served by \texttt{llama-server} (llama.cpp build 8111) with Metal acceleration on a MacBook Pro (Apple M4~Pro, 48~GB). Decoding is greedy (temperature 0) except for majority voting. Most runs used four parallel server slots and a 65{,}536-token context; the native-API baseline used eight slots, a difference we return to in Section~\ref{sec:discussion}.
 
-\paragraph{Inference-time interventions.} All of these leave the model weights untouched and use the same checker (Appendix~\ref{app:method} gives the exact rules):
+\paragraph{Harness interventions.} All leave the weights untouched and use the same checker (Appendix~\ref{app:method} gives exact rules and examples):
 \begin{itemize}\setlength{\itemsep}{1pt}
-  \item \textbf{JSON in text (IFFC)} instead of the native tool API (NFC).
-  \item \textbf{State scratchpad.} After each executed call, the harness writes a short snapshot of facts from real results (current directory, known files, last calls) into the conversation.
-  \item \textbf{Stop on repeats.} The harness ends a turn when the model re-proposes calls it has already executed, but only once at least six tool steps have occurred in the current user request, so short legitimate re-calls are not cut off. An \emph{ungated} variant stops at the first repeat.
-  \item \textbf{Status card.} A four-line card (goal, known facts, last call and its outcome, and an advisory next move: call, ask, finish or refuse) is prefixed to the latest user message. It is filled deterministically from the conversation and executed results; it never sees reference answers. We call this the OODA card after the observe--orient--decide--act loop it loosely mirrors. The card stacked on stop-on-repeats (JSON text + stop + card) is our \emph{minimal recipe}.
-  \item \textbf{Vote of five (Best-of-N, BoN).} At each step, sample five candidate calls at temperature 0.7, execute the most common one, and continue; applied on top of the scratchpad.
-  \item \textbf{Full stack (headline).} JSON text + scratchpad + stop on repeats + status card, with the scratchpad written before the card in each user message. Greedy decoding; no sampling.
-  \item \textbf{Forced-valid decoding.} \emph{Constrained decoding} restricts output in two passes: first to an empty list or a list of valid tool names, then arguments to each tool's schema (an approximation of tag-triggered grammars~\cite{dong2026xgrammar2}). A \emph{tool-name automaton} constrains only the name and leaves arguments free, inspired by~\cite{yu2026ptc}.
+  \item \textbf{JSON in text (IFFC)} instead of the native tool API (NFC); the harness parses the calls.
+  \item \textbf{State summary (scratchpad).} After each executed call, the harness writes a short \texttt{[STATE]} snapshot of facts from real results (current directory, known files, last calls) into the conversation.
+  \item \textbf{Stop on repeats.} The harness ends a turn when the model re-proposes calls it has already executed, but only after at least six tool steps in the current request. An \emph{ungated} variant stops at the first repeat.
+  \item \textbf{Status card.} A four-line card (goal, known facts, last call and outcome, and an advisory next move: call, ask, finish or refuse) is prefixed to the latest user message. The harness fills it deterministically from the conversation and executed results; it never sees reference answers. JSON text + stop on repeats + card is our \emph{minimal recipe}.
+  \item \textbf{Full stack (headline).} JSON text + state summary + stop on repeats + status card. Greedy; no sampling.
+  \item \textbf{Vote of five (Best-of-N).} At each step, sample five candidate calls at temperature 0.7, execute the most common one; on top of the state summary. This is the compute-heavy comparison point.
+  \item \textbf{Forced-valid decoding.} \emph{Constrained decoding} restricts output in two passes (tool names, then arguments by schema); a \emph{tool-name automaton} constrains only the name, inspired by~\cite{yu2026ptc}.
 \end{itemize}
 
-\paragraph{Training-time interventions.} We train LoRA adapters on Gemma-4-E2B-it with MLX, merge, quantize to Q4\_K\_M and evaluate with JSON-in-text calls. Early mixes combine ToolACE multi-turn dialogues with sampled xLAM data; later mixes filter or rebalance specific target types. A later \emph{rebuilt mix} (30{,}000 training rows) combines about 45\% newly simulated, execution-checked episodes with cleaned public data. We also train one full DPO model.
+\paragraph{Training.} We train LoRA adapters on Gemma-4-E2B-it with MLX, merge, quantize to Q4\_K\_M and evaluate with JSON text. Early mixes combine ToolACE dialogues with sampled xLAM data; a later \emph{rebuilt mix} (30{,}000 rows) combines about 45\% newly simulated, execution-checked episodes with cleaned public data. We also train one DPO model. Because a 200-task run takes about three hours, trained models first face a fixed 20-task \emph{gate} drawn from the same split (bar: 17/20, the untuned model with the card); a smaller 10-task regression check is described in Appendix~\ref{app:train}.
 
-\paragraph{Early checks.} A 200-task run takes hours, so trained models first pass cheaper checks: a 10-task tripwire and a 20-task gate. Both use fixed tasks drawn from the same 200-task split, and the two sets are disjoint. The 20 gate tasks were chosen after the inference-time experiments, using historical per-task results. Neither check is a 200-task accuracy; Section~\ref{sec:gates} reports how well each predicts the full ranking.
+\paragraph{Error labels.} Each failed task gets one primary label from the checker's message: \emph{empty turn} (no call on a turn that needed one), \emph{under-call} (a required tool never ran), or \emph{state mismatch} (tools ran but the backend's final state differs from the reference).
 
-\paragraph{Error labels.} Each failed task gets one primary label: \emph{empty turn} (no call on a turn that needed one), \emph{under-call} (a required tool never ran), or \emph{state mismatch} (tools ran but the backend's final state differs from the reference).
-
-\paragraph{Statistics.} We report Wilson 95\% intervals computed from counts; a Wilson interval is a confidence interval for a proportion that stays accurate for small counts. For paired comparisons on the same 200 tasks we report how many tasks only one condition solves, computed from per-task results in our evaluation database (a task is correct if the checker logged no error for it). A McNemar test is a paired test that uses only the tasks where two conditions disagree; we report exact two-sided binomial p-values (Table~\ref{tab:mcnemar}). We ran eight planned tests; p-values are uncorrected, and we note where a Holm correction for eight tests changes the conclusion.
+\paragraph{Statistics.} We report Wilson 95\% intervals, which stay accurate for small counts. For paired comparisons on the same 200 tasks we use exact two-sided McNemar tests, which count only the tasks where two conditions disagree, from per-task results in our evaluation database. We ran eight planned tests; $p$-values are uncorrected, and we note where a Holm correction for eight tests changes the conclusion.
 
 \section{Where Small Models Fail}
 \label{sec:fail}
 
-\paragraph{One call is easy; a chain is not.} On single-call BFCL categories, Gemma-4-E2B-it itself is competent (Table~\ref{tab:st}): through the native API it scores 823/990 (83.1\%, Wilson interval 80.7--85.3\%) on the same five categories used for the other models (simple, multiple, irrelevance, Java, JavaScript), comparable to Qwen3.5-4B (82.5\%). On multi-turn tasks, the \emph{same model, quantization and server} completes only 54 of 200 (27.0\%). So the gap is a within-model contrast between choosing one call and carrying a chain of calls through a changing state, not a difference between models.
+\paragraph{One call is easy; a chain is not.} On single-call BFCL categories (simple, multiple, irrelevance, Java and JavaScript; 990 cases), Gemma-4-E2B-it through the native API scores 823/990 (83.1\%, interval 80.7--85.3\%; Appendix~\ref{app:st}). On multi-turn tasks, the \emph{same model, quantization and server} completes only 54 of 200 (27.0\%). The gap is between choosing one call and carrying a chain of calls through a changing state.
 
-\begin{table}[!htbp]
-\centering
-\small
-\caption{Single-call BFCL v4 accuracy (AST matcher) over the same 990 cases for every model: simple (400), multiple (200), irrelevance (240), Java (100) and JavaScript (50). The two parallel-call categories are excluded because the older runs scored 0\% there from a server grammar bug (Appendix~\ref{app:st}). Gemma-4-E2B-it is the multi-turn model of this paper.}
-\label{tab:st}
-\begin{tabular}{@{}lrr@{}}
-\toprule
-Model (quantization) & Correct & Accuracy \\
-\midrule
-\textbf{Gemma-4-E2B-it (Q4\_K\_M)} & \textbf{823/990} & \textbf{83.1\%} \\
-Qwen3.5-4B (Q4\_K\_M) & 817/990 & 82.5\% \\
-Qwen2.5-3B (Q4\_K\_M) & 753/990 & 76.1\% \\
-FunctionGemma-270M (bf16) & 395/990 & 39.9\% \\
-Llama-3.2-3B (Q4\_K\_M) & 365/990 & 36.9\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\paragraph{After calls parse, errors are about the world.} Figure~\ref{fig:fail} breaks down failed tasks. Switching from the native API to JSON text reduces empty turns (59 to 41) but leaves state mismatch as the largest bucket (68 to 60). The two conditions fail together on 124 tasks. Across all inference-time conditions, state mismatch and under-call make up most failures, concentrated in VehicleControl and the filesystem: with the scratchpad, 22 and 21 of the 64 state mismatches respectively.
+\paragraph{After calls parse, errors are about the world.} Figure~\ref{fig:fail} breaks down failed tasks. With JSON text, the two biggest buckets are state mismatches (60) and under-calls (38): tools that should have run never did, and the ones that ran left the world wrong. The native API fails differently: its main non-state error is empty turns (59), and under-calls are its smallest bucket (19). For every JSON-text condition in Figure~\ref{fig:fail}, state mismatch is the largest bucket (53--71 tasks); with the state summary, 22 of its 64 state mismatches are in VehicleControl and 21 in the filesystem. The full stack has 20 empty turns, 35 under-calls and 68 state mismatches.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textwidth]{failure_anatomy.pdf}
-\caption{Why tasks fail. Each bar is one condition on the same 200 tasks; height is the number of failed tasks, split by primary error. Fewer empty turns (grey) do not translate into fewer wrong final states (blue). Forced-valid decoders and the best fine-tuned model shift failures into under-calls (orange) and state mismatches. The full stack (Table~\ref{tab:ladder}) is not labelled here.}
+\includegraphics[width=0.9\textwidth]{failure_anatomy.pdf}
+\caption{Why tasks fail. Each bar is one condition on the same 200 tasks; height is the number of failed tasks, split by primary error. Harness control mostly removes empty turns (grey); wrong final states (blue) remain. Forced-valid decoders and the best fine-tune shift failures into under-calls (orange) and state mismatches.}
 \label{fig:fail}
 \end{figure}
 
-\paragraph{Forcing valid syntax hurts.} If failures were mostly malformed output, guaranteeing valid output should help. It does the opposite. Two-pass constrained decoding scores 21/200 (10.5\%; interval 7.0--15.5\%), 20.0\pp below JSON text, with 70 under-calls and 95 state mismatches. The tool-name automaton scores 27/200 (13.5\%; 9.4--18.9\%), with state mismatch rising to 102. Our two-pass approach approximates, rather than reproduces, full grammar engines~\cite{dong2026xgrammar2}, and we have not audited the token-level mechanism. Still, the measured effect is large and in the wrong direction: on this task, a valid call is not a correct next step.
+\paragraph{Forcing valid syntax hurts.} If failures were mostly malformed output, guaranteeing valid output should help. It does the opposite. Two-pass constrained decoding scores 21/200 (10.5\%; interval 7.0--15.5\%), 20.0\pp below JSON text, with 70 under-calls and 95 state mismatches. The tool-name automaton scores 27/200 (13.5\%; 9.4--18.9\%), with state mismatch rising to 102. Our two-pass decoder approximates, rather than reproduces, full grammar engines~\cite{dong2026xgrammar2}, but the effect is large and in the wrong direction: a valid call is not a correct next step.
 
-\section{What Helps: Structured Inference-Time Control}
+\section{What Helps: Harness-Side Control}
 \label{sec:helps}
 
-Figure~\ref{fig:ladder} and Table~\ref{tab:ladder} show the main results. Each change below is cheap and greedy except the vote of five; none needs training, and all work on the untuned model.
+Figure~\ref{fig:ladder} and Table~\ref{tab:ladder} show the main results. Every change is greedy except the vote of five, and none touches the weights.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textwidth]{ladder_n200.pdf}
-\caption{Multi-turn accuracy on 200 BFCL v4 tasks, Gemma-4-E2B-it on a MacBook Pro. Bars show the share of tasks fully correct; error bars are Wilson 95\% intervals. Green: inference-time control (the headline, the full stack IFFC + scratchpad + stop on repeats + status card, is outlined and in bold); light green: majority vote, the costly upper bound; grey: output format alone; red: decoders that force valid syntax; orange: training. The dotted line marks the JSON-in-text baseline.}
+\includegraphics[width=0.78\textwidth]{ladder_n200.pdf}
+\caption{Multi-turn accuracy on 200 BFCL v4 tasks, Gemma-4-E2B-it. Bars: share of tasks fully correct; error bars: Wilson 95\% intervals. Green: harness control (headline full stack outlined, in bold); light green: majority vote, the costly comparison; grey: output format alone; red: forced-valid decoders; orange: training. Dotted line: JSON-in-text baseline.}
 \label{fig:ladder}
 \end{figure}
 
@@ -185,10 +163,10 @@ Native tool API (NFC) & 54 & 27.0\% & 21.3--33.5 & $-3.5$ \\
 JSON in text (IFFC) & 61 & 30.5\% & 24.5--37.2 & --- \\
 \multicolumn{5}{@{}l}{\emph{Inference-time control on JSON text}} \\
 \quad + stop on repeats & 65 & 32.5\% & 26.4--39.3 & $+2.0$ \\
-\quad + state scratchpad & 68 & 34.0\% & 27.8--40.8 & $+3.5$ \\
+\quad + state summary & 68 & 34.0\% & 27.8--40.8 & $+3.5$ \\
 \quad + stop on repeats + status card (minimal recipe) & 71 & 35.5\% & 29.2--42.3 & $+5.0$ \\
-\quad + scratchpad + stop + card (\textbf{headline; full stack}) & 77 & \textbf{38.5\%} & 32.0--45.4 & $+8.0$ \\
-\quad + scratchpad + vote of five (upper bound, ${\sim}7\times$ time) & 73 & 36.5\% & 30.1--43.4 & $+6.0$ \\
+\quad + summary + stop + card (\textbf{headline; full stack}) & 77 & \textbf{38.5\%} & 32.0--45.4 & $+8.0$ \\
+\quad + summary + vote of five (compute-heavy, ${\sim}7\times$ time) & 73 & 36.5\% & 30.1--43.4 & $+6.0$ \\
 \multicolumn{5}{@{}l}{\emph{Forced-valid decoding}} \\
 Constrained decoding (two-pass) & 21 & 10.5\% & 7.0--15.5 & $-20.0$ \\
 Tool-name automaton & 27 & 13.5\% & 9.4--18.9 & $-17.0$ \\
@@ -199,15 +177,15 @@ Preference-tuned (DPO) & 53 & 26.5\% & 20.9--33.0 & $-4.0$ \\
 \end{tabular}
 \end{table}
 
-\paragraph{JSON text over the native API (+3.5\pp).} Writing calls as JSON text scores 61/200 versus 54/200 natively. Paired, JSON text solves 22 tasks the native run misses and loses 15 (McNemar $p=0.32$, not significant). Part of this gap may come from serving: the native run used eight parallel slots and the others four.
+\paragraph{JSON text over the native API (+3.5\pp).} Writing calls as JSON text scores 61/200 versus 54/200 natively; paired, it solves 22 tasks the native run misses and loses 15 ($p=0.32$, not significant). Part of the gap may come from serving (eight slots versus four), and a guided template on the native API ties it (Section~\ref{sec:discussion}). We use JSON text as the base for the harness ladder because it is what the harness can parse and inspect most easily, not because the channel switch alone is established.
 
-\paragraph{State scratchpad (+3.5\pp).} The harness-written snapshot scores 68/200; versus JSON text it gains 20 tasks and loses 13 (McNemar $p=0.30$, not significant). Empty turns fall (41 to 31) while state mismatches do not (60 to 64), so the scratchpad mainly helps the model remember to keep calling.
+\paragraph{State summary (+3.5\pp).} The harness-written snapshot scores 68/200; versus JSON text it gains 20 tasks and loses 13 ($p=0.30$). Empty turns fall (41 to 31) while state mismatches do not (60 to 64), so the summary mainly keeps the model calling.
 
-\paragraph{Stop on repeats (+2.0\pp) and the status card (minimal recipe, 35.5\%).} Stopping on a repeated call, but only after six tool steps in the request, scores 65/200 (versus JSON text: gains 11, loses 7; $p=0.48$). Stopping at the \emph{first} repeat instead scores 54/200: all 37 forced stops were on tasks that failed, so stopping at the first repeat never rescued a task. Adding the status card on top scores 71/200: +3.0\pp over stop-on-repeats alone (gains 26, loses 20; $p=0.46$) and +5.0\pp over JSON text (gains 26, loses 16; $p=0.16$), neither significant. Against the native API it gains 37 and loses 20 ($p=0.033$ uncorrected; not significant after Holm correction), and part of that gap is the output format. The card is best read as an act-versus-abstain control: empty turns fall from 38 to 17, while state mismatches rise from 60 to 71. It helps the model act, not track state better.
+\paragraph{Stop on repeats and the status card (minimal recipe, 35.5\%).} Stopping on a repeated call after six tool steps scores 65/200 (+11/$-7$ versus JSON text, $p=0.48$). Stopping at the \emph{first} repeat instead scores 54/200: all 37 forced stops were on tasks that failed, so the gate matters. Adding the status card scores 71/200, +5.0\pp over JSON text (+26/$-16$, $p=0.16$). The card is best read as an act-versus-abstain control: empty turns fall from 38 to 17, while state mismatches rise from 60 to 71. It helps the model act, not track state.
 
-\paragraph{Majority vote: the costly upper bound (36.5\%).} Voting over five samples on top of the scratchpad scores 73/200, two tasks more than the minimal recipe and four fewer than the greedy full stack below. Versus the greedy scratchpad it gains 17 and loses 12 (McNemar $p=0.46$, not significant), and it cuts filesystem state mismatches from 21 to 13. It costs about $7\times$ the generation wall-clock (about 3.0 to 21.3 hours for 200 tasks) and about $5\times$ the server requests (8.4 to 42.7 per task), from a single sampling seed. For an on-device agent, the greedy full stack below is far cheaper and on par in accuracy (difference not significant).
+\paragraph{Full stack: the best measured result (38.5\%).} Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%) in about 2.9 hours for 200 tasks. Paired against JSON text it gains 30 tasks and loses 14 ($p=0.023$ uncorrected; not significant after Holm). Against the minimal recipe, the state summary alone and the vote of five the differences are within noise (Table~\ref{tab:mcnemar}). This configuration was assembled \emph{after} we had seen earlier results on the same 200 tasks, so its lead is subject to tuning leakage. Its harness code is on draft pull request \#90 (commit \texttt{c894ec6}), run with the same model, quantization and server.
 
-\paragraph{Full stack: the best measured result (38.5\%).} Combining all four greedy changes (JSON text, scratchpad, gated stop-on-repeats and the status card, with the scratchpad written before the card) scores 77/200 (38.5\%, interval 32.0--45.4\%) in 175 minutes for 200 tasks, without sampling. Paired against JSON text it gains 30 tasks and loses 14 ($p=0.023$), one of two inference-time contrasts below 0.05 before correction (with minimal recipe vs native API, $p=0.033$); neither survives Holm. Against the minimal recipe (+19/$-13$, $p=0.38$), the scratchpad alone (+24/$-15$, $p=0.20$) and the vote of five (+24/$-20$, $p=0.65$) the differences are within noise. Two caveats apply. This configuration was assembled \emph{after} we had seen the earlier results on the same 200 tasks, so its lead is subject to tuning leakage. Its harness code is on an unmerged branch (draft pull request \#90, commit \texttt{c894ec6}), run from a separate worktree with the same model, quantization and server.
+\paragraph{Cost: majority vote (36.5\%).} Voting over five samples on top of the state summary scores 73/200, four tasks fewer than the greedy full stack (+24/$-20$ for the full stack, $p=0.65$). It costs about $7\times$ the generation wall-clock (about 3.0 to 21.3 hours for 200 tasks), from a single sampling seed. A greedy harness matches it at a fraction of the time, which matters on a local device.
 
 \begin{table}[!htbp]
 \centering
@@ -220,103 +198,73 @@ A & B & A only & B only & $p$ & Holm \\
 \midrule
 Full stack (38.5\%) & Minimal recipe (35.5\%) & 19 & 13 & 0.38 & no \\
 Full stack & Vote of five (36.5\%) & 24 & 20 & 0.65 & no \\
-Full stack & Scratchpad (34.0\%) & 24 & 15 & 0.20 & no \\
+Full stack & State summary (34.0\%) & 24 & 15 & 0.20 & no \\
 Full stack & JSON text (30.5\%) & 30 & 14 & 0.023 & no \\
 Minimal recipe & JSON text & 26 & 16 & 0.16 & no \\
 Minimal recipe & Native API (27.0\%) & 37 & 20 & 0.033 & no \\
 JSON text & Native API & 22 & 15 & 0.32 & no \\
 Best SFT (15.0\%) & JSON text & 7 & 38 & $<0.001$ & yes \\
 \midrule
-Scratchpad & JSON text & 20 & 13 & 0.30 & --- \\
-Vote of five & Scratchpad & 17 & 12 & 0.46 & --- \\
+State summary & JSON text & 20 & 13 & 0.30 & --- \\
+Vote of five & State summary & 17 & 12 & 0.46 & --- \\
 Stop on repeats (32.5\%) & JSON text & 11 & 7 & 0.48 & --- \\
 Minimal recipe & Stop on repeats & 26 & 20 & 0.46 & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{How sure are we?} Every interval in Table~\ref{tab:ladder} is about $\pm6$--7\pp wide. Table~\ref{tab:mcnemar} lists the paired tests. Among inference-time conditions, only the full stack versus JSON text ($p=0.023$) and the minimal recipe versus the native API ($p=0.033$) fall below 0.05, and neither survives a Holm correction for eight tests. The ordering among the inference-time rows is therefore observed, not proven; the full stack's +8.0\pp over JSON text is suggestive, not established. Two contrasts are robust. The best supervised fine-tune solves only 7 tasks that JSON text misses while missing 38 that it solves ($p<0.001$, surviving correction). The full stack's interval (32.0--45.4\%) does not overlap the best fine-tune's (10.7--20.6\%) or the forced-valid decoders'. Preference tuning (26.5\%) is \emph{not} separable from JSON text by these data.
+\paragraph{How sure are we?} Every interval in Table~\ref{tab:ladder} is about $\pm6$--7\pp wide. Among harness conditions, only the full stack versus JSON text ($p=0.023$) and the minimal recipe versus the native API ($p=0.033$) fall below 0.05, and neither survives Holm correction. The ordering among the harness rows is therefore observed, not proven; the +8.0\pp is suggestive, not established. Two contrasts are robust. The best supervised fine-tune solves only 7 tasks that JSON text misses while missing 38 that it solves ($p<0.001$, surviving correction), and the full stack's interval (32.0--45.4\%) does not overlap those of the best fine-tune (10.7--20.6\%) or the forced-valid decoders. Preference tuning (26.5\%) is \emph{not} separable from JSON text.
 
 \section{Why Fine-Tuning Did Not Help}
 \label{sec:train}
 
-Fine-tuning is the obvious way to teach a small model a task. Here no trained model beat the untuned model: supervised fine-tunes scored clearly lower, and preference tuning was within noise of it. We treat the runs as evidence about \emph{what} goes wrong.
+Fine-tuning is the obvious way to teach a small model a task. Here no trained model beat the untuned model. We treat the runs as evidence about \emph{what} goes wrong; the full version history is in Appendix~\ref{app:train}.
 
-\subsection{Public data taught the model to stop}
-\label{sec:stop}
-The first mixes scored 1/200 (0.5\%). A \emph{stop target} is a training response that is an empty list, meaning ``no further call; hand back to the user''. In the training data, 5{,}520 assistant targets were stop targets, all from ToolACE. After a tool result, 78.1\% of targets were empty (2{,}121 empty versus 596 continue). The model learned to stop after its first tool result, while BFCL needs further calls on later turns. Dropping only mid-dialogue empty targets still scored 1/200; deleting trailing empty answers at serving time scored 4/200.
+\paragraph{Public data taught the model to stop; repairs restored calling, not accuracy.} The first mixes scored 1/200 (0.5\%). A \emph{stop target} is a training response that is an empty list (``no further call''). After a tool result, 78.1\% of targets in that data were stop targets (2{,}121 versus 596 continue), all from ToolACE, so the model learned to stop after its first tool result while BFCL needs further calls. Removing those targets and adding recovery examples scored 30/200 (15.0\%), our best fine-tune: empty turns nearly vanished (167 to 2), but failures moved to state mismatch (109) and under-call (59). Adding the state summary to this fine-tune \emph{lowered} it to 26/200, although the summary helps the untuned model. A DPO model scored 53/200 (26.5\%), within noise of JSON text.
 
-\subsection{Repairing the mix restored calling, not accuracy}
-Removing those targets and adding recovery examples scored 30/200 (15.0\%), our best fine-tune. Empty turns nearly vanished (167 to 2), but failures moved to state mismatch (109) and under-call (59). Two further filtering variants scored 23/200 and 26/200; adding the scratchpad to the best fine-tune lowered it to 26/200, although the scratchpad helps the untuned model. Each variant changed several filters at once, so this is a supported reading, not a single-factor ablation. A full DPO model scored 53/200 (26.5\%), also below JSON text.
-
-\subsection{Cheap checks: a 10-task tripwire cannot rank, a 20-task gate can}
-\label{sec:gates}
-Two fine-tuned checkpoints and the untuned model with the status card all scored 3/10 on the 10-task check, passing the same three tasks. Rank correlation (Spearman) measures how well a check orders runs the same way as the 200-task score. Among 11 strong historical 200-task runs (at least 50/200, out of 23 full runs), the 10-task score's rank correlation with the 200-task score was 0.118, so we keep it only as a regression tripwire. With only 11 runs this estimate is very uncertain (approximate 95\% interval $-0.52$ to $0.67$), so it is illustrative. A 20-task gate tracked the historical ranking better in our selection analysis, but we do not report its correlation because the number of runs behind it is not recorded, and because its tasks were themselves chosen using those historical results (selection leakage). The gate bar itself was set by the configuration it screens against. The untuned model with the status card scores 17/20 on it; a trained model must match that before a full run.
-
-\subsection{A rebuilt mix collapsed; a null test clears the pipeline}
-Training on the rebuilt mix was stopped early at step 26{,}500 of 32{,}000. The best validation loss (0.030) was at step 22{,}000, and that checkpoint, the one we evaluated, scored 2/20 on the gate (Figure~\ref{fig:gate}). It usually made one call and stopped, even when a setup step was needed (looking up a stock symbol, changing directory, logging in), and invented missing values such as an order number. Removing the status card scored 1/20. Continuing training for 2{,}500 steps on tool lists laid out exactly as in the test restored some multi-call behaviour but still scored 2/20.
-
-Was the pipeline itself the problem? A \emph{null test} is a run that should change nothing if the machinery is sound. We fine-tuned the untuned model for one pass on 156 of its own logged answers, through the same template, adapter, merge, quantization and serving steps. It scored 15/20 (interval 53--89\%) and kept the untuned model's habits. Two tasks below the bar is within noise for one 20-task run (the bar's own interval is 64--95\%), while the rebuilt mix's 2/20 (3--30\%) is far outside it. The collapse came from \emph{what} the rebuilt mix taught, not from the training machinery.
+\paragraph{A rebuilt mix collapsed; a null test clears the pipeline.} The best-validation checkpoint of the rebuilt mix scored 2/20 on the gate (Figure~\ref{fig:gate}); validation loss did not predict the collapse. It usually made one call and stopped, even when a setup step was needed (looking up a stock symbol, changing directory, logging in), and invented missing values such as an order number. Removing the card scored 1/20, and continued training on test-style tool layouts still scored 2/20. Was the pipeline the problem? A \emph{null test} should change nothing if the machinery is sound: we fine-tuned the untuned model on 156 of its own logged answers through the same template, adapter, merge, quantization and serving steps. It scored 15/20 (interval 53--89\%), within noise of the bar (17/20; 64--95\%), while the rebuilt mix's 2/20 (3--30\%) is far outside it. The collapse came from \emph{what} the mix taught.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textwidth]{gate20.pdf}
-\caption{20-task gate (multi-turn base; same 20 tasks for every bar; not 200-task accuracies). Error bars are Wilson 95\% intervals in tasks; run IDs under the bars are listed in Table~\ref{tab:runs}. The untuned model with the status card sets the bar (17/20). Every model trained on the rebuilt mix collapses (1--2/20). The null test, the untuned model trained on its own answers, stays close to the bar, so the pipeline is not the cause. Self-distillation (correct turns only) and the two retrains that rebalance its mix land in between and do not pass.}
+\includegraphics[width=0.8\textwidth]{gate20.pdf}
+\caption{20-task gate (same 20 tasks for every bar; not 200-task accuracies). Error bars: Wilson 95\% intervals in tasks; run IDs in Table~\ref{tab:runs}. The untuned model with the status card sets the bar (17/20). Every model trained on the rebuilt mix collapses (1--2/20). The null test stays close to the bar, so the pipeline is not the cause. Self-distillation and its two rebalanced retrains land in between and do not pass.}
 \label{fig:gate}
 \end{figure}
 
-\subsection{Self-distillation and a candidate cause}
-\emph{Self-distillation} means training the model on its own answers, here only those the checker marked correct (440 self-generated rows). It scored 8/20. Output stayed well formed, but in 6 of 12 failures the model said an ID, price or recipient was missing and stopped instead of calling the tool that would supply it. An autopsy found only partial support for the obvious explanation (too many stop rows). The stop rows were not give-ups: none followed an error and all ended a completed turn. The mix had changed, though. Look-up-type calls fell from 37.9\% of calls in the null-test data (67/177) to 19.7\% (78/395), and the share of stop targets rose from 23.1\% (36/156) to 33.2\% (146/440). The self-distillation run also took about three times as many training updates as the null test (110 versus 39), so the mix is not the only difference.
+\paragraph{A candidate cause that targeted retrains did not confirm.} \emph{Self-distillation}---training on the model's own answers that the checker marked correct---scored 8/20; in 6 of 12 failures the model said an ID or price was missing and stopped instead of calling the tool that would supply it. Compared with the null-test data, look-up-type calls fell from 37.9\% to 19.7\% of calls and stop targets rose from 23.1\% to 33.2\%. Two targeted retrains tested this: capping the stop share scored 14/20, and restoring the look-up share (39.6\%) scored 12/20. Neither passed, so the data are \emph{consistent with}, but do not establish, a shift in the decision mix (stop versus continue, look up versus act) as the cause.
 
-\paragraph{Targeted retrains did not confirm it.} Capping the stop share near the null-test level (22.9\% versus 23.1\%) scored 14/20, but the look-up share stayed low (20.6\%). Adding simulated look-up-then-act episodes restored the look-up share (39.6\%, close to the null test's 37.9\%) yet scored 12/20. That run lost 7 tasks the untuned model solves, and empty turns returned (9 of 66 turns). On a fresh bank of 20 other tasks it scored 2/20, against 3/20 for the untuned model. Restoring the look-up share therefore did not repair the model. The data are \emph{consistent with}, but do not establish, a mix-shift explanation; look-up counts also rest on a name-matching heuristic.
-
-\paragraph{Stop targets in the rebuilt mix.} In the rebuilt mix, stop targets were 22\% of all rows, all placed after a tool result. That is a different denominator from the first mix's 78.1\% (the share of targets \emph{after a tool result} that were stops; Section~\ref{sec:stop}), so the two are not directly comparable. The stop-target problem of the first mix was therefore addressed in design, yet the rebuilt-mix models still under-called, so stop share alone does not explain the collapse.
-
-\paragraph{Summary.} Fine-tuning a 2B model on tool dialogues proved fragile. Validation loss did not reveal collapses on real tasks, the pipeline itself is not to blame, and the distribution of decisions in the targets (stop versus continue, look up versus act) is a candidate, not an established, cause. None of the trained models beats the untuned model with inference-time control.
-
-\section{Discussion}
+\section{Discussion and Limitations}
 \label{sec:discussion}
 
-\paragraph{State, not syntax.} Across conditions, the hard part is deciding the next step given the current state of the world---including whether to keep going---not writing a valid call. Interventions that support the model's decisions help modestly: a scratchpad of real results, and a status card that mostly controls whether the model acts or abstains rather than improving state tracking. Interventions that \emph{constrain} its surface form (grammars, name automata) hurt. Training appeared to shift the balance between acting and stopping rather than improve tracking; the reason is not isolated.
+\paragraph{State, not syntax.} Across conditions, the hard part is deciding the next step given the current state of the world---including whether to keep going---not writing a valid call. Harness levers that support that decision help modestly: a summary of real results, a gated stop, and a card that mostly controls whether the model acts or abstains. Levers that \emph{constrain} the surface form hurt. Training appeared to shift the balance between acting and stopping rather than improve tracking.
 
-\paragraph{What we recommend for on-device agents.} Use JSON-in-text calls, a harness-written state summary, a gated stop rule and a status card. This full stack is the best configuration we measured (38.5\%) and is greedy, so it costs a fraction of sampling-and-voting. If context budget is tight, the three-part recipe without the scratchpad (35.5\%) is a smaller fallback. Both need no training data or GPU time. Treat sampling-and-voting as an upper bound unless latency does not matter. Before fine-tuning, gate on task-level checks rather than validation loss, and audit the decision mix of the training targets as one plausible risk.
+\paragraph{The guided-template tie.} A seven-step reasoning template on the native API also scored 61/200, the same as JSON text (19 tasks swap each way; it raised state mismatches to 79). So the +3.5\pp from switching the output channel may owe as much to prompt structure as to the channel, and we do not claim the channel switch alone is a gain ($p=0.32$ in any case). The claim we do make is narrower: on top of JSON text, harness control adds +8.0\pp, and the template result does not bear on that ladder. We did not stack the harness levers on the native API.
 
-\paragraph{Absolute level.} Even the best configuration completes fewer than two tasks in five (38.5\%). Small models are not yet reliable multi-step agents on this benchmark; the value of the results is in showing which levers move accuracy and which do not.
+\paragraph{What we recommend.} For an on-device agent: JSON-in-text calls, a harness-written state summary, a gated stop rule and a status card. The full stack is the best configuration we measured (38.5\%) and is greedy; if context is tight, the minimal recipe (35.5\%) is a smaller fallback. Both need no training data or GPU time. Before fine-tuning, gate on task-level checks rather than validation loss. Even the best configuration completes fewer than two tasks in five; small models are not yet reliable multi-step agents on this benchmark.
 
-\section{Limitations}
-\label{sec:limits}
-
+\paragraph{Limitations.}
 \begin{itemize}\setlength{\itemsep}{1pt}
-  \item \textbf{One model, one split, tuned in place.} All multi-turn results use Gemma-4-E2B-it on the 200-task base split. Settings (stop threshold, card fields, mix filters) were tuned and reported on the same 200 tasks, so the headline may be optimistic. Other models and the harder BFCL splits are untested.
-  \item \textbf{Decoding.} Greedy decoding with one quantization (Q4\_K\_M) and one seed; the vote of five uses one sampling seed.
-  \item \textbf{Gate design (threat to validity).} The 20 gate tasks were picked post hoc using historical per-task results from the same split, and the 17/20 bar was set by the configuration it screens against. Leave-one-run-out estimates do not remove that selection leakage, so the gate is a screening heuristic, not an unbiased predictor.
-  \item \textbf{Headline selection.} The full-stack configuration was assembled after seeing earlier results on the same 200 tasks, and its only nominally significant gain (over JSON text, $p=0.023$) does not survive a multiple-comparison correction. Its code is not yet merged (draft PR \#90).
-  \item \textbf{Sample size.} 95\% intervals are about $\pm7$\pp; the ordering among inference-time conditions is not statistically established. The 20-task gate is a screening tool, not a measurement.
-  \item \textbf{Fairness of comparisons.} The native baseline used eight server slots versus four elsewhere; the status card and majority vote were never run on plain JSON text; majority vote used one seed. Paired tests (Table~\ref{tab:mcnemar}) use per-task results exported from our evaluation database, which is not in the repository; they cover the eight planned contrasts plus four descriptive ones.
-  \item \textbf{Home-made constrained decoding.} Our constrained decoding is a two-pass approximation built on stock llama-server, not XGrammar or Outlines proper, so ``forcing valid syntax hurts'' may partly mean ``our approximation hurts''.
-  \item \textbf{Training confounds.} Mix variants changed several factors at once. The self-distillation run differs from the null test in both mix and number of updates (about $3\times$), and the targeted retrains did not confirm the mix explanation.
-  \item \textbf{``Edge'' hardware.} Results are from a 48~GB laptop with about 15~GB peak memory; 8~GB embedded boards are unmeasured.
+  \item \textbf{One model, one split, one device, tuned in place.} All multi-turn results use Gemma-4-E2B-it on the 200-task base split on one laptop. Settings (stop threshold, card fields, mix filters) were tuned and reported on the same tasks. Other models and the harder BFCL splits are untested.
+  \item \textbf{Headline selection.} The full stack was assembled after seeing earlier results on the same 200 tasks (tuning leakage), and its only nominally significant gain does not survive multiple-comparison correction. Its code is not yet merged (draft PR \#90).
+  \item \textbf{Context-delivered control.} The state summary and status card are injected into the model's context; ``harness optimization'' here includes these harness-written messages, not only parsing and stopping logic.
+  \item \textbf{Sample size and decoding.} Intervals are about $\pm7$\pp; greedy decoding with one quantization and one seed; the vote of five uses one sampling seed.
+  \item \textbf{Gate design.} The 20 gate tasks were picked post hoc using historical per-task results from the same split, and the bar was set by the configuration it screens against, so the gate is a screening heuristic.
+  \item \textbf{Fairness of comparisons.} The native baseline used eight server slots versus four elsewhere; the card and the vote were never run on plain JSON text. Per-task results come from a local evaluation database that is not in the repository.
+  \item \textbf{Home-made constrained decoding.} Ours is a two-pass approximation on stock llama-server, so ``forcing valid syntax hurts'' may partly mean ``our approximation hurts''.
+  \item \textbf{Training confounds.} Mix variants changed several factors at once, and self-distillation also took about $3\times$ as many updates as the null test.
 \end{itemize}
 
-\section{Future Work}
-\label{sec:future}
-
-\begin{itemize}\setlength{\itemsep}{1pt}
-  \item \textbf{Retrieval-augmented tool selection.} Retrieve the few relevant tools (and their documentation or past usage) for each step instead of placing every schema in context, as in retriever-aware tool use~\cite{patil2023gorilla,qin2023toolllm}. Shorter, more relevant context could help small models choose look-ups before actions, a failure seen in the training runs.
-  \item \textbf{Confirmatory runs.} Re-score the full stack and JSON baseline on the harder BFCL multi-turn splits and a second small model, with matched serving.
-  \item \textbf{Decision-balanced training data.} Test the mix-shift hypothesis directly: vary the look-up and stop shares while holding everything else fixed.
-  \item \textbf{Embedded hardware.} Repeat the headline configuration on an 8~GB device.
-\end{itemize}
-
-\section{Conclusion}
+\section{Future Work and Conclusion}
 \label{sec:conclusion}
 
-Small language models running locally can pick a single tool well but fail most multi-step tasks: Gemma-4-E2B-it scores 83.1\% on single calls and 27.0\% on multi-turn tasks through the same native interface. On 200 BFCL v4 multi-turn tasks, those failures are mostly about state---tools that never ran and worlds that end wrong---not malformed output, and forcing valid output makes them worse. Training-free control in the harness reached 38.5\% with no sampling, +8.0 points over JSON-text calls alone and on par with a five-sample majority vote (36.5\%; difference not significant); that gain is suggestive ($p=0.023$ uncorrected) but was found on the same tasks used for tuning. Fine-tuning on tool data did not reach that level: the best supervised fine-tune scored 15.0\%, a clear drop, while preference tuning (26.5\%) was within noise of the untuned baseline. A null test rules out the training pipeline; the data are consistent with, but do not establish, a shift in the decision mix as the cause. For practitioners, the best configuration we measured is also one of the cheapest: four greedy harness changes, no training.
+\paragraph{Future work.} First, \emph{confirmatory runs}: re-score the full stack and the JSON baseline on held-out tasks, the harder BFCL multi-turn splits and a second small model, with matched serving. Second, \emph{retrieval-augmented tool selection}: retrieve the few relevant tools (and their documentation or past usage) for each step instead of placing every schema in context~\cite{patil2023gorilla,qin2023toolllm}; shorter, more relevant context could help a small model choose look-ups before actions. Third, \emph{decision-balanced training data}: vary the look-up and stop shares while holding everything else fixed, to test the mix-shift hypothesis directly.
 
+\paragraph{Conclusion.} A small model running locally can pick a single tool well but fails most multi-step tasks: Gemma-4-E2B-it scores 83.1\% on single calls and 27.0\% on multi-turn tasks through the same native interface. Those failures are about state---tools that never ran and worlds that end wrong---not malformed output, and forcing valid output makes them worse. Optimizing the harness reached 38.5\% with no sampling and no training, +8.0 points over JSON-text calls and on par with a five-sample vote at a seventh of the time; the gain is suggestive ($p=0.023$ uncorrected) and was found on the tasks used for tuning. Fine-tuning did not reach that level (15.0\% SFT, 26.5\% DPO), and a null test places the fault in the data rather than the pipeline. For practitioners, the best configuration we measured is also one of the cheapest: four greedy harness changes.
+
+{\small\setlength{\bibsep}{1.5pt}
 \bibliographystyle{unsrtnat}
-\bibliography{references}
+\bibliography{references}}
 
-\clearpage
 \appendix
 
 \section{Intervention details}
@@ -324,7 +272,7 @@ Small language models running locally can pick a single tool well but fail most 
 
 \paragraph{JSON in text (IFFC).} Following Appendix~B of~\cite{taheri2026iffc}, the tool list is omitted from the API request; the system prompt asks for a JSON list of \texttt{\{function\_name, parameters\}} objects in assistant text. Tool results return as user messages. Calls map to the same BFCL function strings as native calling.
 
-\paragraph{State scratchpad.} After each successful tool execution, the harness writes a compact \texttt{[STATE]} block from real results (current directory, known files, last executed calls). The last two turns stay verbatim; older raw outputs are dropped. It is not a model-written summary. Example:
+\paragraph{State summary (scratchpad).} After each successful tool execution, the harness writes a compact \texttt{[STATE]} block from real results (current directory, known files, last executed calls). The last two turns stay verbatim; older raw outputs are dropped. It is not a model-written summary. Example:
 \begin{quote}\footnotesize\ttfamily
 [STATE]\\ cwd: /workspace/notes\\ files: todo.txt, log.csv\\ last: cd(folder='notes')->ok
 \end{quote}
@@ -344,116 +292,103 @@ Small language models running locally can pick a single tool well but fail most 
 
 \paragraph{Training.} LoRA adapters~\cite{hu2021lora} on Gemma-4-E2B-it with mlx-lm; best-validation checkpoint fused and quantized to Q4\_K\_M; evaluated with JSON text. The rebuilt mix: 30{,}000 training / 1{,}500 validation rows; 45/40/10/5\% simulated / APIGen / ToolACE / xLAM; 22\% empty-list targets (all after a tool result); 41.2\% of rows with multi-call targets; no evaluation tool names copied into simulations. DPO: $\beta{=}0.2$, LoRA, scored on JSON text.
 
-\section{Full multi-turn scoreboard}
+\section{Full scoreboard, failure labels and training history}
 \label{app:board}
 
 \begin{table}[!htbp]
 \centering
 \footnotesize
-\caption{All scored 200-task conditions (Gemma-4-E2B-it Q4\_K\_M unless noted). Interval: Wilson 95\%, computed from counts where shown. ``Treatment-only'': no same-session control. Internal IDs are in Table~\ref{tab:runs}.}
+\caption{All scored 200-task conditions in this paper (Gemma-4-E2B-it Q4\_K\_M). Interval: Wilson 95\%. Internal IDs are in Table~\ref{tab:runs}.}
 \label{tab:board}
-\begin{tabular}{@{}p{7.3cm}rrl@{}}
+\begin{tabular}{@{}p{7.6cm}rrl@{}}
 \toprule
-Condition & Correct & Acc. & 95\% interval / note \\
+Condition & Correct & Acc. & 95\% interval \\
 \midrule
-Full stack: scratchpad + stop + card (headline; draft PR \#90) & 77 & 38.5\% & 32.0--45.4 \\
-Vote of five on scratchpad & 73 & 36.5\% & 30.1--43.4 \\
+Full stack: state summary + stop + card (headline; draft PR \#90) & 77 & 38.5\% & 32.0--45.4 \\
+Vote of five on state summary & 73 & 36.5\% & 30.1--43.4 \\
 Status card on stop-on-repeats (minimal recipe) & 71 & 35.5\% & 29.2--42.3 \\
-Scratchpad & 68 & 34.0\% & 27.8--40.8 \\
+State summary & 68 & 34.0\% & 27.8--40.8 \\
 Stop on repeats (gated, six steps) & 65 & 32.5\% & 26.4--39.3 \\
 JSON text (IFFC) & 61 & 30.5\% & 24.5--37.2 \\
-Guided template prompt on native API & 61 & 30.5\% & ties IFFC \\
+Guided template prompt on native API & 61 & 30.5\% & 24.5--37.2 \\
 Native API (NFC) & 54 & 27.0\% & 21.3--33.5 \\
-Stop on first repeat (ungated) & 54 & 27.0\% & \\
+Stop on first repeat (ungated) & 54 & 27.0\% & 21.3--33.5 \\
 DPO, full train & 53 & 26.5\% & 20.9--33.0 \\
-Helper model + status card (treatment-only) & 52 & 26.0\% & \\
-Helper model picks next tool (treatment-only) & 50 & 25.0\% & 19.5--31.4 \\
 Best SFT (repaired mix) & 30 & 15.0\% & 10.7--20.6 \\
 Tool-name automaton & 27 & 13.5\% & 9.4--18.9 \\
-SFT, filters on first-turn targets off$^\dagger$ & 26 & 13.0\% & \\
-Best SFT + scratchpad & 26 & 13.0\% & \\
-SFT, extra first-turn and state filters$^\dagger$ & 23 & 11.5\% & \\
+SFT, filters on first-turn targets off$^\dagger$ & 26 & 13.0\% & 9.0--18.4 \\
+Best SFT + state summary & 26 & 13.0\% & 9.0--18.4 \\
+SFT, extra first-turn and state filters$^\dagger$ & 23 & 11.5\% & 7.8--16.7 \\
 Constrained decoding (two-pass) & 21 & 10.5\% & 7.0--15.5 \\
-Likelihood-ranking helper (treatment-only) & 11 & 5.5\% & \\
-xLAM-1b, JSON adapter & 6 & 3.0\% & external checkpoint \\
-SFT first mix, trailing empty answers stripped & 4 & 2.0\% & serving diagnostic \\
+SFT first mix, trailing empty answers stripped at serving & 4 & 2.0\% & 0.8--5.0 \\
 SFT first mixes (two variants) & 1 & 0.5\% & 0.1--2.8 \\
-xLAM-1b, native API & 0 & 0.0\% & empty first turns \\
 \bottomrule
 \end{tabular}\\[0.3em]
-{\raggedright\scriptsize $^\dagger$First-turn filters drop or require training examples where the first response is empty or under-specified; state filters drop continuations inconsistent with the executed tool results.\par}
+{\raggedright\scriptsize $^\dagger$First-turn filters drop or require training examples where the first response is empty or under-specified; state filters drop continuations inconsistent with executed tool results.\par}
 \end{table}
-
-\paragraph{Side experiments (demoted from the main text).}
-\emph{Helper model.} A second small model ranking the next tool scored 50/200; combined with the status card, 52/200; a likelihood-ranking helper, 11/200, with 107 tasks repeating one tool eight or more times. Later audits found harness issues in this helper family (bare tool names, truncated state, a clamp that could drop the correct call), so these rows may be harness-limited and we draw no conclusion about helper models from them.
-\emph{Guided template.} A seven-step reasoning template on the native API tied JSON text (61/200) via a 19-task swap each way, raising state mismatches to 79.
-\emph{xLAM-1b.} The published specialist scored 0/200 natively (empty first turns, because the native parser ignores its content-field format) and 6/200 with a JSON adapter. Neither is comparable to its public overall BFCL score.
-\emph{Shell commands as actions.} On the 13 filesystem-only tasks, native calls passed 3/13, JSON text 1/13, and two shell-dialect variants 1/13 and 0/13.
-\emph{Type coercion (single-turn).} On a separate snapshot of the BFCL \texttt{multiple} category, a type-aware prompt plus schema-based argument coercion moved Llama-3.2-3B from 41.5\% to 92.0\%; this snapshot is not the protocol of Table~\ref{tab:st-full}.
-\emph{Native-API harder splits.} Native calling on the missing-function, missing-parameter and long-context splits scored 16/200, 39/200 and 22/200.
-
-\section{Failure labels for all main conditions}
-\label{app:fail}
 
 \begin{table}[!htbp]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
-\caption{Primary error per failed task (200 tasks). Card = status card on stop-on-repeats; CD = constrained decoding; Autom.\ = tool-name automaton; SFT = best fine-tune.}
+\caption{Primary error per failed task (200 tasks). Full = full stack; Card = minimal recipe; CD = constrained decoding; Autom.\ = tool-name automaton; SFT = best fine-tune.}
 \label{tab:failfull}
-\begin{tabular}{@{}lrrrrrrrrrr@{}}
+\begin{tabular}{@{}lrrrrrrrrrrr@{}}
 \toprule
-Label & NFC & IFFC & Stop & Ungated & Scratch & Card & Vote & CD & Autom. & SFT \\
+Label & NFC & IFFC & Stop & Ungated & Scratch & Card & Full & Vote & CD & Autom. & SFT \\
 \midrule
-Empty turn & 59 & 41 & 38 & 40 & 31 & 17 & 36 & 14 & 17 & 2 \\
-Under-call & 19 & 38 & 37 & 31 & 37 & 41 & 38 & 70 & 54 & 59 \\
-State mismatch & 68 & 60 & 60 & 75 & 64 & 71 & 53 & 95 & 102 & 109 \\
+Empty turn & 59 & 41 & 38 & 40 & 31 & 17 & 20 & 36 & 14 & 17 & 2 \\
+Under-call & 19 & 38 & 37 & 31 & 37 & 41 & 35 & 38 & 70 & 54 & 59 \\
+State mismatch & 68 & 60 & 60 & 75 & 64 & 71 & 68 & 53 & 95 & 102 & 109 \\
 \midrule
-Failed & 146 & 139 & 135 & 146 & 132 & 129 & 127 & 179 & 173 & 170 \\
+Failed & 146 & 139 & 135 & 146 & 132 & 129 & 123 & 127 & 179 & 173 & 170 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\section{Single-turn results}
+\subsection{Training history}
+\label{app:train}
+
+\paragraph{Version history.} Dropping only mid-dialogue empty targets from the first mix still scored 1/200; deleting trailing empty answers at serving time scored 4/200. After the repaired mix (30/200), two further filtering variants scored 26/200 and 23/200 (Table~\ref{tab:board}); each changed several filters at once, so they are not single-factor ablations. The rebuilt mix's training was stopped early at step 26{,}500 of 32{,}000; the best validation loss (0.030) was at step 22{,}000, and that checkpoint is the one evaluated. Continued training for 2{,}500 steps on test-style tool layouts scored 2/20.
+
+\paragraph{Self-distillation counts.} Look-up-type calls: 67/177 in the null-test data versus 78/395 in the self-distillation data; stop targets: 36/156 versus 146/440. Capping the stop share (22.9\%) left the look-up share low (20.6\%). The look-up-restoring retrain lost 7 tasks the untuned model solves, and empty turns returned (9 of 66 turns). Look-up counts rest on a name-matching heuristic.
+
+\paragraph{Stop targets in the rebuilt mix.} Stop targets were 22\% of all rebuilt-mix rows, all after a tool result. That is a different denominator from the first mix's 78.1\% (the share of targets \emph{after a tool result} that were stops), so the two are not directly comparable. The rebuilt-mix models still under-called, so stop share alone does not explain the collapse.
+
+\paragraph{10-task tripwire.} Before the 20-task gate, trained models faced a disjoint 10-task check. Two fine-tuned checkpoints and the untuned model with the card all scored 3/10, passing the same three tasks, and across 11 strong historical 200-task runs its rank correlation (Spearman) with the 200-task score was 0.118 (approximate 95\% interval $-0.52$ to $0.67$). We therefore used it only as a regression tripwire, never to rank runs.
+
+\section{Single-turn results (Gemma-4-E2B-it)}
 \label{app:st}
 
 \begin{table}[!htbp]
 \centering
 \footnotesize
-\setlength{\tabcolsep}{4pt}
-\caption{Single-call BFCL v4 accuracy by category (native API). $^*$For the four older runs, parallel categories score 0\% because llama-server's tool grammar truncated multi-call output after the first call; those rows were not re-scored and are excluded from the weighted average for every model. The fresh Gemma run (October 2026) scored 85.5\% and 82.5\% there; we have not audited why it was unaffected. Over all 1{,}390 cases Gemma scores 1{,}159 (83.4\%).}
+\caption{Single-call BFCL v4 accuracy by category, native API (run 79). The two parallel-call categories are excluded from the headline single-call number because earlier runs on this server hit a tool-grammar bug that truncated multi-call output; we keep the 990-case protocol for consistency.}
 \label{tab:st-full}
-\begin{tabular}{@{}lrrrrr@{}}
+\begin{tabular}{@{}lrr@{}}
 \toprule
-Category ($n$) & Gemma-4-E2B & Qwen2.5-3B & Llama-3.2-3B & Qwen3.5-4B & FuncGemma-270M \\
+Category ($n$) & Correct & Accuracy \\
 \midrule
-Simple (400) & 93.75\% & 93.25\% & 51.75\% & 90.25\% & 51.25\% \\
-Multiple (200) & 91.50\% & 92.50\% & 33.50\% & 90.50\% & 59.00\% \\
-Parallel (200)$^*$ & 85.50\% & 0.00\% & 0.00\% & 0.00\% & 0.00\% \\
-Parallel multiple (200)$^*$ & 82.50\% & 0.00\% & 0.00\% & 0.00\% & 0.00\% \\
-Irrelevance (240) & 89.17\% & 58.75\% & 0.83\% & 91.25\% & 20.00\% \\
-Java (100) & 37.00\% & 37.00\% & 54.00\% & 39.00\% & 15.00\% \\
-JavaScript (50) & 28.00\% & 34.00\% & 70.00\% & 34.00\% & 18.00\% \\
+Simple (400) & 375 & 93.75\% \\
+Multiple (200) & 183 & 91.50\% \\
+Irrelevance (240) & 214 & 89.17\% \\
+Java (100) & 37 & 37.00\% \\
+JavaScript (50) & 14 & 28.00\% \\
 \midrule
-Weighted, excl.\ parallel (990) & 83.13\% & 76.06\% & 36.87\% & 82.53\% & 39.90\% \\
+Weighted, excl.\ both parallel categories (990) & 823 & 83.13\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Serving cost.} Over 50 requests per model after warmup, median generation throughput and time to first token were: Qwen2.5-3B 93.6 tok/s, 11.6~ms; Llama-3.2-3B 89.1 tok/s, 218.2~ms; Qwen3.5-4B 38.0 tok/s, 656.3~ms; FunctionGemma-270M 204.2 tok/s, 16.2~ms. Peak memory was 8{,}547 / 12{,}384 / 4{,}075 / 6{,}562~MB respectively (dominated by the cache at the configured context). Gemma multi-turn jobs generated about 90 tok/s with about 15~GB peak memory.
-
-\clearpage
-\section{Run-ID map}
+\section{Run-ID map, reproducibility and glossary}
 \label{app:runs}
 
-Table~\ref{tab:runs} maps paper names to internal run IDs.
-
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
 \footnotesize
-\caption{Main-text names and internal evaluation-log IDs (a private local database). 10- and 20-task rows are early checks, not 200-task accuracies.}
+\caption{Paper names and internal evaluation-log IDs (a private local database). 10- and 20-task rows are early checks, not 200-task accuracies.}
 \label{tab:runs}
-\begin{tabular}{@{}rp{8.2cm}r@{}}
+\begin{tabular}{@{}rp{8.6cm}r@{}}
 \toprule
 ID & Name in this paper (internal name) & Result \\
 \midrule
@@ -461,41 +396,33 @@ ID & Name in this paper (internal name) & Result \\
 5 & JSON text (IFFC) & 61/200 \\
 8 & Constrained decoding (CD) & 21/200 \\
 9 & Guided template on native API (GST+NFC) & 61/200 \\
-10 & Scratchpad (IFFC+STATE) & 68/200 \\
+10 & State summary (IFFC+STATE) & 68/200 \\
 11 & Vote of five (BoN $N{=}5$ on IFFC+STATE) & 73/200 \\
 12, 13 & SFT first mixes (SFT-v1, SFT-v2) & 1/200 each \\
 14 & Trailing empty answers stripped (SFT-v2 strip) & 4/200 \\
 15 & Best SFT (SFT-v4) & 30/200 \\
-16 & Best SFT + scratchpad (SFT-v4+STATE) & 26/200 \\
+16 & Best SFT + state summary (SFT-v4+STATE) & 26/200 \\
 17, 18 & SFT filter variants (SFT-v5, SFT-v6) & 23/200, 26/200 \\
-19, 20 & xLAM-1b native / JSON adapter & 0/200, 6/200 \\
-27 & Stop on first repeat (ungated stop-on-repeat) & 54/200 \\
+27 & Stop on first repeat (ungated) & 54/200 \\
 30 & Stop on repeats (gated, MIN=6) & 65/200 \\
-42 & Status card on stop-on-repeats (OODA-card; ``R42'', minimal recipe) & 71/200 \\
+42 & Minimal recipe (OODA card on stop-on-repeats; ``R42'') & 71/200 \\
 46 & Tool-name automaton (PTC-A) & 27/200 \\
 51 & DPO full train & 53/200 \\
-58, 61, 64 & Helper model; + card; likelihood helper (Decision, Decision+OODA, Choice-SLM) & 50, 52, 11 /200 \\
-66--68 & 10-task check: two SFT-v10 checkpoints; untuned + card & 3/10 each \\
 69 & 20-task gate bar: untuned + card & 17/20 \\
-70 & Rebuilt mix, best-validation checkpoint (SFT-v11, step 22{,}000; early stop fired at 26{,}500) & 2/20 \\
+70 & Rebuilt mix, best-validation checkpoint (SFT-v11, step 22{,}000) & 2/20 \\
 71 & Rebuilt mix, no card & 1/20 \\
 72 & Rebuilt mix, layout continue-train (SFT-v11 fmt2500) & 2/20 \\
 73 & Null test (v13 null) & 15/20 \\
 74 & Self-distillation, correct turns only (v13-sd) & 8/20 \\
 75 & Self-distillation, stop share capped (v13-sdb) & 14/20 \\
 76 & + simulated look-up episodes (v13-lk) & 12/20 \\
-77 & v13-lk on a fresh 20-task bank (untuned + card: 3/20) & 2/20 \\
 78 & Full stack (\texttt{iffc-state-ooda}; draft PR \#90 @ \texttt{c894ec6}; headline) & 77/200 \\
-79 & Gemma-4-E2B-it single-call BFCL, native API (fresh run) & 823/990 (5 cat.) \\
+79 & Single-call BFCL, native API & 823/990 \\
 \bottomrule
 \end{tabular}
 \end{table}
-\FloatBarrier
 
-\section{Reproducibility and glossary}
-\label{app:repro}
-
-Hardware: MacBook Pro, Apple M4~Pro, 48~GB. llama.cpp build 8111 (commit \texttt{11c325c6e}), \texttt{llama-server --jinja}, flash attention, full GPU offload, \texttt{-c 65536}, \texttt{-np 4} (native baseline \texttt{-np 8}). BFCL v4 via the \texttt{bfcl-eval} package (the exact version per run was not logged). Temperature 0 except voting (0.7, $N{=}5$, one seed). Sources for the October 2026 runs: the full stack (run 78) is \texttt{benchmark.db} \texttt{scores.id} 51 with log \path{sft/v13/paper_evals/runs/b_fullstack_mtb200.log}, harness code at draft PR \#90 commit \texttt{c894ec6}; Gemma single-call (run 79) is \texttt{scores.id} 52--58 with log \path{sft/v13/paper_evals/runs/a_single_turn_gemma.log}. No separate result documents exist for these runs. Figures are regenerated from the counts above by \texttt{paper/figures/src/make\_refocus\_figs.py}.
+\paragraph{Reproducibility.} Hardware: MacBook Pro, Apple M4~Pro, 48~GB. llama.cpp build 8111 (commit \texttt{11c325c6e}), \texttt{llama-server --jinja}, flash attention, full GPU offload, \texttt{-c 65536}, \texttt{-np 4} (native baseline \texttt{-np 8}). BFCL v4 via the \texttt{bfcl-eval} package (exact version per run not logged). Temperature 0 except voting (0.7, $N{=}5$, one seed). The full stack (run 78) is \texttt{benchmark.db} \texttt{scores.id} 51 with log \path{sft/v13/paper_evals/runs/b_fullstack_mtb200.log}, harness code at draft PR \#90 commit \texttt{c894ec6}; single-call (run 79) is \texttt{scores.id} 52--58 with log \path{sft/v13/paper_evals/runs/a_single_turn_gemma.log}. Failure labels are derived from the checker messages in the \texttt{eval\_errors} table. Figures are regenerated from these counts by \texttt{paper/figures/src/make\_refocus\_figs.py}.
 
 \begin{table}[!htbp]
 \centering
@@ -510,21 +437,22 @@ AST & Abstract syntax tree; the single-turn BFCL matcher \\
 BFCL & Berkeley Function Calling Leaderboard \\
 BoN & Best-of-N; here a majority vote over five sampled calls \\
 DPO & Direct Preference Optimization \\
+Harness & The program around the model that parses calls, runs tools, records state and decides when a turn ends \\
 IFFC & Instruction-followed function calling: calls written as JSON in ordinary text \\
 LoRA & Low-rank adapters for parameter-efficient fine-tuning \\
 NFC & Native function calling: structured \texttt{tool\_calls} via the server's tool API \\
 OODA & Observe--orient--decide--act; here, the four-line status card \\
 pp & Percentage points \\
 SFT & Supervised fine-tuning \\
-SLM & Small language model (under five billion parameters here) \\
+SLM & Small language model \\
 20-task gate & Fixed 20-task early check (bar 17/20); not a 200-task accuracy \\
-Null test & A training run that should change nothing if the pipeline is sound (model trained on its own answers) \\
+10-task tripwire & Fixed 10-task regression check; does not rank models \\
+Null test & A training run that should change nothing if the pipeline is sound \\
 Self-distillation & Training the model on its own answers that the checker marked correct \\
 Stop target & A training response that is an empty list: no further call \\
 Q4\_K\_M & A 4-bit weight-quantization format of llama.cpp \\
 Wilson interval & A confidence interval for a proportion that stays accurate for small counts \\
 McNemar test & A paired test using only tasks where two conditions disagree \\
-10-task tripwire & Fixed 10-task regression check; does not rank models \\
 \bottomrule
 \end{tabular}
 \end{table}
