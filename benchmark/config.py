@@ -139,6 +139,21 @@ MODELS: dict[str, dict[str, str]] = {
         "display": "Gemma-4-E2B-it SFT-IFFC-v7 (Q4_K_M)",
         "slug": "Gemma-4-E2B-it-SFT-IFFC-v7-Q4_K_M",
     },
+
+    # DPO full beta=0.2 (fused Q4_K_M under Thesis-sft-v9). Distinct
+    # api_name/slug so scoring identity does not overwrite BASE gemma4-e2b
+    # or smoke DPO runs. Serve with -m absolute GGUF path (gguf_path is
+    # absolute because fused artifact lives outside this repo worktree).
+    # Run50 = plain-IFFC 10-ID health PASS; full-200 is a NEW run_id only
+    # (never resume 30/42). Do not invent BFCL %.
+    "gemma4-e2b-dpo-full-beta02": {
+        "hf_repo": "",  # serve with -m, not -hf
+        "gguf_path": "/Users/sanskarthapa/Documents/Thesis-sft-v9/sft/fused/gemma-4-e2b-it-dpo-full-beta02-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-dpo-full-beta02",
+        "display": "Gemma-4-E2B-it DPO full beta0.2 (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-DPO-full-beta02-Q4_K_M",
+    },
     "functiongemma-270m": {
         "hf_repo": "ggml-org/functiongemma-270m-it-GGUF",
         "quant": "",
@@ -266,6 +281,25 @@ MULTI_TURN_MAX_STEPS = 20
 #        Baseline iffc is unchanged. Decode/harness lever, not a training
 #        recipe. Run 27 ungated observe_same scored 54/200 = 27% on BASE
 #        (miss vs IFFC 30.5%); this gate is the tighten, still a probe.
+# iffc-decision = IFFC JSON-in-text plus Decision sidecar (Ollama System One
+#        Choice next-tool / noop) before each Gemma step. Gemma still owns
+#        args. Mass-based noop + is_exec_observation position guard; Noul
+#        report-only; identical veto OFF by default. Plain mode keeps the
+#        R58 archaeology recipe (no OODA / no stop-repeat). Side package:
+#        Documents/decision-probe.
+# iffc-ooda-card = IFFC JSON-in-text plus a one-pass harness-written
+#        [OODA] card (goal/slots/last/next) stacked on iffc-stop-repeat
+#        MIN=6. Not iffc-state. Not a Specialized 4-pass OODA loop.
+# iffc-decision-ooda = Compose: tev1 Decision sidecar + R42 OODA card +
+#        stop-repeat MIN=6. Precedence: Decision hard-noop pre-Gemma =
+#        sole stop that step; soft_once first noop != []; working copy =
+#        OODA card then Decision hint (non-persisted); stop-repeat
+#        post-Gemma only; OODA next advisory; <=1 harness []/step.
+# iffc-state-ooda = Full stack: IFFC JSON-in-text + harness-written [STATE]
+#        snapshot (iffc-state) + one-pass [OODA] card (R42) + gated
+#        stop-repeat MIN=6. System = Appendix B + STATE addendum + OODA
+#        addendum (neither overwrites the other). Per step the latest user
+#        message carries the STATE dump first, then the card. Greedy (temp 0).
 # ---------------------------------------------------------------------------
 FC_NFC = "nfc"
 FC_IFFC = "iffc"
@@ -275,6 +309,10 @@ FC_IFFC_STATE = "iffc-state"
 FC_IFFC_STATE_BON = "iffc-state-bon"
 FC_XLAM = "xlam"
 FC_IFFC_STOP_REPEAT = "iffc-stop-repeat"
+FC_IFFC_DECISION = "iffc-decision"
+FC_IFFC_OODA_CARD = "iffc-ooda-card"
+FC_IFFC_DECISION_OODA = "iffc-decision-ooda"
+FC_IFFC_STATE_OODA = "iffc-state-ooda"
 FC_MODES = (
     FC_NFC,
     FC_IFFC,
@@ -284,6 +322,10 @@ FC_MODES = (
     FC_IFFC_STATE_BON,
     FC_XLAM,
     FC_IFFC_STOP_REPEAT,
+    FC_IFFC_DECISION,
+    FC_IFFC_OODA_CARD,
+    FC_IFFC_DECISION_OODA,
+    FC_IFFC_STATE_OODA,
 )
 FC_JSON_TEXT_MODES = (
     FC_IFFC,
@@ -292,8 +334,23 @@ FC_JSON_TEXT_MODES = (
     FC_IFFC_STATE_BON,
     FC_XLAM,
     FC_IFFC_STOP_REPEAT,
+    FC_IFFC_DECISION,
+    FC_IFFC_OODA_CARD,
+    FC_IFFC_DECISION_OODA,
+    FC_IFFC_STATE_OODA,
 )
-FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON)
+FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON, FC_IFFC_STATE_OODA)
+# stop-repeat MIN=6 stack (R42 / compose share the same gate)
+FC_IFFC_STOP_REPEAT_MODES = (
+    FC_IFFC_STOP_REPEAT,
+    FC_IFFC_OODA_CARD,
+    FC_IFFC_DECISION_OODA,
+    FC_IFFC_STATE_OODA,
+)
+# Decision probe / name-bind / soft_once / hard-noop
+FC_IFFC_DECISION_MODES = (FC_IFFC_DECISION, FC_IFFC_DECISION_OODA)
+# OODA card inject + system addendum + tracker
+FC_IFFC_OODA_MODES = (FC_IFFC_OODA_CARD, FC_IFFC_DECISION_OODA, FC_IFFC_STATE_OODA)
 FC_MODE: str = FC_NFC
 
 # Best-of-N (only used by --fc-mode iffc-state-bon)
