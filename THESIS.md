@@ -2252,6 +2252,7 @@ Run 69 is a **20-ID Acc-track** on **BASE** Gemma-4-E2B-it Q4_K_M (**NO adapters
   - **Same 5-category set as the other models' "990" weighted row** (simple + multiple + irrelevance + java + javascript): **823/990 = 83.1%**, vs Qwen3.5-4B 817/990 = 82.5%.
   - All 7 categories: 1159/1390 = 83.4%. Codex's "Python + irrelevance 1108/1240" uses a different denominator; the paper uses 823/990.
   - Parallel categories are nonzero here (85.5% / 82.5%), unlike the older 0% runs; the cause is not audited.
+- **Source note (no result doc exists for R78/R79):** benchmark.db `scores.id` **51** (R78) and **52–58** (R79); logs `sft/v13/paper_evals/runs/b_fullstack_mtb200.log` and `sft/v13/paper_evals/runs/a_single_turn_gemma.log` (plus `queue.log`); R78 harness code = draft PR #90 commit `c894ec6`.
 - **Paired per-task McNemar (exact, from DB responses minus eval_errors; computed 2026-10-14, read-only):**
   - R78 vs R42 19/13 p=0.38; R78 vs R11 24/20 p=0.65; R78 vs R10 24/15 p=0.20; **R78 vs R5 30/14 p=0.023**.
   - R42 vs R5 26/16 p=0.16; **R42 vs R4 37/20 p=0.033**; R5 vs R4 22/15 p=0.32; **R15 vs R5 7/38 p=3.1e-6**.
