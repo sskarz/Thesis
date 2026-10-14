@@ -25,15 +25,16 @@ rows = [  # label, correct, kind
     ("JSON in text (IFFC)", 61, "base"),
     ("IFFC + stop on repeats", 65, "ctrl"),
     ("IFFC + state scratchpad", 68, "ctrl"),
-    ("HEADLINE: IFFC + stop\n+ status card", 71, "ctrl"),
+    ("IFFC + stop + status card\n(minimal recipe)", 71, "ctrl"),
     ("Scratchpad + vote of 5 (BoN)\n(upper bound, ~7x time)", 73, "upper"),
+    ("HEADLINE: full stack\n(scratchpad+stop+card)", 77, "ctrl"),
     ("Constrained decoding", 21, "syntax"),
     ("Tool-name automaton", 27, "syntax"),
     ("Best fine-tuned model (SFT)", 30, "train"),
     ("Preference-tuned (DPO)", 53, "train"),
 ]
-order = [6, 7, 8, 9, 0, 1, 2, 3, 4, 5]
-fig, ax = plt.subplots(figsize=(6.5, 4.9))
+order = [7, 8, 9, 10, 0, 1, 2, 3, 4, 5, 6]
+fig, ax = plt.subplots(figsize=(6.5, 5.2))
 for y, i in enumerate(order):
     lab, k, kind = rows[i]
     acc = 100 * k / 200; lo, hi = wilson(k, 200)

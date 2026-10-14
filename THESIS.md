@@ -2245,6 +2245,18 @@ Run 69 is a **20-ID Acc-track** on **BASE** Gemma-4-E2B-it Q4_K_M (**NO adapters
 - **Run 76 — v13-lk, lookup sims added (12/20).** 149 simulated lookup-then-act rows plus 227 sdb rows: 376 rows, stop share **0.226**, lookup share **0.396**, so the lookup share is restored to about the R73 level (0.379). It scored **12/20**. It lost **7** of R69's passes (`_23,_14,_91,_57,_150,_112,_186`) and gained 2 (`_115,_152`). Empty turns came back at **9/66**. Source: `lookup_sims/v13lk/codex_MID20_V13LK_RESULT.md`.
 - **Run 77 — v13-lk on a fresh 20-task bank (2/20 vs base 3/20).** This is a no-harm check on a fresh bank: the candidate scored **2/20** (passes `_122,_184`) against base+card **3/20**, so it failed the pass rule (mid20 ≥17, fresh ≥ base, ≤1 R69 regression). Source: same doc.
 - **Reading after R75–R77:** capping the stop share (R75) and then restoring the lookup share (R76) did **not** bring back the bar. That **weakens** the R74 mix-shift explanation. It is now a **candidate** cause that the data is consistent with but does not establish. R74 also trained about 2.8× as many updates as R73 (110 vs 39), which is a second confound.
+- **Run 78: full stack `iffc-state-ooda`, multi_turn_base N=200: 77/200 = 38.5%** (Wilson 32.0–45.4). This is IFFC + STATE + OODA card (STATE written before the card) + stop-repeat MIN=6, on base Gemma-4-E2B-it Q4_K_M. Generation took 174.9 min (2026-10-14 07:18–10:13 ET).
+  - **Provenance:** run from worktree `Thesis-wt-stateooda`, branch `cursor/harness-iffc-state-ooda` @ `c894ec6`, which is **draft PR #90 (unmerged)**. Sources: DB `scores.id=51` and `sft/v13/paper_evals/runs/{queue,b_fullstack_mtb200}.log`.
+  - **Caveat:** the config was chosen after seeing R10/R30/R42 on the same 200 tasks (tuning leakage). It is now the best measured multi-turn row, above BoN 36.5% without sampling.
+- **Run 79: Gemma-4-E2B-it single-turn BFCL, NFC (fresh run).** Scores: simple 375/400, multiple 183/200, parallel 171/200, parallel_multiple 165/200, irrelevance 214/240, java 37/100, javascript 14/50 (DB scores.id 52–58).
+  - **Same 5-category set as the other models' "990" weighted row** (simple + multiple + irrelevance + java + javascript): **823/990 = 83.1%**, vs Qwen3.5-4B 817/990 = 82.5%.
+  - All 7 categories: 1159/1390 = 83.4%. Codex's "Python + irrelevance 1108/1240" uses a different denominator; the paper uses 823/990.
+  - Parallel categories are nonzero here (85.5% / 82.5%), unlike the older 0% runs; the cause is not audited.
+- **Paired per-task McNemar (exact, from DB responses minus eval_errors; computed 2026-10-14, read-only):**
+  - R78 vs R42 19/13 p=0.38; R78 vs R11 24/20 p=0.65; R78 vs R10 24/15 p=0.20; **R78 vs R5 30/14 p=0.023**.
+  - R42 vs R5 26/16 p=0.16; **R42 vs R4 37/20 p=0.033**; R5 vs R4 22/15 p=0.32; **R15 vs R5 7/38 p=3.1e-6**.
+  - Also: R10 vs R5 20/13 p=0.30; R11 vs R10 17/12 p=0.46; **R30 vs R5 11/7 p=0.48; R42 vs R30 26/20 p=0.46**. This confirms the earlier unsourced p≈0.48/0.46 and the 11/7, 26/20 counts.
+  - Holm over the 8 planned tests: only R15 vs R5 survives.
 - **Stats note (paper PR #89 review):** no source for McNemar p-values (≈0.46/0.48) or the Run 30-vs-IFFC (11/7) and Run 42-vs-Run 30 (26/20) paired counts was found in THESIS.md, METHODS.md, `sft_logs_mirror` or the Mac docs. The paper now says only "not statistically significant" for those comparisons. `bfcl-eval` 2026.3.11 is also unconfirmed: `pyproject.toml` pins `>=2025.8.6.2`, and the Mac `.venv` currently has 2026.3.23. The paper drops the exact version.
 - **Source location note:** `/tmp/sft_logs` no longer exists on the Mac (as of 2026-10-13 ~8 PM ET). The R72–R77 verification used `~/Documents/sft_logs_mirror/` instead.
 
