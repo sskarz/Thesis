@@ -18,6 +18,8 @@ Function-calling modes (``--fc-mode``):
   ``xlam-1b`` (Run 19 NFC 0/200 was format-channel collapse; Run 20
   ``--fc-mode xlam`` scored 6/200 = 3.0% --- still very low, not published
   ~78.94%).
+- ``iffc-stop-repeat`` / ``iffc-ooda-card`` / ``iffc-decision`` /
+  ``iffc-decision-ooda``: see ``benchmark.config`` / ``generate_multi_turn``.
 
 Diagnostic (not a new fc-mode): ``--iffc-strip-empty-assistant`` omits
 trailing IFFC assistant ``[]`` from ``chat_history`` before the next BFCL
@@ -59,6 +61,12 @@ def _notes_with_run_meta(args: argparse.Namespace) -> str | None:
     extra: list[str] = []
     if args.fc_mode != config.FC_NFC:
         extra.append(f"fc_mode={args.fc_mode}")
+    if args.fc_mode in config.FC_IFFC_DECISION_MODES:
+        import os
+        extra.append(
+            "decision_model="
+            + os.environ.get("DECISION_MODEL", "tev1:latest")
+        )
     if args.fc_mode == config.FC_IFFC_STATE_BON:
         extra.append(f"bon_n={config.BON_N}")
     if args.iffc_strip_empty_assistant:
@@ -200,7 +208,15 @@ def main():
             '({"tool_calls":[{name, arguments}]}; no native tools); '
             "iffc-stop-repeat = IFFC + harness force-stop on consecutive "
             "identical calls, or executed-call re-emits after 6 assistant "
-            "tool-turns in the current ask (baseline iffc unchanged)."
+            "tool-turns in the current ask (baseline iffc unchanged); "
+            "iffc-decision = IFFC + Decision sidecar (Ollama System One "
+            "Choice next-tool/noop before Gemma args; plain R58 recipe); "
+            "iffc-ooda-card = IFFC + one-pass [OODA] card stacked on "
+            "stop-repeat MIN=6 (R42 recipe); "
+            "iffc-decision-ooda = Decision sidecar + OODA card + "
+            "stop-repeat MIN=6 (compose); "
+            "iffc-state-ooda = full stack: IFFC + STATE + OODA card "
+            "(STATE before card) + stop-repeat MIN=6."
         ),
     )
     parser.add_argument(
@@ -332,6 +348,12 @@ def main():
             if args.fc_mode == config.FC_IFFC_STATE_BON
             else " (xLAM = JSON-in-text {\"tool_calls\":[...]} ; no native tools)"
             if args.fc_mode == config.FC_XLAM
+            else " (iffc-stop-repeat = IFFC + harness force-stop on identical re-calls)"
+            if args.fc_mode == config.FC_IFFC_STOP_REPEAT
+            else " (iffc-decision = IFFC + Decision sidecar Choice/noop before Gemma args)"
+            if args.fc_mode == config.FC_IFFC_DECISION
+            else " (iffc-state-ooda = IFFC + STATE + OODA card + stop-repeat MIN=6)"
+            if args.fc_mode == config.FC_IFFC_STATE_OODA
             else " (NFC = native tools)"
         )
     )

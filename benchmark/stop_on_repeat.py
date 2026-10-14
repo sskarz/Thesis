@@ -1,5 +1,9 @@
 """Harness stop-on-repeat for ``--fc-mode iffc-stop-repeat``.
 
+Also reused by ``iffc-ooda-card`` and ``iffc-decision-ooda`` (same MIN=6
+gate; OODA card / Decision sidecar are prompt overlays, not a change to
+this heuristic).
+
 After a tool-exec observation, force a turn stop (do not re-execute) when:
 
 * ``consecutive_identical`` — proposed call set equals the previous assistant
@@ -15,7 +19,7 @@ After a tool-exec observation, force a turn stop (do not re-execute) when:
 The window resets on a non-exec user message (a fresh BFCL question), so a
 later short VC turn is not poisoned by earlier asks. Exec observations do
 not reset it. Baseline ``iffc`` is unchanged — this logic is gated on the
-dedicated fc-mode only. Shared canonicalization mirrors
+``FC_IFFC_STOP_REPEAT_MODES`` only. Shared canonicalization mirrors
 ``sft/drop_identical_call.py`` but lives under ``benchmark/`` so the
 harness does not import ``sft``.
 """
