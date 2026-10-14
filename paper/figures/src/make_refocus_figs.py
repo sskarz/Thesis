@@ -73,9 +73,9 @@ fig.tight_layout(); fig.savefig(OUT / "gate20.pdf"); plt.close(fig)
 
 # ---- Figure: failure anatomy (primary label per failed task) ----
 f = [  # label, empty, under, state
-    ("NFC", 59, 19, 68), ("IFFC", 41, 38, 60), ("IFFC + state\nsummary", 31, 37, 64),
-    ("Minimal\nrecipe", 17, 41, 71), ("FULL STACK\n(headline)", 20, 35, 68), ("BoN\n(vote of 5)", 36, 38, 53),
-    ("Constrained\ndecoding", 14, 70, 95), ("Name\nautomaton", 17, 54, 102), ("Best\nSFT", 2, 59, 109)]
+    ("Native API", 59, 19, 68), ("JSON text", 41, 38, 60), ("State summary", 31, 37, 64),
+    ("Minimal", 17, 41, 71), ("Full stack*", 20, 35, 68), ("Vote of five", 36, 38, 53),
+    ("Constrained decoding", 14, 70, 95), ("Name automaton", 17, 54, 102), ("Best fine-tune", 2, 59, 109)]
 fig, ax = plt.subplots(figsize=(7.4, 3.8))
 xs = range(len(f)); b = [0] * len(f)
 for j, (name, col) in enumerate([("Empty turn (no call when one was needed)", "#adb5bd"),
@@ -85,9 +85,9 @@ for j, (name, col) in enumerate([("Empty turn (no call when one was needed)", "#
     ax.bar(xs, v, bottom=b, color=col, width=0.65, label=name)
     b = [p + q for p, q in zip(b, v)]
 for x, t in zip(xs, b): ax.text(x, t + 2, str(t), ha="center", fontsize=9)
-ax.set_xticks(list(xs)); ax.set_xticklabels([r[0] for r in f], fontsize=9)
+ax.set_xticks(list(xs)); ax.set_xticklabels([r[0] for r in f], fontsize=9, rotation=30, ha="right", rotation_mode="anchor")
 for t in ax.get_xticklabels():
-    if t.get_text().startswith("FULL"): t.set_fontweight("bold")
+    if t.get_text().startswith("Full stack"): t.set_fontweight("bold")
 ax.set_ylabel("Failed tasks (of 200)"); ax.set_ylim(0, 240)
 ax.legend(fontsize=9, frameon=False, loc="upper left", ncol=1)
 fig.tight_layout(); fig.savefig(OUT / "failure_anatomy.pdf"); plt.close(fig)
