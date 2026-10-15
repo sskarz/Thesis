@@ -1374,6 +1374,10 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 - **2026-10-12 candidate sweep ([§42](#42-digit-tc-schema-only-multi-turn-data-synthesis)–[§45](#45-weft-techniques-prefix-preserving-sampling--atomic-turn-grpo)):** DiGiT-TC (schema-only DAG-planned MT data synthesis with implicit calls + back-translation + error augmentation; **preferred data-fix option if v11 misses its gates**), MatchTIR (bipartite-matching turn-level rewards + dual-level GRPO; RL, **only after healthy SFT**), TurnSight (turn-level hindsight self-distillation on a MatchTIR backbone; RL, **only after healthy SFT**), WEFT techniques only (prefix-preserving rejection sampling + atomic-turn GRPO credit; not the full system). Cites + quoted numbers verified against arXiv PDFs 2026-10-12. **Skipped:** Tool-DC (arXiv:2603.11495; no multi-step nested BFCL eval), ToolLoop (single-turn headline), AgentWeave (weak Acc / RAG-adjacent), HEART (already skipped). **No blanket GRPO.** Do **not** invent `multi_turn_base` Acc. Current state unchanged: v11 CE **stopped at 26500/32000** (best val **0.030 @22000**; mid20 FAIL R70 **2/20**); mid20 bar **≥17/20**; PE bar R42 **35.5%**; v11 leak gate (own-named tools, **0** BFCL names).
 
+**Related options (logged 2026-10-15, all `CANDIDATE` / not run; paper numbers are theirs; docs only — no Acc/train from this pass):**
+
+- **2026-10-15 candidate sweep ([§46](#46-setpo-selective-teacher-guided-policy-optimization)–[§52](#52-cacherl-cached-rollouts--tier-aware-reward)):** SeTPO (selective reverse-KL teacher guidance on low-reward GRPO rollouts + aux SFT; 0.5B–3B students), Davinci-Tool (execution-verified trajectories + restorable-state decision-level DPO; 30B MoE primary), ActionOPD (black-box-teacher action-agreement OPD), StepGate (inference-time step-level local→stronger-model handoff gate; needs a second model), State-OPD (state-grounded teacher conditioning + entropy-targeted resampling; no BFCL), STI-OPD (stochastic teacher takeover OPD; no BFCL), CacheRL (cached-rollout GRPO + cache-tier-aware reward; RL adds little over SFT). All 7 arXiv ids resolve and quoted numbers were checked against the papers on 2026-10-15. **Title flags:** arXiv:2610.18459 is titled "Teacher-Guided Tool Learning for Small Language Models via Bidirectional KL Constraints" (SeTPO = method name); arXiv:2610.07816 is titled "Do I Need the Cloud? …" (StepGate = method name). Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%**; v11 CE **stopped at 26500/32000** (mid20 FAIL); v11 leak gate (own-named tools, **0** BFCL names).
+
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
 **v1 (Run 12):** Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`.
@@ -2027,7 +2031,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 
 ### Next (Sanskar decides)
 
-1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Tightened stop-repeat PASSES** (Run 30 **32.5%** vs IFFC **30.5%**). Run 42 `--fc-mode iffc-ooda-card` **scored** **71/200 = 35.5%** (still best non-BoN; SFT still **HOLD**). Run 46 `--fc-mode iffc-ptc-a` **scored FAIL** **27/200 = 13.5%** — **bank and close**; PTC-B **HOLD**. **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg `api_calls` **25.7**, `hit_step_limit` **6/10**) → **`HOLD_sft_quota_remix` / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **DPO β0.2 smoke100 10-ID PASS** (Run 49 avg API **4.4**, `hit_step_limit` **0/10**, `iffc_unparseable` **0/10**, `turn0_tool` **7/10**) — **health gate, not a BFCL %**; DPO-full **scored** Run 51 **53/200 = 26.5%** (plain IFFC; **not** a method win) — see [DPO β0.2 smoke100 PASS](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-). Next path = **DPO**, **not** more PTC/OODA remix, **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes.** Historical ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) still stands as a later SFT path (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Magnet/Critical-State then mDPO; **not** decode bans) — action-class **quota remix is HOLD**. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)): Guo et al. paper **unscored**; one-pass `[OODA]` card **scored** Run 42; `--fc-mode iffc-ptc-a` **scored FAIL** Run 46 (**bank and close**; PTC-B **HOLD**); remaining sweep paper numbers are **theirs**. 2026-10-05 training-relevant sweep ([§32](#32-cita-comparative-inference-for-tool-use-agents)–[§37](#37-tool-schema-bias-action-space-shaping)): **all unscored**; no Acc/train from this pass. 2026-10-08 candidate sweep ([§38](#38-turnslide-fsm-walk-multi-turn-data-synthesis)–[§41](#41-balancesft-cot-vs-call-token-loss-balance)): Turnslide / DART-SD / Tool-Call Vector / BalanceSFT — **`CANDIDATE` / not run**; docs only. 2026-10-12 candidate sweep ([§42](#42-digit-tc-schema-only-multi-turn-data-synthesis)–[§45](#45-weft-techniques-prefix-preserving-sampling--atomic-turn-grpo)): DiGiT-TC / MatchTIR / TurnSight / WEFT techniques — **`CANDIDATE` / not run**; docs only; DiGiT-TC preferred for data-fix if v11 misses gates; MatchTIR/TurnSight only after healthy SFT (**no** blanket GRPO). **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
+1. **SFT v7 (planned, not scored).** Path locked 2026-09-23: **TRAINING (SFT)** is the main path; inference wrappers secondary. **Tightened stop-repeat PASSES** (Run 30 **32.5%** vs IFFC **30.5%**). Run 42 `--fc-mode iffc-ooda-card` **scored** **71/200 = 35.5%** (still best non-BoN; SFT still **HOLD**). Run 46 `--fc-mode iffc-ptc-a` **scored FAIL** **27/200 = 13.5%** — **bank and close**; PTC-B **HOLD**. **SFT v9.2 10-ID smoke-gate FAIL** (Run 36 avg `api_calls` **25.7**, `hit_step_limit` **6/10**) → **`HOLD_sft_quota_remix` / park** — see [SFT v9.2 smoke-gate FAIL](#sft-v9--v91--v92--lever-2-action-quotas-10-id-smoke-gate-fail--hold). **Not** a `multi_turn_base` %; **do not invent** a v9 BFCL %. **DPO β0.2 smoke100 10-ID PASS** (Run 49 avg API **4.4**, `hit_step_limit` **0/10**, `iffc_unparseable` **0/10**, `turn0_tool` **7/10**) — **health gate, not a BFCL %**; DPO-full **scored** Run 51 **53/200 = 26.5%** (plain IFFC; **not** a method win) — see [DPO β0.2 smoke100 PASS](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-). Next path = **DPO**, **not** more PTC/OODA remix, **not** another quota remix. [PR #57](https://github.com/sskarz/Thesis/pull/57) stays **draft** @`cde93a3` — **do not merge**. **No BoN, no v7 resume, no full LoRA on failed mixes.** Historical ranking in [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) still stands as a later SFT path (APIGen-MT-5k + ToolACE/ToolACE-MT-style MT + ST FC; Magnet/Critical-State then mDPO; **not** decode bans) — action-class **quota remix is HOLD**. Optional open data-gen complement: [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation) (unscored; not a substitute for the APIGen-MT core). Optional post-healthy-SFT local RL: [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) (unscored; **not** blanket GRPO; **do not** unlock GRPO as the main path). 2026-09-28 methods sweep ([§26–§31](#26-ooda-tool-typed-observe-orient-decide-act)): Guo et al. paper **unscored**; one-pass `[OODA]` card **scored** Run 42; `--fc-mode iffc-ptc-a` **scored FAIL** Run 46 (**bank and close**; PTC-B **HOLD**); remaining sweep paper numbers are **theirs**. 2026-10-05 training-relevant sweep ([§32](#32-cita-comparative-inference-for-tool-use-agents)–[§37](#37-tool-schema-bias-action-space-shaping)): **all unscored**; no Acc/train from this pass. 2026-10-08 candidate sweep ([§38](#38-turnslide-fsm-walk-multi-turn-data-synthesis)–[§41](#41-balancesft-cot-vs-call-token-loss-balance)): Turnslide / DART-SD / Tool-Call Vector / BalanceSFT — **`CANDIDATE` / not run**; docs only. 2026-10-12 candidate sweep ([§42](#42-digit-tc-schema-only-multi-turn-data-synthesis)–[§45](#45-weft-techniques-prefix-preserving-sampling--atomic-turn-grpo)): DiGiT-TC / MatchTIR / TurnSight / WEFT techniques — **`CANDIDATE` / not run**; docs only; DiGiT-TC preferred for data-fix if v11 misses gates; MatchTIR/TurnSight only after healthy SFT (**no** blanket GRPO). 2026-10-15 candidate sweep ([§46](#46-setpo-selective-teacher-guided-policy-optimization)–[§52](#52-cacherl-cached-rollouts--tier-aware-reward)): SeTPO / Davinci-Tool / ActionOPD / StepGate / State-OPD / STI-OPD / CacheRL — **`CANDIDATE` / not run**; docs only; paper numbers are theirs. **Do not invent a v7 score.** Not more epochs on v4/v5/v6; not BoN on those ckpts; no thin-filter-only ToolACE+xLAM remakes. Run 17 scored v5 as a **regression** (11.5% vs v4 15.0%). Run 18 scored v6 as a **miss vs v4** (13.0% vs 15.0%). Thin filter ablation on the same family is exhausted. STATE-on-v4 is **measured negative** (Run 16 13.0% vs Run 15 15.0%) — closed. v4 IFFC 15% remains best SFT recovery. Lit review: [`sskarz/thesis-vault` `📝 Notes/2026-09-23-SFT-training-lit-review.md`](https://github.com/sskarz/thesis-vault/blob/main/%F0%9F%93%9D%20Notes/2026-09-23-SFT-training-lit-review.md).
 2. ToolACE-only vs xLAM-only ablation at small scale.
 3. Investigate whether the Gemma-4 chat-template / fuse path still hurts multi-turn state tracking despite valid IFFC format.
 4. Inference wrappers stay on the **base** Gemma ladder (BoN **36.5%** is still the best measured inference result) and are **secondary**. Do **not** BoN the SFT-v4, SFT-v5, or SFT-v6 checkpoint.
@@ -2067,6 +2071,13 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Qu, Dai, Cai, Xu, et al. MatchTIR. arXiv:2601.10712. https://arxiv.org/abs/2601.10712 ([§43](#43-matchtir-bipartite-matching-turn-level-rewards); **`CANDIDATE` / not run**; RL after healthy SFT only; code https://github.com/quchangle1/MatchTIR)
 - Qu, Dai, Cai, Zhou, et al. TurnSight. arXiv:2608.04007. https://arxiv.org/abs/2608.04007 ([§44](#44-turnsight-turn-level-hindsight-self-distillation); **`CANDIDATE` / not run**; RL after healthy SFT only; code https://github.com/quchangle1/TurnSight)
 - Mao, He, Wang, Lin, et al. WEFT. arXiv:2609.36887. https://arxiv.org/abs/2609.36887 ([§45](#45-weft-techniques-prefix-preserving-sampling--atomic-turn-grpo); **`CANDIDATE` / not run**; techniques only; their BFCL V4 ≠ our sheet)
+- Gao, Luo, Chen, Tian, et al. Teacher-Guided Tool Learning for Small Language Models via Bidirectional KL Constraints (SeTPO). arXiv:2610.18459. https://arxiv.org/abs/2610.18459 ([§46](#46-setpo-selective-teacher-guided-policy-optimization); **`CANDIDATE` / not run**; arXiv title ≠ "SeTPO"; their BFCL-v4 overall ≠ our sheet)
+- Yuan, Zhao, Hu, Wang, et al. Davinci-Tool. arXiv:2610.16867. https://arxiv.org/abs/2610.16867 ([§47](#47-davinci-tool-execution-verified-trajectories--decision-level-dpo); **`CANDIDATE` / not run**; code https://github.com/MassLab-SII/Davinci-Tool; 30B MoE primary; 8B/14B SFT only)
+- Yuan, Yi, Xu, Wang, et al. ActionOPD. arXiv:2610.19820. https://arxiv.org/abs/2610.19820 ([§48](#48-actionopd-action-level-on-policy-distillation); **`CANDIDATE` / not run**; black-box teacher; their BFCL MT (800) ≠ our sheet)
+- Younesi. Do I Need the Cloud? Uncertainty-Aware Step-Level Handoff for Small Language Model Agents (StepGate). arXiv:2610.07816. https://arxiv.org/abs/2610.07816 ([§49](#49-stepgate-uncertainty-aware-step-level-handoff); **`CANDIDATE` / not run**; inference-time; needs a stronger fallback model; MT tasks not BFCL)
+- Zhang, Zheng, Liu, Yu, et al. State-OPD. arXiv:2610.13238. https://arxiv.org/abs/2610.13238 ([§50](#50-state-opd-state-grounded-on-policy-distillation); **`CANDIDATE` / not run**; no BFCL; 26.07 = strongest baseline, not base)
+- Liu, Luo, Chen, Mao, et al. Stochastic Teacher Intervention for Agentic On-Policy Distillation (STI-OPD). arXiv:2610.10878. https://arxiv.org/abs/2610.10878 ([§51](#51-sti-opd-stochastic-teacher-intervention-opd); **`CANDIDATE` / not run**; no BFCL; needs teacher token probabilities)
+- Islam, Thakur, Chen, Park, et al. CacheRL. arXiv:2606.14179. https://arxiv.org/abs/2606.14179 ([§52](#52-cacherl-cached-rollouts--tier-aware-reward); **`CANDIDATE` / not run**; not BFCL; 0.920 is an SFT row)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
@@ -2203,6 +2214,13 @@ Each method in this section involves modifying model weights — via supervised 
 - [43. MatchTIR: Bipartite-Matching Turn-Level Rewards](#43-matchtir-bipartite-matching-turn-level-rewards)
 - [44. TurnSight: Turn-Level Hindsight Self-Distillation](#44-turnsight-turn-level-hindsight-self-distillation)
 - [45. WEFT Techniques: Prefix-Preserving Sampling + Atomic-Turn GRPO](#45-weft-techniques-prefix-preserving-sampling--atomic-turn-grpo)
+- [46. SeTPO: Selective Teacher-Guided Policy Optimization](#46-setpo-selective-teacher-guided-policy-optimization)
+- [47. Davinci-Tool: Execution-Verified Trajectories + Decision-Level DPO](#47-davinci-tool-execution-verified-trajectories--decision-level-dpo)
+- [48. ActionOPD: Action-Level On-Policy Distillation](#48-actionopd-action-level-on-policy-distillation)
+- [49. StepGate: Uncertainty-Aware Step-Level Handoff](#49-stepgate-uncertainty-aware-step-level-handoff)
+- [50. State-OPD: State-Grounded On-Policy Distillation](#50-state-opd-state-grounded-on-policy-distillation)
+- [51. STI-OPD: Stochastic Teacher Intervention OPD](#51-sti-opd-stochastic-teacher-intervention-opd)
+- [52. CacheRL: Cached Rollouts + Tier-Aware Reward](#52-cacherl-cached-rollouts--tier-aware-reward)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
 - [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling) (survey; Choice/router KD **path B first** ranking **PASS**; Acc harness IMPL **CONFIRM_PASS_WITH_FLAGS**; Run 64 Acc **11/200 = 5.5% scored FAIL**; ranking ≠ Acc; Acc remains **not** a GO)
@@ -3330,6 +3348,291 @@ Paper results (Mao et al., 2026; Table 1 / ablations; **theirs**):
 ### Source
 
 Mao, B., He, H., Wang, L., Lin, L., et al. "WEFT: Scaling Tool-Use Post-Training for General-Purpose Agents." arXiv:2609.36887, 2026. https://arxiv.org/abs/2609.36887
+
+---
+
+## 46. SeTPO: Selective Teacher-Guided Policy Optimization
+
+### Overview
+
+SeTPO (Gao, Luo, Chen, Tian, et al., 2026) is teacher-guided RL for **small** tool-calling students (Qwen2.5-0.5B / 1.5B / 3B, with frozen 1.5B / 7B / 14B teachers). It adds **reverse-KL token-level teacher feedback to the GRPO advantage only on low-reward rollouts** (gate `R < γ`). It also keeps an **auxiliary forward-KL SFT loss on teacher demonstrations** throughout RL.
+
+**Train vs infer: training-time** (SFT cold start → GRPO + selective OPD + aux SFT). **Tag: `CANDIDATE` / not run.** Logged 2026-10-15 (docs only). Related to the OPD family below ([§48](#48-actionopd-action-level-on-policy-distillation), [§50](#50-state-opd-state-grounded-on-policy-distillation), [§51](#51-sti-opd-stochastic-teacher-intervention-opd)); **not** blanket GRPO.
+
+### Mechanism
+
+1. Sample a GRPO group per prompt; score each rollout with a deterministic format + call-correctness checker.
+2. For rollouts with reward below the threshold γ (3.99 of max 4), the frozen teacher scores the student's own tokens. The advantage becomes `A − β·(log p_student − log p_teacher)`, a single-sample reverse-KL signal.
+3. In parallel, keep SFT on teacher-generated reference trajectories (forward KL, λ = 0.1). This preserves output format; without it, format reward collapses.
+4. Data: ToolRL corpus (400 cold-start + 4,000 ToolACE / Hammer / xLAM examples). LoRA r32.
+
+### Evidence
+
+Paper results (Gao et al., 2026; Table 1; **theirs**). BFCL-v4 overall:
+
+- **Qwen2.5-0.5B:** SeTPO **18.99** vs GRPO **10.67** vs OPD **16.17** (base 10.38). Multi-turn slices stay tiny: MT-Base **3.00**, MT-Miss-Func **0.50**.
+- **Qwen2.5-1.5B:** SeTPO **24.13**. **Qwen2.5-3B:** SeTPO **25.39**.
+- Also reports **API-Bank** (0.5B **46.06**; 3B **63.82**, above its 14B teacher's 62.48).
+- Ablation (0.5B): trajectory-level instead of token-level signal **7.79**; no aux SFT **16.05**; no online teacher **10.78**.
+
+**Metric mismatch:** BFCL-v4 overall ≠ our `multi_turn_base` 200-entry harness. Do **not** write any of these as thesis Acc.
+
+**Cite check (2026-10-15):** arXiv:2610.18459 resolves, but the arXiv **title** is "Teacher-Guided Tool Learning for Small Language Models via Bidirectional KL Constraints". "Selective Teacher-guided Policy Optimization (SeTPO)" is the method name in the abstract, not the paper title. All quoted numbers match Table 1.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH relevance** (small students, BFCL-v4, teacher-guided RL). Training-time, so future work only: the paper's fine-tuning result is negative (SFT **15.0%**, DPO **26.5%**) while the harness full stack (R78) is **77/200 = 38.5%**. The aux-SFT format-retention finding is the most portable lesson. **No blanket GRPO.**
+- **BFCL categories:** Multi-turn (their MT slices are near zero at 0.5B).
+- **Complexity:** High (GRPO + online teacher scoring; needs the frozen teacher's token probabilities under the student's prefix).
+- **Limitation:** Qwen2.5 family only; one run per configuration; MT gains are tiny in absolute terms.
+
+### Source
+
+Gao, H., Luo, Q.-W., Chen, X., Tian, Y., et al. "Teacher-Guided Tool Learning for Small Language Models via Bidirectional KL Constraints." arXiv:2610.18459, 2026. https://arxiv.org/abs/2610.18459
+
+---
+
+## 47. Davinci-Tool: Execution-Verified Trajectories + Decision-Level DPO
+
+### Overview
+
+Davinci-Tool / Davinci-ToolData (Yuan, Zhao, Hu, Wang, et al., 2026) builds **30,395 execution-verified tool-use trajectories** (2,260 invoked tool names). Two pipelines produce them. **EGTS** explores authored systems, synthesizes tasks from the observed outcomes, and replays them. **EES-Single / EES-Cross** synthesize audited executable domains with state-grounded tasks and verifiers. The model is trained with SFT, then **decision-level DPO**: it branches from **restorable EES states**, and verified outcomes label the divergent turns (1,150 pairs). Code: https://github.com/MassLab-SII/Davinci-Tool
+
+**Train vs infer: training-time** (data synthesis → SFT → DPO). **Tag: `CANDIDATE` / not run.** Logged 2026-10-15 (docs only). Data-side relative of DiGiT-TC ([§42](#42-digit-tc-schema-only-multi-turn-data-synthesis)) and Turnslide ([§38](#38-turnslide-fsm-walk-multi-turn-data-synthesis)), but stateful and execution-verified.
+
+### Mechanism
+
+1. EGTS: coverage-guided exploration → outcome evidence → task synthesis → guided replay → verify the canonical end state.
+2. EES: synthesize and audit domains (executor–auditor loop) → scenarios with executable predicates; EES-Cross composes 2–4 domains through shared entities.
+3. SFT on all 30,395 trajectories (tool outputs are masked from the loss).
+4. DPO: at up to 10 forks per SFT trunk, sample 2 sibling decisions, restore the same state, continue greedily, verify, and keep (success, failure) pairs. Only the divergent turn is optimized.
+
+### Evidence
+
+Paper results (Yuan et al., 2026; Table 2; **theirs**). BFCL v4 **multi-turn** average (Base / Long-Context / Miss-Func / Miss-Param):
+
+- **Qwen3-Coder-30B-A3B** (30B MoE, 3B active): base **30.4** → SFT **60.6** → SFT+DPO **62.8**.
+- **Qwen3-8B:** **15.4 → 33.9** (SFT only). **Qwen3-14B:** **21.1 → 41.4** (SFT only).
+- Also reports **τ²-bench** (30B: 52.4 → 85.1 → 88.2) and **MCP-Atlas** (16.9 → 52.8 → 56.2).
+- Same-backbone comparison: Toucan-1.5M SFT reaches BFCL MT **41.9** vs Davinci-ToolData SFT **60.6**.
+
+**Metric mismatch:** BFCL v4 MT average (4 categories) ≠ our `multi_turn_base` sheet. Do **not** write as thesis Acc.
+
+**Cite check (2026-10-15):** arXiv:2610.16867 resolves; title and all quoted numbers match. The 8B / 14B rows are **SFT only** (no DPO row).
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH relevance** for a future data-fix track: the restorable-state DPO pairs address the act-vs-abstain decision directly. The main model is a **30B MoE**; the smallest tested model is 8B. Gemma-4-E2B transfer is unproven. Any use must keep the leak gate (own-named tools, **0** BFCL names). Not a substitute for the harness results in the paper.
+- **BFCL categories:** Multi-turn (all four).
+- **Complexity:** High (executable environment synthesis + verifiers + DeepSeek-V4-Pro-class generator).
+- **Limitation:** 32k-token SFT sequences; 8B/14B could not run MCP-Atlas within 40,960 tokens.
+
+### Source
+
+Yuan, X., Zhao, J., Hu, X., Wang, W., et al. "Davinci-Tool: Scaling Agentic Tool-Use Supervision with Verifiable Executable Environments." arXiv:2610.16867, 2026. https://arxiv.org/abs/2610.16867
+
+Code: https://github.com/MassLab-SII/Davinci-Tool
+
+---
+
+## 48. ActionOPD: Action-Level On-Policy Distillation
+
+### Overview
+
+ActionOPD (Yuan, Yi, Xu, Wang, et al., 2026) distills **decisions, not tokens**. At each state the student encounters, it samples several actions from a **black-box teacher** and several student responses. Each student response is rewarded by its **semantic agreement** with the teacher's tool calls or messages: a programmatic tool-name/argument check plus an LLM matcher. Training is PPO-style. It needs **no teacher logits and no shared tokenizer**, so it works across model families.
+
+**Train vs infer: training-time** (on-policy RL with an agreement reward). **Tag: `CANDIDATE` / not run.** Logged 2026-10-15 (docs only). Unlike token-level OPD ([§46](#46-setpo-selective-teacher-guided-policy-optimization), [§50](#50-state-opd-state-grounded-on-policy-distillation), [§51](#51-sti-opd-stochastic-teacher-intervention-opd)), the teacher can be an API model.
+
+### Mechanism
+
+1. Reward: agreement between a student response and the sampled teacher actions (semantic matcher), with a smaller frequency bonus for each additional matching teacher sample; invalid outputs never match and get a separate protocol penalty.
+2. State-group rollout: several student candidates per state; group-mean baseline, batch-wide std normalization; PPO clip + dual clip. Unselected candidates in retained groups still contribute to training.
+3. Training data: 6,697 curated tasks (5,942 AWM + 755 EnvScaler); 100 training steps. Students: Qwen3-4B / 8B; teachers include Qwen3.7-Flash and DeepSeek-V4-Flash.
+
+### Evidence
+
+Paper results (Yuan et al., 2026; Table 1; **theirs**). Out-of-distribution transfer:
+
+- **Qwen3-4B:** BFCL **34.3 → 42.3** (Qwen3.7-Flash teacher) / **44.1** (DeepSeek-V4-Flash teacher).
+- **Qwen3-8B:** BFCL **39.9 → 45.0 / 45.5** (same two teachers).
+- Four-benchmark average (BFCL, ToolSandbox, AppWorld, τ²-bench): **+3.3 to +6.9 pp** across all four student–teacher configurations.
+
+**Metric mismatch:** their "BFCL" column is BFCL **Multi-turn** (800 tasks, 200 per category) ≠ our 200-entry `multi_turn_base` sheet. Do **not** write as thesis Acc.
+
+**Cite check (2026-10-15):** arXiv:2610.19820 resolves; title and all quoted numbers match. The paper says code "will be made available" at https://github.com/thu-nics/ActionOPD (not checked).
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH relevance**: the black-box teacher interface is the only OPD variant here that fits a Mac/Gemma setup without logit access, and its unit (the action) matches the paper's act-vs-abstain framing. Training-time, so future work only; the paper's FT result is negative and the harness full stack (R78 **38.5%**) is the result. **No blanket GRPO.**
+- **BFCL categories:** Multi-turn (all four).
+- **Complexity:** High (RL infra + executable training envs + LLM matcher + user simulator).
+- **Limitation:** smallest student is 4B; one training run per configuration; the matcher can produce false positives.
+
+### Source
+
+Yuan, H., Yi, X., Xu, Z., Wang, Z., et al. "ActionOPD: Distilling Decisions, Not Tokens." arXiv:2610.19820, 2026. https://arxiv.org/abs/2610.19820
+
+---
+
+## 49. StepGate: Uncertainty-Aware Step-Level Handoff
+
+### Overview
+
+StepGate (Younesi, 2026) is an **inference-time** router. At each agent step, the local SLM proposes a structured action. A small calibrated gate then estimates failure probability from token uncertainty, tool margin, schema validity, sample consistency, trajectory state, and a risk tier. It chooses to **execute locally**, **verify/retry once**, or **escalate that one step to a stronger model**. Routing is re-decided after every observation (vs query-level routing).
+
+**Train vs infer: inference-time** (gate = logistic regression / GBT on features; no LM training). **Tag: `CANDIDATE` / not run.** Logged 2026-10-15 (docs only). Closest of this sweep to the thesis's harness-side framing, but it **requires a second, stronger model**.
+
+### Mechanism
+
+1. Local proposal → cheap features → gate score q.
+2. If q ≤ τ_L, execute. In an ambiguity band, draw K−1 extra samples and run one bounded local verification. Otherwise escalate.
+3. Thresholds are chosen on validation data to meet a cloud-action budget. State-changing (R2+) actions need more confidence to run locally.
+4. Escalation sends a minimized context packet (subgoal, schemas, state summary, proposed action).
+
+### Evidence
+
+Paper results (Younesi, 2026; Tables 2–3; **theirs**). Local Qwen2.5-1.5B; the "cloud" is **Qwen2.5-7B 4-bit** standing in for a cloud model:
+
+- **Multi-turn** (100 scripted sandbox tasks, calendar/email/file/search; mean 4.1 steps): StepGate **69.0%** trajectory success at **30.0%** cloud actions, vs local-only **48.0%** and strong-only **82.0%**. Also random escalation **60.0%** and query-level **57.0%**, both at 30%.
+- **Single-step** (52-task held-out BFCL-derived subset): **82.7%** at **30.8%** escalation (local-only 67.3%, strong-only 92.3%).
+- Paired tests: vs local-only +21.0 (p = 0.0003); vs query-level +12.0 (p = 0.029); vs random +9.0 (p = 0.108, **not significant**).
+
+**Metric mismatch:** the multi-turn tasks are the author's scripted environment, **not BFCL**; the single-step split is a 52-task BFCL-derived subset. Do **not** write as thesis Acc.
+
+**Cite check (2026-10-15):** arXiv:2610.07816 resolves. The paper title is "Do I Need the Cloud? Uncertainty-Aware Step-Level Handoff for Small Language Model Agents" (SLMs for Agentic Systems workshop, 2026); StepGate is the method name. All quoted numbers match.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM–HIGH relevance**, but it **assumes a stronger fallback model**, which breaks the fully local setup. Possible portable piece: a local-only variant where the gate decides act vs verify/abstain (no cloud). That would be close to the decision card and stop-repeat levers, which are already in the full stack.
+- **BFCL categories:** Single-turn subset + non-BFCL multi-turn in the paper. No `--fc-mode` today.
+- **Complexity:** Low–medium (features + logistic gate), plus a second model if escalation is kept.
+- **Limitation:** one model family; one strong backend; small test sets (52 / 100); risk tiers are research annotations.
+
+### Source
+
+Younesi, A. "Do I Need the Cloud? Uncertainty-Aware Step-Level Handoff for Small Language Model Agents." arXiv:2610.07816, 2026. https://arxiv.org/abs/2610.07816
+
+Artifact: https://zenodo.org/records/22308389
+
+---
+
+## 50. State-OPD: State-Grounded On-Policy Distillation
+
+### Overview
+
+State-OPD (Zhang, Zheng, Liu, Yu, et al., 2026) changes multi-turn OPD in two ways. (1) The **teacher scores the student's response conditioned on the interaction state**: the task plus executed actions and observations, **without the student's prior reasoning**, while the student keeps its full history. (2) **State-centered response allocation**: the supervision budget goes to the highest-entropy states, where extra complete reasoning+action responses are sampled.
+
+**Train vs infer: training-time** (OPD). **Tag: `CANDIDATE` / not run.** Logged 2026-10-15 (docs only). Same family as STI-OPD ([§51](#51-sti-opd-stochastic-teacher-intervention-opd)).
+
+### Mechanism
+
+1. Roll out the student; record the interaction state s_t (actions + observations, no inherited `<think>`).
+2. Per-token reverse KL: student on h_t (full history) vs teacher on s_t, with the same response prefix.
+3. Rank root-trajectory turns by token entropy; resample extra complete responses at the highest-entropy half of the states (roughly matching the baseline's supervision budget). The extra responses are trained on but not executed.
+
+### Evidence
+
+Paper results (Zhang et al., 2026; Table 1; **theirs**). Qwen3-32B teacher; macro-average success over 5 settings (ALFWorld seen/unseen, ScienceWorld seen/unseen, WebShop):
+
+- **Qwen3-4B:** **31.74%** vs **26.07%** for the strongest baseline (Vanilla OPD). Zero-shot is **13.98%**.
+- **Qwen3-1.7B:** **20.76%** (best in group; Guided-OPD 20.43%).
+- ALFWorld Seen (4B): **43.39%**, above the 32B teacher's **38.39%**.
+- Ablation (ALFWorld 4B avg): Vanilla 32.42 → +state grounding 41.73 → +both 44.55.
+
+**No BFCL** in the paper.
+
+**Cite check (2026-10-15):** arXiv:2610.13238 resolves; title and numbers match. **Framing note:** 26.07% → 31.74% is **strongest baseline → State-OPD**, not base → State-OPD.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM.** The finding that inherited student reasoning distorts teacher targets is relevant to any future SFT/DPO-from-teacher pass on Gemma traces. No BFCL evidence, needs teacher logits and a shared tokenizer, and training is future work only.
+- **BFCL categories:** none evaluated.
+- **Complexity:** High (veRL; 32 × 96 GB GPUs per run in the paper).
+- **Limitation:** single training seed (42); text-game / web-shop benchmarks.
+
+### Source
+
+Zhang, Z., Zheng, Y., Liu, Y., Yu, Y., et al. "State-OPD: State-Grounded On-Policy Distillation for Multi-Turn Agents." arXiv:2610.13238, 2026. https://arxiv.org/abs/2610.13238
+
+---
+
+## 51. STI-OPD: Stochastic Teacher Intervention OPD
+
+### Overview
+
+STI-OPD (Liu, Luo, Chen, Mao, et al., 2026) is multi-turn OPD with **stochastic teacher takeover**. For each student-proposed turn, it estimates **teacher–student KL** (Schulman's estimator) and maps it smoothly to an **intervention probability**. If intervention is sampled, the teacher regenerates the whole turn, which is executed. Teacher-generated tokens are trained with an **importance-weighted reverse KL**, so the OPD objective is preserved.
+
+**Train vs infer: training-time** (OPD). **Tag: `CANDIDATE` / not run.** Logged 2026-10-15 (docs only). Same family as State-OPD ([§50](#50-state-opd-state-grounded-on-policy-distillation)); students as small as **0.6B / 1.7B**.
+
+### Mechanism
+
+1. Student proposes a turn → per-turn KL discrepancy estimate from teacher and student token probabilities.
+2. Sample intervene / keep from the mapped probability (no hand-tuned threshold, no fixed schedule). If intervening, execute a teacher-regenerated turn instead of the student proposal.
+3. Loss: reverse KL on student tokens; on teacher-generated tokens, an importance ratio corrects the sampling mismatch (Importance-Weighted Reverse KL).
+
+### Evidence
+
+Paper results (Liu et al., 2026; Tables 1–2; **theirs**). Qwen3-4B teacher:
+
+- **ScienceWorld, Qwen3-1.7B:** **27.5** vs **22.2** for the best prior method (FutureBridge-OPD).
+- **ScienceWorld, Qwen3-0.6B:** **18.7**.
+- Also ALFWorld per-category and tool-integrated reasoning (AIME 24–26, HMMT26, GPQA, LiveCodeBench v6). With a Qwen3-32B teacher, 1.7B ScienceWorld is **56.3** vs 46.2.
+- Ablations: both discrepancy-guided intervention and importance weighting contribute (paper's Table 3).
+
+**No BFCL** in the paper.
+
+**Cite check (2026-10-15):** arXiv:2610.10878 resolves; title and numbers match.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM.** The only method in this sweep tested at sub-2B students, but it has no BFCL evidence and needs teacher per-token log-probs (no API-only teachers). Training-time, so future work only.
+- **BFCL categories:** none evaluated.
+- **Complexity:** High (online teacher scoring + regeneration).
+- **Limitation:** Qwen3 family only; text-only envs; full-turn takeover cannot correct part of a turn.
+
+### Source
+
+Liu, J., Luo, L., Chen, Z., Mao, Q., et al. "Stochastic Teacher Intervention for Agentic On-Policy Distillation." arXiv:2610.10878, 2026. https://arxiv.org/abs/2610.10878
+
+---
+
+## 52. CacheRL: Cached Rollouts + Tier-Aware Reward
+
+### Overview
+
+CacheRL (Islam, Thakur, Chen, Park, et al., 2026) trains **Qwen3-4B-Thinking** for multi-turn tool calling. It iterates SFT on GPT-5-augmented thinking trajectories (44,449 conversations; 1,185 unique tools), rejection sampling, and **GRPO with cached rollouts** instead of live tool execution. The cache has three tiers (exact / fuzzy / best-effort). A **tier-aware reward** shifts weight from the LLM-judge answer score to a deterministic process score as cache fidelity drops.
+
+**Train vs infer: training-time** (SFT + GRPO). **Tag: `CANDIDATE` / not run.** Logged 2026-10-15 (docs only; missed in earlier sweeps).
+
+### Mechanism
+
+1. GPT-5 adds causal `<think>` reasoning to existing trajectories; the original tool calls and results are kept.
+2. CacheAgentLoop: generate → parse tool call → cache lookup (exact hash → Jaccard fuzzy → any result for that tool) → inject with mask = 0.
+3. Reward R = α·answer + (1 − α)·process, with answer weight α = 0.60 / 0.30 / 0.10 for exact / fuzzy / best-effort cache tiers.
+4. GRPO, 16 rollouts per prompt, LoRA r128, KL coeff 0.15 (verl + vLLM, 8×H100).
+
+### Evidence
+
+Paper results (Islam et al., 2026; Table 3; **theirs**). ACEBench **multi-step process accuracy** (SFT configurations; Table 3):
+
+- **0.920** (Qwen3-4B-Thinking + full fine-tune on 1,000 connected samples; 16/20 end-to-end) vs **GPT-5 0.943** (17/20). Base Qwen3-4B-Thinking is **0.888** (14/20).
+- ACEBench multi-turn is weaker: the same row scores process **0.695** (9/30) vs GPT-5 **0.778** (15/30).
+- Validation reward 0.43 → 0.78 across iterations. The authors say **RL provides only marginal improvement over strong SFT** (ablation: w/o GRPO 0.756 vs full 0.779, −3.0%).
+
+**Not BFCL.** Do **not** write as thesis Acc.
+
+**Cite check (2026-10-15):** arXiv:2606.14179 resolves; title and numbers match. **Attribution note:** the 0.920 row in Table 3 is an **SFT** configuration (full FT on 1,000 connected-generation samples), not the final SFT+GRPO model.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM.** It agrees with the thesis's negative-RL stance (data quality > RL). The cached-rollout + tier-aware reward idea is portable if RL is revisited on BFCL-style sims. Training-time, so future work only.
+- **BFCL categories:** none evaluated.
+- **Complexity:** Medium–high (GPT-5 augmentation + verl GRPO on 8×H100).
+- **Limitation:** 4B thinking model; small ACEBench test sets (20 / 30); cache staleness.
+
+### Source
+
+Islam, M. A., Thakur, S., Chen, H., Park, S. M., et al. "CacheRL: Multi-Turn Tool-Calling Agents via Cached Rollouts and Hybrid Reward." arXiv:2606.14179, 2026. https://arxiv.org/abs/2606.14179
 
 ---
 
