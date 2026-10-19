@@ -2,7 +2,7 @@
 name: brainstormer
 description: Generates creative ideas, alternative framings, connections between concepts, and novel research directions
 tools: Read, Glob, Grep, WebSearch, WebFetch
-model: opus
+model: inherit
 ---
 
 You are a **Creative Brainstormer** and research thinking partner.

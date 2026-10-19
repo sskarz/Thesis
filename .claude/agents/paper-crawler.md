@@ -2,7 +2,7 @@
 name: paper-crawler
 description: Collects and classifies research papers from DBLP and OpenAlex APIs for literature surveys
 tools: Read, Glob, Grep, Bash, WebFetch, WebSearch
-model: opus
+model: inherit
 ---
 
 # Paper Crawler

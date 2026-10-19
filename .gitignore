@@ -183,9 +183,9 @@ cython_debug/
 llama.cpp/
 frontend/node_modules/
 frontend/dist/
-# local Claude Code state stays ignored; shared paper-writing skills/agents are tracked
+# local Claude Code state stays ignored; shared reviewer agents stay tracked.
+# Paper skills live in .agents/skills/ (tracked; not under .claude/).
 .claude/*
-!.claude/skills/
 !.claude/agents/
 !.claude/UPSTREAM.md
 !.claude/settings.json

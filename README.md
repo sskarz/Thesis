@@ -8,7 +8,7 @@ Benchmark LLM tool/function-calling accuracy and inference performance on local 
 
 The **formal LaTeX research-paper draft** is in [`paper/`](paper/) (`paper/main.tex`). Informal working notes remain in [`THESIS.md`](THESIS.md) (do not delete). Build with `latexmk -pdf` from `paper/` — see [`paper/README.md`](paper/README.md).
 
-How the paper was written (process, sources, decisions; handoff for agents): [`docs/PAPER_WRITING_PROCESS.md`](docs/PAPER_WRITING_PROCESS.md).
+How the paper was written (process, sources, decisions; handoff for agents): [`docs/PAPER_WRITING_PROCESS.md`](docs/PAPER_WRITING_PROCESS.md). Paper edits follow [`AGENTS.md`](AGENTS.md) and [`.agents/skills/thesis-paper/SKILL.md`](.agents/skills/thesis-paper/SKILL.md).
 Latest compiled paper PDF: [`Thesis_Paper.pdf`](Thesis_Paper.pdf) (same file as the Google Drive copy; updated by the sync routine after each `paper/` merge).
 
 ## Prerequisites
