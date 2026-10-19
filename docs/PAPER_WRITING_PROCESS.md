@@ -39,12 +39,13 @@ Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91,
 
 ### Prose numbers traced on 2026-10-19
 
-These appear in `paper/main.tex` and were not in the table above. Sources are repo notes or code, not a new measurement. The Spearman interval −0.52 to 0.67 was not found in those notes and was removed from the paper. The phrase "recovery examples" was also removed: no note says what those examples were.
+These appear in `paper/main.tex` and were not in the table above. Sources are repo notes or code, not a new measurement. The Spearman interval −0.52 to 0.67 was not found in those notes and was removed from the paper.
 
 | Claim in the paper | Source |
 |---|---|
 | 37 forced stops, all on tasks that failed | `THESIS.md` Run 27 (ungated stop-on-repeat): stops fired on 37/200, all among the failures. Scoreboard ID 27 is 54/200. This is not the gated under-call cell of 37. |
 | First-mix empty turns 167, then 2 on the best fine-tune | `THESIS.md` / `sft/README.md`: Run 13 primary empty-turn count 167. The 2 is the best-SFT cell in `tab:failfull`. |
+| Recovery examples | `sft/README.md` SFT v3/v4: `recovery_after_empty` rows (an earlier empty reply, then a new user question, then a real call). |
 | Stop-target share 78.1% (2,121 versus 596) | `THESIS.md` and `METHODS.md`: after a tool-result user message, 2,121 empty targets versus 596 continue, all ToolACE. 2121/(2121+596) = 78.1%. |
 | Guided template: 19 tasks each way; 79 state mismatches; seven steps | 61/200 is scoreboard ID 9. `THESIS.md` records a 19-row swap each way against JSON text and 79 state mismatches. The seven steps are `GST_STEPS` in `benchmark/gst.py` (comment: He et al. Table 5, step 7 extended for multi-turn abstain). |
 | 6 of 12 self-distillation failures | `THESIS.md` Run 74. 12 = 20−8 (scoreboard ID 74). |
@@ -106,7 +107,7 @@ These appear in `paper/main.tex` and were not in the table above. Sources are re
    - Content/focus review through `.agents/skills/thesis-paper/SKILL.md` and `.claude/agents/<role>.md`; Sanskar agrees the cut list before any rewrite and picks which fixes are applied.
    - QA by **Codex** and **Antigravity**: accuracy against the DB, readability for non-experts, figure fit. Repeat until **both APPROVE**.
    - **Sanskar approves the merge.** He decides all merges.
-3. **Build:** in `paper/`: `latexmk -pdf -interaction=nonstopmode main.tex`, then `make dist` (ghostscript re-embeds all fonts fully into `paper/Thesis_Paper.pdf`). Check: no `Overfull` / undefined refs in `main.log`, no `??` in `pdftotext` output, `pdffonts` shows all fonts embedded and no Type 3.
+3. **Build:** in `paper/`: `latexmk -pdf -interaction=nonstopmode main.tex`, then `make dist` (ghostscript re-embeds all fonts fully into `paper/Thesis_Paper.pdf`). Check: no `Overfull` / undefined refs in `main.log`, no `??` in `pdftotext` output, `pdffonts` shows all fonts embedded and no Type 3. **`make dist` needs Ghostscript ≥ 10.05.** The flags are unchanged (`-dEmbedAllFonts=true -dSubsetFonts=false -dPDFSETTINGS=/prepress`). Ghostscript 10.02.1 embeds Latin Modern in full but drops its ToUnicode maps. Ghostscript 10.05.1 keeps those maps on the fully embedded Latin Modern fonts. The 2026-10-19 QA rebuild used 10.05.1.
 4. **Canonical compiled PDF (two places).** The current compiled paper lives on **Google Drive** (`Thesis_Paper.pdf`, My Drive root of sskarz1016@gmail.com; id as of 2026-10-14: `1CLOoeqWVeZP83eM7QPyFs1IT66Jrnf4r`) **and** at the **repo root** as [`Thesis_Paper.pdf`](../Thesis_Paper.pdf). Both are the `make dist` output (full fonts embedded).
    - **Sync routine:** after every merge to main that touches `paper/`, the routine "Thesis paper Drive PDF sync" rebuilds the PDF (latexmk + `make dist`), uploads it to Drive and trashes the previous Drive file, then commits the same PDF to the repo root through a small PR titled `chore: update compiled Thesis_Paper.pdf`. It skips that PR if the file is identical to the one already committed.
    - The repo copy is kept **outside `paper/` on purpose**, so committing it does not retrigger the sync. Changes under `docs/` or the root PDF do not trigger it.
