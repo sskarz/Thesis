@@ -76,6 +76,8 @@ Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91,
 
 ## 6. Process and workflow
 
+> **Agent workflow (added 2026-10-18):** Claude Code runs paper work through `.claude/skills/thesis-paper/SKILL.md`: load context → diagnose with the vendored reviewer agents + a fresh-context number tracer → save findings to `docs/reviews/` → Sanskar picks fixes → edit on a branch → build/check → verify the diff → draft PR → the Codex + Antigravity loop below. Point Codex and Antigravity at that file and the review file.
+
 1. **Edits:** branch off `main`, push, open a **draft PR**. Never commit straight to main.
 2. **Review loop:**
    - Content/focus review by **Claude Code**; Sanskar agrees the cut list before any rewrite.

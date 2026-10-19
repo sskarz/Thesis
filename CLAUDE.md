@@ -66,6 +66,10 @@ Thesis/
     └── live/                          # Optional live smoke tests
 ```
 
+## Paper work (`paper/`)
+
+Any change to `paper/main.tex`, its figures or `references.bib` goes through the **thesis-paper** skill (`.claude/skills/thesis-paper/SKILL.md`, or `/thesis-paper <task>`). It wraps the vendored `academic` reviewer agents and the `ml-paper-writing` guide (see `.claude/UPSTREAM.md`) with this repo's hard rules: never invent numbers, no new runs without approval, branch + draft PR only, Gemma-only scope. Paper history and sources of truth: `docs/PAPER_WRITING_PROCESS.md`. Review findings go in `docs/reviews/`.
+
 ## Development Environments
 
 ### Primary (paper measurements): Mac (Apple M4 Pro)
