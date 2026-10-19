@@ -188,6 +188,7 @@ frontend/dist/
 !.claude/skills/
 !.claude/agents/
 !.claude/UPSTREAM.md
+!.claude/settings.json
 benchmark/results/
 sft/data/
 sft/adapters/
