@@ -183,7 +183,11 @@ cython_debug/
 llama.cpp/
 frontend/node_modules/
 frontend/dist/
-.claude
+# local Claude Code state stays ignored; shared paper-writing skills/agents are tracked
+.claude/*
+!.claude/skills/
+!.claude/agents/
+!.claude/UPSTREAM.md
 benchmark/results/
 sft/data/
 sft/adapters/
