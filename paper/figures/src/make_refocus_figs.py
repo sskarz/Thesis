@@ -43,9 +43,9 @@ for y, i in enumerate(order):
     hl = lab.startswith("Full stack")
     ax.barh(y, acc, color=C[kind], height=0.65, edgecolor="black" if hl else "none", linewidth=1.8 if hl else 0)
     ax.errorbar(acc, y, xerr=[[acc - lo], [hi - acc]], fmt="none", ecolor="black", capsize=3, lw=1)
-    ax.text(hi + 0.8, y, f"{k}/200 = {acc:.1f}%", va="center", fontsize=9, fontweight="bold" if hl else "normal",
+    ax.text(hi + 0.8, y, f"{k}/200 = {acc:.1f}%", va="center", fontsize=9.5, fontweight="bold" if hl else "normal",
             bbox=dict(facecolor="white", edgecolor="none", pad=1.5), zorder=5, clip_on=False)
-ax.set_yticks(range(len(order))); ax.set_yticklabels([rows[i][0] for i in order], fontsize=9)
+ax.set_yticks(range(len(order))); ax.set_yticklabels([rows[i][0] for i in order], fontsize=9.5)
 for t in ax.get_yticklabels():
     if t.get_text().startswith("Full stack"): t.set_fontweight("bold")
 ax.axvline(100 * 61 / 200, color="black", ls=":", lw=0.9, zorder=1)
@@ -54,7 +54,7 @@ ax.set_xlabel("Tasks fully correct, % of 200 (error bars: Wilson 95% interval)",
 from matplotlib.patches import Patch
 ax.legend(handles=[Patch(color=C[k], label=l) for k, l in [("base", "Output format only"), ("ctrl", "Harness control"),
           ("upper", "Majority vote (costly)"), ("syntax", "Forced valid syntax"), ("train", "Training")]] + [plt.Line2D([], [], color="black", ls=":", lw=0.9, label="JSON-text baseline")],
-          loc="upper center", bbox_to_anchor=(0.48, -0.20), ncol=3, fontsize=8.5, frameon=False,
+          loc="upper center", bbox_to_anchor=(0.48, -0.20), ncol=3, fontsize=9.5, frameon=False,
           borderaxespad=0.2, columnspacing=1.0)
 fig.tight_layout()
 fig.savefig(OUT / "ladder_n200.pdf", bbox_inches="tight", pad_inches=0.12)
@@ -81,7 +81,7 @@ fig.tight_layout(); fig.savefig(OUT / "gate20.pdf"); plt.close(fig)
 f = [  # label, empty, under, state
     ("Native\nAPI", 59, 19, 68), ("JSON\ntext", 41, 38, 60), ("State\nsummary", 31, 37, 64),
     ("Minimal\nrecipe", 17, 41, 71), ("Full\nstack*", 20, 35, 68), ("Vote\nof five", 36, 38, 53),
-    ("Constr.\ndecoding", 14, 70, 95), ("Name\nautomaton", 17, 54, 102), ("Best\nfine-tune", 2, 59, 109)]
+    ("Constr.\ndecod.", 14, 70, 95), ("Name\nautom.", 17, 54, 102), ("Best\nSFT", 2, 59, 109)]
 fig, ax = plt.subplots(figsize=(6.0, 2.25))
 xs = range(len(f)); b = [0] * len(f)
 for j, (name, col) in enumerate([("Empty turn", "#adb5bd"),
