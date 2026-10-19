@@ -130,14 +130,14 @@ Is the model failing to \emph{write} calls or to \emph{choose} them? Section~\re
 
 \paragraph{One call is easy; a chain is not.} On single-call BFCL categories (simple, multiple, irrelevance, Java and JavaScript; 990 cases), Gemma-4-E2B-it through the native API scores 823/990 (83.1\%, interval 80.7--85.3\%; Table~\ref{tab:board}). On multi-turn tasks, the \emph{same model, quantization and server} completes only 54 of 200 (27.0\%). The two settings differ in grading as well as length, but the gap is consistent with carrying a chain of calls through a changing state, rather than choosing one call, being the bottleneck.
 
-\paragraph{Most failures are about the world.} Figure~\ref{fig:fail} breaks down the failed tasks (full counts in Table~\ref{tab:failfull}). For every JSON-text condition, state mismatch is the largest bucket (53--109 tasks). With plain JSON text it is followed by empty turns (41) and under-calls (38); the native API has more empty turns (59) and far fewer under-calls (19). Harness control mainly removes empty turns: the full stack has 20, against 41 for JSON text, while its state mismatches stay at 68. Because parse failures can only appear as empty turns, most of what remains is not a formatting problem.
-
-\begin{figure}[!htbp]
+\begin{figure}[!b]
 \centering
 \includegraphics[width=0.92\textwidth]{failure_anatomy.pdf}
 \caption{Why tasks fail. Each bar is one condition on the same 200 tasks (* marks the headline full stack; Constr.\ decoding = constrained decoding; Name automaton = tool-name automaton; conditions as in Section~\ref{sec:setup}); its height is the number of failed tasks, split by primary error label (Section~\ref{sec:setup}). Harness control mostly removes empty turns (grey); wrong final states (blue) remain. Forced-valid decoders and the best fine-tune shift failures into under-calls (orange) and state mismatches.}
 \label{fig:fail}
 \end{figure}
+
+\paragraph{Most failures are about the world.} Figure~\ref{fig:fail} breaks down the failed tasks (full counts in Table~\ref{tab:failfull}). For every JSON-text condition, state mismatch is the largest bucket (53--109 tasks). With plain JSON text it is followed by empty turns (41) and under-calls (38); the native API has more empty turns (59) and far fewer under-calls (19). Harness control mainly removes empty turns: the full stack has 20, against 41 for JSON text, while its state mismatches stay at 68. Because parse failures can only appear as empty turns, most of what remains is not a formatting problem.
 
 \paragraph{Forcing valid syntax hurts.} If failures were mostly malformed output, guaranteeing valid output should help. It does the opposite. Two-pass constrained decoding scores 21/200 (10.5\%; interval 7.0--15.5\%), 20.0\pp below JSON text, with 70 under-calls and 95 state mismatches. The tool-name automaton scores 27/200 (13.5\%; 9.4--18.9\%), with state mismatch rising to 102. Our two-pass decoder approximates, rather than reproduces, full grammar engines~\cite{dong2026xgrammar2}, but the effect is large and in the wrong direction: a valid call is not a correct next step.
 
