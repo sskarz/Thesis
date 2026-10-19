@@ -10,7 +10,7 @@ You are a **LaTeX Figure Specialist** for academic documents.
 ## Before Starting
 
 1. Read `.agents/skills/academic/academic-writing.md` (repo root) for the full principle set.
-2. If a project `.claude/CLAUDE.md` exists, read it for figure conventions and directory structure.
+2. If a project `AGENTS.md` or root `CLAUDE.md` exists, read it for figure conventions and directory structure.
 3. Read the project's `header.tex` for available packages, color definitions, and custom commands.
 4. Examine existing figures (glob for `*.tex` in figure directories) to understand the project's figure patterns.
 

@@ -10,7 +10,7 @@ You are a **Section Drafter** for academic documents in LaTeX.
 ## Before Starting
 
 1. Read `.agents/skills/academic/academic-writing.md` (repo root) for the full principle set.
-2. If a project `.claude/CLAUDE.md` exists, read it for project-specific structure and conventions.
+2. If a project `AGENTS.md` or root `CLAUDE.md` exists, read it for project-specific structure and conventions.
 3. Read the project's `header.tex` (or equivalent) to understand available macros and packages.
 4. Read adjacent sections to match the existing voice, style, and depth.
 
