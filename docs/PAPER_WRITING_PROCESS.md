@@ -11,7 +11,7 @@ Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91,
 - Presentation: end of November 2026. Thesis due: December 2026.
 - Readers include people unfamiliar with the project, so every term must be defined and figures must be readable on their own.
 
-## 2. Current state (main @ `040b076`, 2026-10-14)
+## 2. Current state (main @ `a445429`, 2026-10-14)
 
 - File: `paper/main.tex`. Title: **"State, Not Syntax: Harness Optimization for Small-Model Multi-Turn Tool Calling"**.
 - 15 pages (main text ≈ pp. 1–9, references ≈ pp. 9–11, appendices A–D ≈ pp. 11–15). Builds with 0 overfull boxes and 0 undefined references.
@@ -24,7 +24,7 @@ Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91,
 
 | Result | Value | Source |
 |---|---|---|
-| Full stack (IFFC + STATE + gated stop-on-repeat + status card), **headline** | 77/200 = 38.5% (Wilson 32.0–45.4) | Run 78, `scores.id` 51; log `sft/v13/paper_evals/runs/b_fullstack_mtb200.log`; harness code from PR #90 (`c894ec6`, merged 2026-10-14 as `9aef7d7`) |
+| Full stack (IFFC + STATE + gated stop-on-repeat + status card), **headline** | 77/200 = 38.5% (Wilson 32.0–45.4) | Run 78, `scores.id` 51; log `sft/v13/paper_evals/runs/b_fullstack_mtb200.log`; harness code from PR #90 (`344ce45`, merged 2026-10-14 as `83f35ee`) |
 | Minimal recipe (IFFC + stop-on-repeat + card) | 71/200 = 35.5% | Run 42 |
 | JSON text (IFFC) | 61/200 = 30.5% | Run 5 |
 | Native function calling (NFC) | 54/200 = 27.0% | Run 4 (used 8 server slots vs 4 elsewhere — disclosed) |
@@ -41,13 +41,13 @@ Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91,
 
 1. **Markdown `THESIS.md`** — informal working notes; still in the repo (do not delete).
 2. **Google Doc draft (September 2026)** — now trashed. Content and exact dates **(uncertain; not in repo)**.
-3. **LaTeX conversion (2026-09-20 → 09-23)** — `a4dafb8` "Add formal LaTeX research-paper draft under paper/" (#30, 09-20); `3d990e2` figures next to prose (#45, 09-23).
-4. **Readability rewrite — PR #66** (merged 2026-09-30, `ef590df`): reader-facing rewrite, review rounds R2/R3, "drop RAG from thesis scope; narrow edge claims" (`51c20ec`), outsider-readability rewrite (`d916b3f`).
-5. **Run updates — PR #84** (merged 2026-10-07, `970d03f`: soft10 ceiling, mid20 gate, paused SFT-v11) and **PR #88** (merged 2026-10-12, `25e4944`: Runs 70–74 mid20, v11 stopped at 26,500, R74 autopsy).
-6. **Refocus to a short paper — PR #89**, decided 2026-10-13: first refocus as "State, Not Syntax" empirical study (`2f47d44`), Codex/Antigravity and Claude Code review folds, overnight R78/R79 results added 10-14 (`ee22b96`).
-7. **Focus rewrite (2026-10-14)** after Claude Code's keep/cut/appendix review (`70e3c0f`): harness-optimization framing, Gemma only, cut list applied, training history moved to the appendix, full stack added to the failure figure.
-8. **QA rounds** by Codex and Antigravity: `788f0a5` (both NEEDS_CHANGES → fixes), `48618f9` (Fig 2 plain-language labels). Both approved; PR #89 merged 2026-10-14 as `965d596`.
-9. **Outlook font fix — PR #91** (merged 2026-10-14, `040b076`): Outlook's preview dropped "a"/"A". Probable cause: subset Type 1 Latin Modern fonts with custom encoding (all fonts were already embedded with ToUnicode; no Type 3). Fix: `glyphtounicode` + `\pdfgentounicode=1` + `cmap`, and a `make dist` ghostscript pass that embeds full, unsubsetted fonts. Whether Outlook now renders correctly was **not** verified by the agent (no Outlook access) **(uncertain)**. Figure fonts (DejaVu TrueType from matplotlib) remain subset.
+3. **LaTeX conversion (2026-09-20 → 09-23)** — `74a6046` "Add formal LaTeX research-paper draft under paper/" (#30, 09-20); `f73853d` figures next to prose (#45, 09-23).
+4. **Readability rewrite — PR #66** (merged 2026-09-30, `fc666da`): reader-facing rewrite, review rounds R2/R3, "drop RAG from thesis scope; narrow edge claims" (`9a962c4`), outsider-readability rewrite (`4893093`).
+5. **Run updates — PR #84** (merged 2026-10-07, `3347e7b`: soft10 ceiling, mid20 gate, paused SFT-v11) and **PR #88** (merged 2026-10-12, `a339032`: Runs 70–74 mid20, v11 stopped at 26,500, R74 autopsy).
+6. **Refocus to a short paper — PR #89**, decided 2026-10-13: first refocus as "State, Not Syntax" empirical study (`1171e0e`), Codex/Antigravity and Claude Code review folds, overnight R78/R79 results added 10-14 (`64be7e8`).
+7. **Focus rewrite (2026-10-14)** after Claude Code's keep/cut/appendix review (`69143bc`): harness-optimization framing, Gemma only, cut list applied, training history moved to the appendix, full stack added to the failure figure.
+8. **QA rounds** by Codex and Antigravity: `d072e8d` (both NEEDS_CHANGES → fixes), `ae96ed8` (Fig 2 plain-language labels). Both approved; PR #89 merged 2026-10-14 as `cfe0068`.
+9. **Outlook font fix — PR #91** (merged 2026-10-14, `a445429`): Outlook's preview dropped "a"/"A". Probable cause: subset Type 1 Latin Modern fonts with custom encoding (all fonts were already embedded with ToUnicode; no Type 3). Fix: `glyphtounicode` + `\pdfgentounicode=1` + `cmap`, and a `make dist` ghostscript pass that embeds full, unsubsetted fonts. Whether Outlook now renders correctly was **not** verified by the agent (no Outlook access) **(uncertain)**. Figure fonts (DejaVu TrueType from matplotlib) remain subset.
 
 ## 4. Editorial decisions and Sanskar's stated preferences
 
