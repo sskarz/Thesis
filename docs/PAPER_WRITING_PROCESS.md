@@ -1,6 +1,6 @@
 # How the thesis paper was written (handoff)
 
-Handoff for any agent or person continuing work on `paper/main.tex`. Last updated 2026-10-18 (America/New_York).
+Handoff for any agent or person continuing work on `paper/main.tex`. Last updated 2026-10-18 (America/New_York). The latest compiled PDF is [`Thesis_Paper.pdf`](../Thesis_Paper.pdf) at the repo root (same file as on Drive).
 Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91, the review files listed in §5, and the agent workstream that produced the October rewrite. Anything not verifiable from those sources is marked **(uncertain)**.
 
 ---
@@ -82,7 +82,10 @@ Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91,
    - QA by **Codex** and **Antigravity**: accuracy against the DB, readability for non-experts, figure fit. Repeat until **both APPROVE**.
    - **Sanskar approves the merge.**
 3. **Build:** in `paper/`: `latexmk -pdf -interaction=nonstopmode main.tex`, then `make dist` (ghostscript re-embeds all fonts fully into `paper/Thesis_Paper.pdf`). Check: no `Overfull` / undefined refs in `main.log`, no `??` in `pdftotext` output, `pdffonts` shows all fonts embedded and no Type 3.
-4. **Drive sync:** a merge to main that touches `paper/` triggers the routine "Thesis paper Drive PDF sync", which rebuilds and uploads `Thesis_Paper.pdf` to the My Drive root of sskarz1016@gmail.com and trashes the previous file. If you sync manually, first check Drive for a fresh upload so you do not create a duplicate; exactly one current `Thesis_Paper.pdf` should exist. Current id (as of 2026-10-14): `1CLOoeqWVeZP83eM7QPyFs1IT66Jrnf4r`. Changes under `docs/` do not trigger it.
+4. **Canonical compiled PDF (two places).** The current compiled paper lives on **Google Drive** (`Thesis_Paper.pdf`, My Drive root of sskarz1016@gmail.com; id as of 2026-10-14: `1CLOoeqWVeZP83eM7QPyFs1IT66Jrnf4r`) **and** at the **repo root** as [`Thesis_Paper.pdf`](../Thesis_Paper.pdf). Both are the `make dist` output (full fonts embedded).
+   - **Sync routine:** after every merge to main that touches `paper/`, the routine "Thesis paper Drive PDF sync" rebuilds the PDF (latexmk + `make dist`), uploads it to Drive and trashes the previous Drive file, then commits the same PDF to the repo root through a small PR titled `chore: update compiled Thesis_Paper.pdf`. It skips that PR if the file is identical to the one already committed.
+   - The repo copy is kept **outside `paper/` on purpose**, so committing it does not retrigger the sync. Changes under `docs/` or the root PDF do not trigger it.
+   - If you sync manually, first check Drive for a fresh upload so you do not create a duplicate; exactly one current `Thesis_Paper.pdf` should exist on Drive.
 5. **Claude Code credits** sometimes run out. If another agent does the review instead, label it honestly in the review file and tell Sanskar.
 
 ## 7. How to continue
