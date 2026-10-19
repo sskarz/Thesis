@@ -1,0 +1,115 @@
+# How the thesis paper was written (handoff)
+
+Handoff for any agent or person continuing work on `paper/main.tex`. Last updated 2026-10-18 (America/New_York).
+Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91, the review files listed in §5, and the agent workstream that produced the October rewrite. Anything not verifiable from those sources is marked **(uncertain)**.
+
+---
+
+## 1. Purpose and audience
+
+- Master's thesis paper by Sanskar Thapa, written for his research professor (advisor review), with limitations stated plainly.
+- Presentation: end of November 2026. Thesis due: December 2026.
+- Readers include people unfamiliar with the project, so every term must be defined and figures must be readable on their own.
+
+## 2. Current state (main @ `040b076`, 2026-10-14)
+
+- File: `paper/main.tex`. Title: **"State, Not Syntax: Harness Optimization for Small-Model Multi-Turn Tool Calling"**.
+- 15 pages (main text ≈ pp. 1–9, references ≈ pp. 9–11, appendices A–D ≈ pp. 11–15). Builds with 0 overfull boxes and 0 undefined references.
+- Scope: **Gemma-4-E2B-it (Q4_K_M) only**, BFCL v4 `multi_turn_base`, N = 200, llama.cpp `llama-server` on a MacBook Pro M4 Pro 48 GB.
+- Core claim: multi-turn failure is about state tracking and the act-vs-abstain decision, not output syntax; harness-side control gains +8.0 pp over JSON-text calling, while forcing valid syntax and fine-tuning both lose ground.
+
+### Headline numbers and provenance
+
+"Run N" = internal run id (`runs.id` in `benchmark.db`); see the run-ID map in Appendix D (`tab:runs`) of the paper.
+
+| Result | Value | Source |
+|---|---|---|
+| Full stack (IFFC + STATE + gated stop-on-repeat + status card), **headline** | 77/200 = 38.5% (Wilson 32.0–45.4) | Run 78, `scores.id` 51; log `sft/v13/paper_evals/runs/b_fullstack_mtb200.log`; harness code from PR #90 (`c894ec6`, merged 2026-10-14 as `9aef7d7`) |
+| Minimal recipe (IFFC + stop-on-repeat + card) | 71/200 = 35.5% | Run 42 |
+| JSON text (IFFC) | 61/200 = 30.5% | Run 5 |
+| Native function calling (NFC) | 54/200 = 27.0% | Run 4 (used 8 server slots vs 4 elsewhere — disclosed) |
+| Vote of five (BoN, N=5, on IFFC+STATE) | 73/200 = 36.5%, ≈7× generation wall-clock (21.3 h vs 3.0 h) | Run 11 |
+| Constrained decoding (two-pass) | 21/200 = 10.5% | Run 8 |
+| Tool-name automaton (PTC-A) | 27/200 = 13.5% | Run 46 |
+| Best SFT (SFT-v4) | 30/200 = 15.0% | Run 15 |
+| DPO | 53/200 = 26.5% | Run 51 |
+| Single-call (native API), 5 categories | 823/990 = 83.1% (Wilson 80.7–85.3) | Run 79, `scores.id` 52–58 (simple 375/400, multiple 183/200, irrelevance 214/240, java 37/100, javascript 14/50). Both parallel categories excluded because earlier runs on this server hit a tool-grammar bug that truncated multi-call output. |
+| Paired tests | Exact two-sided McNemar on per-task results (from `eval_errors`), 8 planned tests, Holm correction | Only **best SFT vs JSON text** (7 vs 38, p ≈ 3e-6) survives Holm. Full stack vs JSON text p = 0.023 is uncorrected only. |
+| Failure labels | empty turn / under-call / state mismatch per failed task | Derived from checker messages in `eval_errors` ("list is empty", "does not contain all", "does not match the state"). Run 78: 20 / 35 / 68. Note: Run 4 rows are duplicated in `eval_errors` (counts appear doubled). |
+
+## 3. History of the paper
+
+1. **Markdown `THESIS.md`** — informal working notes; still in the repo (do not delete).
+2. **Google Doc draft (September 2026)** — now trashed. Content and exact dates **(uncertain; not in repo)**.
+3. **LaTeX conversion (2026-09-20 → 09-23)** — `a4dafb8` "Add formal LaTeX research-paper draft under paper/" (#30, 09-20); `3d990e2` figures next to prose (#45, 09-23).
+4. **Readability rewrite — PR #66** (merged 2026-09-30, `ef590df`): reader-facing rewrite, review rounds R2/R3, "drop RAG from thesis scope; narrow edge claims" (`51c20ec`), outsider-readability rewrite (`d916b3f`).
+5. **Run updates — PR #84** (merged 2026-10-07, `970d03f`: soft10 ceiling, mid20 gate, paused SFT-v11) and **PR #88** (merged 2026-10-12, `25e4944`: Runs 70–74 mid20, v11 stopped at 26,500, R74 autopsy).
+6. **Refocus to a short paper — PR #89**, decided 2026-10-13: first refocus as "State, Not Syntax" empirical study (`2f47d44`), Codex/Antigravity and Claude Code review folds, overnight R78/R79 results added 10-14 (`ee22b96`).
+7. **Focus rewrite (2026-10-14)** after Claude Code's keep/cut/appendix review (`70e3c0f`): harness-optimization framing, Gemma only, cut list applied, training history moved to the appendix, full stack added to the failure figure.
+8. **QA rounds** by Codex and Antigravity: `788f0a5` (both NEEDS_CHANGES → fixes), `48618f9` (Fig 2 plain-language labels). Both approved; PR #89 merged 2026-10-14 as `965d596`.
+9. **Outlook font fix — PR #91** (merged 2026-10-14, `040b076`): Outlook's preview dropped "a"/"A". Probable cause: subset Type 1 Latin Modern fonts with custom encoding (all fonts were already embedded with ToUnicode; no Type 3). Fix: `glyphtounicode` + `\pdfgentounicode=1` + `cmap`, and a `make dist` ghostscript pass that embeds full, unsubsetted fonts. Whether Outlook now renders correctly was **not** verified by the agent (no Outlook access) **(uncertain)**. Figure fonts (DejaVu TrueType from matplotlib) remain subset.
+
+## 4. Editorial decisions and Sanskar's stated preferences
+
+- **Focused paper, not a project history.** Cut anything that does not serve the abstract.
+- **Gemma only.** Cut: other-model scores (Qwen, Llama, FunctionGemma, `tab:st`), Jetson/edge-hardware and "8 GB device" text, helper-model runs (58/61/64), xLAM results (kept only as related work/data source), shell-as-action, type coercion, harder-split numbers.
+- **Fine-tuning version history goes in the appendix** (App. B "Training history"), as do the 10-task tripwire, the stop-target paragraph, the guided-template row and the Gemma-only single-turn table.
+- **Harness-optimization framing**, honestly stated: the state summary (STATE) and the status card reach the model as text in its context, so it is "harness-side control delivered partly through the context", not "no prompting".
+- **Guided-template tie addressed openly** (Discussion): a guided template on the native API also scores 61/200, so the NFC→IFFC channel gain alone is not claimed; whether a template adds to or substitutes for the harness levers is untested.
+- **Headline:** R78 38.5% (it replaced R42 35.5% after R78 finished; R42 is the "minimal recipe"). Sanskar did not object to switching the headline to 38.5%.
+- **Limitations stated**, including tuning leakage (headline chosen after seeing results on the same 200 tasks), gate selection leakage, one model/split/device, sample size.
+- **RAG tool selection appears only as Future Work.**
+- **Never invent numbers.** Every number must trace to `benchmark.db` or the logs.
+- **No new runs without Sanskar's approval.** Long jobs (training, 200-task BFCL) are queued overnight on his Mac, with a time estimate given first (a 200-task run takes ≈3 h).
+- Agents' claims are not Sanskar's approval; merges need his explicit OK.
+
+## 5. Sources of truth
+
+- **Database (Mac):** `~/Documents/GitHub/Thesis/benchmark/results/benchmark.db` — tables `runs`, `scores` (per run/category correct/total), `eval_errors` (per failed task checker message; used for McNemar and failure labels). Older copies elsewhere (e.g. on the agent box) may stop before `scores.id` 49–58.
+- **Logs (Mac):** `~/Documents/sft_logs_mirror/` (the old `/tmp/sft_logs` is gone).
+- **Repo docs:** `METHODS.md`, `THESIS.md`, `PLAN.md`; figure script `paper/figures/src/make_refocus_figs.py` (all figure counts are hard-coded from the DB; no new data).
+- **Vault:** `sskarz/thesis-vault` Obsidian notes (e.g. Runs 70–74 mid20 note; Runs 75–79 note from vault PR #49).
+- **Review files (paths only):**
+  - Mac: `~/Documents/decision-probe/docs/claude_PR89_FOCUS_REVIEW.md` (Claude Code focus review, keep/cut/appendix table)
+  - Agent box: `/workspace/paper-refocus2/claude_review.md` (copy of the above), `/workspace/paper-refocus2/codex_QA_focus.md`, `/workspace/paper-refocus/OUTLINE.md`, `/workspace/paper-refocus/codex_QA_PR89.md`, `codex_QA_PR89_r2.md`, `codex_QA_PR89_r3.md`, `/workspace/sft_logs/agy_PR89_REFOCUS_REVIEW.md` (Antigravity rounds 1–4), `/workspace/sft_logs/codex_paper_outsider_readability_REVIEW.md`, `/workspace/paper-review/` (PR #66-era review rounds R1–R4 and consolidated summaries)
+  - The earlier "is this strong enough for a master's?" review (verdict BORDERLINE, fixable) — location **(uncertain)**; that file states it was actually written by Grok Bot because Claude credits had run out.
+
+## 6. Process and workflow
+
+1. **Edits:** branch off `main`, push, open a **draft PR**. Never commit straight to main.
+2. **Review loop:**
+   - Content/focus review by **Claude Code**; Sanskar agrees the cut list before any rewrite.
+   - QA by **Codex** and **Antigravity**: accuracy against the DB, readability for non-experts, figure fit. Repeat until **both APPROVE**.
+   - **Sanskar approves the merge.**
+3. **Build:** in `paper/`: `latexmk -pdf -interaction=nonstopmode main.tex`, then `make dist` (ghostscript re-embeds all fonts fully into `paper/Thesis_Paper.pdf`). Check: no `Overfull` / undefined refs in `main.log`, no `??` in `pdftotext` output, `pdffonts` shows all fonts embedded and no Type 3.
+4. **Drive sync:** a merge to main that touches `paper/` triggers the routine "Thesis paper Drive PDF sync", which rebuilds and uploads `Thesis_Paper.pdf` to the My Drive root of sskarz1016@gmail.com and trashes the previous file. If you sync manually, first check Drive for a fresh upload so you do not create a duplicate; exactly one current `Thesis_Paper.pdf` should exist. Current id (as of 2026-10-14): `1CLOoeqWVeZP83eM7QPyFs1IT66Jrnf4r`. Changes under `docs/` do not trigger it.
+5. **Claude Code credits** sometimes run out. If another agent does the review instead, label it honestly in the review file and tell Sanskar.
+
+## 7. How to continue
+
+### Checklist for adding a new result
+- [ ] Get Sanskar's approval for the run (with a time estimate); queue it overnight on the Mac.
+- [ ] Confirm the score in `benchmark.db` (`scores`, note the `scores.id` and `runs.id`) and the log path.
+- [ ] Recompute Wilson intervals and, if paired, McNemar from `eval_errors`; update Holm over the planned set.
+- [ ] Update `tab:ladder` / `tab:board` / `tab:failfull` / `tab:runs`, the counts in `make_refocus_figs.py`, and regenerate figures.
+- [ ] Update `THESIS.md` / `METHODS.md` and a vault note.
+- [ ] Rebuild (latexmk + `make dist`), check overfull/`??`/fonts, open a draft PR, run the QA loop, get Sanskar's merge approval.
+
+### Open items
+- **Leakage caveat:** the full stack was assembled after seeing results on the same 200 tasks; its +8.0 pp is not significant after Holm.
+- **Confirmatory runs** (held-out tasks, harder splits, a second model, matched serving) — not run; need approval.
+- **Length:** target was ~13 pages total (~8.5 main text); currently 15.
+- **DB copies:** some older DB copies do not contain R76, R78 or R79 rows (`scores.id` 49–58); always verify against the Mac DB.
+- Figure fonts remain subset TrueType; Outlook rendering after PR #91 not confirmed.
+
+## 8. Glossary
+
+- **IFFC** — instruction-followed function calling: the model writes calls as a JSON list in plain text; the harness parses them.
+- **NFC** — native function calling: structured `tool_calls` via the server's tool API.
+- **STATE** — harness-written `[STATE]` summary (current dir, known files, last calls) inserted after each executed call; called "state summary" in the paper.
+- **OODA / status card** — four-line card (goal, slots, last call + outcome, advisory next: call/ask/final/refuse) prefixed to the latest user message; filled deterministically, never sees references. Acts mainly as an act-vs-abstain control.
+- **Stop on repeats** — harness ends a turn when the model re-proposes already-executed calls, gated to ≥6 tool steps (MIN=6).
+- **BoN** — Best-of-N; here a majority vote over five sampled calls per step.
+- **PTC-A** — tool-name automaton constraining only the tool name (after Yu et al.); 13.5%.
+- **mid20 gate** — fixed 20-task early check from the same split; bar 17/20 (untuned + card, Run 69). Screening heuristic with selection leakage, not an accuracy. (The older 10-task "soft10" tripwire could not rank runs.)
+- **Run-ID map** — `tab:runs` in Appendix D of `paper/main.tex`.
