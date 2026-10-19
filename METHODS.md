@@ -663,6 +663,10 @@ This changes the thesis narrative from "grammar-constrained decoding could help"
 
 Local source code analysis: `llama.cpp/common/chat.cpp`, `llama.cpp/common/json-schema-to-grammar.cpp`, `llama.cpp/grammars/README.md`
 
+### Experiment log (2026-10-19): llama.cpp Jinja `tojson` float rounding — unverified, not a method
+
+llama.cpp [PR #30362](https://github.com/ggml-org/llama.cpp/pull/30362) (merged 2026-10-14; "jinja : write floats in tojson as Python does") fixes the chat-template engine that previously wrote floats through a C++ stream: at most 6 significant digits, and the trailing `.0` dropped (`1.0` → `1`). Numbers in tool definitions and past tool-call arguments could reach the model changed. The first published release that includes the fix is **b11622** (2026-10-14). **b11620 and older** do not include it. There is no published tag **b11625**. This could cause a train/serve text mismatch versus MLX Python Jinja. **Unverified** whether this harness hits that code path. **Not a numbered method. Not scored. Do not invent Acc.**
+
 ---
 
 ## Experiment: TagDispatch-style CD (`--fc-mode cd`)
@@ -1378,6 +1382,10 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 - **2026-10-15 candidate sweep ([§46](#46-setpo-selective-teacher-guided-policy-optimization)–[§52](#52-cacherl-cached-rollouts--tier-aware-reward)):** SeTPO (selective reverse-KL teacher guidance on low-reward GRPO rollouts + aux SFT; 0.5B–3B students), Davinci-Tool (execution-verified trajectories + restorable-state decision-level DPO; 30B MoE primary), ActionOPD (black-box-teacher action-agreement OPD), StepGate (inference-time step-level local→stronger-model handoff gate; needs a second model), State-OPD (state-grounded teacher conditioning + entropy-targeted resampling; no BFCL), STI-OPD (stochastic teacher takeover OPD; no BFCL), CacheRL (cached-rollout GRPO + cache-tier-aware reward; RL adds little over SFT). All 7 arXiv ids resolve and quoted numbers were checked against the papers on 2026-10-15. **Title flags:** arXiv:2610.18459 is titled "Teacher-Guided Tool Learning for Small Language Models via Bidirectional KL Constraints" (SeTPO = method name); arXiv:2610.07816 is titled "Do I Need the Cloud? …" (StepGate = method name). Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%**; v11 CE **stopped at 26500/32000** (mid20 FAIL); v11 leak gate (own-named tools, **0** BFCL names).
 
+**Related options (logged 2026-10-19, all `CANDIDATE` / not run; paper numbers are theirs; docs only — no Acc/train from this pass):**
+
+- **2026-10-19 candidate sweep ([§53](#53-prod-progress-aware-distillation)–[§57](#57-insight-memory-textual-lessons-vs-tool-graph-memory)):** ProD (SFT on teacher trajectories, then a preference loss where the student repeats actions instead of making progress; LoRA; **no BFCL**), DeltaTTG (frozen token-to-go meter redistributes GRPO step credit; BFCL **v3** Multi-Turn is the average of all four categories, **not** `multi_turn_base` alone), ECHO (frozen judge labels which step caused an error vs inherited it; BFCL **v3** Base column is theirs), Asking Earns Nothing (inference/eval: one act-don't-ask line; **not tested on small models**; 151 base twins, **not** our 200-item sheet), Insight memory (short written lessons in the prompt instead of next-tool hints; 160-task BFCL **v4** holdout across all four categories is theirs; **conflicts with the leak gate**). All 5 arXiv ids resolve and quoted numbers were checked against the papers on 2026-10-19. Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%**; v11 CE **stopped at 26500/32000** (mid20 FAIL); v11 leak gate (own-named tools, **0** BFCL names).
+
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
 **v1 (Run 12):** Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`.
@@ -2078,6 +2086,11 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Zhang, Zheng, Liu, Yu, et al. State-OPD. arXiv:2610.13238. https://arxiv.org/abs/2610.13238 ([§50](#50-state-opd-state-grounded-on-policy-distillation); **`CANDIDATE` / not run**; no BFCL; 26.07 = strongest baseline, not base)
 - Liu, Luo, Chen, Mao, et al. Stochastic Teacher Intervention for Agentic On-Policy Distillation (STI-OPD). arXiv:2610.10878. https://arxiv.org/abs/2610.10878 ([§51](#51-sti-opd-stochastic-teacher-intervention-opd); **`CANDIDATE` / not run**; no BFCL; needs teacher token probabilities)
 - Islam, Thakur, Chen, Park, et al. CacheRL. arXiv:2606.14179. https://arxiv.org/abs/2606.14179 ([§52](#52-cacherl-cached-rollouts--tier-aware-reward); **`CANDIDATE` / not run**; not BFCL; 0.920 is an SFT row)
+- Cao, Sathe, Wang, Yin, Ma, & Chen. Progress-Aware Distillation (ProD). arXiv:2610.19439. https://arxiv.org/abs/2610.19439 ([§53](#53-prod-progress-aware-distillation); **`CANDIDATE` / not run**; no BFCL; 81.9→85.2 is MATH vs SFT, not our sheet)
+- Ye, Fu, Fan, Cui, Lin, & Lu. DeltaTTG. arXiv:2610.17666. https://arxiv.org/abs/2610.17666 ([§54](#54-deltattg-token-to-go-progress-meter); **`CANDIDATE` / not run**; BFCL v3 Multi-Turn average ≠ `multi_turn_base`; code https://github.com/Xuyan923r/DeltaTTG)
+- Diao, Yang, Huang, Yuan, et al. ECHO. arXiv:2610.16027. https://arxiv.org/abs/2610.16027 ([§55](#55-echo-responsibility-aware-credit-assignment); **`CANDIDATE` / not run**; BFCL v3 Base 50.50 is theirs, not our v4 sheet; code https://github.com/xid32/ECHO)
+- Liu & Han. Asking Earns Nothing. arXiv:2610.04429. https://arxiv.org/abs/2610.04429 ([§56](#56-asking-earns-nothing-scoring-the-decision-to-act); **`CANDIDATE` / not run**; 39.2→62.7 is 151 base twins, not our 200; code https://github.com/YangzeLiu/asking-earns-nothing)
+- Hwang, Xuan, & Kim. Insight memory (tool graph memory). arXiv:2610.21571. https://arxiv.org/abs/2610.21571 ([§57](#57-insight-memory-textual-lessons-vs-tool-graph-memory); **`CANDIDATE` / not run**; 160-task four-category holdout ≠ our sheet; leak-gate conflict)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
@@ -2221,6 +2234,11 @@ Each method in this section involves modifying model weights — via supervised 
 - [50. State-OPD: State-Grounded On-Policy Distillation](#50-state-opd-state-grounded-on-policy-distillation)
 - [51. STI-OPD: Stochastic Teacher Intervention OPD](#51-sti-opd-stochastic-teacher-intervention-opd)
 - [52. CacheRL: Cached Rollouts + Tier-Aware Reward](#52-cacherl-cached-rollouts--tier-aware-reward)
+- [53. ProD: Progress-Aware Distillation](#53-prod-progress-aware-distillation)
+- [54. DeltaTTG: Token-to-Go Progress Meter](#54-deltattg-token-to-go-progress-meter)
+- [55. ECHO: Responsibility-Aware Credit Assignment](#55-echo-responsibility-aware-credit-assignment)
+- [56. Asking Earns Nothing: Scoring the Decision to Act](#56-asking-earns-nothing-scoring-the-decision-to-act)
+- [57. Insight Memory: Textual Lessons vs Tool-Graph Memory](#57-insight-memory-textual-lessons-vs-tool-graph-memory)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
 - [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling) (survey; Choice/router KD **path B first** ranking **PASS**; Acc harness IMPL **CONFIRM_PASS_WITH_FLAGS**; Run 64 Acc **11/200 = 5.5% scored FAIL**; ranking ≠ Acc; Acc remains **not** a GO)
@@ -3633,6 +3651,207 @@ Paper results (Islam et al., 2026; Table 3; **theirs**). ACEBench **multi-step p
 ### Source
 
 Islam, M. A., Thakur, S., Chen, H., Park, S. M., et al. "CacheRL: Multi-Turn Tool-Calling Agents via Cached Rollouts and Hybrid Reward." arXiv:2606.14179, 2026. https://arxiv.org/abs/2606.14179
+
+---
+
+## 53. ProD: Progress-Aware Distillation
+
+### Overview
+
+ProD (Cao, Sathe, Wang, Yin, Ma, & Chen, 2026) is distillation for small agents that get stuck repeating the same action. The student is first trained by SFT on successful teacher trajectories. It then runs tasks itself. Where it repeats actions instead of making progress, a preference loss pushes toward the teacher's run. The loss is weighted by how much more the student repeats than the teacher, and the SFT term is kept.
+
+**Train vs infer: training-time** (SFT, then a progress-aware preference loss). **Tag: `CANDIDATE` / not run.** Logged 2026-10-19 (docs only). Targets the identical-call looping failure.
+
+### Mechanism
+
+1. Collect successful teacher trajectories (GPT-4.1) and SFT the student on them (LoRA in the paper).
+2. The student then generates its own trajectories. A turn-level stagnation score measures repetition. The lexical form is the max ROUGE-L overlap of the current thought+action with earlier turns.
+3. A preference loss uses an adaptive margin from the student–teacher stagnation gap, so trajectories that repeat more than the teacher are penalized harder. The SFT term stays in the objective.
+4. The procedure can be repeated: regenerate student trajectories and recompute the gap.
+
+### Evidence
+
+Paper results (Cao et al., 2026; Table 3; **theirs**). Final-answer accuracy vs plain SFT distillation, GPT-4.1 teacher. **No BFCL.**
+
+- **Qwen3-4B, MATH:** **81.9 → 85.2**. **HotpotQA:** **66.6 → 70.8**.
+- On the 0.6B–1B rows (Qwen3-0.6B, Llama-3.2-1B-Instruct, Gemma-3-1B-it), the same table's in-domain gains over SFT are about **3–6** points.
+- Tasks are code-assisted math and search (MATH, HotpotQA, plus Omni-MATH and 2WikiMultiHopQA). Teacher is GPT-4.1.
+
+Do **not** write as thesis Acc.
+
+**Cite check (2026-10-19):** arXiv:2610.19439 resolves; title and the Qwen3-4B numbers match Table 3. The PDF includes a NeurIPS checklist; acceptance is not confirmed from the abstract page.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH.** The failure it targets (repeating a call instead of making progress) is the same family as over-call loops. Mac feasibility is **good**: LoRA, a text-overlap repetition score, and a small custom MLX loss. Training-time, so future work only. **No blanket GRPO.**
+- **BFCL categories:** none evaluated.
+- **Complexity:** Medium (LoRA SFT plus one on-policy preference stage).
+- **Limitation:** code and search agents, not function-calling sims; lexical overlap is the score they emphasize.
+
+### Source
+
+Cao, Y., Sathe, S., Wang, H., Yin, Z., Ma, F., & Chen, J. "Progress-Aware Distillation for Mitigating Stagnation in Small Language Model Agents." arXiv:2610.19439, 2026. https://arxiv.org/abs/2610.19439
+
+---
+
+## 54. DeltaTTG: Token-to-Go Progress Meter
+
+### Overview
+
+DeltaTTG (Ye, Fu, Fan, Cui, Lin, & Lu, 2026) trains multi-turn agents with a small helper that estimates work left. The helper's target is Token-to-Go: how many assistant tokens remain until the task is finished. During GRPO, changes in that frozen estimate redistribute the trajectory's outcome credit across steps. The reward itself is not changed.
+
+**Train vs infer: training-time** (RL). **Tag: `CANDIDATE` / not run.** Logged 2026-10-19 (docs only). **No blanket GRPO.** Relevant only if RL is unlocked.
+
+### Mechanism
+
+1. Train a progress meter on recorded trajectories from several policies. One meter per domain. The tool-use meter is trained on AgentWorldModel and initialized from Qwen3-4B-Instruct-2507.
+2. Freeze the meter. At actor-training time it scores each state; the change in estimated remaining work splits the outcome advantage across steps.
+3. GRPO still supplies the terminal reward. The meter does not add a second reward.
+
+### Evidence
+
+Paper results (Ye et al., 2026; Table 1; **theirs**). Qwen3-4B on **BFCL v3 Multi-Turn**, the average of all four multi-turn categories (Base, Missing Function, Missing Parameter, Long Context; 200 each):
+
+- **DeltaTTG 41.09** vs **plain GRPO 36.33** vs the **ReAct row 28.00**.
+- This is **not** `multi_turn_base` alone. Do **not** write 41.09 as a thesis `multi_turn_base` Acc.
+- Actors are trained on AgentWorldModel environments. BFCL is test only (no BFCL train overlap in the paper).
+
+**Cite check (2026-10-19):** arXiv:2610.17666 resolves; title and the three Multi-Turn numbers match Table 1. 41.09 − 36.33 is the paper's "about 4.8 points over the strongest RL baseline" on that column.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM**, and only if RL is unlocked. Mac feasibility is **poor** (live RL plus a second model for the meter). Training-time, so future work only.
+- **BFCL categories:** v3 Multi-Turn average in the paper. Not our v4 `multi_turn_base` sheet.
+- **Complexity:** High (actor GRPO + a separately trained meter).
+- **Limitation:** reported spread is repeated eval of one checkpoint, not independent training seeds; two actor families.
+
+### Source
+
+Ye, X., Fu, X., Fan, S., Cui, J., Lin, Y., & Lu, W. "DeltaTTG: Training Multi-Turn Agents with a Token-to-Go Progress Meter." arXiv:2610.17666, 2026. https://arxiv.org/abs/2610.17666
+
+Code: https://github.com/Xuyan923r/DeltaTTG
+
+---
+
+## 55. ECHO: Responsibility-Aware Credit Assignment
+
+### Overview
+
+ECHO (Diao, Yang, Huang, Yuan, et al., 2026) is reinforcement learning for tool-use agents. A large frozen judge separates a step that caused an error from a step that only inherited one. RL then assigns credit step by step: a shared downstream consequence is counted once, and credit for repairing a self-caused error is funded from that error's penalty.
+
+**Train vs infer: training-time** (RL). **Tag: `CANDIDATE` / not run.** Logged 2026-10-19 (docs only). **No blanket GRPO.** RL-only.
+
+### Mechanism
+
+1. A frozen judge proposes events from the full trajectory, then labels each selected action from the policy-visible prefix only: newly introduced error, inherited consequence, missed correction, or successful correction.
+2. Shared consequences are charged once across the responsible actions. Repair credit cannot exceed the source error's penalty.
+3. The resulting bounded action-level corrections are optimized together with the terminal reward.
+
+### Evidence
+
+Paper results (Diao et al., 2026; Tables 1 and 3; **theirs**). Qwen3-4B, trained on the **τ²-Bench training split**:
+
+- **BFCL v3 Multi-Turn Base:** **50.50** vs base Qwen3-4B **32.00** vs Arctic-AWM **48.55**.
+- **All four v3 multi-turn categories (unweighted mean):** **41.24** vs Arctic-AWM **38.89** (base Qwen3-4B on that mean is **25.38**).
+- **BFCL v4 overall:** **53.71**. That aggregate is not `multi_turn_base`.
+
+Do **not** write any of these as thesis v4 `multi_turn_base` Acc.
+
+**Cite check (2026-10-19):** arXiv:2610.16027 resolves; title and the numbers above match Tables 1 and 3. The fixed judge in the main setup is Kimi-K2.6 Thinking; the paper also compares Qwen3.5-122B-A10B.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM**, and only as RL. Mac feasibility is **poor** (a 100B+ judge, Kimi-K2.6 or Qwen3.5-122B, plus RL). Training-time, so future work only.
+- **BFCL categories:** v3 Multi-Turn (including Base) and a v4 overall score in the paper. Not our harness.
+- **Complexity:** High (online rollouts + a large frozen judge).
+- **Limitation:** 4B/8B Qwen3 only; judge quality is a separate variable from the policy.
+
+### Source
+
+Diao, X., Yang, T., Huang, W., Yuan, X., et al. "Of Errors and Echoes: Responsibility-Aware Credit Assignment for Tool-Use Agents." arXiv:2610.16027, 2026. https://arxiv.org/abs/2610.16027
+
+Code: https://github.com/xid32/ECHO
+
+---
+
+## 56. Asking Earns Nothing: Scoring the Decision to Act
+
+### Overview
+
+Asking Earns Nothing (Liu & Han, 2026) is an evaluation of how BFCL multi-turn scores the choice to act. Two of the four categories are built around a turn where the model is supposed to ask. The gold trajectory on that turn is empty, the checker skips it, and the scripted user cannot answer, so a clarifying question earns nothing. One added system line that says to act and not ask raises the official score.
+
+**Train vs infer: inference / eval** (one prompt line; no weight update). **Tag: `CANDIDATE` / not run.** Logged 2026-10-19 (docs only). Log as a cheap prompt-harness test. **Not tested on small models.**
+
+### Mechanism
+
+1. The finding is in the scorer: an empty gold trajectory is skipped, so ask-vs-guess on that turn is not compared.
+2. The intervention is one sentence. The "act, don't ask" line is applied to gpt-5.4. The reverse "ask first" line is applied to gemma-4-31B-it.
+3. The authors also release 31 manually verified bad BFCL multi-turn answer keys.
+
+### Evidence
+
+Paper results (Liu & Han, 2026; Appendix F; **theirs**):
+
+- **gpt-5.4**, act-don't-ask: official **base** score on the twins **39.2% → 62.7%**. Those twins are **151 of 200** `multi_turn_base` items (the 223 certified pairs share 151 base items). **Not** the full 200-item category, and **not** our sheet.
+- Reverse "ask first": **gemma-4-31B-it** official base **65.0% → 58.5%**.
+- **Not tested on small models.** gemma-4-E4B-it appears in the decision table, not in this prompt arm.
+
+Do **not** write 62.7% or 58.5% as thesis Acc.
+
+**Cite check (2026-10-19):** arXiv:2610.04429 resolves; title and both prompt deltas match Appendix F. Bad-key release: https://github.com/YangzeLiu/asking-earns-nothing
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM.** A one-line harness prompt is cheap to try, and the 31 bad keys are a scorer audit, not a method. The published lift is on gpt-5.4 and a 31B Gemma, so it does not transfer to E2B until we measure it. No `--fc-mode` today.
+- **BFCL categories:** multi-turn, including a 151-item base-twin subset and the gemma-4-31B-it base category. Theirs.
+- **Complexity:** Low (prompt only) if we ever run it.
+- **Limitation:** scripted user still cannot answer a question; the score move is execution on later turns, which the paper separates from the ask/act decision.
+
+### Source
+
+Liu, Y., & Han, Z. "Asking Earns Nothing: Scoring the Decision to Act in BFCL Multi-Turn." arXiv:2610.04429, 2026. https://arxiv.org/abs/2610.04429
+
+Release: https://github.com/YangzeLiu/asking-earns-nothing
+
+---
+
+## 57. Insight Memory: Textual Lessons vs Tool-Graph Memory
+
+### Overview
+
+Hwang, Xuan, & Kim (2026) compare tool-graph memory (hints about which tool comes next) with **insight memory**: short written lessons from past runs, placed in the prompt. The paper's claim is that the lessons help more than the next-tool hints, and that they add almost no extra model calls.
+
+**Train vs infer: inference-time** (retrieved text in the prompt; no weight update). **Tag: `CANDIDATE` / not run.** Logged 2026-10-19 (docs only).
+
+### Mechanism
+
+1. Roll out training tasks and keep episodic summaries, including failed runs.
+2. Cluster the summaries and have the agent model write what to do and what to avoid for each cluster.
+3. At each turn, add the lessons of the most similar clusters to the prompt. This is situation-level text, not a prescribed next tool.
+
+### Evidence
+
+Paper results (Hwang et al., 2026; Table 1 and Table 6; **theirs**). **160 held-out BFCL v4 multi-turn tasks**, all four categories (40 underlying tasks × four variants). Mean of three runs:
+
+- **gemma-4-E4B-it:** **0.221 → 0.285** (significant; paired p = 0.006).
+- **Qwen3.5-2B:** **0.133 → 0.165** (not significant; paired p = 0.166).
+
+This is a four-category holdout, **not** our 200-item `multi_turn_base` sheet. Do **not** write 0.285 as thesis Acc.
+
+The lessons are built from the other **640** BFCL v4 multi-turn tasks. That **conflicts with the leak gate** (own-named tools, **0** BFCL names) and overlaps few-shot retrieval.
+
+**Cite check (2026-10-19):** arXiv:2610.21571 resolves. The paper title is "Rethinking the Role of Tool Graph Memory in Multi-Turn Tool Use"; insight memory is the alternative they introduce. The two BFCL rows match Tables 1 and 6.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. LOW–MEDIUM.** Prompt-only lessons are cheap, but building them from BFCL tasks breaks the leak gate, and the idea overlaps few-shot retrieval already logged in Part I. A version on own-named sims would be a different experiment.
+- **BFCL categories:** 160-task v4 multi-turn holdout (all four categories) in the paper. Not our sheet.
+- **Complexity:** Low–medium (offline clustering + retrieval into the prompt).
+- **Limitation:** the 2B gain is not significant; several larger models in the same table do not gain.
+
+### Source
+
+Hwang, U., Xuan, R., & Kim, T. "Rethinking the Role of Tool Graph Memory in Multi-Turn Tool Use." arXiv:2610.21571, 2026. https://arxiv.org/abs/2610.21571
 
 ---
 
