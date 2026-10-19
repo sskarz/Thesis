@@ -1,6 +1,6 @@
 ---
 name: thesis-paper
-description: Workflow for any work on the thesis paper (paper/main.tex, "State, Not Syntax") — review, trim, polish, rewrite a section, fix figures or captions, audit citations, or fold in a new result. Wraps the academic reviewer agents and the ml-paper-writing guide with this repo's rules. Use before touching paper/ and for /thesis-paper <task>.
+description: Workflow for any work on the thesis paper (paper/main.tex, "State, Not Syntax") — review, trim, polish, rewrite a section, fix figures or captions, audit citations, or fold in a new result. Wraps the academic reviewer agents and the ml-paper-writing guide with this repo's rules. Use before touching paper/ and for /thesis-paper <task>. /thesis-paper is this skill's slash name; Cursor supports it too.
 argument-hint: [task, e.g. "review full paper", "trim to 13 pages", "polish §5", "audit bibliography"]
 ---
 
@@ -8,10 +8,10 @@ argument-hint: [task, e.g. "review full paper", "trim to 13 pages", "polish §5"
 
 Use this for every change to `paper/main.tex`, its figures or `references.bib`. It decides **which** tools run and **in what order**; the tools themselves are:
 
-- `.claude/skills/academic/` — orchestrator + 30 writing principles (`academic-writing.md`); agents in `.claude/agents/` (consistency-checker, logic-reviewer, technical-reviewer, writing-reviewer, latex-layout-auditor, bibliography-auditor, prose-polisher, section-drafter, latex-figure-specialist, research-analyst, brainstormer, paper-crawler).
-- `.claude/skills/ml-paper-writing/` — narrative principle, abstract/intro formulas, Gopen & Swan / Perez / Lipton / Steinhardt clarity rules (`references/writing-guide.md`), reviewer criteria (`references/reviewer-guidelines.md`), citation verification (`references/citation-workflow.md`). Ignore its venue templates and submission checklists: this is a thesis paper in `article` class, not a conference submission.
+- `.agents/skills/academic/` — orchestrator + 30 writing principles (`academic-writing.md`); agents in `.claude/agents/` (consistency-checker, logic-reviewer, technical-reviewer, writing-reviewer, latex-layout-auditor, bibliography-auditor, prose-polisher, section-drafter, latex-figure-specialist, research-analyst, brainstormer, paper-crawler).
+- `.agents/skills/ml-paper-writing/` — narrative principle, abstract/intro formulas, Gopen & Swan / Perez / Lipton / Steinhardt clarity rules (`references/writing-guide.md`), reviewer criteria (`references/reviewer-guidelines.md`), citation verification (`references/citation-workflow.md`). Ignore its venue templates and submission checklists: this is a thesis paper in `article` class, not a conference submission.
 
-Where this file conflicts with either upstream skill, **this file wins**.
+Where this file conflicts with either upstream skill, **this file wins**. Where the vendored ml-paper-writing says "Claude should be proactive" or tells you to deliver drafts without waiting, the thesis-paper rules override it.
 
 ## 0. Load context first (every time)
 
@@ -36,7 +36,7 @@ Where this file conflicts with either upstream skill, **this file wins**.
 State the task, which agents/guides you'll use, and whether anything will be edited. Ask only if scope is genuinely unclear.
 
 ### Step 2 — Diagnose (read-only, parallel)
-Pick from the playbook below. Always add a **number tracer**: a fresh `general-purpose` agent (no draft context) that lists every number, percentage, count, p-value and interval in the scoped text and checks each against the tables in `main.tex` and `docs/PAPER_WRITING_PROCESS.md` §2, reporting any mismatch or any number with no source. (From ml-paper-writing's claim-verification pass.)
+Pick from the playbook below. Always add a **number tracer**: a fresh subagent (no draft context) that lists every number, percentage, count, p-value and interval in the scoped text and checks each against the tables in `main.tex` and `docs/PAPER_WRITING_PROCESS.md` §2, reporting any mismatch or any number with no source. (From ml-paper-writing's claim-verification pass.)
 
 Give every reviewer: the scoped file paths, the hard rules above, and the relevant principle categories. Synthesize per the academic orchestrator (dedupe, Critical / Important / Minor, be opinionated) and save to `docs/reviews/YYYY-MM-DD-<scope>.md`. **Not** under `paper/` — that would trigger the Drive PDF sync.
 
@@ -64,7 +64,7 @@ Re-run the number tracer and consistency-checker on the changed text only. Confi
 ### Step 7 — Hand off
 Draft PR: what changed, page count before → after, link to the review file, and anything left open. Then the existing QA loop: **Codex + Antigravity** review (point them at this file and the review file) until both APPROVE; Sanskar merges. After merge, the "Thesis paper Drive PDF sync" routine rebuilds and uploads the PDF; don't sync by hand unless asked.
 
-If Claude Code credits ran out and another agent did a review, label it honestly in the review file.
+Name the agent that did a review in the review file.
 
 ## Playbook
 
@@ -77,7 +77,7 @@ If Claude Code credits ran out and another agent did a review, label it honestly
 | Figures / captions | consistency-checker (D3, D7), latex-layout-auditor | latex-figure-specialist; regenerate via script |
 | Citations | bibliography-auditor; ml-paper-writing citation workflow (verify via Semantic Scholar / arXiv / DOI; never write BibTeX from memory) | direct edits to `references.bib` |
 | Fold in a new result | — | follow `docs/PAPER_WRITING_PROCESS.md` §7 checklist first, then a full-paper review |
-| Outsider readability pass | writing-reviewer + a `general-purpose` agent briefed as "a CS grad student who has never seen BFCL", asked to list every undefined term, unclear figure and step they couldn't follow | prose-polisher / section-drafter |
+| Outsider readability pass | writing-reviewer + a fresh subagent briefed as "a CS grad student who has never seen BFCL", asked to list every undefined term, unclear figure and step they couldn't follow | prose-polisher / section-drafter |
 
 ## What not to use
 - Venue templates, page-limit tables and conference checklists in ml-paper-writing.

@@ -2,14 +2,15 @@
 name: bibliography-auditor
 description: Audits bibliography entries for completeness, consistency, and hygiene — checks .bib files, compiled PDF for unresolved references, arXiv-only citations, title capitalization, and venue consistency
 tools: Read, Glob, Grep, Bash, WebFetch, WebSearch
-model: opus
+model: inherit
+readonly: true
 ---
 
 # Bibliography Auditor
 
 ## Before Starting
 
-Read `.claude/skills/academic/academic-writing.md` (repo root) for the full principle set.
+Read `.agents/skills/academic/academic-writing.md` (repo root) for the full principle set.
 **Primary principles**: E1 (cite all named models/benchmarks/datasets), E2 (citation completeness at first mention), E3 (bibliography hygiene).
 
 ## Your Task
