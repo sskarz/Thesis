@@ -33,8 +33,10 @@ rows = [  # label, correct, kind
     ("Best fine-tune (SFT)", 30, "train"),
     ("Preference-tuned (DPO)", 53, "train"),
 ]
-order = [7, 8, 9, 10, 0, 1, 2, 3, 4, 5, 6]
-fig, ax = plt.subplots(figsize=(6.5, 4.1))
+# Bottom to top. Vote (73) sits below the minimal recipe (71) so the
+# last bars are not a rising stack of added components. Each bar is its own run.
+order = [7, 8, 9, 10, 0, 1, 2, 3, 5, 4, 6]
+fig, ax = plt.subplots(figsize=(6.5, 3.55))
 for y, i in enumerate(order):
     lab, k, kind = rows[i]
     acc = 100 * k / 200; lo, hi = wilson(k, 200)
@@ -75,7 +77,7 @@ f = [  # label, empty, under, state
     ("Native\nAPI", 59, 19, 68), ("JSON\ntext", 41, 38, 60), ("State\nsummary", 31, 37, 64),
     ("Minimal\nrecipe", 17, 41, 71), ("Full\nstack*", 20, 35, 68), ("Vote\nof five", 36, 38, 53),
     ("Constr.\ndecoding", 14, 70, 95), ("Name\nautomaton", 17, 54, 102), ("Best\nfine-tune", 2, 59, 109)]
-fig, ax = plt.subplots(figsize=(7.4, 3.0))
+fig, ax = plt.subplots(figsize=(7.4, 2.55))
 xs = range(len(f)); b = [0] * len(f)
 for j, (name, col) in enumerate([("Empty turn (no call when one was needed)", "#adb5bd"),
                                  ("Under-call (required tool never ran)", "#f08c00"),
