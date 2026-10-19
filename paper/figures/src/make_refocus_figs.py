@@ -21,8 +21,8 @@ C = {"base": "#8c8c8c", "ctrl": "#2b8a3e", "upper": "#74b816", "syntax": "#c92a2
 
 # ---- Figure: ladder (n=200) ----
 rows = [  # label, correct, kind
-    ("Native tool API (NFC)", 54, "base"),
-    ("JSON in text (IFFC)", 61, "base"),
+    ("Native API (NFC)", 54, "base"),
+    ("JSON text (IFFC)", 61, "base"),
     ("JSON text + stop on repeats", 65, "ctrl"),
     ("JSON text + state summary", 68, "ctrl"),
     ("Minimal recipe\n(JSON text + stop + card)", 71, "ctrl"),
@@ -30,11 +30,11 @@ rows = [  # label, correct, kind
     ("Full stack (headline)\n(summary + stop + card)", 77, "ctrl"),
     ("Constrained decoding", 21, "syntax"),
     ("Tool-name automaton", 27, "syntax"),
-    ("Best fine-tuned model (SFT)", 30, "train"),
+    ("Best fine-tune (SFT)", 30, "train"),
     ("Preference-tuned (DPO)", 53, "train"),
 ]
 order = [7, 8, 9, 10, 0, 1, 2, 3, 4, 5, 6]
-fig, ax = plt.subplots(figsize=(6.5, 3.8))
+fig, ax = plt.subplots(figsize=(6.5, 4.1))
 for y, i in enumerate(order):
     lab, k, kind = rows[i]
     acc = 100 * k / 200; lo, hi = wilson(k, 200)
@@ -47,11 +47,10 @@ ax.set_yticks(range(len(order))); ax.set_yticklabels([rows[i][0] for i in order]
 for t in ax.get_yticklabels():
     if t.get_text().startswith("Full stack"): t.set_fontweight("bold")
 ax.axvline(100 * 61 / 200, color="black", ls=":", lw=0.9, zorder=1)
-ax.text(100 * 61 / 200 + 0.4, -0.55, "JSON-text baseline", fontsize=8, va="bottom")
-ax.set_xlim(0, 55); ax.set_ylim(-0.6, len(order) - 0.1); ax.set_xlabel("Tasks fully correct, % of 200 (error bars: Wilson 95% interval)")
+ax.set_xlim(0, 60); ax.set_ylim(-0.6, len(order) - 0.1); ax.set_xlabel("Tasks fully correct, % of 200 (error bars: Wilson 95% interval)")
 from matplotlib.patches import Patch
 ax.legend(handles=[Patch(color=C[k], label=l) for k, l in [("base", "Output format only"), ("ctrl", "Harness control"),
-          ("upper", "Majority vote (costly)"), ("syntax", "Forced valid syntax"), ("train", "Training")]],
+          ("upper", "Majority vote (costly)"), ("syntax", "Forced valid syntax"), ("train", "Training")]] + [plt.Line2D([], [], color="black", ls=":", lw=0.9, label="JSON-text baseline")],
           loc="upper center", bbox_to_anchor=(0.4, -0.12), ncol=3, fontsize=9, frameon=False)
 fig.tight_layout(); fig.savefig(OUT / "ladder_n200.pdf"); plt.close(fig)
 
