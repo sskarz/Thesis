@@ -33,9 +33,33 @@ Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91,
 | Tool-name automaton (PTC-A) | 27/200 = 13.5% | Run 46 |
 | Best SFT (SFT-v4) | 30/200 = 15.0% | Run 15 |
 | DPO | 53/200 = 26.5% | Run 51 |
-| Single-call (native API), 5 categories | 823/990 = 83.1% (Wilson 80.7–85.3) | Run 79, `scores.id` 52–58 (simple 375/400, multiple 183/200, irrelevance 214/240, java 37/100, javascript 14/50). Both parallel categories excluded because earlier runs on this server hit a tool-grammar bug that truncated multi-call output. |
+| Single-call (native API), three categories | 772/840 = 91.9% (Wilson 89.9–93.6) | Run 79, `scores.id` 52–58. Rows kept in the paper: simple 375/400, multiple 183/200, irrelevance 214/240. Those three sum to 772/840. On 2026-10-19 Sanskar excluded the Java (37/100) and JavaScript (14/50) rows from the paper; they are not mentioned there. The previous five-category total was 823/990 = 83.1% (Wilson 80.7–85.3). Check: 823−37−14 = 772 and 990−100−50 = 840, and 375+183+214 = 772, 400+200+240 = 840. The new interval is `wilson(772, 840)` in `paper/figures/src/make_refocus_figs.py` (z = 1.959964), rounded to one decimal from 89.86–93.56. It is not a new run. Both parallel-call categories stay excluded because earlier runs on this server hit a tool-grammar bug that truncated multi-call output. `scores.id` 52–58 is the run's score-row range; this note does not assign a single id to one category. |
 | Paired tests | Exact two-sided McNemar on per-task results (from `eval_errors`), 8 planned tests, Holm correction | Only **best SFT vs JSON text** (7 vs 38, p ≈ 3e-6) survives Holm. Full stack vs JSON text p = 0.023 is uncorrected only. |
 | Failure labels | empty turn / under-call / state mismatch per failed task | Derived from checker messages in `eval_errors` ("list is empty", "does not contain all", "does not match the state"). Run 78: 20 / 35 / 68. Note: Run 4 rows are duplicated in `eval_errors` (counts appear doubled). |
+
+### Prose numbers traced on 2026-10-19
+
+These appear in `paper/main.tex` and were not in the table above. Sources are repo notes or code, not a new measurement. The Spearman interval −0.52 to 0.67 was not found in those notes and was removed from the paper.
+
+| Claim in the paper | Source |
+|---|---|
+| 37 forced stops, all on tasks that failed | `THESIS.md` Run 27 (ungated stop-on-repeat): stops fired on 37/200, all among the failures. Scoreboard ID 27 is 54/200. This is not the gated under-call cell of 37. |
+| First-mix empty turns 167, then 2 on the best fine-tune | `THESIS.md` / `sft/README.md`: Run 13 primary empty-turn count 167. The 2 is the best-SFT cell in `tab:failfull`. |
+| Recovery examples | `sft/README.md` SFT v3/v4: `recovery_after_empty` rows (an earlier empty reply, then a new user question, then a real call). |
+| Stop-target share 78.1% (2,121 versus 596) | `THESIS.md` and `METHODS.md`: after a tool-result user message, 2,121 empty targets versus 596 continue, all ToolACE. 2121/(2121+596) = 78.1%. |
+| Guided template: 19 tasks each way; 79 state mismatches; seven steps | 61/200 is scoreboard ID 9. `THESIS.md` records a 19-row swap each way against JSON text and 79 state mismatches. The seven steps are `GST_STEPS` in `benchmark/gst.py` (comment: He et al. Table 5, step 7 extended for multi-turn abstain). |
+| 6 of 12 self-distillation failures | `THESIS.md` Run 74. 12 = 20−8 (scoreboard ID 74). |
+| Look-up 37.9% (67/177) to 19.7% (78/395); stop 23.1% (36/156) to 33.2% (146/440) | `THESIS.md` Run 74 autopsy. Name-matching heuristic. |
+| Stop share capped 22.9% (86/376); look-up left at 20.6% (84/407) | `THESIS.md` Run 75. 14/20 is scoreboard ID 75. |
+| Look-up restored 39.6%; lost 7 passes; empty turns 9 of 66 | `THESIS.md` Run 76. 12/20 is scoreboard ID 76. |
+| Tripwire 3/10; Spearman 0.118 on 11 strong runs (≥50/200) | `METHODS.md` Run 68 verdict and `THESIS.md` Run 68. The approximate interval was not in those notes. |
+| Rebuilt mix 30,000 / 1,500; 45/40/10/5; 22% empty-list targets; 41.2% multi-call rows | `THESIS.md` rebuilt-mix notes. |
+| 39 updates; 156 logged answers | `THESIS.md` Run 73. 156 is also the denominator of 36/156. |
+| Stopped at step 26,500 of 32,000; best validation loss 0.030 at step 22,000 | `THESIS.md` and `METHODS.md`. Step 22,000 is scoreboard ID 70. |
+| Self-distillation about 2.8× the null test (110 versus 39 updates) | `THESIS.md` after Runs 75–77: "about 2.8× as many updates as R73 (110 vs 39)". The paper previously said "about 3×"; 110/39 = 2.82, so the paper now uses 2.8×. |
+| DPO β = 0.2 | `THESIS.md` Runs 49 and 51. How preferred and rejected responses were paired is not in those notes. |
+| Last two turns verbatim; up to eight card slots | `benchmark/iffc_state.py` ("Last ~2 user/assistant+tool turns stay verbatim"); `benchmark/ooda_card.py` `_MAX_SLOTS = 8`. |
+| llama.cpp build 8111; context 65,536; temperatures 0 and 0.7; four versus eight slots | Already in the reproducibility paragraph. 48 GB and the slot difference are in the headline table above. |
 
 ## 3. History of the paper
 
@@ -83,7 +107,7 @@ Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91,
    - Content/focus review through `.agents/skills/thesis-paper/SKILL.md` and `.claude/agents/<role>.md`; Sanskar agrees the cut list before any rewrite and picks which fixes are applied.
    - QA by **Codex** and **Antigravity**: accuracy against the DB, readability for non-experts, figure fit. Repeat until **both APPROVE**.
    - **Sanskar approves the merge.** He decides all merges.
-3. **Build:** in `paper/`: `latexmk -pdf -interaction=nonstopmode main.tex`, then `make dist` (ghostscript re-embeds all fonts fully into `paper/Thesis_Paper.pdf`). Check: no `Overfull` / undefined refs in `main.log`, no `??` in `pdftotext` output, `pdffonts` shows all fonts embedded and no Type 3.
+3. **Build:** in `paper/`: `latexmk -pdf -interaction=nonstopmode main.tex`, then `make dist` (ghostscript re-embeds all fonts fully into `paper/Thesis_Paper.pdf`). Check: no `Overfull` / undefined refs in `main.log`, no `??` in `pdftotext` output, `pdffonts` shows all fonts embedded and no Type 3. **`make dist` needs Ghostscript ≥ 10.05.** The flags are unchanged (`-dEmbedAllFonts=true -dSubsetFonts=false -dPDFSETTINGS=/prepress`). Ghostscript 10.02.1 embeds Latin Modern in full but drops its ToUnicode maps. Ghostscript 10.05.1 keeps those maps on the fully embedded Latin Modern fonts. The 2026-10-19 QA rebuild used 10.05.1.
 4. **Canonical compiled PDF (two places).** The current compiled paper lives on **Google Drive** (`Thesis_Paper.pdf`, My Drive root of sskarz1016@gmail.com; id as of 2026-10-14: `1CLOoeqWVeZP83eM7QPyFs1IT66Jrnf4r`) **and** at the **repo root** as [`Thesis_Paper.pdf`](../Thesis_Paper.pdf). Both are the `make dist` output (full fonts embedded).
    - **Sync routine:** after every merge to main that touches `paper/`, the routine "Thesis paper Drive PDF sync" rebuilds the PDF (latexmk + `make dist`), uploads it to Drive and trashes the previous Drive file, then commits the same PDF to the repo root through a small PR titled `chore: update compiled Thesis_Paper.pdf`. It skips that PR if the file is identical to the one already committed.
    - The repo copy is kept **outside `paper/` on purpose**, so committing it does not retrigger the sync. Changes under `docs/` or the root PDF do not trigger it.
