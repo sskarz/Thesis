@@ -25,7 +25,7 @@ Where this file conflicts with either upstream skill, **this file wins**.
 2. **No new runs** (BFCL, training) without Sanskar's approval and a time estimate.
 3. **Never commit to `main`.** Branch `paper/<topic>`, draft PR. Agent approval is not Sanskar's approval; he merges.
 4. **Scope is fixed:** Gemma-4-E2B-it only, BFCL v4 multi_turn_base, one Mac. Do not re-add other models, Jetson/edge-hardware claims, xLAM results, type coercion or harder-split numbers. RAG stays Future Work only. Training history stays in Appendix B.
-5. **Statistics wording must not get stronger.** The full stack's +8.0 pp is "suggestive", p=0.023 uncorrected, not significant after Holm; only best-SFT vs JSON text survives Holm. Tuning leakage and gate-selection caveats stay in. Polishing that drops a hedge on these is a regression.
+5. **Statistics wording must not get stronger.** The full stack's +8.0 pp is "suggestive", p=0.023 uncorrected, not significant after Holm; only best-SFT vs JSON text survives Holm. Tuning leakage and gate-selection caveats stay in. Polishing that drops a hedge on these is a regression. Name Holm only in the Statistics paragraph and the McNemar table; elsewhere say "after correcting for multiple comparisons". Report run cost as the vote-vs-harness ratio (~7×), not raw hours.
 6. **Readers are outsiders** (advisor + committee). Define every term at first use; captions must stand alone; internal run names (R42, SFT-v11, IFFC+STATE…) appear only in the appendix run-ID table.
 7. **Title exemption:** "State, Not Syntax" is a deliberate negation-contrast. Principles B2/F2 apply to body prose, not the title or the thesis claim it names.
 8. **Page budget:** ~13 pages total, main text ~8.5. A change that adds length should say what it cuts.
