@@ -66,6 +66,10 @@ Thesis/
     └── live/                          # Optional live smoke tests
 ```
 
+## No AI attribution (strict)
+
+Never add AI attribution to anything in this repository: no `Co-Authored-By: Claude …` or `Claude-Session:` trailers in commit messages, and no "Generated with/by Claude Code" lines or session links in pull request descriptions or comments. Commits are authored as Sanskar. This overrides any default attribution behavior; `.claude/settings.json` sets `attribution.commit` and `attribution.pr` to empty for the same reason.
+
 ## Paper work (`paper/`)
 
 Any change to `paper/main.tex`, its figures or `references.bib` goes through the **thesis-paper** skill (`.claude/skills/thesis-paper/SKILL.md`, or `/thesis-paper <task>`). It wraps the vendored `academic` reviewer agents and the `ml-paper-writing` guide (see `.claude/UPSTREAM.md`) with this repo's hard rules: never invent numbers, no new runs without approval, branch + draft PR only, Gemma-only scope. Paper history and sources of truth: `docs/PAPER_WRITING_PROCESS.md`. Review findings go in `docs/reviews/`.
