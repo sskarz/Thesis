@@ -69,7 +69,7 @@ Assistants that \emph{act} emit \emph{tool calls}: a function name plus argument
 
 To check a calendar or lock a car, a language model emits a \emph{tool call}: a function name plus arguments. A surrounding program, the \emph{harness}, runs the call against a \emph{backend} (here a simulated vehicle or filesystem) and feeds the result back to the model (Figure~\ref{fig:vignette}). Real tasks chain several dependent calls, which we call \emph{multi-turn} tool calling: look up a value, use it, check the outcome, and know when to stop.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}[
   font=\footnotesize,
@@ -136,14 +136,14 @@ Is the model failing to \emph{write} calls or to \emph{choose} them? Section~\re
 
 \paragraph{One call is easy; a chain is not.} On three single-call BFCL categories (840 cases), Gemma-4-E2B-it through the native API scores 772/840 (91.9\%, interval 89.9--93.6\%; Table~\ref{tab:board}). \emph{Simple} offers one function and asks for that call (375/400). \emph{Multiple} offers several functions and asks for the right one (183/200). \emph{Irrelevance} offers functions when the query needs no call (214/240). The two parallel-call categories are excluded because earlier runs on this server hit a tool-grammar bug that truncated multi-call output. On multi-turn tasks, the \emph{same model, quantization and server} completes only 54 of 200 (27.0\%). The two settings differ in grading as well as length, but the gap is consistent with carrying a chain of calls through a changing state, rather than choosing one call, being the bottleneck.
 
-\begin{figure}[t]
+\paragraph{Most failures are about the world.} Figure~\ref{fig:fail} breaks down the failed tasks (full counts in Table~\ref{tab:failfull}). For every JSON-text condition, state mismatch is the largest bucket (53--109 tasks). With plain JSON text it is followed by empty turns (41) and under-calls (38); the native API has more empty turns (59) and far fewer under-calls (19). Harness control mainly removes empty turns: the full stack has 20, against 41 for JSON text, while its state mismatches are 68 (60 for JSON text). Because parse failures can only appear as empty turns, most of what remains is not a formatting problem.
+
+\begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{failure_anatomy.pdf}
 \caption{Why tasks fail. Each bar is one condition on the same 200 tasks (* marks the headline full stack; Constr.\ decod.\ = constrained decoding; Name autom.\ = tool-name automaton; Best SFT = best fine-tune; conditions as in Section~\ref{sec:setup}); its height is the number of failed tasks, split by primary error label (Section~\ref{sec:setup}). Harness control mostly removes empty turns (grey); wrong final states (blue) remain. Forced-valid output and the best fine-tune shift failures into under-calls (orange) and state mismatches.}
 \label{fig:fail}
 \end{figure}
-
-\paragraph{Most failures are about the world.} Figure~\ref{fig:fail} breaks down the failed tasks (full counts in Table~\ref{tab:failfull}). For every JSON-text condition, state mismatch is the largest bucket (53--109 tasks). With plain JSON text it is followed by empty turns (41) and under-calls (38); the native API has more empty turns (59) and far fewer under-calls (19). Harness control mainly removes empty turns: the full stack has 20, against 41 for JSON text, while its state mismatches are 68 (60 for JSON text). Because parse failures can only appear as empty turns, most of what remains is not a formatting problem.
 
 \paragraph{Forcing valid syntax hurts.} If failures were mostly malformed output, guaranteeing valid output should help. It does the opposite. Two-pass constrained decoding scores 21/200 (10.5\%; interval 7.0--15.5\%), 20.0\pp below JSON text, with 70 under-calls and 95 state mismatches. The tool-name automaton scores 27/200 (13.5\%; 9.4--18.9\%), with state mismatch rising to 102. Our two-pass program, which forces each call into valid syntax, approximates rather than reproduces full grammar engines~\cite{dong2026xgrammar2}, but the effect is large and in the wrong direction: a valid call is not a correct next step.
 
