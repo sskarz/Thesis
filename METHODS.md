@@ -1388,9 +1388,9 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 **Related options (logged 2026-10-22, all `CANDIDATE` / not run; paper numbers are theirs; docs only — no Acc/train from this pass):**
 
-- **2026-10-22 candidate sweep ([§58](#58-toolopd-credit-aware-on-policy-distillation)–[§61](#61-sure-act-a-trained-controller-over-a-frozen-agent)):** ToolOPD (teacher token-level supervision on student rollouts, reweighted by a hindsight skill of the trajectory and its outcome, trained jointly with GRPO; their BFCL is **likely v4, not stated**, and is **not** our sheet; Qwen3-1.7B Base **15.5→19.0** sits under TurnSight **24.0** in the same table), SCA (inference-time SMT check of constraints mined from API docs and traces; AppWorld / τ²-bench; **no BFCL**; no open agent under 5B), StaGPO (the agent writes what the task needs, what is missing, and how it is being filled, and GRPO groups turns that share that state; ToolWOZ / τ²-bench; **no BFCL**; arXiv title is not "StaGPO"), SURE-Act (a Qwen3-1.7B controller ranks four meta-actions for a frozen agent; ToolSandbox; **no BFCL**; arXiv title is not "SURE-Act"). All 4 arXiv ids resolve and quoted numbers were checked against the papers on 2026-10-22. **Title flags:** arXiv:2610.24294 is "Not Every User Says It All…"; arXiv:2610.24194 is "Agents' Last Doubt…". Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%**; v11 CE **stopped at 26500/32000** (mid20 FAIL); v11 leak gate (own-named tools, **0** BFCL names).
+- **2026-10-22 candidate sweep ([§58](#58-toolopd-credit-aware-on-policy-distillation)–[§61](#61-sure-act-a-trained-controller-over-a-frozen-agent)):** ToolOPD (teacher token-level supervision on student rollouts, reweighted by a hindsight skill of the trajectory and its outcome, trained jointly with GRPO; their BFCL is **likely v4, not stated**, and is **not** our sheet; Qwen3-1.7B Base **15.5→19.0** sits under TurnSight **24.0**; MTOA **13.4** does not lead that column, where GRPO is **14.3** and TurnSight is **18.3**), SCA (inference-time SMT check of constraints mined from API docs and traces; AppWorld repair **45.1→50.5** at 40 calls and **59.5→69.3** with silent errors; failed-call removal **59–67%** for GPT-5.4-mini and **48–87%** for Qwen3.5-9B, which the abstract's 59–87% compresses; **no BFCL**; no open agent under 5B), StaGPO (arXiv title "Not Every User Says It All…"; the agent writes what the task needs, what is missing, and how it is being filled, and GRPO groups turns that share that state; ToolWOZ **76.8%**; Qwen3.5-4B τ² edge **+3.5** vs GRPO and **+1.0** vs hybrid, within noise; **no BFCL**), SURE-Act (arXiv title "Agents' Last Doubt…"; a Qwen3-1.7B controller ranks Ask, Search, Act-Reversible, and Commit-Irreversible for a frozen agent; unseen-family Qwen3-4B ToolSandbox Overall **+0.0575**, serving noise **±0.0095**, family-clustered CI includes zero; **no BFCL**). All 4 arXiv ids resolve and quoted numbers were checked against the papers on 2026-10-22. **Title flags:** arXiv:2610.24294 is "Not Every User Says It All…"; arXiv:2610.24194 is "Agents' Last Doubt…". Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%**; v11 CE **stopped at 26500/32000** (mid20 FAIL); v11 leak gate (own-named tools, **0** BFCL names).
 
-**Screened, not logged (2026-10-22):** SchemaShield-Lite (arXiv:2610.23342) — its BFCL-200 **0.580→0.805** is a single-turn slice (simple Python, multiple-function, live-simple, live-multiple, equal parts) on Qwen3.5-9B under composite interface drift (stale descriptions, schema renames, and distractor tools; schema edits alone are the less harmful drift in that paper), **not** `multi_turn_base`. Bud ContextCompact 2.0 (arXiv:2610.25516) overlaps [ACON §5](#5-context-compression-for-multi-turn). SpecAgent (arXiv:2610.21463) is edge–cloud weak/strong collaboration. All three ids resolve.
+**Screened, not logged (2026-10-22):** SchemaShield-Lite (arXiv:2610.23342; title "Robust Function Calling for LLM Agents Under Interface Drift") — its BFCL-200 **0.580→0.805** is a single-turn slice (simple Python, multiple-function, live-simple, live-multiple, equal parts) on Qwen3.5-9B under composite interface drift (stale descriptions, schema renames, and distractor tools; schema edits alone are the less harmful drift in that paper), **not** `multi_turn_base`. Bud ContextCompact 2.0 (arXiv:2610.25516) overlaps [ACON §5](#5-context-compression-for-multi-turn). SpecAgent (arXiv:2610.21463) is edge–cloud weak/strong collaboration. All three ids resolve.
 
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
@@ -2097,10 +2097,10 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Diao, Yang, Huang, Yuan, et al. ECHO. arXiv:2610.16027. https://arxiv.org/abs/2610.16027 ([§55](#55-echo-responsibility-aware-credit-assignment); **`CANDIDATE` / not run**; BFCL v3 Base 50.50 is theirs, not our v4 sheet; code https://github.com/xid32/ECHO)
 - Liu & Han. Asking Earns Nothing. arXiv:2610.04429. https://arxiv.org/abs/2610.04429 ([§56](#56-asking-earns-nothing-scoring-the-decision-to-act); **`CANDIDATE` / not run**; 39.2→62.7 is 151 base twins, not our 200; code https://github.com/YangzeLiu/asking-earns-nothing)
 - Hwang, Xuan, & Kim. Insight memory (tool graph memory). arXiv:2610.21571. https://arxiv.org/abs/2610.21571 ([§57](#57-insight-memory-textual-lessons-vs-tool-graph-memory); **`CANDIDATE` / not run**; 160-task four-category holdout ≠ our sheet; leak-gate conflict)
-- Zhao, Tang, Wang, Zhao, Guo, et al. ToolOPD. arXiv:2610.25693. https://arxiv.org/abs/2610.25693 ([§58](#58-toolopd-credit-aware-on-policy-distillation); **`CANDIDATE` / not run**; their BFCL likely v4, version not stated, ≠ our sheet; 1.7B Base 19.0 is under TurnSight 24.0 in the same table; repo https://github.com/MagicAgent-Search/ToolOPD is not linked from the paper)
-- Lee & Barke. Symbolic Constraint Agents (SCA). arXiv:2610.25552. https://arxiv.org/abs/2610.25552 ([§59](#59-symbolic-constraint-agents-sca); **`CANDIDATE` / not run**; no BFCL; AppWorld +5.4 / +9.8 are GPT-5.4-mini, not our sheet)
-- Bao, Zhang, Shi, & Ye. Not Every User Says It All (StaGPO). arXiv:2610.24294. https://arxiv.org/abs/2610.24294 ([§60](#60-stagpo-state-grouped-policy-optimization); **`CANDIDATE` / not run**; arXiv title ≠ "StaGPO"; no BFCL; 76.8% is ToolWOZ weak-user, not our sheet)
-- Liu, Jiao, Guo, Dai, et al. Agents' Last Doubt (SURE-Act). arXiv:2610.24194. https://arxiv.org/abs/2610.24194 ([§61](#61-sure-act-a-trained-controller-over-a-frozen-agent); **`CANDIDATE` / not run**; arXiv title ≠ "SURE-Act"; no BFCL; +0.0575 is ToolSandbox Overall Score; family-clustered interval includes zero)
+- Zhao, Tang, Wang, Zhao, Guo, et al. ToolOPD. arXiv:2610.25693. https://arxiv.org/abs/2610.25693 ([§58](#58-toolopd-credit-aware-on-policy-distillation); **`CANDIDATE` / not run**; their BFCL likely v4, version not stated, ≠ our sheet; 1.7B Base 19.0 is under TurnSight 24.0; MTOA 13.4 does not lead that column (GRPO 14.3, TurnSight 18.3); repo https://github.com/MagicAgent-Search/ToolOPD is not linked from the paper)
+- Lee & Barke. Symbolic Constraint Agents (SCA). arXiv:2610.25552. https://arxiv.org/abs/2610.25552 ([§59](#59-symbolic-constraint-agents-sca); **`CANDIDATE` / not run**; no BFCL; +5.4 is 45.1→50.5 at 40 calls and +9.8 is 59.5→69.3 with silent errors, GPT-5.4-mini; failed-call removal 59–67% (GPT-5.4-mini) and 48–87% (Qwen3.5-9B); abstract 59–87% compresses that)
+- Bao, Zhang, Shi, & Ye. Not Every User Says It All (StaGPO). arXiv:2610.24294. https://arxiv.org/abs/2610.24294 ([§60](#60-stagpo-state-grouped-policy-optimization); **`CANDIDATE` / not run**; arXiv title is "Not Every User Says It All…", not "StaGPO"; no BFCL; 76.8% is ToolWOZ weak-user; Qwen3.5-4B τ² edge +3.5 vs GRPO and +1.0 vs hybrid, within noise)
+- Liu, Jiao, Guo, Dai, et al. Agents' Last Doubt (SURE-Act). arXiv:2610.24194. https://arxiv.org/abs/2610.24194 ([§61](#61-sure-act-a-trained-controller-over-a-frozen-agent); **`CANDIDATE` / not run**; arXiv title is "Agents' Last Doubt…", not "SURE-Act"; four meta-actions Ask / Search / Act-Reversible / Commit-Irreversible; no BFCL; +0.0575 is unseen-family Qwen3-4B Overall, serving noise ±0.0095; family-clustered interval includes zero)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
@@ -3886,7 +3886,7 @@ Paper results (Zhao et al., 2026; Table 2; **theirs**). Students **Qwen3-0.6B** 
 The BFCL version is **not stated**. Appendix J lists multi-turn Base, Missing Function, Missing Parameter, Long Context, Multi-Turn Overall Accuracy (MTOA), and Agent Memory, so the sheet is **likely v4**.
 
 - **Qwen3-1.7B, multi-turn Base:** vanilla **15.5**, GRPO **18.0**, ToolOPD **19.0**. TurnSight in the same table is **24.0** on that Base cell.
-- **Qwen3-1.7B, MTOA:** vanilla **11.8**, ToolOPD **13.4**, GRPO **14.3**, TurnSight **18.3**.
+- **Qwen3-1.7B, MTOA:** vanilla **11.8**, ToolOPD **13.4**, GRPO **14.3**, TurnSight **18.3**. ToolOPD does not lead that column.
 - **Qwen3-0.6B, multi-turn Base:** vanilla **4.0**, ToolOPD **5.0**.
 
 Do **not** write any of these as thesis `multi_turn_base` Acc.
@@ -3900,7 +3900,7 @@ Compute: **8 A800 GPUs**, **4 student / 4 teacher** (Appendix C). Not practical 
 - **Thesis role:** **`CANDIDATE` / not run. MEDIUM–LOW.** The credit idea sits with ActionOPD, State-OPD, and STI-OPD. On the 1.7B BFCL row, TurnSight's Base (**24.0**) and MTOA (**18.3**) are higher than ToolOPD. Mac feasibility is **poor** (two models on 8 GPUs). Training-time, so future work only. **No blanket GRPO.**
 - **BFCL categories:** their multi-turn Base, missing function, missing parameter, long context, memory, and MTOA. Likely v4; version not stated. Not our sheet.
 - **Complexity:** High (on-policy rollouts, a frozen teacher, and GRPO).
-- **Limitation:** the 1.7B Base cell beats vanilla and GRPO in their table and still sits under TurnSight. MTOA **13.4** sits under GRPO **14.3**.
+- **Limitation:** the 1.7B Base cell beats vanilla and GRPO in their table and still sits under TurnSight **24.0**. MTOA **13.4** does not lead that column: GRPO is **14.3** and TurnSight is **18.3**.
 
 ### Source
 
@@ -3928,7 +3928,7 @@ Symbolic Constraint Agents (Lee & Barke, 2026) mine tool-call preconditions and 
 Paper results (Lee & Barke, 2026; Tables 1 and 2; **theirs**). **No BFCL.**
 
 - **AppWorld test-challenge (417 tasks), GPT-5.4-mini, repair:** 40-call budget **45.1% → 50.5%** (+5.4; significant). Silent errors (environment errors hidden) **59.5% → 69.3%** (+9.8; significant).
-- Failed calls removed by repair: **59–67%** for GPT-5.4-mini and **48–87%** for Qwen3.5-9B across settings. The abstract summarizes that spread as **59–87%** across models.
+- Failed calls removed by repair: **59–67%** for GPT-5.4-mini and **48–87%** for Qwen3.5-9B across settings. The abstract's **59–87%** compresses that split.
 - **τ²-bench:** repair raises success by up to **5.6** points (GPT-5.4-mini; Qwen3.5-9B is **+5.5** in the same paragraph).
 - Error-detection F1 after refinement: **39.3 → 61.9** on Qwen3.5-27B traces. GPT-5.5 traces in the same table move **37.0 → 58.3**.
 
@@ -3936,7 +3936,7 @@ Agent models are GPT-5.5, GPT-5.4-mini, Sonnet 5, Qwen3.5-9B, and Qwen3.5-27B. T
 
 Do **not** write any of these as thesis Acc.
 
-**Cite check (2026-10-22):** arXiv:2610.25552 resolves (submitted 2026-10-18); the title matches. The cells above match Table 2 and the detection table. The abstract's 59–87% band is the paper's summary; the body splits it into 59–67% (GPT-5.4-mini) and 48–87% (Qwen3.5-9B).
+**Cite check (2026-10-22):** arXiv:2610.25552 resolves (submitted 2026-10-18); the title matches. The cells above match Table 2 and the detection table. The abstract's 59–87% compresses the body split of 59–67% (GPT-5.4-mini) and 48–87% (Qwen3.5-9B). +5.4 is 45.1→50.5 at 40 calls; +9.8 is 59.5→69.3 with silent errors.
 
 ### Applicability
 
@@ -4007,12 +4007,12 @@ SURE-Act (Liu, Jiao, Guo, Dai, et al., 2026) is a small controller that picks th
 
 Paper results (Liu et al., 2026; abstract and Table 3; **theirs**). **No BFCL.**
 
-- ToolSandbox Overall Score, 89 unseen families, frozen **Qwen3-4B**: mean **+0.0575** (partition SE ±0.0095; positive on 20/22 partitions). The abstract calls this gain "up to 0.0575". The same table's Qwen3-8B and Qwen3-14B means are **+0.0216** and **+0.0252**.
+- ToolSandbox Overall Score, 89 unseen families, frozen **Qwen3-4B**: mean **+0.0575**, serving noise **±0.0095** (positive on 20/22 partitions). The abstract calls this gain "up to 0.0575". The same table's Qwen3-8B and Qwen3-14B means are **+0.0216** and **+0.0252**.
 - The family-clustered 95% interval for the 4B comparison includes zero (Appendix D.8: **[−0.0063, 0.1303]**).
 
 Do **not** write 0.0575 as thesis Acc.
 
-**Cite check (2026-10-22):** arXiv:2610.24194 resolves (submitted 2026-10-16). The arXiv title is "Agents' Last Doubt: Knowing When to Act and When to Step Back in Tool-Using Agents". SURE-Act is the method name. The controller ranks the four meta-actions above. The paper's introduction discusses escalation to a person; the action set does not include an escalate label. 3,115 outcomes and +0.0575 match the abstract and Table 3.
+**Cite check (2026-10-22):** arXiv:2610.24194 resolves (submitted 2026-10-16). The arXiv title is "Agents' Last Doubt: Knowing When to Act and When to Step Back in Tool-Using Agents". SURE-Act is the method name. The controller ranks four meta-actions: Ask, Search, Act-Reversible, and Commit-Irreversible. The paper's introduction discusses escalation to a person; the action set does not include an escalate label. +0.0575 is the unseen-family Qwen3-4B Overall Score, with serving noise ±0.0095; the family-clustered interval includes zero. 3,115 outcomes match the abstract.
 
 ### Applicability
 
