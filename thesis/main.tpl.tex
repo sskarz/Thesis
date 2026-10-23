@@ -1,0 +1,335 @@
+% CSULA M.S. thesis format, modeled on the chair's sample (Kuko, Dec 2019).
+% Generated once from ../paper/main.tex by build_from_paper.py; edit main.tex directly afterwards.
+\documentclass[12pt,oneside]{report}
+\input{glyphtounicode}
+\pdfgentounicode=1
+\usepackage{cmap}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}      % typewriter text (code identifiers)
+\usepackage{mathptmx}     % Times roman body text, as in the sample (Times New Roman 12 pt)
+% Sample: Letter, 1.25 in left/right, 1 in top/bottom, page number centered 0.5 in from bottom.
+\usepackage[letterpaper,left=1.25in,right=1.25in,top=1in,bottom=1in,footskip=0.5in]{geometry}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc}
+\usepackage{caption}
+\usepackage{url}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{microtype}
+\usepackage{xspace}
+\usepackage{float}
+\usepackage{multicol}
+\usepackage{enumitem}
+\usepackage{ragged2e}
+\usepackage{titlesec}
+\usepackage[titles]{tocloft}
+\usepackage{chngcntr}
+\usepackage{etoolbox}
+% Floats single spaced (body stays double spaced); table rows padded like the sample's tables.
+\AtBeginEnvironment{figure}{\singlespacing}
+\AtBeginEnvironment{table}{\singlespacing\renewcommand{\arraystretch}{1.3}}
+\usepackage{indentfirst} % sample indents the first paragraph of every chapter
+\usepackage[hidelinks]{hyperref}
+
+\graphicspath{{../paper/figures/}}
+
+\hypersetup{
+  pdftitle={State, Not Syntax: Harness Optimization for Small-Model Multi-Turn Tool Calling},
+  pdfauthor={Sanskar Thapa}
+}
+
+\newcommand{\pp}{\,pp\xspace}
+\newcommand{\placeholder}[1]{{\sloppy\textbf{[PLACEHOLDER: #1]}\par}}
+
+% == Body: double spaced, 0.5 in paragraph indent (sample "Research Style") ==
+\doublespacing
+\setlength{\parindent}{0.5in}
+\setlength{\parskip}{0pt}
+\setlength{\bibsep}{0pt}
+
+% == Continuous figure/table numbering (sample: Table 1..6, Fig. 1..10) ==
+\counterwithout{figure}{chapter}
+\counterwithout{table}{chapter}
+
+% == Captions: figures below as "Fig. N." (italic label), tables above as "TABLE N." ==
+\captionsetup{font={small,singlespacing},labelsep=period,justification=justified,singlelinecheck=true}
+\captionsetup[figure]{name={Fig.},labelfont=it}
+\captionsetup[table]{name={Table},labelfont=sc,textfont=sc}
+\renewcommand{\tablename}{Table}
+\DeclareCaptionLabelFormat{tableup}{\MakeUppercase{#1}~#2}
+\captionsetup[table]{labelformat=tableup,labelfont=up,textfont=up}
+\setlength{\abovecaptionskip}{4pt}
+\setlength{\belowcaptionskip}{4pt}
+\setlength{\intextsep}{12pt plus 2pt minus 2pt}
+
+% == Headings (sample "Heading 1"): CHAPTER N / Title centered bold at top of a new page;
+%      level-2 headings flush left bold, unnumbered. ==
+\setcounter{secnumdepth}{0}  % number chapters only
+\titleformat{\chapter}[display]{\normalfont\normalsize\bfseries\centering}{\MakeUppercase{\chaptertitlename}~\thechapter}{0pt}{}
+\titlespacing*{\chapter}{0pt}{-\baselineskip}{\baselineskip}
+\titleformat{name=\chapter,numberless}[block]{\normalfont\normalsize\centering}{}{0pt}{}
+\titlespacing*{name=\chapter,numberless}{0pt}{-\baselineskip}{\baselineskip}
+\titleformat{\section}[block]{\normalfont\normalsize\bfseries}{}{0pt}{}
+\titlespacing*{\section}{0pt}{0pt}{0pt}
+\titleformat{\subsection}[block]{\normalfont\normalsize\bfseries\itshape}{}{0pt}{}
+\titlespacing*{\subsection}{0pt}{0pt}{0pt}
+% unnumbered level-2 headings still go in the TOC (sample lists them)
+\setcounter{tocdepth}{1}
+\makeatletter
+\let\orig@section\section
+\renewcommand{\section}{\@ifstar{\orig@section*}{\thesis@sec}}
+\newcommand{\thesis@sec}[1]{\orig@section*{#1}\phantomsection\addcontentsline{toc}{section}{#1}}
+\makeatother
+
+% == TOC / LOT / LOF in the sample's layout ==
+\renewcommand{\contentsname}{TABLE OF CONTENTS}
+\renewcommand{\listtablename}{LIST OF TABLES}
+\renewcommand{\listfigurename}{LIST OF FIGURES}
+\renewcommand{\cfttoctitlefont}{\hfill\normalfont\normalsize}
+\renewcommand{\cftaftertoctitle}{\hfill}
+\renewcommand{\cftlottitlefont}{\hfill\normalfont\normalsize}
+\renewcommand{\cftafterlottitle}{\hfill}
+\renewcommand{\cftloftitlefont}{\hfill\normalfont\normalsize}
+\renewcommand{\cftafterloftitle}{\hfill}
+\setlength{\cftbeforetoctitleskip}{-\baselineskip}
+\setlength{\cftbeforelottitleskip}{-\baselineskip}
+\setlength{\cftbeforeloftitleskip}{-\baselineskip}
+\setlength{\cftaftertoctitleskip}{\baselineskip}
+\setlength{\cftafterlottitleskip}{\baselineskip}
+\setlength{\cftafterloftitleskip}{\baselineskip}
+% front/back-matter entries (Abstract, ..., References, Appendices): flush left, dotted
+\renewcommand{\cftpartfont}{\normalfont}
+\renewcommand{\cftpartpagefont}{\normalfont}
+\renewcommand{\cftpartleader}{\cftdotfill{\cftdotsep}}
+\setlength{\cftbeforepartskip}{0pt}
+\setlength{\cftpartindent}{0pt}
+% chapters: "1. Introduction", indented 0.5 in, dotted, not bold
+\renewcommand{\cftchapfont}{\normalfont}
+\renewcommand{\cftchappagefont}{\normalfont}
+\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
+\renewcommand{\cftchapaftersnum}{.}
+\setlength{\cftbeforechapskip}{0pt}
+\setlength{\cftchapindent}{0.5in}
+\setlength{\cftchapnumwidth}{2em}
+% level-2 headings: indented 1.0 in
+\setlength{\cftsecindent}{1.0in}
+\setlength{\cftsecnumwidth}{0pt}
+% list entries: "1. caption", indented
+\renewcommand{\cftfigaftersnum}{.}
+\renewcommand{\cfttabaftersnum}{.}
+\setlength{\cftfigindent}{0.25in}
+\setlength{\cfttabindent}{0.25in}
+\setlength{\cftfignumwidth}{2.2em}
+\setlength{\cfttabnumwidth}{2.2em}
+\cftsetrmarg{3.2em}
+\cftsetpnumwidth{2em}
+\newcommand{\tocline}[1]{\phantomsection\addcontentsline{toc}{part}{#1}}
+\pdfstringdefDisableCommands{\def\pp{ pp}}
+
+% Keep floats close to their paragraph.
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.1}
+\renewcommand{\floatpagefraction}{0.7}
+
+\begin{document}
+
+%======================== FRONT MATTER (lower-case roman) ========================
+\pagenumbering{roman}
+
+% == Title page (page i, number not printed) ==
+\begin{titlepage}
+\centering\doublespacing
+STATE, NOT SYNTAX: HARNESS OPTIMIZATION FOR\\
+SMALL-MODEL MULTI-TURN TOOL CALLING
+
+\vfill
+A Thesis\\
+Presented to\\
+The Faculty of the Department of Computer Science\\
+California State University, Los Angeles
+
+\vfill
+In Partial Fulfillment\\
+of the Requirements for the Degree\\
+Master of Science\\
+in\\
+Computer Science
+
+\vfill
+By\\
+Sanskar Thapa\\
+December 2026
+\end{titlepage}
+
+% == Copyright page (ii) ==
+\setcounter{page}{2}
+\thispagestyle{plain}
+\null\vfill
+\begin{center}\singlespacing
+\copyright{} 2026\\[\baselineskip]
+Sanskar Thapa\\[\baselineskip]
+ALL RIGHTS RESERVED
+\end{center}
+\clearpage
+
+% == Approval / committee page (iii) ==
+\thispagestyle{plain}
+\begin{center}
+The thesis of Sanskar Thapa is approved.
+
+\vspace{2\baselineskip}
+Dr. Mohammad Pourhomayoun, Committee Chair
+
+\placeholder{Committee member name}
+
+\placeholder{Committee member name}
+
+\placeholder{Department Chair name}, Department Chair
+
+\vspace{3\baselineskip}
+California State University, Los Angeles
+
+December 2026
+\end{center}
+\clearpage
+
+% == Abstract (iv) ==
+\chapter*{ABSTRACT}
+\tocline{Abstract}
+\begin{center}
+State, Not Syntax: Harness Optimization for\\
+Small-Model Multi-Turn Tool Calling
+
+By
+
+Sanskar Thapa
+\end{center}
+
+%%abstract%%
+
+% == Acknowledgments (v) ==
+\chapter*{ACKNOWLEDGMENTS}
+\tocline{Acknowledgments}
+\placeholder{Acknowledgments, to be written by Sanskar}
+
+% == Table of contents, lists ==
+\begingroup
+\renewcommand{\cftpartfont}{\normalfont}
+\tableofcontents
+\endgroup
+\clearpage
+\tocline{List of Tables}
+\listoftables
+\clearpage
+\tocline{List of Figures}
+\listoffigures
+\addtocontents{toc}{\protect\noindent Chapter\protect\par}
+\addtocontents{lot}{\protect\noindent Table\protect\par}
+\addtocontents{lof}{\protect\noindent Figure\protect\par}
+
+%======================== BODY (arabic, from 1) ========================
+\clearpage
+\pagenumbering{arabic}
+
+\chapter{Introduction}
+\label{sec:intro}
+
+%%ch1%%
+
+\placeholder{Thesis organization paragraph (chapter-by-chapter roadmap, as at the end of the sample's Chapter 1), to be written by Sanskar}
+
+\chapter{Background and Related Work}
+\label{sec:related}
+
+%%ch2%%
+
+\chapter{Setup and Methods}
+\label{sec:setup}
+
+%%ch3%%
+
+\chapter{Where Small Models Fail}
+\label{sec:fail}
+
+%%ch4%%
+
+\chapter{What Helps: Harness-Side Control}
+\label{sec:helps}
+
+%%ch5%%
+
+\chapter{Fine-Tuning Did Not Help}
+\label{sec:train}
+
+%%ch6%%
+
+\chapter{Discussion}
+\label{sec:discussion}
+
+%%ch7%%
+
+\chapter{Conclusion}
+\label{sec:conclusion}
+
+%%ch8_concl%%
+
+%%ch8_future%%
+
+%======================== BACK MATTER ========================
+\clearpage
+\phantomsection
+\tocline{References}
+\renewcommand{\bibname}{\textbf{REFERENCES}}
+\begingroup
+\titleformat{name=\chapter,numberless}[block]{\normalfont\normalsize\bfseries\centering}{}{0pt}{}
+\bibliographystyle{unsrtnat}
+\bibliography{../paper/references}
+\endgroup
+
+\appendix
+\clearpage
+\tocline{Appendices}
+\addtocontents{toc}{\protect\setcounter{tocdepth}{0}}% list appendix titles only
+\addtocontents{toc}{\protect\renewcommand{\protect\cftchapaftersnum}{.}}
+\renewcommand{\chaptertitlename}{Appendix}
+
+\chapter{Intervention Details}
+\label{app:method}
+
+%%appA%%
+
+\chapter{Failure Labels, Exploratory Tests and Training History}
+\label{app:fail}
+
+%%appB%%
+
+\section{Training History}
+\label{app:train}
+
+%%appB_train%%
+
+\chapter{Full Scoreboard, Reproducibility and Glossary}
+\label{app:runs}
+
+\begin{sloppypar}
+%%appC_repro%%
+\end{sloppypar}
+
+\section{Glossary}
+
+\begingroup\singlespacing
+%%appC_gloss%%
+\endgroup
+
+%%appC_board%%
+
+\end{document}
