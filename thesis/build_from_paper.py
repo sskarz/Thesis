@@ -145,7 +145,7 @@ parts = {
  "appB_train": body(317, 323, level="subsection"),  # run-ins under B.1 Training History
  "appC_repro": allow_path_breaks(body(332, 332)),
  "appC_gloss": fix(L(336, 370)),   # glossary without the \enlargethispage hack (line 335)
- "appC_board": body(372, 421),
+ "appC_board": body(372, 421).replace(r"\parbox{\linewidth}{\scriptsize", r"\parbox{\linewidth}{\RaggedRight\scriptsize"),  # note ragged like the body (no underfull lines)
 }
 tpl = (here / "main.tpl.tex").read_text()
 for k, v in parts.items():

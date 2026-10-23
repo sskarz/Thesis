@@ -76,6 +76,7 @@ that cites it (as in PR #109; that PR's moves of Fig. 3 and Table 1 are not appl
 7. Title page: the draft/presentation line, the repo URL and the draft date replaced by the sample's title-page block with "December 2026".
 8. "this paper" became "this thesis" (6 places: Fig. 1 caption, Chapter 2 glossary pointer, Chapter 3 opening, Appendix A training paragraph, glossary entries IFFC and NFC).
 9. Appendix C reproducibility: `llama-server --jinja` is typeset as `-{}-jinja` so the two hyphens print as written (not as an en dash).
+10. Placement only (no wording change): Fig. 2 (failure anatomy) moved from before to after the Chapter 4 paragraph that first cites it ("Figure 2 breaks down the failed tasks ..."), so the figure follows its first reference.
 
 No other connective sentences were added.
 

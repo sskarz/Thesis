@@ -141,6 +141,11 @@
 \cftsetrmarg{3.2em plus 1fil}
 \cftsetpnumwidth{2em}
 \renewcommand{\cftdotsep}{1}
+% Leaders always get at least 2 em, so an entry whose text fills its last line moves its
+% last word down instead of printing the page number with no dots.
+\makeatletter
+\renewcommand{\cftdotfill}[1]{\leaders\hbox{$\m@th\mkern #1 mu\hbox{\cftdot}\mkern #1 mu$}\hskip 2em plus 1fill}
+\makeatother
 \newcommand{\tocline}[1]{\phantomsection\addcontentsline{toc}{part}{#1}}
 \pdfstringdefDisableCommands{\def\pp{ pp}}
 
@@ -238,11 +243,13 @@ Sanskar Thapa\par}
 \clearpage
 \tocline{List of Tables}
 \begingroup\singlespacing\hyphenpenalty=10000
+\renewcommand{\addvspace}[1]{}% drop the per-chapter 10 pt gaps so entry spacing is even
 \listoftables
 \endgroup
 \clearpage
 \tocline{List of Figures}
 \begingroup\singlespacing\hyphenpenalty=10000
+\renewcommand{\addvspace}[1]{}% drop the per-chapter 10 pt gaps so entry spacing is even
 \listoffigures
 \endgroup
 \addtocontents{toc}{\protect\noindent Chapter\protect\par}
@@ -326,8 +333,9 @@ Sanskar Thapa\par}
 %%appB%%
 
 \makeatletter
-\orig@section*{B.1\hspace{0.5em}Training History}
-\phantomsection\def\@currentlabel{B.1}\label{app:train}
+\refstepcounter{section}% B.1, generated from the appendix and section counters
+\orig@section*{\thesection\hspace{0.5em}Training History}
+\label{app:train}
 \makeatother
 
 %%appB_train%%

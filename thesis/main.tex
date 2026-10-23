@@ -141,6 +141,11 @@
 \cftsetrmarg{3.2em plus 1fil}
 \cftsetpnumwidth{2em}
 \renewcommand{\cftdotsep}{1}
+% Leaders always get at least 2 em, so an entry whose text fills its last line moves its
+% last word down instead of printing the page number with no dots.
+\makeatletter
+\renewcommand{\cftdotfill}[1]{\leaders\hbox{$\m@th\mkern #1 mu\hbox{\cftdot}\mkern #1 mu$}\hskip 2em plus 1fill}
+\makeatother
 \newcommand{\tocline}[1]{\phantomsection\addcontentsline{toc}{part}{#1}}
 \pdfstringdefDisableCommands{\def\pp{ pp}}
 
@@ -238,11 +243,13 @@ Assistants that \emph{act} emit \emph{tool calls}: a function name plus argument
 \clearpage
 \tocline{List of Tables}
 \begingroup\singlespacing\hyphenpenalty=10000
+\renewcommand{\addvspace}[1]{}% drop the per-chapter 10 pt gaps so entry spacing is even
 \listoftables
 \endgroup
 \clearpage
 \tocline{List of Figures}
 \begingroup\singlespacing\hyphenpenalty=10000
+\renewcommand{\addvspace}[1]{}% drop the per-chapter 10 pt gaps so entry spacing is even
 \listoffigures
 \endgroup
 \addtocontents{toc}{\protect\noindent Chapter\protect\par}
@@ -586,8 +593,9 @@ Minimal recipe (35.5\%) & Stop on repeats & 26 & 20 & 0.46 \\
 
 
 \makeatletter
-\orig@section*{B.1\hspace{0.5em}Training History}
-\phantomsection\def\@currentlabel{B.1}\label{app:train}
+\refstepcounter{section}% B.1, generated from the appendix and section counters
+\orig@section*{\thesection\hspace{0.5em}Training History}
+\label{app:train}
 \makeatother
 
 \subsection{Version History}
@@ -703,7 +711,7 @@ ID & Condition & Result & Acc. & 95\% interval \\
 \bottomrule
 \end{tabular}
 
-\parbox{\linewidth}{\scriptsize $^\dagger$First-turn filters drop or require training examples where the first response is empty or under-specified; state filters drop continuations inconsistent with executed tool results. $^\ddagger$The two parallel-call categories are excluded because earlier runs on this server hit a tool-grammar bug that truncated multi-call output.}
+\parbox{\linewidth}{\RaggedRight\scriptsize $^\dagger$First-turn filters drop or require training examples where the first response is empty or under-specified; state filters drop continuations inconsistent with executed tool results. $^\ddagger$The two parallel-call categories are excluded because earlier runs on this server hit a tool-grammar bug that truncated multi-call output.}
 \end{table}
 
 \end{document}
