@@ -4,6 +4,7 @@
 Content is copied verbatim from paper/main.tex by line range; only structural
 transforms are applied (run-in \\paragraph headings -> \\section* headings,
 "Section~\\ref" -> "Chapter~\\ref" for targets that are now chapters,
+"this paper" -> "this thesis", Fig. 2 after its citing paragraph,
 float placement -> [H]). Run once; main.tex is then the maintained source.
 """
 import re, pathlib
@@ -74,8 +75,8 @@ def para_to_section(text, level="section"):
         out.append(line)
     return "\n".join(out)
 
-def fix(text):
-    text = para_to_section(text)
+def fix(text, level="section"):
+    text = para_to_section(text, level)
     for lab in CHAPTER_LABELS:
         text = text.replace(f"Section~\\ref{{{lab}}}", f"Chapter~\\ref{{{lab}}}")
     text = re.sub(r"\\begin\{(figure|table)\}\[[^\]]*\]", r"\\begin{\1}[H]", text)
@@ -84,10 +85,13 @@ def fix(text):
     EM = "-" * 3  # LaTeX em-dash ligature
     text = text.replace(r"\emph{Self-distillation}" + EM + r"training on the model's own answers to simulated tasks, keeping only turns the task checker marked correct" + EM + "scored",
                         r"\emph{Self-distillation}, training on the model's own answers to simulated tasks, keeping only turns the task checker marked correct, scored")
+    text = text.replace("this paper", "this thesis").replace("This paper", "This thesis")
+    text = text.replace(r"\texttt{llama-server --jinja}", r"\texttt{llama-server -{}-jinja}")
     return text
 
-def short_captions(text):
-    """Give every \\caption an optional short entry (its first sentence) for the LOF/LOT."""
+def list_captions(text, env):
+    """Give every \\caption a list entry: the label ("Fig. N." / "TABLE N.") plus the full caption, as in the sample's LOF/LOT."""
+    lab = r"Fig.~\thefigure.\ " if env == "figure" else r"TABLE~\thetable.\ "
     out, i = [], 0
     while True:
         j = text.find("\\caption{", i)
@@ -98,22 +102,39 @@ def short_captions(text):
             c = text[m]
             if c == "{": depth += 1
             elif c == "}": depth -= 1
-            elif c == "." and depth == 1 and first is None and text[m+1] in " }" and text[m-1] != "\\":
-                first = text[k:m+1]
             m += 1
-        out.append(text[i:j] + "\\caption[" + (first or text[k:m-1]) + "]{" + text[k:m])
+        out.append(text[i:j] + "\\caption[" + lab + text[k:m-1] + "]{" + text[k:m])
         i = m
     return "".join(out)
 
-def body(a, b):
-    return short_captions(fix(L(a, b)))
+def captions(text):
+    """Apply list_captions per float environment."""
+    parts = re.split(r"(\\begin\{(?:figure|table)\}.*?\\end\{(?:figure|table)\})", text, flags=re.S)
+    return "".join(list_captions(p, "figure" if p.startswith("\\begin{figure}") else "table") if p.startswith("\\begin{") else p for p in parts)
+
+def move_float_after_next_paragraph(text, label):
+    """Place the float with this label after the paragraph that follows it (the paragraph that cites it)."""
+    m = re.search(r"\\begin\{figure\}\[H\]\n(?:(?!\\end\{figure\}).)*?\\label\{" + re.escape(label) + r"\}.*?\\end\{figure\}\n\n", text, flags=re.S)
+    assert m, label
+    fl = m.group(0)
+    rest = text[m.end():]
+    n = rest.index("\n\n") + 2          # end of the citing paragraph (heading + blank + paragraph)
+    n = rest.index("\n\n", n) + 2 if rest.startswith("\\section") else n
+    return text[:m.start()] + rest[:n] + fl + rest[n:]
+
+def body(a, b, level="section"):
+    return captions(fix(L(a, b), level))
+
+def allow_path_breaks(text):
+    """Allow line breaks after "/" inside \\texttt paths (keeps long paths inside the margin)."""
+    return re.sub(r"\\texttt\{[^{}]*/[^{}]*\}", lambda m: m.group(0).replace("/", r"/\allowbreak{}"), text)
 
 parts = {
  "abstract": L(64, 64),
  "ch1": body(70, 97),
  "ch2": body(102, 110),
  "ch3": body(115, 132),
- "ch4": body(137, 148),
+ "ch4": move_float_after_next_paragraph(body(137, 148), "fig:fail"),
  "ch5": body(154, 194),
  "ch6": body(199, 212),
  "ch7": body(217, 233),
@@ -121,9 +142,9 @@ parts = {
  "ch8_concl": body(240, 240),
  "appA": body(251, 273),
  "appB": body(278, 313),
- "appB_train": body(317, 323),
- "appC_repro": body(332, 332),
- "appC_gloss": L(336, 370),   # glossary without the \enlargethispage hack (line 335)
+ "appB_train": body(317, 323, level="subsection"),  # run-ins under B.1 Training History
+ "appC_repro": allow_path_breaks(body(332, 332)),
+ "appC_gloss": fix(L(336, 370)),   # glossary without the \enlargethispage hack (line 335)
  "appC_board": body(372, 421),
 }
 tpl = (here / "main.tpl.tex").read_text()

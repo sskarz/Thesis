@@ -1,4 +1,4 @@
-% CSULA M.S. thesis format, modeled on the chair's sample (Kuko, Dec 2019).
+% CSULA M.S. thesis format, modeled on the chair's sample thesis (Kuko).
 % Generated once from ../paper/main.tex by build_from_paper.py; edit main.tex directly afterwards.
 \documentclass[12pt,oneside]{report}
 \input{glyphtounicode}
@@ -23,7 +23,7 @@
 \usepackage{caption}
 \usepackage{url}
 \usepackage[numbers,sort&compress]{natbib}
-\usepackage{microtype}
+\usepackage[expansion=false]{microtype}
 \usepackage{xspace}
 \usepackage{float}
 \usepackage{multicol}
@@ -48,10 +48,17 @@
 
 \newcommand{\pp}{\,pp\xspace}
 \newcommand{\placeholder}[1]{{\sloppy\textbf{[PLACEHOLDER: #1]}\par}}
+\newcommand{\placeholderinline}[1]{\textbf{[PLACEHOLDER: #1]}}
 
-% == Body: double spaced, 0.5 in paragraph indent (sample "Research Style") ==
-\doublespacing
+% == Body: Word "double" spacing as in the sample (baseline pitch about 27.6 pt), ragged right,
+%    0.5 in paragraph indent (sample "Research Style") ==
+\newcommand{\thesisspacing}{\setstretch{1.91}}
+\thesisspacing
 \setlength{\parindent}{0.5in}
+\setlength{\RaggedRightParindent}{0.5in}
+\setlength{\RaggedRightRightskip}{0pt plus 1fil}
+\hyphenpenalty=10000 % no hyphenation, as in the sample
+\AtBeginDocument{\RaggedRight}
 \setlength{\parskip}{0pt}
 \setlength{\bibsep}{0pt}
 
@@ -60,12 +67,12 @@
 \counterwithout{table}{chapter}
 
 % == Captions: figures below as "Fig. N." (italic label), tables above as "TABLE N." ==
-\captionsetup{font={small,singlespacing},labelsep=period,justification=justified,singlelinecheck=true}
+\captionsetup{font={small,singlespacing},labelsep=period,justification=raggedright,singlelinecheck=true}
 \captionsetup[figure]{name={Fig.},labelfont=it}
 \captionsetup[table]{name={Table},labelfont=sc,textfont=sc}
 \renewcommand{\tablename}{Table}
 \DeclareCaptionLabelFormat{tableup}{\MakeUppercase{#1}~#2}
-\captionsetup[table]{labelformat=tableup,labelfont=up,textfont=up}
+\captionsetup[table]{labelformat=tableup,labelfont=up,textfont=sc,justification=centering}
 \setlength{\abovecaptionskip}{4pt}
 \setlength{\belowcaptionskip}{4pt}
 \setlength{\intextsep}{12pt plus 2pt minus 2pt}
@@ -129,8 +136,11 @@
 \setlength{\cfttabindent}{0.25in}
 \setlength{\cftfignumwidth}{2.2em}
 \setlength{\cfttabnumwidth}{2.2em}
-\cftsetrmarg{3.2em}
+\setlength{\cftbeforefigskip}{14pt}% one blank single-spaced line between entries
+\setlength{\cftbeforetabskip}{14pt}
+\cftsetrmarg{3.2em plus 1fil}
 \cftsetpnumwidth{2em}
+\renewcommand{\cftdotsep}{1}
 \newcommand{\tocline}[1]{\phantomsection\addcontentsline{toc}{part}{#1}}
 \pdfstringdefDisableCommands{\def\pp{ pp}}
 
@@ -147,7 +157,7 @@
 
 % == Title page (page i, number not printed) ==
 \begin{titlepage}
-\centering\doublespacing
+\centering\thesisspacing
 STATE, NOT SYNTAX: HARNESS OPTIMIZATION FOR\\
 SMALL-MODEL MULTI-TURN TOOL CALLING
 
@@ -186,14 +196,15 @@ ALL RIGHTS RESERVED
 \begin{center}
 The thesis of Sanskar Thapa is approved.
 
-\vspace{2\baselineskip}
 Dr. Mohammad Pourhomayoun, Committee Chair
 
-\placeholder{Committee member name}
+\placeholderinline{Committee member name}
 
-\placeholder{Committee member name}
+\placeholderinline{Committee member name}
 
-\placeholder{Department Chair name}, Department Chair
+\placeholderinline{Committee member name}
+
+\placeholderinline{Department Chair name}, Department Chair
 
 \vspace{3\baselineskip}
 California State University, Los Angeles
@@ -204,15 +215,13 @@ December 2026
 
 % == Abstract (iv) ==
 \chapter*{ABSTRACT}
+\vspace{-\baselineskip}% title block directly under the heading, as in the sample
 \tocline{Abstract}
-\begin{center}
+{\centering
 State, Not Syntax: Harness Optimization for\\
-Small-Model Multi-Turn Tool Calling
-
-By
-
-Sanskar Thapa
-\end{center}
+Small-Model Multi-Turn Tool Calling\\
+By\\
+Sanskar Thapa\par}
 
 %%abstract%%
 
@@ -228,10 +237,14 @@ Sanskar Thapa
 \endgroup
 \clearpage
 \tocline{List of Tables}
+\begingroup\singlespacing\hyphenpenalty=10000
 \listoftables
+\endgroup
 \clearpage
 \tocline{List of Figures}
+\begingroup\singlespacing\hyphenpenalty=10000
 \listoffigures
+\endgroup
 \addtocontents{toc}{\protect\noindent Chapter\protect\par}
 \addtocontents{lot}{\protect\noindent Table\protect\par}
 \addtocontents{lof}{\protect\noindent Figure\protect\par}
@@ -297,7 +310,7 @@ Sanskar Thapa
 
 \appendix
 \clearpage
-\tocline{Appendices}
+\addtocontents{toc}{\protect\noindent Appendix\protect\par}
 \addtocontents{toc}{\protect\setcounter{tocdepth}{0}}% list appendix titles only
 \addtocontents{toc}{\protect\renewcommand{\protect\cftchapaftersnum}{.}}
 \renewcommand{\chaptertitlename}{Appendix}
@@ -312,8 +325,10 @@ Sanskar Thapa
 
 %%appB%%
 
-\section{Training History}
-\label{app:train}
+\makeatletter
+\orig@section*{B.1\hspace{0.5em}Training History}
+\phantomsection\def\@currentlabel{B.1}\label{app:train}
+\makeatother
 
 %%appB_train%%
 
