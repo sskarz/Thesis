@@ -14,9 +14,9 @@ Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91,
 ## 2. Current state (main @ `a445429`, 2026-10-14)
 
 - File: `paper/main.tex`. Title: **"State, Not Syntax: Harness Optimization for Small-Model Multi-Turn Tool Calling"**.
-- 15 pages (main text ≈ pp. 1–9, references ≈ pp. 9–11, appendices A–D ≈ pp. 11–15). Builds with 0 overfull boxes and 0 undefined references.
+- 16 pages after the shorter-list revision (main text through the conclusion about pp. 1–11, references about p. 12, appendices about pp. 13–16). The October 2026 snapshot this section used to describe was 15 pages, then 14 after the focus fixes, then 16 with this result. Builds with 0 overfull boxes and 0 undefined references.
 - Scope: **Gemma-4-E2B-it (Q4_K_M) only**, BFCL v4 `multi_turn_base`, N = 200, llama.cpp `llama-server` on a MacBook Pro M4 Pro 48 GB.
-- Core claim: multi-turn failure is about state tracking and the act-vs-abstain decision, not output syntax; harness-side control gains +8.0 pp over JSON-text calling, while forcing valid syntax and fine-tuning both lose ground. A shorter tool list on that harness later scored 84/200 against a 71/200 rerun of the same setup (p=0.0533, not confirmed). The first-run 77/200 stays beside that rerun. State-not-syntax remains the main finding.
+- Core claim: multi-turn failure is about state tracking and the act-vs-abstain decision, not output syntax; harness-side control gains +8.0 pp over JSON-text calling, while forcing valid syntax and fine-tuning both lose ground. A shorter tool list on that harness scored 84/200 against a 71/200 rerun (13 more tasks, p=0.053): no detectable effect. The first-run 77/200 stays beside that rerun. State-not-syntax remains the main finding. The shorter list is not in the abstract.
 
 ### Headline numbers and provenance
 
@@ -25,8 +25,8 @@ Facts below come from the git history of this repo, PRs #66/#84/#88/#89/#90/#91,
 | Result | Value | Source |
 |---|---|---|
 | Full stack (IFFC + STATE + gated stop-on-repeat + status card), first run | 77/200 = 38.5% (Wilson 32.0–45.4) | Run 78, `scores.id` 51; log `sft/v13/paper_evals/runs/b_fullstack_mtb200.log`; harness code from PR #90 (`344ce45`, merged 2026-10-14 as `83f35ee`) |
-| Full stack, fresh rerun, original tool list | 71/200 = 35.5% (Wilson 29.2–42.3) | Runs 80–83, Codex report, October 2026. Same count as Run 42, so the paper uses the same one-decimal Wilson interval. The report wrote 29.2–42.4; recomputation with z=1.959964 is 29.1986–42.3479, which rounds to 29.2–42.3. This note does not assign the score to one of runs 80–83. |
-| Shorter tool list on the full stack (keep every tool; each group's shared description once; schemas without indentation) | 84/200 = 42.0% (Wilson 35.4–48.9) | Runs 80–83, same report. Highest count so far. Paired vs the rerun: 26 / 13 / 58 / 103. Exact McNemar p=0.0533 (binomial n=39, k=13; 2×P(X≤13)=0.053252). Not significant at the pre-registered 0.05 level. Promising +6.5 pp, not a confirmed improvement. Opening-prompt median 4,923.5 to 2,888 tokens (about 42%; exact 41.3%), from `R81_slim/*.metrics.jsonl`. Mean context per request 4,990 vs 7,107 (about 30%). A confirmation rerun pair is planned and not yet run. |
+| Full stack, fresh rerun, original tool list | 71/200 = 35.5% (Wilson 29.2–42.3) | Run 82, `scores.id` 61, log `R81_slim/full_off.log`. Same count as Run 42, so the paper uses the same one-decimal Wilson interval. An earlier line wrote 29.2–42.4; z=1.959964 gives 29.1986–42.3479, which rounds to 29.2–42.3. Against JSON text (Run 5): +5.0 pp, 27/17, p=0.174. |
+| Shorter tool list on the full stack (keep every tool; each group's shared description once; schemas without indentation) | 84/200 = 42.0% (Wilson 35.4–48.9). **No detectable effect.** | Run 83, `scores.id` 62, log `R81_slim/full_on.log`. Paired vs Run 82: 26 / 13 / 58 / 103. Exact McNemar 0.053252, reported as p=0.053, above the 0.05 level set in the plan. 13 more tasks, not a gain and not a new best. Opening-prompt median 4,923.5 to 2,888 tokens (41%, exact 41.3%), from `R81_slim/*.metrics.jsonl`. Mean context per request 4,990 vs 7,107 (about 30%). Smoke: Run 80 (`scores.id` 59, `smoke_off.log`) 5/10; Run 81 (`scores.id` 60, `smoke_on.log`) 8/10; calls differed on tasks 55, 69, 26, 179, 59; gate required 0/10 (GATE FAIL), so the comparison run changed from Run 78 to Run 82. A second run of both lists is planned; pair-2 and pooled cells stay empty. |
 | Minimal recipe (IFFC + stop-on-repeat + card) | 71/200 = 35.5% | Run 42 |
 | JSON text (IFFC) | 61/200 = 30.5% | Run 5 |
 | Native function calling (NFC) | 54/200 = 27.0% | Run 4 (used 8 server slots vs 4 elsewhere — disclosed) |
@@ -61,7 +61,7 @@ These appear in `paper/main.tex` and were not in the table above. Sources are re
 | Self-distillation about 2.8× the null test (110 versus 39 updates) | `THESIS.md` after Runs 75–77: "about 2.8× as many updates as R73 (110 vs 39)". The paper previously said "about 3×"; 110/39 = 2.82, so the paper now uses 2.8×. |
 | DPO β = 0.2 | `THESIS.md` Runs 49 and 51. How preferred and rejected responses were paired is not in those notes. |
 | Last two turns verbatim; up to eight card slots | `benchmark/iffc_state.py` ("Last ~2 user/assistant+tool turns stay verbatim"); `benchmark/ooda_card.py` `_MAX_SLOTS = 8`. |
-| llama.cpp build 8111; context 65,536; temperatures 0 and 0.7; four versus eight slots | Already in the reproducibility paragraph. 48 GB and the slot difference are in the headline table above. |
+| llama.cpp build 8111 (commit `11c325c6e`) for earlier runs in the paper; runs 78 and 80–83 used commit `d344123fe` with `--jinja -fa on -ngl 99 -c 65536 --temp 0.0 -np 4 -cb -ub 1024` | Reproducibility paragraph. 8111 remains the recorded build for the earlier runs (`THESIS.md` server note). This note does not re-audit every pre-78 log. 48 GB and the slot difference are in the headline table above. |
 
 ## 3. History of the paper
 
@@ -82,7 +82,7 @@ These appear in `paper/main.tex` and were not in the table above. Sources are re
 - **Fine-tuning version history goes in the appendix** (App. B "Training history"), as do the 10-task tripwire, the stop-target paragraph, the guided-template row and the Gemma-only single-turn table.
 - **Harness-optimization framing**, honestly stated: the state summary (STATE) and the status card reach the model as text in its context, so it is "harness-side control delivered partly through the context", not "no prompting".
 - **Guided-template tie addressed openly** (Discussion): a guided template on the native API also scores 61/200, so the NFC→IFFC channel gain alone is not claimed; whether a template adds to or substitutes for the harness levers is untested.
-- **Headline:** R78 38.5% (it replaced R42 35.5% after R78 finished; R42 is the "minimal recipe"). Sanskar did not object to switching the headline to 38.5%. October 2026 update: a shorter tool list scored 84/200 against a 71/200 rerun of the same harness. That gap is not confirmed (p=0.0533). The first-run 77/200 stays in the record beside the rerun.
+- **Headline:** R78 38.5% (it replaced R42 35.5% after R78 finished; R42 is the "minimal recipe"). Sanskar did not object to switching the headline to 38.5%. October 2026 update: a shorter tool list scored 84/200 against a 71/200 rerun. Sanskar's QA decision: no detectable effect (p=0.053). It stays out of the abstract. The first-run 77/200 stays beside the rerun.
 - **Limitations stated**, including tuning leakage (headline chosen after seeing results on the same 200 tasks), gate selection leakage, one model/split/device, sample size.
 - **RAG tool selection appears only as Future Work.**
 - **Never invent numbers.** Every number must trace to `benchmark.db` or the logs.
