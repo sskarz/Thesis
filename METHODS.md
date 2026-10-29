@@ -1396,6 +1396,12 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 - **2026-10-26 candidate sweep ([§62](#62-spod-success-preserving-on-policy-distillation) to [§68](#68-brace-calibrated-rollout-budgets)):** SPOD (arXiv title "Beyond the Teacher..."; masks conflicting teacher supervision on successful student actions and adds a soft probability floor; Qwen3.5-2B from Qwen3.5-27B, three-benchmark average ordinary OPD **53.3** to SPOD **65.7**, also above that run's best ordinary-OPD checkpoint **58.2**; ALFWorld, WebShop, ScienceWorld; **no BFCL**; same table, Gemma-4-E4B from Gemma-4-31B overall **56.0** to **66.2**), PROVE (arXiv title "Synthesize and Reward..."; 20 live MCP servers, 343 tools, **13,517** examples, then GRPO; the penalty is an adaptive call-budget term, not a token-length penalty; BFCL Multi-Turn version **not stated**; "up to +10.2" is **Qwen3-4B Overall 18.8 to 29.0**, the best overall of the four models; same row Base **+12.0** and Miss Func **+15.0**; **not** our sheet), ReflectPO (BFCL-**v3**; Qwen3-4B Thinking multi-turn overall **33.9 to 36.9**; Base **45.0 to 44.5**; Miss-Func **37.0 to 40.0**, Miss-Param **26.0 to 32.0**, Long-Context **27.5 to 31.0**; **not** our sheet), DynaWeave (SFT on **2,095** trajectories with mid-task events; Qwen3.5-2B CostBench task completion **3.00% to 70.34%**; **no BFCL**), hierarchical agent distillation (arXiv title "Beyond On-Policy vs. Off-Policy..."; Qwen3-8B, Qwen3-14B, and Ministral-3-14B; student histories with teacher action prefixes are strongest standalone in **10 of 12** settings; the paper does not name DAgger; **no** single headline number; **no BFCL**), R2S (arXiv title "Capable Teacher, Myopic Scorer..."; the **12** cells are two teachers, two students each, and **three** environments, ALFWorld, WebShop, and ScienceWorld; abstract **+12.8** is the average over the best of TCOD-F2B, Guided-OPD, and FutureBridge in each cell; **no BFCL**), BRACE (295 held-out AWM tasks at step 100: Qwen3-VL-Instruct 2B/4B/8B solve **12.5 / 14.9 / 16.5** vs uniform GRPO **8.9 / 11.4 / 13.2**, gains **3.6 / 3.5 / 3.3** pp; BFCL v4 multi-turn transfer is Figure 5 only, **800** tasks, exact rates **not printed**). All 7 arXiv ids resolve and quoted numbers were checked against the PDFs on 2026-10-26. **Title flags:** arXiv:2610.25034 is "Beyond the Teacher..."; arXiv:2606.03892 is "Synthesize and Reward..."; arXiv:2610.31918 is "Beyond On-Policy vs. Off-Policy..."; arXiv:2610.28586 is "Capable Teacher, Myopic Scorer..."; arXiv:2610.28785 is "Measure First, Then Allocate...". Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%** (the fine-tuning track did not help); v11 CE **stopped at 26500/32000** (mid20 FAIL R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**); v11 leak gate (own-named tools, **0** BFCL names).
 
+**Related options (logged 2026-10-29, all `CANDIDATE` / not run; paper numbers are theirs; docs only, no Acc/train from this pass):**
+
+- **2026-10-29 candidate sweep ([§69](#69-effectworld-effect-typed-tool-traces) to [§70](#70-trajectory2gym-decision-grounded-interaction-synthesis)):** EffectWorld (arXiv title "Small agents should know what their tools do"; LoRA SFT on frozen Qwen3-4B-Instruct-2507, rank 16, alpha 16, dropout 0.05, attention and MLP up/down, **26.0M** trainable parameters; BFCL **v4**; Table 5 Multi-turn group **21.9 to 26.6** is not multi-turn base; Section 6.2 multi-turn base is **26.0 to 35.5**; non-live **88.0 to 84.8**; non-live irrelevance **88.8 to 75.0**; in-distribution test success, program / stepwise, **52.6 / 50.6 to 99.2 / 100.0**, which the abstract rounds to 53% to 99%; Qwen3-1.7B same recipe, Table 6 multi-turn **13.5 to 11.5** and irrelevance **81.2 to 35.4**; raw mix non-live **88.0 to 31.4**, clean mix **84.8**; suppression and DPO do not beat the SFT-only control on held-out world splits, and unlikelihood still moves BFCL against that control; about **10.2** A100-40GB hours, **27.5 GB** peak; no code URL in the PDF), Trajectory2Gym (one epoch full-parameter parent-normalized SFT, not LoRA; **11,583 to 19,937** trajectories, about **13.0M to 23.9M** target tokens; BFCL version **not stated**, **1,718** examples, four non-live, three live, and Multi-turn Base; Qwen3-1.7B **12.00 to 48.00**, Qwen3-4B **21.00 to 62.00**; abstract three-benchmark mean **+16.9 to +29.8** percentage points across five Qwen3 scales, 1.7B to 30B-A3B; the BFCL train/eval membership sentence is a validity risk; code https://github.com/yihaohu0118/Trajectory2Gym). Both arXiv v1 PDFs were checked on 2026-10-29. Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%** (the fine-tuning track did not help); v11 CE **stopped at 26500/32000** (mid20 FAIL R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**); v11 leak gate (own-named tools, **0** BFCL names). Sanskar's Mac has **48 GB** for MLX. A rank-16 LoRA on a 4B model is plausible there and would be slower than EffectWorld's A100 job (**our estimate**, not a paper measurement).
+
+**Skipped this round (2026-10-29):** EnvSched (arXiv:2610.37609), CASEL (arXiv:2610.36570), FlashScript (arXiv:2610.33876), Context-as-pipeline (arXiv:2610.36114), MCP-Injector faults (arXiv:2610.32555). The five abs pages resolved on 2026-10-29. No thesis-critical llama.cpp tool-calling changes Oct 22-29.
+
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
 **v1 (Run 12):** Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`.
@@ -2112,6 +2118,8 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Gao, Zou, & Marttinen. Beyond On-Policy vs. Off-Policy (hierarchical agent distillation). arXiv:2610.31918. https://arxiv.org/abs/2610.31918 ([§66](#66-hierarchical-agent-distillation-history-vs-action-prefix); **`CANDIDATE` / not run**; no BFCL; no single headline number; Ministral-3 is the 14B instruct checkpoint; the paper does not name DAgger)
 - Zhao & Yu. Capable Teacher, Myopic Scorer (R2S). arXiv:2610.28586. https://arxiv.org/abs/2610.28586 ([§67](#67-r2s-rollout-to-scorer-distillation); **`CANDIDATE` / not run**; arXiv title is "Capable Teacher, Myopic Scorer...", not "R2S"; no BFCL; +12.8 is the abstract average over 12 cells and three environments, not only ALFWorld and WebShop; code https://github.com/Tree-Shu-Zhao/miles-agent)
 - Tran, Yao, Kwon, & Yu. Measure First, Then Allocate (BRACE). arXiv:2610.28785. https://arxiv.org/abs/2610.28785 ([§68](#68-brace-calibrated-rollout-budgets); **`CANDIDATE` / not run**; arXiv title is "Measure First, Then Allocate...", not "BRACE"; +3.6/+3.5/+3.3 is held-out AWM, not BFCL; BFCL v4 multi-turn rates are not printed)
+- Kovalenko & Redchych. Small agents should know what their tools do (EffectWorld). arXiv:2610.35981. https://arxiv.org/abs/2610.35981 ([§69](#69-effectworld-effect-typed-tool-traces); **`CANDIDATE` / not run**; arXiv title is "Small agents should know what their tools do", not "EffectWorld"; BFCL v4; 21.9 to 26.6 is the multi-turn group, multi-turn base is 26.0 to 35.5; not our sheet; no code URL in the PDF)
+- Hu, Wen, Lin, Lu, et al. Trajectory2Gym. arXiv:2610.33568. https://arxiv.org/abs/2610.33568 ([§70](#70-trajectory2gym-decision-grounded-interaction-synthesis); **`CANDIDATE` / not run**; one epoch full-parameter SFT; Multi-turn Base 12.00 to 48.00 at 1.7B and 21.00 to 62.00 at 4B on a 1,718-example sheet, version not stated, not our sheet; BFCL train/eval membership is a validity risk; code https://github.com/yihaohu0118/Trajectory2Gym)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
@@ -4327,6 +4335,94 @@ Do **not** write 12.5 or any BFCL bar as thesis Acc.
 ### Source
 
 Tran, H., Yao, Z., Kwon, S., & Yu, H. "Measure First, Then Allocate: Calibrated Rollout Budgets for MCP Agents in Reinforcement Learning." arXiv:2610.28785, 2026. https://arxiv.org/abs/2610.28785
+
+---
+
+## 69. EffectWorld: Effect-Typed Tool Traces
+
+### Overview
+
+EffectWorld (Kovalenko & Redchych, 2026) is an executable tool world in which every tool declares an effect (pure, read, write, or destructive), whether it is idempotent, and which resources it reads and writes. A replay verifier scores effect safety without labels or a judge model. The training result logged here is LoRA supervised fine-tuning on verified traces from that world, mixed with filtered public tool-use data.
+
+**Train vs infer: training-time** (LoRA SFT). **Tag: `CANDIDATE` / not run.** Logged 2026-10-29 (docs only). Related to the MLX SFT track above and to [Turnslide §38](#38-turnslide-fsm-walk-multi-turn-data-synthesis). **No blanket GRPO.**
+
+### Mechanism
+
+1. Gold trajectories come from the workspace generator, in program mode (several dependent calls in one turn) and stepwise mode (one call per turn). The raw mix is 5,976 gold trajectories plus 15,001 public trajectories from Nemotron-Agentic-v1, Hermes function calling, and ToolACE (20,977 examples). The clean mix drops 1,751 public trajectories that contain refusal templates, caps first-turn no-call examples at 5% of each public source, and removes one arithmetic item, leaving 20,975 examples.
+2. The reference recipe, SFTclean, is two epochs of token-level negative log-likelihood on assistant turns only. The backbone is frozen Qwen3-4B-Instruct-2507. The adapter is LoRA rank 16, alpha 16, dropout 0.05, on the attention projections and the MLP up and down projections (26.0M trainable parameters). Sequences go to 4,096 tokens.
+3. A second stage can add unlikelihood, negative preference optimization (NPO), or DPO on verified negative pairs, continued from the SFTclean adapter. The SFT-only control continues SFT for the same 300 steps. The held-out comparison is against that control.
+
+### Evidence
+
+Paper results (Kovalenko & Redchych, 2026; Tables 3, 5, and 6, and Section 6.2; **theirs**). **BFCL v4**, three offline groups, 4,441 prompts. Not our 200-item `multi_turn_base` sheet.
+
+- **In distribution, test split, program / stepwise success:** base **52.6 / 50.6**, SFTclean **99.2 / 100.0**. The abstract rounds this pair to 53% to 99%.
+- **BFCL v4, Qwen3-4B, SFTclean vs base.** Table 5's Multi-turn column, the multi-turn group, is **21.9 to 26.6**. That column is not multi-turn base. Section 6.2 states multi-turn base as **26.0% to 35.5%** (+9.5; Appendix D interval [+3.5, +15.5]). The same paragraph states the setting that withholds a required parameter as **15.5% to 22.5%**. Non-live **88.0 to 84.8**. Non-live irrelevance **88.8 to 75.0**. Live **76.2 to 76.5**, which is the abstract's "matches". The four-column BFCL average in Table 3 (non-live, irrelevance, live, multi-turn) falls **68.7 to 65.7**. SFTclean does not beat the base on that average. SFTnear-miss does: **70.0** against **68.7**, with non-live irrelevance **89.6** against **88.8** (the difference is not significant).
+- **Refusal templates.** SFTraw, the same recipe on the unfiltered mix, cuts non-live accuracy from **88.0 to 31.4**. The clean mix restores **84.8**. The abstract attributes the collapse to refusal templates in public tool-use corpora, which teach the model not to call.
+- **Negatives.** The abstract says suppression and preference objectives on the verified negatives add nothing over an SFT-only control. None of unlikelihood, NPO, or DPO beats that control on any held-out world split. On BFCL, unlikelihood versus the control still gains **+1.6** live and **+3.8** multi-turn, and **+5.0** on multi-turn base, while non-live irrelevance in Table 5 falls from **77.5 to 66.2** (the prose says 66.3). DPO gains nothing on live or multi-turn and loses **8.3** irrelevance points.
+- **Qwen3-1.7B, same SFTclean recipe (Table 6):** BFCL multi-turn **13.5 to 11.5**. Irrelevance **81.2 to 35.4**. Non-live **84.2 to 80.4**. Live **74.5 to 67.1**. The 1.7B row is a BFCL loss, not a smaller copy of the 4B multi-turn gain.
+- **Compute.** One SFT recipe takes about **10.2** GPU-hours on a single A100 40 GB, about 30 s per step, **27.5 GB** peak.
+
+Do **not** write 35.5, 26.6, or 99.2 as thesis Acc.
+
+**Cite check (2026-10-29):** arXiv:2610.35981v1 resolves (arXiv stamp 2026-10-26; preprint date line October 28, 2026). The title is "Small agents should know what their tools do". EffectWorld is the world and the benchmark. The cells above match the PDF. Appendix E says code, data generators, and configurations are listed in the project's RESULTS.md. No code URL is printed in the PDF or on the abs page, so a code link is **not verified**.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH.** The pieces closest to our data track are the refusal-template filter and effect-typed, replay-checked traces. The model in the headline BFCL table is Qwen3-4B-Instruct-2507, not Gemma-4-E2B. Our measured path is harness-side control at inference on BFCL multi-turn (full stack Run 78 **77/200 = 38.5%**). This recipe is training-time. The fine-tuning track has not helped: best SFT is v4 **15.0%** (Run 15), below IFFC **30.5%**, and DPO Run 51 is **26.5%**. The v11 full CE train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). Do not open a new mix from this note. A rank-16 LoRA on a 4B model is plausible in MLX on Sanskar's 48 GB Mac, and it would be slower than this paper's single A100 job. That fit and speed note is **our estimate**, not a paper measurement. **No blanket GRPO.**
+- **BFCL categories:** v4 non-live, live, and multi-turn (base, missing function, missing parameters, long context). Group accuracies are in Table 5. A few subcategory rates are in Section 6.2. Not our sheet.
+- **Complexity:** Medium for the LoRA recipe itself (26.0M trainable parameters, one 40 GB GPU in their run). High if the effect-typed world has to be rebuilt, because no code URL is printed.
+- **Limitation:** the 4B multi-turn gain comes with a non-live drop and an irrelevance drop, and the same recipe lowers the 1.7B multi-turn column. The in-domain jump to 99.2% is EffectWorld task success, not BFCL. The code link is not verified.
+
+### Source
+
+Kovalenko, A., & Redchych, A. "Small agents should know what their tools do." arXiv:2610.35981, 2026. https://arxiv.org/abs/2610.35981
+
+---
+
+## 70. Trajectory2Gym: Decision-Grounded Interaction Synthesis
+
+### Overview
+
+Trajectory2Gym (Hu, Wen, Lin, Lu, et al., 2026) builds executable tool-use interactions around multi-step dependencies that the candidate pool under-covers, then supervises only the actions that the agent's visible history can justify. Rejected calls are masked out of the loss, and their real errors stay in the context. The loss gives each whole trajectory equal weight, instead of weighting each rendered example.
+
+**Train vs infer: training-time** (one epoch of full-parameter SFT, not LoRA). **Tag: `CANDIDATE` / not run.** Logged 2026-10-29 (docs only). Related to [DiGiT-TC §42](#42-digit-tc-schema-only-multi-turn-data-synthesis) and [EffectWorld §69](#69-effectworld-effect-typed-tool-traces). **No blanket GRPO.**
+
+### Mechanism
+
+1. Compositional coverage adds executable interactions for under-supported structures (discovery, recovery, completion). Structural-support selection then sets how many trajectories each structure gets. That count grows with scale: 1, 2, 3, 4, and 8 from 1.7B to 30B-A3B.
+2. Decision grounding keeps a call as a training target only when the tool was available to the agent and its identifier-like arguments are supported by preceding visible information. A rejected call and its authentic error stay visible context and carry no imitation loss. The grounded recovery that follows can be a target.
+3. Parent-normalized SFT: one semantic trajectory may render as several examples. Per-example averaging would give a long trajectory more of the loss. Equation (8) averages the certified tokens inside a trajectory, then averages trajectories with equal weight. In the paper's illustration, two interactions that render as three examples and one example get weights 3/4 and 1/4 under row averaging, and 1/2 each under parent normalization. Inside a parent, that weight is split in proportion to certified target-token counts.
+
+### Evidence
+
+Paper results (Hu et al., 2026; Tables 1, 2, and 3, and Appendix A; **theirs**). Five Qwen3 scales: 1.7B, 4B, 8B, 14B, and 30B-A3B. Each starts from the public checkpoint and trains for one epoch of full-parameter, assistant-token cross-entropy. Not LoRA. The selected views contain **11,583**, **13,986**, **14,819**, **15,805**, and **19,937** interactions (the main text's "11.6k to 19.9k"), and about **13.0M**, **18.0M**, **19.4M**, **20.6M**, and **23.9M** supervised target tokens.
+
+BFCL here is **1,718** examples: four non-live categories, three live categories, and Multi-turn Base. **Version not stated.** Their Overall equally averages the non-live mean, the live mean, and Multi-turn Base, so Multi-turn Base is one third of Overall. Table 2 has no missing-function, missing-parameter, or long-context column. A parallel score of 0.00 is **0/100**, so that cell is out of 100. This is not our 200-item `multi_turn_base` sheet.
+
+- **Multi-turn Base:** Qwen3-1.7B **12.00 to 48.00**. Qwen3-4B **21.00 to 62.00**. Also printed: 8B **36.00 to 68.00**, 14B **46.00 to 67.00**, 30B-A3B **65.00 to 72.00**. Section 5.3 says Multi-turn Base rises by 7 to 41 points. Overall still rises where single-turn cells fall: 1.7B **55.88 to 66.48** (+10.60), 4B **62.92 to 74.85** (+11.93). The paper's consistent single-turn exception is Live Simple, down 6 to 13 points at four of five scales.
+- **Three-benchmark mean:** the abstract's **+16.9 to +29.8** percentage points is the equal-weight mean of Tau1, Tau2, and BFCL Overall, across the five scales. Recomputed from the printed cells in Tables 1 and 2, **16.9** is the 1.7B paired gain and **29.8** is the 14B paired gain. The other three scales fall between those endpoints. The paper does not print a per-scale three-benchmark column.
+- **Parent normalization, Qwen3-8B matched ablation (Table 3):** rendered-row averaging mean **59.94** (Tau2 **52.50**, BFCL **77.79**) versus parent normalization mean **67.97** (Tau2 **74.17**, BFCL **78.62**), gain **+8.04**. That is the largest of the four matched gains (+3.55, +2.75, +2.32, +8.04). In that pair the BFCL cell barely moves. The isolated gain is Tau2, not Multi-turn Base.
+- **Membership.** Appendix A.2 says: "BFCL follows its released training-side and evaluation memberships. This provides example-level separation, although semantically related tool behaviors may occur across the two populations." The paper does not name the BFCL version or the files. Example-level separation is claimed, semantic overlap is admitted, and train/eval domain overlap is not ruled out. That is a validity risk for the BFCL numbers above. The paper separately marks Tau1 Airline as a seen-task, transductive setting.
+
+Do **not** write 48.00 or 62.00 as thesis `multi_turn_base` Acc.
+
+**Cite check (2026-10-29):** arXiv:2610.33568v1 resolves (arXiv stamp 2026-10-24). The title is "Trajectory2Gym: Decision-Grounded Compositional Interaction Synthesis for Tool-Use Agents". The Table 2 Multi-turn Base cells and the token counts above match the PDF. Page 1 links https://github.com/yihaohu0118/Trajectory2Gym , https://huggingface.co/datasets/mis2/Trajectory2gym , and https://yihaohu0118.github.io/Trajectory2Gym-page/ . On 2026-10-29 the GitHub repository, the dataset page, and https://huggingface.co/mis2/Trajectory2Gym-4B returned HTTP 200. The README says the dataset is the 34,772-interaction candidate pool, not the rendered scale-specific SFT views and not the expanded 30B-A3B corpus, and that the code snapshot alone does not recreate the reported numbers.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH-MEDIUM.** The piece that stands alone from the synthesis stack is the parent-normalized loss: equal weight per trajectory, then a split by certified target tokens. On their 8B ablation that is the largest isolated three-benchmark gain, and the movement in that pair is Tau2. Our model is Gemma-4-E2B. Our measured path is harness-side control at inference on BFCL multi-turn (Run 78 **77/200 = 38.5%**). This paper updates every weight for one epoch. The 48 GB MLX note in [§69](#69-effectworld-effect-typed-tool-traces) is an estimate for rank-16 LoRA. No MLX memory figure for this full-parameter recipe is in the paper or in our logs. The fine-tuning track has not helped (SFT v4 **15.0%**, DPO **26.5%**). The v11 train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). Do not start a full-parameter run from this note. **No blanket GRPO.**
+- **BFCL categories:** the 1,718-example sheet (four non-live, three live, Multi-turn Base only). Version not stated. Not our sheet.
+- **Complexity:** High for the full recipe (synthesis, certification, then full-parameter SFT on up to about 23.9M target tokens). The loss weight alone is a small change on a later SFT run.
+- **Limitation:** the Multi-turn Base jumps are on Qwen3, under a BFCL partition the paper does not name. Single-turn cells can fall while Multi-turn Base rises. The public dataset, per the README, is the candidate pool, not the rendered training views used for the table.
+
+### Source
+
+Hu, Y., Wen, Z., Lin, Y., Lu, S., Wang, P., Wu, W., Yang, J.-M., & Lin, T. "Trajectory2Gym: Decision-Grounded Compositional Interaction Synthesis for Tool-Use Agents." arXiv:2610.33568, 2026. https://arxiv.org/abs/2610.33568
+
+Code: https://github.com/yihaohu0118/Trajectory2Gym
+
+Dataset: https://huggingface.co/datasets/mis2/Trajectory2gym
 
 ---
 
