@@ -27,7 +27,7 @@ rows = [  # label, correct, kind
     ("JSON text + state summary", 68, "ctrl"),
     ("Minimal recipe", 71, "ctrl"),
     ("Vote of five (~7x time)", 73, "upper"),
-    ("Full stack (headline)", 77, "ctrl"),
+    ("Full stack (first run)", 77, "ctrl"),
     ("Constrained decoding", 21, "syntax"),
     ("Tool-name automaton", 27, "syntax"),
     ("Best fine-tune (SFT)", 30, "train"),
