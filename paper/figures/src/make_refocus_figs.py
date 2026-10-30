@@ -27,27 +27,29 @@ rows = [  # label, correct, kind
     ("JSON text + state summary", 68, "ctrl"),
     ("Minimal recipe", 71, "ctrl"),
     ("Vote of five (~7x time)", 73, "upper"),
-    ("Full stack (headline)", 77, "ctrl"),
+    ("Full stack (first run)", 77, "ctrl"),
     ("Constrained decoding", 21, "syntax"),
     ("Tool-name automaton", 27, "syntax"),
     ("Best fine-tune (SFT)", 30, "train"),
     ("Preference-tuned (DPO)", 53, "train"),
+    ("Full stack + shorter tool list (best of 2 runs)", 88, "ctrl"),
 ]
 # Bottom to top. Vote (73) sits below the minimal recipe (71) so the
 # last bars are not a rising stack of added components. Each bar is its own run.
-order = [7, 8, 9, 10, 0, 1, 2, 3, 5, 4, 6]
-fig, ax = plt.subplots(figsize=(6.5, 3.55))
+# Top bar: the shorter tool list's better run (88/200, run 84; its other run scored 84/200).
+order = [7, 8, 9, 10, 0, 1, 2, 3, 5, 4, 6, 11]
+fig, ax = plt.subplots(figsize=(6.5, 3.8))
 for y, i in enumerate(order):
     lab, k, kind = rows[i]
     acc = 100 * k / 200; lo, hi = wilson(k, 200)
-    hl = lab.startswith("Full stack")
+    hl = lab == "Full stack (first run)"
     ax.barh(y, acc, color=C[kind], height=0.65, edgecolor="black" if hl else "none", linewidth=1.8 if hl else 0)
     ax.errorbar(acc, y, xerr=[[acc - lo], [hi - acc]], fmt="none", ecolor="black", capsize=3, lw=1)
     ax.text(hi + 0.8, y, f"{k}/200 = {acc:.1f}%", va="center", fontsize=9.5, fontweight="bold" if hl else "normal",
             bbox=dict(facecolor="white", edgecolor="none", pad=1.5), zorder=5, clip_on=False)
 ax.set_yticks(range(len(order))); ax.set_yticklabels([rows[i][0] for i in order], fontsize=9.5)
 for t in ax.get_yticklabels():
-    if t.get_text().startswith("Full stack"): t.set_fontweight("bold")
+    if t.get_text() == "Full stack (first run)": t.set_fontweight("bold")
 ax.axvline(100 * 61 / 200, color="black", ls=":", lw=0.9, zorder=1)
 ax.set_xlim(0, 72); ax.set_ylim(-0.55, len(order) - 0.35)
 ax.set_xlabel("Tasks fully correct, % of 200 (error bars: Wilson 95% interval)", labelpad=6)
