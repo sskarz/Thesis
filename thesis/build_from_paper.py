@@ -207,13 +207,13 @@ Writing calls as JSON text scores 61/200 against 54/200 on the native API, 3.5 p
 
 SHORTER = r"""\section{The Best Setup: A Shorter Tool List}
 
-It scored 88 of 200 (44.0\%) in its better run and 84 of 200 (42.0\%) in the other. This is a repeat on the same 200 tasks, not a test on new tasks. The full stack still sends every tool. The list is long because tools that share a group also share a description, and that description was repeated on every tool, with each schema indented. We state each group's shared description once and print the schemas without indentation. Nothing else changes. The model, the four pieces of the full stack, and the tasks stay the same. Like the state summary and the card, this is harness-side control delivered through the context.
+The best setup is the full stack with the tool list written more compactly. It scored 88 of 200 (44.0\%) in its better run and 84 of 200 (42.0\%) in the other. This is a repeat on the same 200 tasks, not a test on new tasks. The full stack still sends every tool. The list is long because tools that share a group also share a description, and that description was repeated on every tool, with each schema indented. We state each group's shared description once and print the schemas without indentation. Nothing else changes. The model, the four pieces of the full stack, and the tasks stay the same. Like the state summary and the card, this is harness-side control delivered through the context.
 
 We compared that shorter list with a fresh run of the original list, then repeated the comparison in the opposite order, with the shorter list run first (Table~\ref{tab:trim}). Both pairs use the same model, the same 200 tasks, and the same other harness parts. The 10-task check, and the token and timing counts, are in Appendix~\ref{app:trim}.
 
 In the first pair the shorter list scores 84 of 200 (42.0\%, interval 35.4--48.9\%) and the original list scores 71 of 200 (35.5\%, interval 29.2--42.3\%). The shorter list solves 13 more tasks: 26 that the original list misses, and it misses 13 that the original list solves (58 both, 103 neither). An exact two-sided McNemar test gives $p=0.053$, just short of the 0.05 level.
 
-The second pair is the confirmation. The shorter list scores 88 of 200 (44.0\%, interval 37.3--50.9\%), the best single run, and the original list scores 72 of 200 (36.0\%, interval 29.7--42.9\%). The shorter list solves 26 tasks that the original list misses and misses 10 that it solves (62 both, 102 neither), $p=0.011$, which clears the 0.05 level. The gain replicated.
+The second pair is the confirmation. The shorter list scores 88 of 200 (44.0\%, interval 37.3--50.9\%), the best single run, and the original list scores 72 of 200 (36.0\%, interval 29.7--42.9\%). The shorter list solves 26 tasks that the original list misses and misses 10 that it solves (62 both, 102 neither), $p=0.011$, which clears the 0.05 level. The gain replicated. These 71 and 72 of 200 are the same runs as the 35.5\% and 36.0\% full-stack reruns.
 
 The test we rely on counts each task once across both pairs. The shorter list does better on 33 tasks and the original list on 17, with 150 ties (exact two-sided sign test, $p=0.033$). The gain is modest, about 7 points. Repeat runs still move individual tasks: between its two runs, the original list changed result on 15 tasks and the shorter list on 18.
 
@@ -240,7 +240,7 @@ Figure~\ref{fig:ladder} puts this setup on the same scale as the other condition
 
 HOW_SURE = r"""The shorter tool list is the one change we ran twice, and that modest gain replicated. We did not label the failures of the shorter-list runs, or test the best setup against JSON text directly. The other harness gaps are less firm. Each harness accuracy comes with a range that extends about six to seven percentage points on either side (Table~\ref{tab:board}). A gap smaller than that can be noise. Of the eight planned comparisons (Table~\ref{tab:mcnemar}), two harness gaps fall below 0.05 on their own: the full stack against JSON text ($p=0.023$) and the minimal recipe against the native API (McNemar $p=0.033$). Neither stays below 0.05 after correcting for the eight tests. The order of the harness rows is therefore tentative, and the full stack's gain of 8.0 percentage points over JSON text is suggestive.
 
-Repeat runs of the full stack do not agree. It scored 77 of 200, then 71 of 200 and 72 of 200. A swing of that size is as large as most gaps between harness rows, so a difference from a single run should not be ranked. Against JSON text, the first of those later runs is ahead by 5.0 percentage points (27 tasks only that run solves, 17 only JSON text, $p=0.174$).
+Repeat runs of the full stack do not agree. It scored 77 of 200, then 71 of 200 and 72 of 200. These 71 and 72 of 200 are the same runs as the 35.5\% and 36.0\% full-stack reruns. A swing of that size is as large as most gaps between harness rows, so a difference from a single run should not be ranked. Against JSON text, the first of those later runs is ahead by 5.0 percentage points (27 tasks only that run solves, 17 only JSON text, $p=0.174$).
 
 Two contrasts are firm. The best supervised fine-tune solves only 7 tasks that JSON text misses and misses 38 that JSON text solves ($p<0.001$), and that gap survives the correction. The full stack's interval (32.0--45.4\%) does not overlap the best fine-tune (10.7--20.6\%) or the forced-valid output. Preference tuning (26.5\%) is not separable from JSON text."""
 
@@ -277,17 +277,18 @@ LIMITATIONS = r"""\section{Limitations}
 \end{itemize}"""
 
 CONCLUSION = (
-    "The best setup reached 44.0\\% (88 of 200) in its better run. The other scored 42.0\\% "
-    "(84 of 200). The original list scored 71 and 72 of 200 in the same pairs. All of these "
-    "runs used the same 200 tasks. It is the training-free harness with the same tool list "
-    "written more compactly, and the gain from that shorter list replicated. The model fails at "
-    "choosing the next step, not at writing a call. The failure analysis is why we built the "
-    "harness. Why the shorter list helps is an untested guess. Without the shorter list, the "
-    "harness raises accuracy from 30.5\\% to 38.5\\% in its first run; two reruns scored 35.5\\% "
-    "and 36.0\\%. That gain is suggestive and is not significant after correcting for multiple "
-    "comparisons. Forcing valid syntax made results worse, and fine-tuning did not beat the "
-    "untuned model. Among the labelled runs, wrong final states remain the largest failure type. "
-    "For a local agent, these changes are also far cheaper than voting or training.\n"
+    "The best setup is the training-free harness with the same tool list written more compactly. "
+    "It reached 44.0\\% (88 of 200) in its better run. The other scored 42.0\\% (84 of 200). "
+    "The original list scored 71 and 72 of 200 in the same pairs. These 71 and 72 of 200 are "
+    "the same runs as the 35.5\\% and 36.0\\% full-stack reruns. All of these runs used the same "
+    "200 tasks. The gain from that shorter list replicated. The model fails at choosing the next "
+    "step, not at writing a call. The failure analysis is why we built the harness. Why the "
+    "shorter list helps is an untested guess. Without the shorter list, the harness raises "
+    "accuracy from 30.5\\% to 38.5\\% in its first run; two reruns scored 35.5\\% and 36.0\\%. "
+    "That gain is suggestive and is not significant after correcting for multiple comparisons. "
+    "Forcing valid syntax made results worse, and fine-tuning did not beat the untuned model. "
+    "Among the labelled runs, wrong final states remain the largest failure type. For a local "
+    "agent, these changes are also far cheaper than voting or training.\n"
 )
 
 REPRO = r"""\section{Reproducibility}
@@ -522,7 +523,7 @@ def apply_overrides(parts):
     parts["ch1"] = must_replace(
         parts["ch1"],
         "it completes 27.0\\% of 200 multi-turn tasks.",
-        "it completes 27.0\\% of 200 multi-turn tasks. The best setup reaches 44.0\\% (88 of 200) in its better run.",
+        "it completes 27.0\\% of 200 multi-turn tasks. The best setup we found, a harness plus a shorter tool list, reaches 44.0\\% (88 of 200) in its better run.",
         "ch1 headline",
     )
     parts["ch1"] = replace_span(
