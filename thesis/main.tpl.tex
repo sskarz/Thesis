@@ -65,6 +65,21 @@
 \AtBeginDocument{\RaggedRight}
 \setlength{\parskip}{0pt}
 \setlength{\bibsep}{0pt}
+% Sample references: "[n]" right-aligned at 0.25 in, the entry's first line at
+% 0.5 in, wrapped lines at 1 in. No extra gap above the first entry.
+\makeatletter
+\renewcommand\NAT@bibsetnum[1]{%
+  \settowidth{\labelwidth}{\@biblabel{#1}}%
+  \setlength{\labelsep}{0.25in}%
+  \setlength{\leftmargin}{1in}%
+  \setlength{\itemindent}{-0.5in}%
+  \setlength{\listparindent}{0pt}%
+  \setlength{\topsep}{0pt}%
+  \setlength{\partopsep}{0pt}%
+  \setlength{\itemsep}{\bibsep}%
+  \setlength{\parsep}{0pt}%
+}
+\makeatother
 
 % == Continuous figure/table numbering (sample: Table 1..6, Fig. 1..10) ==
 \counterwithout{figure}{chapter}
@@ -85,9 +100,9 @@
 %      level-2 headings flush left bold, unnumbered. ==
 \setcounter{secnumdepth}{0}  % number chapters only
 \titleformat{\chapter}[display]{\normalfont\normalsize\bfseries\centering}{\MakeUppercase{\chaptertitlename}~\thechapter}{0pt}{}
-\titlespacing*{\chapter}{0pt}{-\baselineskip}{\baselineskip}
+\titlespacing*{\chapter}{0pt}{-\baselineskip}{0pt}
 \titleformat{name=\chapter,numberless}[block]{\normalfont\normalsize\centering}{}{0pt}{}
-\titlespacing*{name=\chapter,numberless}{0pt}{-\baselineskip}{\baselineskip}
+\titlespacing*{name=\chapter,numberless}{0pt}{-\baselineskip}{0pt}
 \titleformat{\section}[block]{\normalfont\normalsize\bfseries}{}{0pt}{}
 \titlespacing*{\section}{0pt}{0pt}{0pt}
 \titleformat{\subsection}[block]{\normalfont\normalsize\bfseries\itshape}{}{0pt}{}
@@ -122,26 +137,68 @@
 \renewcommand{\cftpartleader}{\cftdotfill{\cftdotsep}}
 \setlength{\cftbeforepartskip}{0pt}
 \setlength{\cftpartindent}{0pt}
-% chapters: "1. Introduction", indented 0.5 in, dotted, not bold
+% chapters: "1. Introduction" at 0.375 in (sample tab), dotted, not bold.
+% The number box is only as wide as "1. " or "A. ", so the title follows the period.
 \renewcommand{\cftchapfont}{\normalfont}
 \renewcommand{\cftchappagefont}{\normalfont}
 \renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
 \renewcommand{\cftchapaftersnum}{.}
 \setlength{\cftbeforechapskip}{0pt}
-\setlength{\cftchapindent}{0.5in}
-\setlength{\cftchapnumwidth}{2em}
-% level-2 headings: indented 1.0 in
-\setlength{\cftsecindent}{1.0in}
+\setlength{\cftchapindent}{0.375in}
+\makeatletter
+\AtBeginDocument{%
+  \settowidth{\cftchapnumwidth}{1.\ }%
+  \settowidth{\@tempdima}{A.\ }%
+  \ifdim\@tempdima>\cftchapnumwidth
+    \setlength{\cftchapnumwidth}{\@tempdima}%
+  \fi
+}
+\makeatother
+% level-2 headings: 0.75 in, the sample's second tab
+\setlength{\cftsecindent}{0.75in}
 \setlength{\cftsecnumwidth}{0pt}
-% list entries: "1. caption", indented
-\renewcommand{\cftfigaftersnum}{.}
-\renewcommand{\cfttabaftersnum}{.}
-\setlength{\cftfigindent}{0.25in}
-\setlength{\cfttabindent}{0.25in}
-\setlength{\cftfignumwidth}{2.2em}
-\setlength{\cfttabnumwidth}{2.2em}
-\setlength{\cftbeforefigskip}{4pt}
-\setlength{\cftbeforetabskip}{4pt}
+% Lists: "1." at 0.25 in, "TABLE N." / "Fig. N." at 0.5 in, wrapped lines at 0.75 in.
+% Table entries are the full caption in capitals, as the sample prints them.
+% No extra skip between entries: the body double spacing is the line pitch.
+\setlength{\cftbeforefigskip}{0pt}
+\setlength{\cftbeforetabskip}{0pt}
+\makeatletter
+\newcommand{\thesis@listline}[3]{%
+  % #1 is the list entry (a link around \numberline{n}{caption}), #2 the page,
+  % #3 the prefix word (TABLE or Fig.).
+  \begingroup
+    \leftskip 0.75in
+    \rightskip \@tocrmarg
+    \parfillskip -\rightskip
+    \parindent 0pt
+    \interlinepenalty 10000
+    \hyphenpenalty 10000
+    \def\numberline##1##2{%
+      \hb@xt@ 0.25in{##1.\hfil}%
+      #3\ ##1.\ %
+      \ifx\thesis@uppercaps\relax
+        \MakeUppercase{##2}%
+      \else
+        ##2%
+      \fi
+    }%
+    \noindent\hspace*{-0.5in}%
+    #1%
+    \nobreak
+    \cftfigfillnum{#2}%
+  \endgroup
+}
+\renewcommand{\l@table}[2]{%
+  \ifnum\c@lotdepth>\z@
+    {\let\thesis@uppercaps\relax\thesis@listline{#1}{#2}{TABLE}}%
+  \fi
+}
+\renewcommand{\l@figure}[2]{%
+  \ifnum\c@lofdepth>\z@
+    {\def\thesis@uppercaps{0}\thesis@listline{#1}{#2}{Fig.}}%
+  \fi
+}
+\makeatother
 \cftsetrmarg{3.2em plus 1fil}
 \cftsetpnumwidth{2em}
 \renewcommand{\cftdotsep}{1}
@@ -222,7 +279,6 @@ December 2026
 
 % == Abstract (iv) ==
 \chapter*{ABSTRACT}
-\vspace{-\baselineskip}% title block directly under the heading, as in the sample
 \tocline{Abstract}
 {\centering
 State, Not Syntax: Harness Optimization for\\
@@ -246,16 +302,14 @@ Sanskar Thapa\par}
 \endgroup
 \clearpage
 \tocline{List of Tables}
-\begingroup\singlespacing\hyphenpenalty=10000
+\begingroup
 \renewcommand{\addvspace}[1]{}% drop the per-chapter 10 pt gaps so entry spacing is even
 \listoftables
 \endgroup
-\vspace{\baselineskip}
+\clearpage
 \tocline{List of Figures}
-\begingroup\singlespacing\hyphenpenalty=10000
+\begingroup
 \renewcommand{\addvspace}[1]{}% drop the per-chapter 10 pt gaps so entry spacing is even
-\let\clearpage\relax
-\let\cleardoublepage\relax
 \listoffigures
 \endgroup
 \addtocontents{lot}{\protect\noindent Table\protect\par}
