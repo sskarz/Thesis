@@ -138,3 +138,7 @@ What changed, all inside `thesis/`:
 - "33 tasks" and `p = 0.023` are still stated once in the main text. The abstract says "33 to 17" for the sign test, so it does not repeat "33 tasks". The other `p = 0.033`, minimal recipe against the native API, stays in "How Sure Are We?" and is a different comparison.
 
 No new numbers. The date stays December 2026. Acknowledgments stay commented out. The two committee-member placeholders, Dr. Mohammad Pourhomayoun, and Dr. Chengyu Sun stay.
+
+## 10. Wording fixes after the 44% reframe
+
+Sanskar approved wording-only fixes. The abstract is the approved text. The failure analysis is why the harness was built. Why the shorter list helps stays an untested guess. The 44.0% figure is the better of the two shorter-list runs (the other is 42.0%, 84 of 200). The original list in those same pairs is 71 and 72 of 200, which are also 35.5% and 36.0%. Claims about wrong final states are limited to the labelled runs. The shorter list sits outside the eight-test family and has no held-out check. The sign test and the McNemar test are named next to their own p = 0.033. The 20-task gate figure follows the sentence that cites it. The Chapter 6 closer is gone.
