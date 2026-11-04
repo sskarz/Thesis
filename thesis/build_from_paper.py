@@ -141,7 +141,7 @@ CONTRIBUTIONS = r"""Our contributions:
 \begin{enumerate}
   \item \textbf{Where the failures are.} The model usually handles a single call, and it usually fails when the task needs several. A needed call never happens, or the backend ends in the wrong state. Forcing each call to be valid syntax makes this worse (Chapter~\ref{sec:fail}).
   \item \textbf{A harness that helps without training.} The weights stay fixed. The program around the model records the current state, stops repeated calls, and shows a short card advising the next move. Together these raise accuracy by a suggestive amount. A more compact tool list helps further, and the harness keeps up with a five-sample vote at a fraction of the generation time (Chapter~\ref{sec:helps}).
-  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The later training set is the leading suspect, and it also differed in training length (Chapter~\ref{sec:train}).
+  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The rebuilt training set is the leading suspect, and it also differed in training length (Chapter~\ref{sec:train}).
 \end{enumerate}"""
 
 CH2_INTRO = (
@@ -177,10 +177,13 @@ A state summary, written from results the harness has already executed, looks li
 \begin{quote}\singlespacing\footnotesize\ttfamily\setlength{\topsep}{2pt}\setlength{\partopsep}{0pt}
 [STATE]\\ cwd: /workspace/notes\\ files: todo.txt, log.csv\\ last: cd(folder='notes')->ok
 \end{quote}
+\noindent\begin{minipage}{\linewidth}
 A status card, prefixed to the latest user message, looks like this:
 \begin{quote}\singlespacing\footnotesize\ttfamily\setlength{\topsep}{2pt}\setlength{\partopsep}{0pt}
 [OODA]\\ goal: lock the doors and start the engine\\ slots: lockStatus=locked\\ last: startEngine()->error: brake pedal must be pressed\\ next: call
-\end{quote}"""
+\end{quote}
+\end{minipage}
+"""
 
 STATISTICS = r"""\section{Statistics}
 
@@ -221,7 +224,7 @@ Pair 2 & 26 & 10 & 62 & 102 & 0.011 \\
 \end{tabular}
 \end{table}
 
-Figure~\ref{fig:ladder} shows these runs on one scale. The top bar is the shorter tool list.
+Figure~\ref{fig:ladder} shows all of these conditions on one scale. The top bar is the shorter tool list.
 
 @@LADDER@@"""
 
@@ -280,7 +283,7 @@ CONCLUSION = (
 
 REPRO = r"""\section{Reproducibility}
 
-Hardware: MacBook Pro, Apple M4~Pro, 48~GB, with Metal acceleration (Apple's GPU interface). Temperature is 0 except for voting (0.7, $N{=}5$, one seed). The native API baseline used eight server slots; the runs below used four. BFCL v4 is read through the \texttt{bfcl-eval} package (the exact version per run was not logged). Failure labels come from the checker messages in the \texttt{eval\_errors} table. Figures are regenerated from these counts by \texttt{paper/figures/src/make\_refocus\_figs.py}. The 91.9\% interval is the Wilson formula on 772/840 in the single-call log.
+Hardware: MacBook Pro, Apple M4~Pro, 48~GB, with Metal acceleration (Apple's GPU interface). Temperature is 0 except for voting (0.7, $N{=}5$, one seed). The native API baseline used eight server slots; the runs below used four (Table~\ref{tab:repro}). BFCL v4 is read through the \texttt{bfcl-eval} package (the exact version per run was not logged). Failure labels come from the checker messages in the \texttt{eval\_errors} table. Figures 2 and 4 are regenerated from these counts by \texttt{paper/figures/src/make\_refocus\_figs.py}. Figure 3 uses those same counts; it is a copy of that ladder with the log abbreviations removed from two bar labels. The 91.9\% interval is the Wilson formula on 772/840 in the single-call log.
 
 \begin{table}[H]
 \centering
@@ -310,7 +313,7 @@ Earlier runs used llama.cpp build 8111 (commit \texttt{11c325c6e}). Runs 78 and 
 TRIM = r"""\section{Shorter Tool List Checks}
 \label{app:trim}
 
-A 10-task check scored 5 of 10 with the original list and 8 of 10 with the shorter list. The recorded calls differed from the first full-stack run on five tasks, so the 200-task comparison used a fresh rerun of the original list (77 of 200) rather than that first run.
+A 10-task check scored 5 of 10 with the original list and 8 of 10 with the shorter list. The recorded calls differed from the first full-stack run on five tasks, so the 200-task comparison used a fresh rerun of the original list rather than that first run (77 of 200).
 
 The context window is 16{,}384 tokens per request (65{,}536 shared across four slots). The opening prompt on the original list is about 5{,}000 tokens. Its median length falls from 4{,}923.5 tokens to 2{,}888, a 41\% cut (41.3\%). Mean context per request falls from 7{,}107 tokens to 4{,}990, about 30\%. Invalid tool names stay at zero (0 of 1{,}276 calls with the shorter list, 0 of 1{,}244 with the original list). Invalid arguments are 2 of 1{,}276 against 9 of 1{,}244. Format errors are 1 of 1{,}801 model replies against 0 of 1{,}773. Mean server time per model request, prompt reading plus generation, with four slots, is 15.4\,s with the shorter list and 18.8\,s with the original list (medians 12.7\,s and 15.9\,s). Most of the drop is generation (16.2\,s to 13.5\,s). Prompt reading falls from 2.53\,s to 1.86\,s.
 
