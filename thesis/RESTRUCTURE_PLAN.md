@@ -17,7 +17,7 @@ Dr. Mohammad Pourhomayoun). Output: a separate document, `thesis/main.tex` built
 | Front matter order | Title (i), Copyright (ii), Approval (iii), Abstract (iv), Acknowledgments (v), Table of Contents, List of Tables, List of Figures | Same order |
 | Title page | ALL-CAPS title / A Thesis / Presented to / The Faculty of the Department of Computer Science / California State University, Los Angeles / In Partial Fulfillment / of the Requirements for the Degree / Master of Science / in / Computer Science / By / name / date | Same lines, date "December 2026" |
 | Copyright | "© year / name / ALL RIGHTS RESERVED", bottom of page | "© 2026 / Sanskar Thapa / ALL RIGHTS RESERVED" |
-| Approval page | "The thesis of X is approved.", chair, 3 members, Department Chair, university, date | Same; chair "Dr. Mohammad Pourhomayoun, Committee Chair"; 3 committee member and the Department Chair names are inline placeholders (", Department Chair" stays on the same line) |
+| Approval page | "The thesis of X is approved.", chair, members, Department Chair, university, date | Same line style. Chair "Dr. Mohammad Pourhomayoun, Committee Chair". Department Chair "Dr. Chengyu Sun, Department Chair". Two committee member lines stay inline placeholders |
 | Abstract page | ABSTRACT heading, title, "By", name, text | Same |
 | Front-matter headings | Centered, all caps, not bold | Same |
 | Chapter openers | New page; "CHAPTER N" centered bold, title centered bold | Same |
@@ -59,12 +59,10 @@ follows the paragraph that cites it in the current paper.
 
 ## 3. Placeholders (all marked `[PLACEHOLDER: ...]` in bold)
 
-1. Approval page: Committee member name (1 of 3)
-2. Approval page: Committee member name (2 of 3)
-3. Approval page: Committee member name (3 of 3)
-4. Approval page: Department Chair name
+1. Approval page: Committee member name (1 of 2)
+2. Approval page: Committee member name (2 of 2)
 
-Acknowledgments are commented out in `main.tpl.tex` (page and table-of-contents entry). Uncomment those three lines to restore them. The Chapter 1 roadmap is written in `main.tpl.tex` from the chapter titles.
+The committee chair is Dr. Mohammad Pourhomayoun. The department chair is Dr. Chengyu Sun. Acknowledgments are commented out in `main.tpl.tex` (page and table-of-contents entry). Uncomment those three lines to restore them. The Chapter 1 roadmap is written in `main.tpl.tex` from the chapter titles.
 
 ## 4. Wording changes (complete list; no findings, numbers or claims changed)
 
