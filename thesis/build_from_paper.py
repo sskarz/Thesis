@@ -6,7 +6,9 @@ transforms are applied (run-in \\paragraph headings -> level-2 headings,
 "Section~\\ref" -> "Chapter~\\ref" for targets that are now chapters,
 "this paper" -> "this thesis", float placement -> [H]). Line ranges match
 paper/main.tex after the shorter-tool-list results and PR #109. Fig. 2 already
-follows the paragraph that cites it. The thesis pins every float with [H], so
+follows the paragraph that cites it. The ladder is moved to just after the
+Chapter 5 opening paragraph, and the shorter-tool-list table to just after the
+10-task paragraph that cites it. The thesis pins every float with [H], so
 the paper's [tb] on the McNemar table is not copied.
 """
 import re, pathlib
@@ -117,6 +119,36 @@ def captions(text):
     parts = re.split(r"(\\begin\{(?:figure|table)\}.*?\\end\{(?:figure|table)\})", text, flags=re.S)
     return "".join(list_captions(p, "figure" if p.startswith("\\begin{figure}") else "table") if p.startswith("\\begin{") else p for p in parts)
 
+def _float_span(text, label):
+    """The [H] float whose \\label is label, including the blank line after it."""
+    needle = "\\label{" + label + "}"
+    for m in re.finditer(
+        r"\\begin\{(?:figure|table)\}\[H\]\n.*?\\end\{(?:figure|table)\}\n\n",
+        text,
+        flags=re.S,
+    ):
+        if needle in m.group(0):
+            return m
+    raise AssertionError(label)
+
+def move_float_after_first_paragraph(text, label):
+    """Place the float immediately after the chapter's opening paragraph."""
+    m = _float_span(text, label)
+    fl = m.group(0)
+    text = text[:m.start()] + text[m.end():]
+    n = text.index("\n\n") + 2
+    return text[:n] + fl + text[n:]
+
+def move_float_after_paragraph_ending(text, label, ending):
+    """Place the float immediately after the paragraph that ends with ending."""
+    m = _float_span(text, label)
+    fl = m.group(0)
+    text = text[:m.start()] + text[m.end():]
+    i = text.find(ending)
+    assert i >= 0, ending
+    n = text.index("\n\n", i) + 2
+    return text[:n] + fl + text[n:]
+
 def body(a, b, level="section"):
     return captions(fix(L(a, b), level))
 
@@ -130,7 +162,11 @@ parts = {
  "ch2": body(108, 116),
  "ch3": body(121, 139),
  "ch4": body(144, 155),
- "ch5": body(161, 228),
+ "ch5": move_float_after_paragraph_ending(
+            move_float_after_first_paragraph(body(161, 228), "fig:ladder"),
+            "tab:trim",
+            "(Table~\\ref{tab:trim}).",
+        ),
  "ch6": body(232, 246),
  "ch7": body(250, 268),
  "ch8_future": body(273, 273),

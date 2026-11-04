@@ -58,6 +58,8 @@
 \setlength{\RaggedRightParindent}{0.5in}
 \setlength{\RaggedRightRightskip}{0pt plus 1fil}
 \hyphenpenalty=10000 % no hyphenation, as in the sample
+\widowpenalty=10000
+\clubpenalty=10000
 \AtBeginDocument{\RaggedRight}
 \setlength{\parskip}{0pt}
 \setlength{\bibsep}{0pt}
@@ -377,6 +379,13 @@ If failures were mostly malformed output, guaranteeing valid output should help.
 
 If the bottleneck is choosing the next step, the harness, which sees every executed result, is a natural place to intervene. Figure~\ref{fig:ladder} shows the results. Every change is greedy except the vote of five, and none touches the weights; exact counts and intervals for every condition are in Table~\ref{tab:board} (Appendix~\ref{app:runs}).
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{ladder_n200.pdf}
+\caption[Fig.~\thefigure.\ Multi-turn accuracy on 200 BFCL v4 tasks, Gemma-4-E2B-it. Each bar is a separate run, not a stack of the bars below it. Bars: share of tasks fully correct; error bars: Wilson 95\% intervals. Dark green: harness control on JSON text (the first full-stack run is outlined and in bold); light green: majority vote, the compute-heavy comparison; grey: output format alone; red: forced-valid output; orange: training. Dotted line: JSON-text baseline (30.5\%). Top bar: the full stack with a shorter tool list, the better of its two runs (88/200; the other scored 84/200, and two reruns of the original list scored 71/200 and 72/200; Table~\ref{tab:trim}).]{Multi-turn accuracy on 200 BFCL v4 tasks, Gemma-4-E2B-it. Each bar is a separate run, not a stack of the bars below it. Bars: share of tasks fully correct; error bars: Wilson 95\% intervals. Dark green: harness control on JSON text (the first full-stack run is outlined and in bold); light green: majority vote, the compute-heavy comparison; grey: output format alone; red: forced-valid output; orange: training. Dotted line: JSON-text baseline (30.5\%). Top bar: the full stack with a shorter tool list, the better of its two runs (88/200; the other scored 84/200, and two reruns of the original list scored 71/200 and 72/200; Table~\ref{tab:trim}).}
+\label{fig:ladder}
+\end{figure}
+
 \section{JSON Text over the Native API (+3.5\pp)}
 
 Writing calls as JSON text scores 61/200 against 54/200 natively ($p=0.32$, not significant). Part of the gap may come from serving, and a guided template on the native API ties JSON text (Chapter~\ref{sec:discussion}), so we do not claim the channel switch alone as a gain. We build the harness ladder on JSON text because the harness can parse and inspect it directly.
@@ -384,13 +393,6 @@ Writing calls as JSON text scores 61/200 against 54/200 natively ($p=0.32$, not 
 \section{State Summary (+3.5\pp)}
 
 The harness-written snapshot scores 68/200 ($p=0.30$ against JSON text). Empty turns fall from 41 to 31 while state mismatches do not (60 to 64), suggesting that the summary mainly keeps the model calling.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{ladder_n200.pdf}
-\caption[Fig.~\thefigure.\ Multi-turn accuracy on 200 BFCL v4 tasks, Gemma-4-E2B-it. Each bar is a separate run, not a stack of the bars below it. Bars: share of tasks fully correct; error bars: Wilson 95\% intervals. Dark green: harness control on JSON text (the first full-stack run is outlined and in bold); light green: majority vote, the compute-heavy comparison; grey: output format alone; red: forced-valid output; orange: training. Dotted line: JSON-text baseline (30.5\%). Top bar: the full stack with a shorter tool list, the better of its two runs (88/200; the other scored 84/200, and two reruns of the original list scored 71/200 and 72/200; Table~\ref{tab:trim}).]{Multi-turn accuracy on 200 BFCL v4 tasks, Gemma-4-E2B-it. Each bar is a separate run, not a stack of the bars below it. Bars: share of tasks fully correct; error bars: Wilson 95\% intervals. Dark green: harness control on JSON text (the first full-stack run is outlined and in bold); light green: majority vote, the compute-heavy comparison; grey: output format alone; red: forced-valid output; orange: training. Dotted line: JSON-text baseline (30.5\%). Top bar: the full stack with a shorter tool list, the better of its two runs (88/200; the other scored 84/200, and two reruns of the original list scored 71/200 and 72/200; Table~\ref{tab:trim}).}
-\label{fig:ladder}
-\end{figure}
 
 \section{Stop on Repeats and the Status Card (Minimal Recipe, 35.5\%)}
 
@@ -405,12 +407,6 @@ Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%).
 The full stack still sends every tool. The list is long because tools that share a group also share a description, and that description was repeated on every tool, with each schema indented. We state each group's shared description once and print the schemas without indentation. Nothing else changes. Like the state summary and the card, this is harness-side control delivered through the context. A shorter list might leave more room for the state the model needs next. That is an untested guess: the window is 16{,}384 tokens per request (65{,}536 shared across four slots), and the opening prompt is about 5{,}000 tokens on the original list.
 
 A 10-task check scored 5 of 10 with the original list (run 80) and 8 of 10 with the shorter list (run 81). The recorded calls differed from the first full-stack run on tasks 55, 69, 26, 179, and 59. The plan's gate required 0 of those 10 to differ, so the gate failed. The plan had paired the test with the first full-stack run (77 of 200). After that smoke check, the comparison run was changed to a fresh rerun of the original list (run 82), which scores 71 of 200 (35.5\%, interval 29.2--42.3\%). The shorter list (run 83) scores 84 of 200 (42.0\%, interval 35.4--48.9\%). It solves 13 more tasks: 26 that the rerun misses, and it misses 13 that the rerun solves (58 both, 103 neither). An exact two-sided McNemar test gives $p=0.053$, just short of the 0.05 level set in the plan (Table~\ref{tab:trim}).
-
-The opening prompt's median length falls from 4{,}923.5 tokens to 2{,}888, a 41\% cut (41.3\%). Mean context per request, counted separately, falls from 7{,}107 tokens to 4{,}990, about 30\%. Invalid tool names stay at zero (0 of 1{,}276 calls with the shorter list, 0 of 1{,}244 with the original list). Invalid arguments are 2 of 1{,}276 against 9 of 1{,}244. Format errors are 1 of 1{,}801 model replies against 0 of 1{,}773. Mean server time per model request, prompt reading plus generation, with four slots, is 15.4\,s with the shorter list and 18.8\,s with the original list (medians 12.7\,s and 15.9\,s). Most of the drop is generation (16.2\,s to 13.5\,s). Prompt reading falls from 2.53\,s to 1.86\,s.
-
-A second pair repeated the test in the opposite order, with the shorter list run first. The shorter list (run 84) scores 88 of 200 (44.0\%, interval 37.3--50.9\%), our best single run, and the original list (run 85) scores 72 of 200 (36.0\%, interval 29.7--42.9\%). The shorter list solves 26 tasks that the original list misses and misses 10 that it solves (62 both, 102 neither), $p=0.011$, which clears the 0.05 level. The gain replicated. Across both pairs the shorter list solves 172 of 400 task runs and the original list 143 of 400. A McNemar test on the 52 task runs only the shorter list solved and the 23 only the original list solved gives $p=0.001$, but it is optimistic, because the same 200 tasks appear in both pairs. The test we rely on counts each task once: the shorter list does better on 33 tasks and the original list on 17, with 150 ties (exact two-sided sign test, $p=0.033$). The gain is modest, about 7 points, and repeat runs move individual tasks: between its two runs, the original list changed result on 15 tasks and the shorter list on 18.
-
-The second pair shows the same costs. Mean context per request falls from 7{,}121 tokens to 5{,}001, again about 30\%, and mean server time per request from 19.4\,s to 15.4\,s, about 20\% faster. Invalid tool names and format errors are zero for both lists. Invalid arguments are 4 of 1{,}300 calls with the shorter list against 5 of 1{,}255 (0.31\% and 0.40\%). A separate 50-request timing check after each run gives a mean time to the first token of 166\,ms with the shorter list and 334\,ms with the original list (204\,ms and 473\,ms in the first pair).
 
 \begin{table}[H]
 \centering
@@ -427,6 +423,12 @@ Pooled & 52 & 23 & 120 & 205 & 0.001 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+The opening prompt's median length falls from 4{,}923.5 tokens to 2{,}888, a 41\% cut (41.3\%). Mean context per request, counted separately, falls from 7{,}107 tokens to 4{,}990, about 30\%. Invalid tool names stay at zero (0 of 1{,}276 calls with the shorter list, 0 of 1{,}244 with the original list). Invalid arguments are 2 of 1{,}276 against 9 of 1{,}244. Format errors are 1 of 1{,}801 model replies against 0 of 1{,}773. Mean server time per model request, prompt reading plus generation, with four slots, is 15.4\,s with the shorter list and 18.8\,s with the original list (medians 12.7\,s and 15.9\,s). Most of the drop is generation (16.2\,s to 13.5\,s). Prompt reading falls from 2.53\,s to 1.86\,s.
+
+A second pair repeated the test in the opposite order, with the shorter list run first. The shorter list (run 84) scores 88 of 200 (44.0\%, interval 37.3--50.9\%), our best single run, and the original list (run 85) scores 72 of 200 (36.0\%, interval 29.7--42.9\%). The shorter list solves 26 tasks that the original list misses and misses 10 that it solves (62 both, 102 neither), $p=0.011$, which clears the 0.05 level. The gain replicated. Across both pairs the shorter list solves 172 of 400 task runs and the original list 143 of 400. A McNemar test on the 52 task runs only the shorter list solved and the 23 only the original list solved gives $p=0.001$, but it is optimistic, because the same 200 tasks appear in both pairs. The test we rely on counts each task once: the shorter list does better on 33 tasks and the original list on 17, with 150 ties (exact two-sided sign test, $p=0.033$). The gain is modest, about 7 points, and repeat runs move individual tasks: between its two runs, the original list changed result on 15 tasks and the shorter list on 18.
+
+The second pair shows the same costs. Mean context per request falls from 7{,}121 tokens to 5{,}001, again about 30\%, and mean server time per request from 19.4\,s to 15.4\,s, about 20\% faster. Invalid tool names and format errors are zero for both lists. Invalid arguments are 4 of 1{,}300 calls with the shorter list against 5 of 1{,}255 (0.31\% and 0.40\%). A separate 50-request timing check after each run gives a mean time to the first token of 166\,ms with the shorter list and 334\,ms with the original list (204\,ms and 473\,ms in the first pair).
 
 \section{Cost: Majority Vote (36.5\%)}
 
