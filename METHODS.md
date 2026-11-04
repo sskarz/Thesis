@@ -1401,6 +1401,10 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 - **2026-10-29 candidate sweep ([§69](#69-effectworld-effect-typed-tool-traces) to [§70](#70-trajectory2gym-decision-grounded-interaction-synthesis)):** EffectWorld (arXiv title "Small agents should know what their tools do"; LoRA SFT on frozen Qwen3-4B-Instruct-2507, rank 16, alpha 16, dropout 0.05, attention and MLP up/down, **26.0M** trainable parameters; BFCL **v4**; Table 5 Multi-turn group **21.9 to 26.6** is not multi-turn base; Section 6.2 multi-turn base is **26.0 to 35.5**; non-live **88.0 to 84.8**; non-live irrelevance **88.8 to 75.0**; in-distribution test success, program / stepwise, **52.6 / 50.6 to 99.2 / 100.0**, which the abstract rounds to 53% to 99%; Qwen3-1.7B same recipe, Table 6 multi-turn **13.5 to 11.5** and irrelevance **81.2 to 35.4**; raw mix non-live **88.0 to 31.4**, clean mix **84.8**; suppression and DPO do not beat the SFT-only control on held-out world splits, and unlikelihood still moves BFCL against that control; about **10.2** A100-40GB hours, **27.5 GB** peak; no code URL in the PDF), Trajectory2Gym (one epoch full-parameter parent-normalized SFT, not LoRA; **11,583 to 19,937** trajectories, about **13.0M to 23.9M** target tokens; BFCL version **not stated**, **1,718** examples, four non-live, three live, and Multi-turn Base; Qwen3-1.7B **12.00 to 48.00**, Qwen3-4B **21.00 to 62.00**; abstract three-benchmark mean **+16.9 to +29.8** percentage points across five Qwen3 scales, 1.7B to 30B-A3B; the BFCL train/eval membership sentence is a validity risk; code https://github.com/yihaohu0118/Trajectory2Gym). Both arXiv v1 PDFs were checked on 2026-10-29. Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%** (the fine-tuning track did not help); v11 CE **stopped at 26500/32000** (mid20 FAIL R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**); v11 leak gate (own-named tools, **0** BFCL names). Sanskar's Mac has **48 GB** for MLX. A rank-16 LoRA on a 4B model is plausible there and would be slower than EffectWorld's A100 job (**our estimate**, not a paper measurement).
 
+**Related options (logged 2026-11-02, all `CANDIDATE` / not run; paper numbers are theirs; docs only, no Acc/train from this pass):**
+
+- **2026-11-02 candidate sweep:** [§71 SynthAPI](#71-synthapi-controllable-tool-environment-synthesis-and-scaling-laws) (`CANDIDATE`), [§72 CGAP](#72-cgap-capability-grounded-agentic-planning) (`CANDIDATE`), [§73 EvoMCP](#73-evomcp-co-evolving-mcp-agents-and-training-data) (`CANDIDATE`).
+
 **Skipped this round (2026-10-29):** EnvSched (arXiv:2610.37609), CASEL (arXiv:2610.36570), FlashScript (arXiv:2610.33876), Context-as-pipeline (arXiv:2610.36114), MCP-Injector faults (arXiv:2610.32555). The five abs pages resolved on 2026-10-29. No thesis-critical llama.cpp tool-calling changes Oct 22-29.
 
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
@@ -2121,6 +2125,9 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Tran, Yao, Kwon, & Yu. Measure First, Then Allocate (BRACE). arXiv:2610.28785. https://arxiv.org/abs/2610.28785 ([§68](#68-brace-calibrated-rollout-budgets); **`CANDIDATE` / not run**; arXiv title is "Measure First, Then Allocate...", not "BRACE"; +3.6/+3.5/+3.3 is held-out AWM, not BFCL; BFCL v4 multi-turn rates are not printed)
 - Kovalenko & Redchych. Small agents should know what their tools do (EffectWorld). arXiv:2610.35981. https://arxiv.org/abs/2610.35981 ([§69](#69-effectworld-effect-typed-tool-traces); **`CANDIDATE` / not run**; arXiv title is "Small agents should know what their tools do", not "EffectWorld"; BFCL v4; 21.9 to 26.6 is the multi-turn group, multi-turn base is 26.0 to 35.5; not our sheet; no code URL in the PDF)
 - Hu, Wen, Lin, Lu, et al. Trajectory2Gym. arXiv:2610.33568. https://arxiv.org/abs/2610.33568 ([§70](#70-trajectory2gym-decision-grounded-interaction-synthesis); **`CANDIDATE` / not run**; one epoch full-parameter SFT; Multi-turn Base 12.00 to 48.00 at 1.7B and 21.00 to 62.00 at 4B on a 1,718-example sheet, version not stated, not our sheet; BFCL train/eval membership is a validity risk; code https://github.com/yihaohu0118/Trajectory2Gym)
+- Szot, Abnar, Attia, Kazerouni, Kirchhof, Hsieh, Vemulapalli, & Toshev. Scaling Laws for Tool-Use Agents via Controllable Environment Synthesis (SynthAPI). arXiv:2610.37648. https://arxiv.org/abs/2610.37648 ([§71](#71-synthapi-controllable-tool-environment-synthesis-and-scaling-laws); **`CANDIDATE` / not run**; BFCL v3 multi-turn, all 800 tasks, not our 200-item sheet; Qwen3.5-4B zero-shot 27.3 to SynthAPI-Big 51.1 is theirs; no data or code release link in the paper)
+- Shrestha, Yeoh, Zhang, & Vorobeychik. Capability-Grounded Agentic Planning (CGAP). arXiv:2610.41040. https://arxiv.org/abs/2610.41040 ([§72](#72-cgap-capability-grounded-agentic-planning); **`CANDIDATE` / not run**; BFCL v4 multi-turn, stratified 200-conversation subset, not our sheet; smallest model tested is gpt-oss-20b; no code link found)
+- Gao, Lin, Shi, Deng, Shen, Meng, Wu, Yang, & Liu. EvoMCP: Co-Evolving MCP Agents and Training Data. arXiv:2610.41479. https://arxiv.org/abs/2610.41479 ([§73](#73-evomcp-co-evolving-mcp-agents-and-training-data); **`CANDIDATE` / not run**; no BFCL; student Qwen3.6-27B; Toolathlon 36.9 to 53.4 is theirs; code https://github.com/xagao/EvoMCP)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
@@ -2269,6 +2276,9 @@ Each method in this section involves modifying model weights — via supervised 
 - [55. ECHO: Responsibility-Aware Credit Assignment](#55-echo-responsibility-aware-credit-assignment)
 - [56. Asking Earns Nothing: Scoring the Decision to Act](#56-asking-earns-nothing-scoring-the-decision-to-act)
 - [57. Insight Memory: Textual Lessons vs Tool-Graph Memory](#57-insight-memory-textual-lessons-vs-tool-graph-memory)
+- [71. SynthAPI](#71-synthapi-controllable-tool-environment-synthesis-and-scaling-laws) (`CANDIDATE`)
+- [72. CGAP](#72-cgap-capability-grounded-agentic-planning) (`CANDIDATE`)
+- [73. EvoMCP](#73-evomcp-co-evolving-mcp-agents-and-training-data) (`CANDIDATE`)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
 - [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling) (survey; Choice/router KD **path B first** ranking **PASS**; Acc harness IMPL **CONFIRM_PASS_WITH_FLAGS**; Run 64 Acc **11/200 = 5.5% scored FAIL**; ranking ≠ Acc; Acc remains **not** a GO)
@@ -4424,6 +4434,129 @@ Hu, Y., Wen, Z., Lin, Y., Lu, S., Wang, P., Wu, W., Yang, J.-M., & Lin, T. "Traj
 Code: https://github.com/yihaohu0118/Trajectory2Gym
 
 Dataset: https://huggingface.co/datasets/mis2/Trajectory2gym
+
+---
+
+## 71. SynthAPI: Controllable Tool-Environment Synthesis and Scaling Laws
+
+### Overview
+
+SynthAPI (Szot et al., 2026, Apple) has an LLM write whole apps in Python (a database schema plus the tools that read and change it), then generate tasks, starting database states, and checker code for each app. A stronger teacher solves the tasks, and only checker-verified solutions are distilled into a small student. The paper's main finding is about the mix of training data, not its size: as the data budget grows, more different tools and more starting database states per task help more than more tasks.
+
+**Train vs infer: training-time** (SFT distillation; the paper does not say LoRA). **Tag: `CANDIDATE` / not run.** Logged 2026-11-02 (docs only). Related to [EffectWorld §69](#69-effectworld-effect-typed-tool-traces) and [Trajectory2Gym §70](#70-trajectory2gym-decision-grounded-interaction-synthesis). **No blanket GRPO.**
+
+### Mechanism
+
+1. Gemini-3.1 Pro (the "builder LLM") writes **64** apps, with **10,472** APIs in total (6,266 write, 4,206 read).
+2. For each task the builder writes the instruction, a starting database state, a verifier, and an oracle solver.
+3. Four knobs set the data mix: number of apps, tasks per app, starting databases per task, and amount of distractor data per database.
+4. GLM-5.2 is the teacher, with up to **4** attempts per task. The first verified success is kept; tasks with no success are dropped. The student (Qwen3.5 family) is trained with next-token loss on the teacher's reasoning and action tokens only. Settings: bf16, learning rate **2e-5**. The dataset is **5.9B** tokens, of which **721M** are supervised reasoning and action tokens.
+5. The agent acts by writing Python code blocks and finds tools through meta-tools (list apps, list tools, read one tool's docs) instead of getting every tool definition in the prompt.
+
+### Evidence
+
+Paper results (Szot et al., 2026; Tables 1 and 2; **theirs**). **BFCL v3 multi-turn, all 800 tasks** (the paper says it uses the multi-turn split only, with its missing-API, missing-parameter, and long-context splits). Not our 200-item `multi_turn_base` sheet.
+
+- **Qwen3.5-4B, BFCL:** zero-shot **27.3** to SynthAPI-Big **51.1**.
+- **Qwen3-4B / Qwen3-8B, BFCL (Table 2):** zero-shot **33.5 / 41.3** to SynthAPI-Big **50.5 / 55.6**. The best prior baseline at 4B is EnvFactory **48.5**; at 8B it is EnvScaler **51.9**. The paper notes those baselines use SFT plus RL on smaller data, so the comparison does not isolate the synthesis method.
+- **AppWorld Test-Challenge, Qwen3.5-4B:** **14.7** to **66.4**.
+- **Data-mix finding:** as the budget grows, more tool diversity and more starting databases per task beat more tasks, and added distractor data (complexity) helps.
+
+Do **not** write 51.1 or 50.5 as thesis Acc.
+
+**Cite check (2026-11-02):** arXiv:2610.37648 resolves. The title is "Scaling Laws for Tool-Use Agents via Controllable Environment Synthesis". Authors: Szot, Abnar, Attia, Kazerouni, Kirchhof, Hsieh, Vemulapalli, Toshev (Apple). The cells above match the HTML. No data or code release link is printed in the paper.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH-MEDIUM.** The usable piece is the data-mix rule for our own generator: more distinct tools and more starting states per task, rather than more tasks. The models are Qwen3 / Qwen3.5, not Gemma-4-E2B. Our measured path is harness-side control at inference (Run 78 **77/200 = 38.5%**). The fine-tuning track has not helped (SFT v4 **15.0%**, DPO **26.5%**), and v11 **stopped at 26500/32000**. A LoRA version in mlx-lm on the 48 GB Mac is **our idea**, not something the paper tested. **No blanket GRPO.**
+- **BFCL categories:** v3 multi-turn, all 800 tasks. Not our sheet.
+- **Complexity:** High for the full pipeline (frontier builder model, GLM-5.2 teacher, 5.9B tokens on 8xB200 nodes). Low to borrow the composition rule.
+- **Limitation:** no data or code release found. Baselines differ in training regime. The scaling law is fit on one pipeline.
+
+### Source
+
+Szot, A., Abnar, S., Attia, O., Kazerouni, A., Kirchhof, M., Hsieh, C.-Y., Vemulapalli, R., & Toshev, A. "Scaling Laws for Tool-Use Agents via Controllable Environment Synthesis." arXiv:2610.37648, 2026. https://arxiv.org/abs/2610.37648
+
+---
+
+## 72. CGAP: Capability-Grounded Agentic Planning
+
+### Overview
+
+CGAP (Shrestha, Yeoh, Zhang, & Vorobeychik, 2026) turns the tool catalog into a formal planning problem (PDDL) without an LLM: each tool's required inputs become preconditions and its outputs become effects. An LLM turns the user request into goals, a classical planner (breadth-first search) picks the order of calls, every argument must cite where its value came from, and an LLM verifier checks each result before it counts as done.
+
+**Train vs infer: inference-time** (no training). **Tag: `CANDIDATE` / not run.** Logged 2026-11-02 (docs only). **No blanket GRPO.**
+
+### Mechanism
+
+1. Compile the catalog: each tool becomes an action whose preconditions are "these input fields are available" and whose effects are "these output fields are available". The planner tracks which fields are available, not their values.
+2. An LLM parses the request into one goal per requested result.
+3. Breadth-first search finds the shortest plan. An execution LLM fills in each call, citing a source for every argument (a span of the user's message or a field of an earlier tool response). It may add extra lookups only if the rest of the plan stays valid.
+4. A result counts as delivered only after deterministic checks and an LLM verifier accept it.
+
+### Evidence
+
+Paper results (Shrestha et al., 2026; **theirs**). **BFCL multi-turn, a stratified 200-conversation subset (50 each of base, missing function, missing parameter, long context), from the BFCL v4 multi-turn datasets.** Three runs per task, scored by majority. Not our 200-item `multi_turn_base` sheet.
+
+- **BFCL multi-turn, plain agent to CGAP:** gpt-oss-20b **34.0 to 52.0** (+18.0), Qwen3-32B **48.0 to 62.0** (+14.0), GPT-5 mini **56.5 to 62.5** (+6.0).
+- **Ablation, gpt-oss-20b:** an LLM writing the plan instead of the search costs **10.0** points on BFCL; a simpler graph planner keeps most of the gain there.
+- No model under 20B is tested.
+
+Do **not** write 52.0 or 62.0 as thesis Acc.
+
+**Cite check (2026-11-02):** arXiv:2610.41040 resolves. The title is "Capability-Grounded Agentic Planning". Authors: Shrestha, Yeoh, Zhang, Vorobeychik (Washington University in St. Louis). The cells above match the HTML. The BFCL data is v4 multi-turn, not v3. No code link was found.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM-LOW.** This is the closest of the three to our harness-side, inference-time path: it checks call order and argument sources outside the model. It is untested on small models, and it adds an LLM verifier call per result, which is costly on Gemma-4-E2B. Our measured path is Run 78 **77/200 = 38.5%**.
+- **BFCL categories:** v4 multi-turn, 50 per category. Not our sheet.
+- **Complexity:** Medium-high (catalog compiler, planner, source-citing runtime, verifier). CGAP uses 1.3 to 1.6 times the plain agent's tokens with gpt-oss-20b.
+- **Limitation:** subset only, majority of three runs, not comparable to single-run scores. Smallest model is gpt-oss-20b.
+
+### Source
+
+Shrestha, S., Yeoh, W., Zhang, N., & Vorobeychik, Y. "Capability-Grounded Agentic Planning." arXiv:2610.41040, 2026. https://arxiv.org/abs/2610.41040
+
+---
+
+## 73. EvoMCP: Co-Evolving MCP Agents and Training Data
+
+### Overview
+
+EvoMCP (Gao, Lin, Shi, et al., 2026) runs a loop: test the student, find what it gets wrong, edit verified seed tasks (instructions, environment state, or both) to target those weaknesses, have a teacher solve the new tasks, fine-tune the student on the verified solutions, and repeat.
+
+**Train vs infer: training-time** (full-parameter SFT). **Tag: `CANDIDATE` / not run.** Logged 2026-11-02 (docs only). **No blanket GRPO.**
+
+### Mechanism
+
+1. Score the student's rollouts and pick learning targets from its failures.
+2. Evolve verified seed tasks toward those targets, keeping the verifier in step with the change.
+3. The teacher (Qwen3.8-Max) solves the tasks. Failed rollouts can be recovered with skill guidance. Only verifier-passing trajectories are kept.
+4. Full-parameter SFT: **2,400** trajectories per round, 3 epochs per round, learning rate **2e-6**, **3** rounds.
+
+### Evidence
+
+Paper results (Gao et al., 2026; Table 1; **theirs**). Student Qwen3.6-27B. **No BFCL.**
+
+- **Toolathlon:** **36.9 to 53.4** (+16.5).
+- **MCPMark:** **56.7 to 66.9** (+10.2).
+- **MCP-Atlas:** **61.0 to 73.6** (+12.6).
+- Against a Static SFT baseline, EvoMCP leads (R3 margins **13.6**, **8.7**, **6.4** on Toolathlon, MCPMark, MCP-Atlas).
+
+**Cite check (2026-11-02):** arXiv:2610.41479 resolves. The title is "EvoMCP: Co-Evolving MCP Agents and Training Data". Authors: Gao, Lin, Shi, Deng, Shen, Meng, Wu, Yang, Liu (Shanghai Jiao Tong University, Ant Group). The cells above match the HTML. Project page https://github.com/xagao/EvoMCP returned HTTP 200 on 2026-11-02. The benchmark task sets also supply the student feedback, so the scores are measured under benchmark-guided feedback.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. LOW-MEDIUM.** The idea of building new training tasks from the student's own failures fits a future data track. Only a 27B model is tested, there is no BFCL number, and the recipe is full-parameter SFT. The fine-tuning track has not helped (SFT v4 **15.0%**, DPO **26.5%**). **No blanket GRPO.**
+- **BFCL categories:** none.
+- **Complexity:** High (teacher model, task evolution, three rounds of full SFT).
+- **Limitation:** one model size; benchmark tasks are used for feedback and for scoring.
+
+### Source
+
+Gao, X., Lin, K., Shi, X., Deng, Y., Shen, S., Meng, C., Wu, X., Yang, J., & Liu, W. "EvoMCP: Co-Evolving MCP Agents and Training Data." arXiv:2610.41479, 2026. https://arxiv.org/abs/2610.41479
+
+Code: https://github.com/xagao/EvoMCP
 
 ---
 
