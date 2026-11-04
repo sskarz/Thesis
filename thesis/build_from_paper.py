@@ -100,47 +100,54 @@ SHORT_LIST = {
 }
 
 ABSTRACT = (
-    "Small language models can run on a laptop and call tools to act for a user, "
-    "but they often fail when a task needs several calls in a row. This thesis asks why, "
-    "and what helps, using Gemma-4-E2B-it, a model with about two billion effective parameters, "
-    "on 200 multi-turn tasks from the Berkeley Function Calling Leaderboard. Tasks are graded "
-    "by the final state of a simulated backend, for example whether a car's engine is on.\n"
+    "Small language models can run on a laptop and call tools for a user, but they often fail "
+    "when a later call depends on an earlier one. This thesis studies Gemma-4-E2B-it, a model "
+    "with about two billion effective parameters, on 200 multi-turn tasks from the Berkeley "
+    "Function Calling Leaderboard. A task is correct only when a simulated backend ends in the "
+    "right state, such as whether a car's engine is on.\n"
     "\n"
-    "The main finding is that the model fails at deciding what to do next, not at writing calls. "
-    "It handles single calls well (91.9\\%) but completes only 27.0\\% of multi-turn tasks, and "
-    "forcing every call to be valid syntax made results worse. The remedy is a harness, the "
-    "program around the model, with the weights untouched. It records the current state for the "
-    "model, stops repeated calls, and adds a short card advising whether to call, ask, finish or "
-    "refuse. This raised accuracy from 30.5\\%, the JSON-text baseline, to 38.5\\%. "
-    "The gain is suggestive: it is not significant after correcting for multiple comparisons. "
-    "It matched a five-sample vote at about a seventh of the generation time. Writing the tool list more "
-    "compactly added about 7 points in two paired runs, the best reaching 44.0\\%. Wrong final "
-    "states remain the largest failure type. Fine-tuning the model did not help; the best tuned "
-    "model scored 15.0\\%, below the untuned model.\n"
+    "The best setup leaves the weights fixed. A harness, the program around the model, uses "
+    "JSON-text calls, records the current state, stops repeated calls, and shows a four-line "
+    "card advising whether to call, ask, finish, or refuse. On that harness the same tools are "
+    "written more compactly, with each group's shared description once and each schema without "
+    "indentation. This setup finishes 88 of 200 tasks (44.0\\%). The gain replicated. A confirmation "
+    "pair scored 88 of 200 against 72 of 200 ($p=0.011$). Across both pairs, a sign test gives "
+    "33 to 17 ($p=0.033$).\n"
+    "\n"
+    "The model fails at choosing the next step, not at writing a call, which is why the harness "
+    "and the shorter list help. A shorter list might leave more room for the state the model "
+    "needs next. That is an untested guess. The harness raises accuracy from 30.5\\%, the "
+    "JSON-text baseline, to 38.5\\%. That gain is suggestive, and it is not significant after "
+    "correcting for multiple comparisons. Forcing valid syntax made results worse, and "
+    "fine-tuning did not beat the untuned model.\n"
 )
 
 # Strings that must already appear in paper/main.tex, with the same meaning.
 ABSTRACT_SOURCES = [
     "about two billion effective parameters",
     "200 multi-turn",
-    "91.9\\%",
-    "27.0\\%",
-    "30.5\\%",
-    "38.5\\%",
+    "such as whether a car's engine is on",
+    "four-line card",
+    "88 of 200",
     "44.0\\%",
-    "15.0\\%",
-    "about 7 points",
-    "a seventh",
-    "five-sample",
+    "72 of 200",
+    "p=0.011",
+    "33 tasks",
+    "on 17",
+    "p=0.033",
+    "might leave more room for the state the model needs next",
+    "untested guess",
+    "30.5\\%",
     "JSON-text baseline",
+    "38.5\\%",
     "not significant after correcting for multiple comparisons",
 ]
 
 CONTRIBUTIONS = r"""Our contributions:
 
 \begin{enumerate}
-  \item \textbf{Where the failures are.} The model usually handles a single call, and it usually fails when the task needs several. A needed call never happens, or the backend ends in the wrong state. Forcing each call to be valid syntax makes this worse (Chapter~\ref{sec:fail}).
-  \item \textbf{A harness that helps without training.} The weights stay fixed. The program around the model records the current state, stops repeated calls, and shows a short card advising the next move. Together these raise accuracy by a suggestive amount. A more compact tool list helps further, and the harness keeps up with a five-sample vote at a fraction of the generation time (Chapter~\ref{sec:helps}).
+  \item \textbf{The best setup is a harness plus a shorter tool list.} The weights stay fixed. The program around the model records the current state, stops repeated calls, and shows a short card advising the next move. On that harness, writing the same tool list more compactly helps further, and that gain replicated (Chapter~\ref{sec:helps}).
+  \item \textbf{The model fails at choosing the next step.} A needed call never happens, or the backend ends in the wrong state. That is why the harness and the shorter list help, and why forcing each call into valid syntax makes results worse (Chapter~\ref{sec:fail}).
   \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The rebuilt training set is the leading suspect, and it also differed in training length (Chapter~\ref{sec:train}).
 \end{enumerate}"""
 
@@ -152,7 +159,7 @@ CH2_INTRO = (
 
 CH2_CLOSER = (
     "\n\nThe following chapters use only these ideas. They ask where a small model fails, "
-    "whether the harness can help with the weights left fixed, and whether fine-tuning can.\n"
+    "whether a training-free harness with a shorter tool list can help, and whether fine-tuning can.\n"
 )
 
 MODEL_SERVING = r"""\section{Model and Serving}
@@ -203,16 +210,22 @@ JSON_CHANNEL = r"""\section{JSON Text over the Native API}
 
 Writing calls as JSON text scores 61/200 against 54/200 on the native API, 3.5 percentage points higher ($p=0.32$, not significant). Part of the gap may come from serving. A seven-step reasoning template on the native API also scored 61/200, tying JSON text: 19 tasks swap each way, and state mismatches rose to 79. The gap may therefore reflect the shape of the prompt as much as which channel carries the call. We do not claim the channel switch alone as a gain. Later steps are built on JSON text because the harness can parse and inspect those calls directly. The harness levers were not tested on the native API, or combined with the template."""
 
-SHORTER = r"""\section{Shorter Tool List, Same Tools}
+SHORTER = r"""\section{The Best Setup: A Shorter Tool List}
 
-The full stack still sends every tool. The list is long because tools that share a group also share a description, and that description was repeated on every tool, with each schema indented. We state each group's shared description once and print the schemas without indentation. Nothing else changes: the model, the four pieces above, and the tasks stay the same. Like the state summary and the card, this reaches the model as text in its context.
+The best setup in this thesis is the full stack with the tool list written more compactly. The full stack still sends every tool. The list is long because tools that share a group also share a description, and that description was repeated on every tool, with each schema indented. We state each group's shared description once and print the schemas without indentation. Nothing else changes. The model, the four pieces of the full stack, and the tasks stay the same. Like the state summary and the card, this is harness-side control delivered through the context.
 
-We compared the shorter list with a fresh run of the original list, then repeated the comparison with the shorter list run first (Table~\ref{tab:trim}). The shorter list scores 84 of 200 (42.0\%) against 71 of 200 (35.5\%) in the first pair, and 88 of 200 (44.0\%) against 72 of 200 (36.0\%) in the second. The second pair is the best single run. The first pair falls just short of the 0.05 level, and the second clears it. Counting each task once across both pairs, the shorter list does better on 33 tasks and the original list on 17, with 150 ties ($p=0.033$). The gain replicated. It is modest, about 7 points, and it cut context per request by about 30\%. Repeat runs still move individual tasks: the original list changed on 15 tasks and the shorter list on 18. Length and timing are in Appendix~\ref{app:trim}.
+We compared that shorter list with a fresh run of the original list, then repeated the comparison in the opposite order, with the shorter list run first (Table~\ref{tab:trim}). Both pairs use the same model, the same 200 tasks, and the same other harness parts. The 10-task check, and the token and timing counts, are in Appendix~\ref{app:trim}.
+
+In the first pair the shorter list scores 84 of 200 (42.0\%, interval 35.4--48.9\%) and the original list scores 71 of 200 (35.5\%, interval 29.2--42.3\%). The shorter list solves 13 more tasks: 26 that the original list misses, and it misses 13 that the original list solves (58 both, 103 neither). An exact two-sided McNemar test gives $p=0.053$, just short of the 0.05 level.
+
+The second pair is the confirmation. The shorter list scores 88 of 200 (44.0\%, interval 37.3--50.9\%), the best single run, and the original list scores 72 of 200 (36.0\%, interval 29.7--42.9\%). The shorter list solves 26 tasks that the original list misses and misses 10 that it solves (62 both, 102 neither), $p=0.011$, which clears the 0.05 level. The gain replicated.
+
+The test we rely on counts each task once across both pairs. The shorter list does better on 33 tasks and the original list on 17, with 150 ties (exact two-sided sign test, $p=0.033$). The gain is modest, about 7 points. Repeat runs still move individual tasks: between its two runs, the original list changed result on 15 tasks and the shorter list on 18.
 
 \begin{table}[H]
 \centering
 \footnotesize
-\caption{Shorter tool list against the original list (same model, tasks, and other harness parts). Pair 1 compares the shorter list with a fresh run of the original list. Pair 2 runs the shorter list first. ``Shorter only'' counts tasks the shorter list solves and the original list misses. $p$ is an exact two-sided McNemar test, judged at the 0.05 level, outside Table~\ref{tab:mcnemar}.}
+\caption{Shorter tool list against the original list (same model, tasks, and other harness parts). Pair 1 compares the shorter list with a fresh run of the original list. Pair 2 runs the shorter list first. ``Shorter only'' counts tasks the shorter list solves and the original list misses. $p$ is an exact two-sided McNemar test, judged at the 0.05 level, outside Table~\ref{tab:mcnemar}. The sign test that counts each task once is in the text.}
 \label{tab:trim}
 \begin{tabular}{@{}lrrrrc@{}}
 \toprule
@@ -224,13 +237,15 @@ Pair 2 & 26 & 10 & 62 & 102 & 0.011 \\
 \end{tabular}
 \end{table}
 
-Figure~\ref{fig:ladder} shows all of these conditions on one scale. The top bar is the shorter tool list.
+A shorter list might leave more room for the state the model needs next. That is an untested guess. It is a plausible one because Chapter~\ref{sec:fail} found the hard part is choosing that next step, not writing a call that parses. The state summary and the status card already support that choice by putting executed results, and an advisory next move, into the context. The shorter list is the same kind of lever. The repeated group description is written once. Mean context per request falls by about 30\%. Invalid tool names stay at zero for both lists.
+
+Figure~\ref{fig:ladder} puts this setup on the same scale as the other conditions. The top bar is the shorter tool list, the better of its two runs.
 
 @@LADDER@@"""
 
-HOW_SURE = r"""Each harness accuracy comes with a range that extends about six to seven percentage points on either side (Table~\ref{tab:board}). A gap smaller than that can be noise. Of the eight planned comparisons (Table~\ref{tab:mcnemar}), two harness gaps fall below 0.05 on their own: the full stack against JSON text ($p=0.023$) and the minimal recipe against the native API ($p=0.033$). Neither stays below 0.05 after correcting for the eight tests. The order of the harness rows is therefore tentative, and the full stack's gain of 8.0 percentage points over JSON text is suggestive.
+HOW_SURE = r"""The shorter tool list is the one change we ran twice, and that modest gain replicated. The other harness gaps are less firm. Each harness accuracy comes with a range that extends about six to seven percentage points on either side (Table~\ref{tab:board}). A gap smaller than that can be noise. Of the eight planned comparisons (Table~\ref{tab:mcnemar}), two harness gaps fall below 0.05 on their own: the full stack against JSON text ($p=0.023$) and the minimal recipe against the native API ($p=0.033$). Neither stays below 0.05 after correcting for the eight tests. The order of the harness rows is therefore tentative, and the full stack's gain of 8.0 percentage points over JSON text is suggestive.
 
-Repeat runs of the full stack do not agree. It scored 77 of 200, then 71 of 200 and 72 of 200. A swing of that size is as large as most gaps between harness rows, so a difference from a single run should not be ranked. Against JSON text, the first of those later runs is ahead by 5.0 percentage points (27 tasks only that run solves, 17 only JSON text, $p=0.174$). The shorter tool list is the one change we ran twice, and that modest gain replicated.
+Repeat runs of the full stack do not agree. It scored 77 of 200, then 71 of 200 and 72 of 200. A swing of that size is as large as most gaps between harness rows, so a difference from a single run should not be ranked. Against JSON text, the first of those later runs is ahead by 5.0 percentage points (27 tasks only that run solves, 17 only JSON text, $p=0.174$).
 
 Two contrasts are firm. The best supervised fine-tune solves only 7 tasks that JSON text misses and misses 38 that JSON text solves ($p<0.001$), and that gap survives the correction. The full stack's interval (32.0--45.4\%) does not overlap the best fine-tune (10.7--20.6\%) or the forced-valid output. Preference tuning (26.5\%) is not separable from JSON text."""
 
@@ -250,11 +265,11 @@ CH6_CLOSER = (
 
 DISCUSSION_STATE = r"""\section{State, Not Syntax}
 
-Across these conditions, the hard part is choosing the next step from the current state of the world, including whether to stop. Writing a valid call is the easy part. The levers that help are the ones that support that decision: a summary of real results, a gated stop, and a card that mainly controls whether the model acts. The state summary was meant to put lost facts back in view. What falls, instead, is the number of empty turns. None of the levers reduces state mismatches, and those remain the largest failure type, so the gains come from calling or stopping at the right moment. Tracking the state of the world is still unsolved. Levers that constrain the written form hurt, and training appeared to shift the balance between acting and stopping rather than to improve that tracking."""
+Across these conditions, the hard part is choosing the next step from the current state of the world, including whether to stop. Writing a valid call is the easy part. The levers that help are the ones that support that decision: a summary of real results, a gated stop, and a card that mainly controls whether the model acts. The shorter tool list is the same kind of lever. It is text in the context, and a shorter list might leave more room for the state the model needs next. That room is an untested guess (Chapter~\ref{sec:helps}). The state summary was meant to put lost facts back in view. What falls, instead, is the number of empty turns. None of the levers reduces state mismatches, and those remain the largest failure type, so the gains come from calling or stopping at the right moment. Tracking the state of the world is still unsolved. Levers that constrain the written form hurt, and training appeared to shift the balance between acting and stopping rather than to improve that tracking."""
 
 RECOMMEND = r"""\section{What We Recommend}
 
-For an on-device agent, use JSON text, a harness-written state summary, a gated stop rule, and a status card. All four are greedy and need no training data or training compute. The minimal recipe, which leaves out the state summary, is a smaller fallback. Writing the same tool list more compactly is a cheap addition: it helped across two paired runs, and it cut context per request by about 30\%. Before any fine-tune, screen on task-level checks rather than validation loss. Even the best run finishes fewer than half of the tasks, and a repeat of the same harness does not pass the same tasks every time. On this benchmark, this model is not yet a reliable multi-step agent."""
+The best setup for an on-device agent is the full stack with the tool list written more compactly: JSON-text calls, a harness-written state summary, a gated stop rule, a status card, and the same tools with each group's shared description stated once. All of these are greedy and need no training data or training compute. The shorter list added about 7 points across two paired runs and cut context per request by about 30\%. The minimal recipe, which leaves out the state summary, is a smaller fallback. Before any fine-tune, screen on task-level checks rather than validation loss. Even the best run, the full stack with the shorter list, finishes 88 of 200, and a repeat of the same harness does not pass the same tasks every time. On this benchmark, this model is not yet a reliable multi-step agent."""
 
 LIMITATIONS = r"""\section{Limitations}
 
@@ -265,20 +280,16 @@ LIMITATIONS = r"""\section{Limitations}
   \item \textbf{The screening gate was built from the same split.} The 20 gate tasks were picked using earlier per-task results from the same split, and the bar is the score of the setup the gate is screening. It is a screening check, not a confirmation.
 \end{itemize}
 
-The result is the same across the checks in this thesis. The model fails when it must decide the next step, the harness helps that decision, and forcing valid syntax or fine-tuning does not."""
+The result is the same across the checks in this thesis. The model fails when it must decide the next step. The best setup, a harness with a shorter tool list, helps that decision. Forcing valid syntax or fine-tuning does not."""
 
 CONCLUSION = (
-    "A small model can carry out one tool call and still fail when the task needs a chain of them. "
-    "The failure is in deciding the next step from the current state of the world, including whether "
-    "to call, ask, stop, or refuse. Writing a call that only has to parse is the easy part, and forcing "
-    "every call into valid syntax made the chain worse.\n"
-    "\n"
-    "What helped was the harness, the program around the model, with the weights left as they were. "
-    "It records the current state, stops repeated calls, and shows a short card that advises the next move. "
-    "That combination raised accuracy by a suggestive amount, and it kept up with a five-sample vote at a "
-    "fraction of the generation time. Writing the same tool list more compactly helped further. Wrong final "
-    "states remain the largest failure type. Fine-tuning did not help: the best tuned model scored below "
-    "the untuned model. For a local agent, these harness changes are also far cheaper than voting or training.\n"
+    "The best setup reached 44.0\\% (88 of 200). It is the training-free harness with the same tool "
+    "list written more compactly, and the gain from that shorter list replicated. The model fails at "
+    "choosing the next step, not at writing a call, which is why the harness and the shorter list help. "
+    "The harness, before that shorter list, raises accuracy from 30.5\\% to 38.5\\%. That gain is "
+    "suggestive and is not significant after correcting for multiple comparisons. Forcing valid syntax "
+    "made results worse, and fine-tuning did not beat the untuned model. Wrong final states remain the "
+    "largest failure type. For a local agent, these changes are also far cheaper than voting or training.\n"
 )
 
 REPRO = r"""\section{Reproducibility}
@@ -510,6 +521,12 @@ def apply_overrides(parts):
         "",
         "cut context sentence",
     )
+    parts["ch1"] = must_replace(
+        parts["ch1"],
+        "We compare harness control with two other families of fixes: forcing syntactically valid output, and fine-tuning the weights. ",
+        "We compare harness control with two other families of fixes: forcing syntactically valid output, and fine-tuning the weights. The best harness setup writes the tool list more compactly. ",
+        "ch1 best setup",
+    )
     parts["ch1"] = replace_span(
         parts["ch1"],
         "Our contributions:",
@@ -570,6 +587,12 @@ def apply_overrides(parts):
         " The shorter tool list is omitted.",
         "fig 2 caption",
     )
+    parts["ch4"] = must_replace(
+        parts["ch4"],
+        "a valid call is not a correct next step.",
+        "a valid call is not a correct next step. The next chapter therefore changes the harness. The best of those changes is a shorter tool list.",
+        "ch4 closer",
+    )
 
     # Chapter 5: guided-template tie lives with the channel result; shorter list is one page;
     # the ladder figure waits until that list has been introduced.
@@ -584,6 +607,12 @@ def apply_overrides(parts):
         "Every change is greedy except the vote of five, and none touches the weights; exact counts",
         "Every change below is greedy except the vote of five, and none touches the weights. Exact counts",
         "ch5 opening",
+    )
+    parts["ch5"] = must_replace(
+        parts["ch5"],
+        "If the bottleneck is choosing the next step, the harness, which sees every executed result, is a natural place to intervene. ",
+        "If the bottleneck is choosing the next step, the harness, which sees every executed result, is a natural place to intervene. The best setup is that harness with the tool list written more compactly. The sections before that result build the harness one piece at a time. ",
+        "ch5 best setup",
     )
     parts["ch5"] = replace_section(parts["ch5"], "JSON Text over the Native API", JSON_CHANNEL)
     parts["ch5"] = must_replace(
@@ -601,14 +630,14 @@ def apply_overrides(parts):
     parts["ch5"] = must_replace(
         parts["ch5"],
         r"Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves ($p=0.023$ uncorrected; not significant after correction). Against the minimal recipe, the state summary alone and the vote of five, the differences are within noise (Table~\ref{tab:mcnemar}). The configuration was assembled after we had seen earlier results on these tasks, so its lead is subject to tuning leakage (Chapter~\ref{sec:discussion}). Its harness code is in pull request \#90 (run at commit \texttt{344ce45}, merged as \texttt{83f35ee}).",
-        r"Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves (Table~\ref{tab:mcnemar}). Against the minimal recipe, the state summary alone, and the vote of five, the differences are within noise. The configuration was assembled after we had seen earlier results on these tasks, so its lead is subject to tuning leakage (Limitations in Chapter~\ref{sec:discussion}).",
+        r"Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves (Table~\ref{tab:mcnemar}). Against the minimal recipe, the state summary alone, and the vote of five, the differences are within noise. The configuration was assembled after we had seen earlier results on these tasks, so its lead is subject to tuning leakage (Limitations in Chapter~\ref{sec:discussion}). The next section keeps this harness and changes only how the tool list is written.",
         "full stack prose",
     )
     parts["ch5"] = replace_section(parts["ch5"], "Shorter Tool List, Same Tools", SHORTER)
     parts["ch5"] = must_replace(
         parts["ch5"],
         r"Voting over five samples on top of the state summary scores 73/200, four tasks fewer",
-        r"Voting over five samples on top of the state summary scores 73/200 (36.5\%), four tasks fewer",
+        r"The shorter list stays greedy. Voting over five samples on top of the state summary scores 73/200 (36.5\%), four tasks fewer",
         "vote percent",
     )
     parts["ch5"] = replace_paragraph_starting(
@@ -773,12 +802,22 @@ def apply_overrides(parts):
     return parts
 
 
+def abstract_word_count(text):
+    t = text.replace("\\%", "%")
+    t = re.sub(r"\\[a-zA-Z]+", " ", t)
+    t = t.replace("{", " ").replace("}", " ").replace("$", " ").replace("~", " ")
+    t = re.sub(r"[^A-Za-z0-9.%'-]+", " ", t)
+    words = [w for w in t.split() if w]
+    return len(words)
+
+
 def check_abstract():
+    n = abstract_word_count(ABSTRACT)
+    if not 150 <= n <= 250:
+        raise SystemExit(f"abstract word count {n} is outside 150-250")
     for s in ABSTRACT_SOURCES:
-        if s not in paper_text and s not in paper_text.replace("\\%", "%"):
-            # "a seventh" and "five-sample" and "about 7 points" are literal.
-            if s not in paper_text:
-                raise SystemExit("abstract source missing from paper: " + s)
+        if s not in paper_text:
+            raise SystemExit("abstract source missing from paper: " + s)
 
 
 def check_output(tex):
@@ -842,6 +881,10 @@ def check_output(tex):
         raise SystemExit("33 tasks should be stated once in the main text")
     if pre.count("p=0.023") != 1:
         raise SystemExit("p=0.023 should be stated once in the main text")
+    if r"\section{The Best Setup: A Shorter Tool List}" not in tex:
+        raise SystemExit("best-setup section missing")
+    if r"\section{Shorter Tool List, Same Tools}" in tex:
+        raise SystemExit("old shorter-list heading still present")
 
 
 def main():
