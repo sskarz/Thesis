@@ -2,10 +2,12 @@
 """Assemble thesis/main.tex (CSULA format) from paper/main.tex body text.
 
 Content is copied verbatim from paper/main.tex by line range; only structural
-transforms are applied (run-in \\paragraph headings -> \\section* headings,
+transforms are applied (run-in \\paragraph headings -> level-2 headings,
 "Section~\\ref" -> "Chapter~\\ref" for targets that are now chapters,
-"this paper" -> "this thesis", Fig. 2 after its citing paragraph,
-float placement -> [H]). Run once; main.tex is then the maintained source.
+"this paper" -> "this thesis", float placement -> [H]). Line ranges match
+paper/main.tex after the shorter-tool-list results and PR #109. Fig. 2 already
+follows the paragraph that cites it. The thesis pins every float with [H], so
+the paper's [tb] on the McNemar table is not copied.
 """
 import re, pathlib
 here = pathlib.Path(__file__).resolve().parent
@@ -29,7 +31,8 @@ TITLES = {  # \paragraph heading -> Title Case level-2 heading (sample style)
  r"JSON text over the native API (+3.5\pp).": r"JSON Text over the Native API (+3.5\pp)",
  r"State summary (+3.5\pp).": r"State Summary (+3.5\pp)",
  r"Stop on repeats and the status card (minimal recipe, 35.5\%).": r"Stop on Repeats and the Status Card (Minimal Recipe, 35.5\%)",
- r"Full stack: the best measured result (38.5\%).": r"Full Stack: The Best Measured Result (38.5\%)",
+ r"Full stack (38.5\% on the first run).": r"Full Stack (38.5\% on the First Run)",
+ "Shorter tool list, same tools.": "Shorter Tool List, Same Tools",
  r"Cost: majority vote (36.5\%).": r"Cost: Majority Vote (36.5\%)",
  "How sure are we?": "How Sure Are We?",
  "Public data taught the model to stop.": "Public Data Taught the Model to Stop",
@@ -81,12 +84,14 @@ def fix(text, level="section"):
         text = text.replace(f"Section~\\ref{{{lab}}}", f"Chapter~\\ref{{{lab}}}")
     text = re.sub(r"\\begin\{(figure|table)\}\[[^\]]*\]", r"\\begin{\1}[H]", text)
     text = text.replace("\\FloatBarrier\n", "")
-    # em dash removal (house rule: no em dashes); the one occurrence becomes commas
-    EM = "-" * 3  # LaTeX em-dash ligature
-    text = text.replace(r"\emph{Self-distillation}" + EM + r"training on the model's own answers to simulated tasks, keeping only turns the task checker marked correct" + EM + "scored",
-                        r"\emph{Self-distillation}, training on the model's own answers to simulated tasks, keeping only turns the task checker marked correct, scored")
     text = text.replace("this paper", "this thesis").replace("This paper", "This thesis")
-    text = text.replace(r"\texttt{llama-server --jinja}", r"\texttt{llama-server -{}-jinja}")
+    # T1 ligatures turn "--" inside \\texttt into an en dash. Flags such as
+    # --jinja must print as two hyphens. Number ranges outside \\texttt stay.
+    text = re.sub(
+        r"\\texttt\{[^{}]*--[^{}]*\}",
+        lambda m: m.group(0).replace("--", "-{}-"),
+        text,
+    )
     return text
 
 def list_captions(text, env):
@@ -112,16 +117,6 @@ def captions(text):
     parts = re.split(r"(\\begin\{(?:figure|table)\}.*?\\end\{(?:figure|table)\})", text, flags=re.S)
     return "".join(list_captions(p, "figure" if p.startswith("\\begin{figure}") else "table") if p.startswith("\\begin{") else p for p in parts)
 
-def move_float_after_next_paragraph(text, label):
-    """Place the float with this label after the paragraph that follows it (the paragraph that cites it)."""
-    m = re.search(r"\\begin\{figure\}\[H\]\n(?:(?!\\end\{figure\}).)*?\\label\{" + re.escape(label) + r"\}.*?\\end\{figure\}\n\n", text, flags=re.S)
-    assert m, label
-    fl = m.group(0)
-    rest = text[m.end():]
-    n = rest.index("\n\n") + 2          # end of the citing paragraph (heading + blank + paragraph)
-    n = rest.index("\n\n", n) + 2 if rest.startswith("\\section") else n
-    return text[:m.start()] + rest[:n] + fl + rest[n:]
-
 def body(a, b, level="section"):
     return captions(fix(L(a, b), level))
 
@@ -130,22 +125,22 @@ def allow_path_breaks(text):
     return re.sub(r"\\texttt\{[^{}]*/[^{}]*\}", lambda m: m.group(0).replace("/", r"/\allowbreak{}"), text)
 
 parts = {
- "abstract": L(64, 64),
- "ch1": body(70, 97),
- "ch2": body(102, 110),
- "ch3": body(115, 132),
- "ch4": move_float_after_next_paragraph(body(137, 148), "fig:fail"),
- "ch5": body(154, 194),
- "ch6": body(199, 212),
- "ch7": body(217, 233),
- "ch8_future": body(238, 238),
- "ch8_concl": body(240, 240),
- "appA": body(251, 273),
- "appB": body(278, 313),
- "appB_train": body(317, 323, level="subsection"),  # run-ins under B.1 Training History
- "appC_repro": allow_path_breaks(body(332, 332)),
- "appC_gloss": fix(L(336, 370)),   # glossary without the \enlargethispage hack (line 335)
- "appC_board": body(372, 421).replace(r"\parbox{\linewidth}{\scriptsize", r"\parbox{\linewidth}{\RaggedRight\scriptsize"),  # note ragged like the body (no underfull lines)
+ "abstract": L(70, 70),
+ "ch1": body(76, 103),
+ "ch2": body(108, 116),
+ "ch3": body(121, 139),
+ "ch4": body(144, 155),
+ "ch5": body(161, 228),
+ "ch6": body(232, 246),
+ "ch7": body(250, 268),
+ "ch8_future": body(273, 273),
+ "ch8_concl": body(275, 275),
+ "appA": body(286, 308),
+ "appB": body(313, 347),
+ "appB_train": body(352, 358, level="subsection"),  # run-ins under B.1 Training History
+ "appC_repro": allow_path_breaks(body(419, 419)),
+ "appC_gloss": fix(L(423, 458)),   # glossary body; the template already supplies the heading
+ "appC_board": body(364, 417).replace(r"\parbox{\linewidth}{\scriptsize", r"\parbox{\linewidth}{\RaggedRight\scriptsize"),  # note ragged like the body (no underfull lines)
 }
 tpl = (here / "main.tpl.tex").read_text()
 for k, v in parts.items():
