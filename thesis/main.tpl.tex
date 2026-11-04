@@ -230,10 +230,12 @@ Sanskar Thapa\par}
 
 %%abstract%%
 
-% == Acknowledgments (v) ==
-\chapter*{ACKNOWLEDGMENTS}
-\tocline{Acknowledgments}
-\placeholder{Acknowledgments, to be written by Sanskar}
+% == Acknowledgments: left out until Sanskar writes them. ==
+% Uncomment the three lines below to restore the page and its table-of-contents entry.
+%\chapter*{ACKNOWLEDGMENTS}
+%\tocline{Acknowledgments}
+%\placeholder{Acknowledgments, to be written by Sanskar}
+\clearpage
 
 % == Table of contents, lists ==
 \begingroup
@@ -265,7 +267,7 @@ Sanskar Thapa\par}
 
 %%ch1%%
 
-\placeholder{Thesis organization paragraph (chapter-by-chapter roadmap, as at the end of the sample's Chapter 1), to be written by Sanskar}
+The rest of this thesis is organized as follows. Chapter 2, Background and Related Work, introduces the benchmark, how a model emits a tool call, constrained decoding, harness-side control, and training for tool use. Chapter 3, Setup and Methods, describes the model and how it is served, the harness interventions, the training setup, how failed tasks are labeled, and the statistical tests. Chapter 4, Where Small Models Fail, compares single-call tasks with multi-turn tasks and breaks failed multi-turn tasks into kinds of error, including what happens when the output is forced to be valid. Chapter 5, What Helps: Harness-Side Control, goes through the harness changes tried with the weights left fixed, including a shorter tool list and a majority vote, and asks how sure those comparisons are. Chapter 6, Fine-Tuning Did Not Help, reports the fine-tuning runs and the checks used to screen them. Chapter 7, Discussion, discusses those results, gives a recommendation, and lists the limitations. Chapter 8, Conclusion, states the conclusion and then the future work. Appendix A, Intervention Details, shows the text each harness change writes. Appendix B, Failure Labels, Exploratory Tests and Training History, gives the full failure counts, the extra statistical comparisons, and the training history. Appendix C, Full Scoreboard, Reproducibility and Glossary, lists every scored condition, how to reproduce the runs, and defines the terms used here.
 
 \chapter{Background and Related Work}
 \label{sec:related}
