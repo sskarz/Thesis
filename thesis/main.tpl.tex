@@ -20,6 +20,19 @@
 \usepackage{xcolor}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,fit,calc}
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  breakatwhitespace=true,
+  breakindent=0pt,
+  breakautoindent=false,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  aboveskip=2pt,
+  belowskip=2pt
+}
 \usepackage{caption}
 \usepackage{url}
 \usepackage[numbers,sort&compress]{natbib}
@@ -338,7 +351,7 @@ GLOSSARY
 
 %%ch1%%
 
-The rest of this thesis is organized as follows. Chapters~\ref{sec:related} and~\ref{sec:setup} give the background and the setup. Chapter~\ref{sec:fail} is the failure analysis. Chapter~\ref{sec:helps} is the harness, including the shorter tool list. Chapter~\ref{sec:train} is fine-tuning. Chapters~\ref{sec:discussion} and~\ref{sec:conclusion} discuss the results and close. The appendices hold the details.
+The rest of this thesis is organized as follows. Chapters~\ref{sec:related} and~\ref{sec:setup} give the background and the setup. Chapter~\ref{sec:fail} is the failure analysis. Chapter~\ref{sec:helps} is the harness, including the compact tool list. Chapter~\ref{sec:train} is fine-tuning. Chapters~\ref{sec:discussion} and~\ref{sec:conclusion} discuss the results and close. The appendices hold the details.
 
 \chapter{Background and Related Work}
 \label{sec:related}
@@ -411,7 +424,7 @@ The rest of this thesis is organized as follows. Chapters~\ref{sec:related} and~
 
 Eight comparisons were planned as one family. The family covers the full stack and the minimal recipe against their baselines, the switch from the native API to JSON text, and the best fine-tune. Four of the eight use the full stack, and the family was fixed after that configuration was built. Four single-lever comparisons were left out of the family (Table~\ref{tab:mcnemar-x}): the state summary against JSON text, the vote against the state summary, stop on repeats against JSON text, and the minimal recipe against stop on repeats. The raw $p$-value is reported, and so is whether Holm's correction~\cite{holm1979} changes the conclusion. That correction keeps the chance of any false alarm among the eight tests at 5\%.
 
-The shorter tool list is not one of those eight tests. It is judged at the 0.05 level. It was run as two pairs, the second in the opposite order. To combine the pairs, count how many of its two runs each list solved for each task, and apply an exact two-sided sign test to the tasks where the counts differ.
+The compact tool list is not one of those eight tests. It is judged at the 0.05 level. It was run as two pairs, the second in the opposite order. To combine the pairs, count how many of its two runs each list solved for each task, and apply an exact two-sided sign test to the tasks where the counts differ.
 
 \section{Training History}
 \label{app:train}

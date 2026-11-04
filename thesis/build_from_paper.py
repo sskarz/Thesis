@@ -100,8 +100,9 @@ ABSTRACT = (
     "these tasks.\n"
     "\n"
     "The model mainly fails at choosing the next step, not at writing a call, and forcing valid "
-    "syntax made results worse. Why the shorter list helps is an untested guess: it may leave "
-    "more room for the state the model needs. Without the shorter list, the harness raised "
+    "syntax made results worse. We did not test why the compact list helps; one likely reason "
+    "is that the model has less repeated text to read, leaving more room for the state it needs. "
+    "Without the compact list, the harness raised "
     "accuracy from 30.5\\% (JSON text) to 38.5\\% in its first run. That gain is suggestive, not "
     "significant after correcting for multiple comparisons. Fine-tuning did not beat the "
     "untuned model.\n"
@@ -127,8 +128,8 @@ ABSTRACT_SOURCES = [
 CONTRIBUTIONS = r"""Our contributions:
 
 \begin{enumerate}
-  \item \textbf{A harness plus a shorter tool list.} The weights stay fixed. The program around the model records the current state, stops repeated calls, and shows a short card advising the next move. On that harness, writing the same tool list more compactly helps further, and that gain replicated (Chapter~\ref{sec:helps}).
-  \item \textbf{Where the failures are.} The model fails at choosing the next step. A needed call never happens, or the backend ends in the wrong state. The failure analysis is why we built the harness. Why the shorter list helps is an untested guess. Forcing each call into valid syntax makes results worse (Chapter~\ref{sec:fail}).
+  \item \textbf{A harness plus a compact tool list.} The weights stay fixed. The program around the model records the current state, stops repeated calls, and shows a short card advising the next move. On that harness, writing the same tool list more compactly helps further, and that gain replicated (Chapter~\ref{sec:helps}).
+  \item \textbf{Where the failures are.} The model fails at choosing the next step. A needed call never happens, or the backend ends in the wrong state. The failure analysis is why we built the harness. We did not test why the compact list helps. Forcing each call into valid syntax makes results worse (Chapter~\ref{sec:fail}).
   \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The rebuilt training set is the leading suspect, and it also differed in training length (Chapter~\ref{sec:train}).
 \end{enumerate}"""
 
@@ -140,7 +141,7 @@ CH2_INTRO = (
 
 CH2_CLOSER = (
     "\n\nThe following chapters use only these ideas. They ask where a small model fails, "
-    "whether a training-free harness with a shorter tool list can help, and whether fine-tuning can.\n"
+    "whether a training-free harness with a compact tool list can help, and whether fine-tuning can.\n"
 )
 
 MODEL_SERVING = r"""\section{Model and Serving}
@@ -149,14 +150,14 @@ All results use Gemma-4-E2B-it, quantized with Q4\_K\_M (a 4-bit weight format o
 
 HARNESS = r"""\section{Harness Interventions}
 
-All leave the weights untouched. A task is correct only when the multi-turn checker returns valid. Appendix~\ref{app:method} gives each rule except the shorter tool list. The state summary targets lost state, the stop rule targets repetition, and the status card targets whether to act or stop.
+All leave the weights untouched. A task is correct only when the multi-turn checker returns valid. Appendix~\ref{app:method} gives each rule except the compact tool list. The state summary targets lost state, the stop rule targets repetition, and the status card targets whether to act or stop.
 \begin{itemize}\setlength{\itemsep}{1pt}
   \item \textbf{JSON text} instead of the native API. The harness parses the calls.
   \item \textbf{State summary.} After each executed call, the harness writes a short \texttt{[STATE]} snapshot of facts from real results (current directory, known files, last calls) into the conversation.
   \item \textbf{Stop on repeats.} The harness ends the turn when the model repeats its previous calls, or when it re-proposes calls already executed in this turn after at least six tool steps. An \emph{ungated} variant drops that minimum.
   \item \textbf{Status card.} A four-line card is prefixed to the latest user message. It advises call, ask, finish, or refuse (the card prints finish as \texttt{final}) from fixed rules on the conversation and executed results, and it never sees reference answers. JSON text, stop on repeats, and the card, together, are the \emph{minimal recipe}.
   \item \textbf{Full stack.} JSON text, the state summary, stop on repeats, and the status card, decoded greedily. On its first run this is the harness we compare with JSON text.
-  \item \textbf{Shorter tool list.} On the full stack, every tool stays in the prompt. The harness states each tool group's shared description once, instead of repeating it, and prints each schema without indentation. The model, the four pieces above, and the tasks stay the same.
+  \item \textbf{Compact tool list.} On the full stack, every tool stays in the prompt. The harness states each tool group's shared description once, instead of repeating it, and prints each schema without indentation. It does not remove or retrieve tools. The model, the four pieces above, and the tasks stay the same.
   \item \textbf{Vote of five.} On top of the state summary, at each step the harness samples five candidate calls at temperature 0.7 and executes the most common one. This is the compute-heavy comparison point.
   \item \textbf{Forced-valid decoding.} \emph{Constrained decoding} restricts output in two passes (tool names, then arguments by schema). A \emph{tool-name automaton} constrains only the name, inspired by~\cite{yu2026ptc}.
 \end{itemize}
@@ -177,7 +178,7 @@ STATISTICS = r"""\section{Statistics}
 
 Each reported accuracy comes with a Wilson 95\% interval~\cite{wilson1927}, a range that stays reliable when few tasks are correct. When two conditions are compared on the same 200 tasks, we use an exact two-sided McNemar test~\cite{mcnemar1947}. It counts only the tasks the two conditions decide differently. The $p$-value is the chance of a gap at least that large if the conditions were equal.
 
-Eight comparisons were corrected together so that the chance of any false alarm among them stays at 5\%. The shorter tool list was a separate test, run twice in opposite order. Which comparisons are in the family, and how the two pairs were combined, is in Appendix~\ref{app:stats}."""
+Eight comparisons were corrected together so that the chance of any false alarm among them stays at 5\%. The compact tool list was a separate test, run twice in opposite order. Which comparisons are in the family, and how the two pairs were combined, is in Appendix~\ref{app:stats}."""
 
 STATE_MISMATCH = (
     "An \\emph{under-call} is a task where a required tool never ran. "
@@ -191,9 +192,60 @@ JSON_CHANNEL = r"""\section{JSON Text over the Native API}
 
 Writing calls as JSON text scores 61/200 against 54/200 on the native API, 3.5 percentage points higher ($p=0.32$, not significant). Part of the gap may come from serving. A seven-step reasoning template on the native API also scored 61/200, tying JSON text: 19 tasks swap each way, and state mismatches rose to 79. The gap may therefore reflect the shape of the prompt as much as which channel carries the call. We do not claim the channel switch alone as a gain. Later steps are built on JSON text because the harness can parse and inspect those calls directly. The harness levers were not tested on the native API, or combined with the template."""
 
-SHORTER = r"""\section{The Best Setup: A Shorter Tool List}
+SHORTER = r"""\section{The Best Setup: A Compact Tool List}
 
-The best setup is the full stack with the tool list written more compactly. It scored 88 of 200 (44.0\%) in its better run and 84 of 200 (42.0\%) in the other. This is a repeat on the same 200 tasks, not a test on new tasks. The full stack still sends every tool. The list is long because tools that share a group also share a description, and that description was repeated on every tool, with each schema indented. We state each group's shared description once and print the schemas without indentation. Nothing else changes. The model, the four pieces of the full stack, and the tasks stay the same. Like the state summary and the card, this is harness-side control delivered through the context.
+The best setup is the full stack with the tool list written more compactly. It scored 88 of 200 (44.0\%) in its better run and 84 of 200 (42.0\%) in the other. This is a repeat on the same 200 tasks, not a test on new tasks. The full stack still sends every tool. The list is long because tools that share a group also share a description, and that description was repeated on every tool, with each schema indented. We state each group's shared description once and print the schemas without indentation (Fig.~\ref{fig:compact}). It does not remove or retrieve tools. Nothing else changes. The model, the four pieces of the full stack, and the tasks stay the same. Like the state summary and the card, this is harness-side control delivered through the context.
+
+\begin{figure}[H]
+\centering
+\noindent\textbf{Original list.} Median opening prompt 4{,}923.5 tokens.
+\begin{lstlisting}
+[
+  {
+    "name": "cat",
+    "description": "This tool belongs to the Gorilla file system. It is a simple file system that allows users to perform basic file operations such as navigating directories, creating files and directories, reading and writing to files, etc. Tool description: Display the contents of a file of any extension from currrent directory.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "file_name": {
+          "type": "string",
+          "description": "The name of the file from current directory to display. No path is allowed. "
+        }
+      },
+      "required": [
+        "file_name"
+      ]
+    }
+  },
+  {
+    "name": "cd",
+    "description": "This tool belongs to the Gorilla file system. It is a simple file system that allows users to perform basic file operations such as navigating directories, creating files and directories, reading and writing to files, etc. Tool description: Change the current working directory to the specified folder.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "folder": {
+          "type": "string",
+          "description": "The folder of the directory to change to. You can only change one folder level at a time. "
+        }
+      },
+      "required": [
+        "folder"
+      ]
+    }
+  }
+]
+...
+\end{lstlisting}
+\par\vspace{6pt}
+\noindent\textbf{Compact list.} Median opening prompt 2{,}888 tokens, a 41\% cut.
+\begin{lstlisting}
+This tool belongs to the Gorilla file system. It is a simple file system that allows users to perform basic file operations such as navigating directories, creating files and directories, reading and writing to files, etc.
+[{"name": "cat", "description": "Display the contents of a file of any extension from currrent directory.", "parameters": {"type": "object", "properties": {"file_name": {"type": "string", "description": "The name of the file from current directory to display. No path is allowed. "}}, "required": ["file_name"]}}, {"name": "cd", "description": "Change the current working directory to the specified folder.", "parameters": {"type": "object", "properties": {"folder": {"type": "string", "description": "The folder of the directory to change to. You can only change one folder level at a time. "}}, "required": ["folder"]}}]
+...
+\end{lstlisting}
+\caption{File-system tools from the multi-turn tasks, printed both ways. Both panels contain the same tools. The original list repeats the group's shared description on each tool and indents each schema. The compact list states that description once and prints the schemas without indentation. The excerpt is the first two tools of the group; an ellipsis marks the rest. The labels are the measured median lengths of the full opening prompt, 4{,}923.5 and 2{,}888 tokens, a 41\% cut.}
+\label{fig:compact}
+\end{figure}
 
 We compared that shorter list with a fresh run of the original list, then repeated the comparison in the opposite order, with the shorter list run first (Table~\ref{tab:trim}). Both pairs use the same model, the same 200 tasks, and the same other harness parts. The 10-task check, and the token and timing counts, are in Appendix~\ref{app:trim}.
 
@@ -218,7 +270,7 @@ Pair 2 & 26 & 10 & 62 & 102 & 0.011 \\
 \end{tabular}
 \end{table}
 
-A shorter list might leave more room for the state the model needs next. That is an untested guess. The shorter list is also text in the context. The repeated group description is written once. Mean context per request falls by about 30\%. Invalid tool names stay at zero for both lists.
+We did not test why the compact list helps; one likely reason is that the model has less repeated text to read, leaving more room for the state it needs. The compact list is also text in the context. Mean context per request falls by about 30\%. Invalid tool names stay at zero for both lists.
 
 Figure~\ref{fig:ladder} puts this setup on the same scale as the other conditions. The top bar is the shorter tool list, the better of its two runs.
 
@@ -246,7 +298,7 @@ CH6_CLOSER = (
 
 DISCUSSION_STATE = r"""\section{State, Not Syntax}
 
-Across these conditions, the hard part is choosing the next step from the current state of the world, including whether to stop. Writing a valid call is the easy part. The levers that help are the ones that support that decision: a summary of real results, a gated stop, and a card that mainly controls whether the model acts. The shorter list is also text in the context, and a shorter list might leave more room for the state the model needs next. That room is an untested guess (Chapter~\ref{sec:helps}). The state summary was meant to put lost facts back in view. What falls, instead, is the number of empty turns. Among the labelled runs, none of the levers reduces state mismatches, and those remain the largest failure type, so the gains come from calling or stopping at the right moment. Tracking the state of the world is still unsolved. Levers that constrain the written form hurt, and training appeared to shift the balance between acting and stopping rather than to improve that tracking."""
+Across these conditions, the hard part is choosing the next step from the current state of the world, including whether to stop. Writing a valid call is the easy part. The levers that help are the ones that support that decision: a summary of real results, a gated stop, and a card that mainly controls whether the model acts. We did not test why the compact list helps; one likely reason is less repeated text, leaving more room for the state it needs (Chapter~\ref{sec:helps}). The state summary was meant to put lost facts back in view. What falls, instead, is the number of empty turns. Among the labelled runs, none of the levers reduces state mismatches, and those remain the largest failure type, so the gains come from calling or stopping at the right moment. Tracking the state of the world is still unsolved. Levers that constrain the written form hurt, and training appeared to shift the balance between acting and stopping rather than to improve that tracking."""
 
 RECOMMEND = r"""\section{What We Recommend}
 
@@ -268,8 +320,8 @@ CONCLUSION = (
     "The original list scored 71 and 72 of 200 in the same pairs. These 71 and 72 of 200 are "
     "the same runs as the 35.5\\% and 36.0\\% full-stack reruns. All of these runs used the same "
     "200 tasks. The gain from that shorter list replicated. The model fails at choosing the next "
-    "step, not at writing a call. The failure analysis is why we built the harness. Why the "
-    "shorter list helps is an untested guess. Without the shorter list, the harness raises "
+    "step, not at writing a call. The failure analysis is why we built the harness. We did not "
+    "test why the compact list helps. Without the compact list, the harness raises "
     "accuracy from 30.5\\% to 38.5\\% in its first run; two reruns scored 35.5\\% and 36.0\\%. "
     "That gain is suggestive and is not significant after correcting for multiple comparisons. "
     "Forcing valid syntax made results worse, and fine-tuning did not beat the untuned model. "
@@ -279,7 +331,7 @@ CONCLUSION = (
 
 REPRO = r"""\section{Reproducibility}
 
-Hardware: MacBook Pro, Apple M4~Pro, 48~GB, with Metal acceleration (Apple's GPU interface). Temperature is 0 except for voting (0.7, $N{=}5$, one seed). The native API baseline used eight server slots; the runs below used four (Table~\ref{tab:repro}). BFCL v4 is read through the \texttt{bfcl-eval} package (the exact version per run was not logged). Failure labels come from the checker messages in the \texttt{eval\_errors} table. Figures 2 and 4 are regenerated from these counts by \texttt{paper/figures/src/make\_refocus\_figs.py}. Figure 3 uses those same counts; it is a copy of that ladder with the log abbreviations removed from two bar labels. The 91.9\% interval is the Wilson formula on 772/840 in the single-call log.
+Hardware: MacBook Pro, Apple M4~Pro, 48~GB, with Metal acceleration (Apple's GPU interface). Temperature is 0 except for voting (0.7, $N{=}5$, one seed). The native API baseline used eight server slots; the runs below used four (Table~\ref{tab:repro}). BFCL v4 is read through the \texttt{bfcl-eval} package (the exact version per run was not logged). Failure labels come from the checker messages in the \texttt{eval\_errors} table. Figures 2 and 5 are regenerated from these counts by \texttt{paper/figures/src/make\_refocus\_figs.py}. Figure 4 uses those same counts; it is a copy of that ladder with the log abbreviations removed from two bar labels. The 91.9\% interval is the Wilson formula on 772/840 in the single-call log.
 
 \begin{table}[H]
 \centering
@@ -356,10 +408,10 @@ def raw(a, b, level="section", titles=None):
 
 
 def abbreviate_figure_refs(text):
-    """Body cross-references use the sample's 'Fig. N', including a bare 'Figure 3'."""
+    """Body cross-references use the sample's 'Fig. N', including a bare figure number."""
     text = text.replace("Figure~\\ref", "Fig.~\\ref")
-    text = text.replace("Figures 2 and 4", "Fig. 2 and 4")
-    text = text.replace("Figure 3 uses", "Fig. 3 uses")
+    text = text.replace("Figures 2 and 5", "Fig. 2 and 5")
+    text = text.replace("Figure 4 uses", "Fig. 4 uses")
     return text
 
 
@@ -495,7 +547,7 @@ def apply_overrides(parts):
     parts["ch1"] = must_replace(
         parts["ch1"],
         "it completes 27.0\\% of 200 multi-turn tasks.",
-        "it completes 27.0\\% of 200 multi-turn tasks. The best setup we found, a harness plus a shorter tool list, reaches 44.0\\% (88 of 200) in its better run.",
+        "it completes 27.0\\% of 200 multi-turn tasks. The best setup we found, a harness plus a compact tool list, reaches 44.0\\% (88 of 200) in its better run.",
         "ch1 headline",
     )
     parts["ch1"] = replace_span(
@@ -555,7 +607,7 @@ def apply_overrides(parts):
     parts["ch4"] = must_replace(
         parts["ch4"],
         " The shorter tool list is omitted. Checker rows exist for its runs (116 and 112 failed tasks) and the original-list reruns (129 and 128), but those rows were not labelled for this revision.",
-        " The shorter tool list is omitted.",
+        " The compact tool list is omitted.",
         "fig 2 caption",
     )
     # Chapter 5: guided-template tie lives with the channel result; shorter list is one page;
@@ -595,7 +647,7 @@ def apply_overrides(parts):
     parts["ch5"] = must_replace(
         parts["ch5"],
         r"Voting over five samples on top of the state summary scores 73/200, four tasks fewer",
-        r"The shorter list stays greedy. Voting over five samples on top of the state summary scores 73/200 (36.5\%), four tasks fewer",
+        r"The compact list stays greedy. Voting over five samples on top of the state summary scores 73/200 (36.5\%), four tasks fewer",
         "vote percent",
     )
     parts["ch5"] = replace_paragraph_starting(
@@ -613,7 +665,7 @@ def apply_overrides(parts):
     parts["ch5"] = must_replace(
         parts["ch5"],
         r"Top bar: the full stack with a shorter tool list, the better of its two runs (88/200; the other scored 84/200, and two reruns of the original list scored 71/200 and 72/200; Table~\ref{tab:trim}).",
-        r"Top bar: the full stack with a shorter tool list, the better of its two runs (Table~\ref{tab:trim}).",
+        r"Top bar: the full stack with a compact tool list, the better of its two runs (Table~\ref{tab:trim}).",
         "shorten ladder caption",
     )
     parts["ch6"] = must_replace(
@@ -783,6 +835,21 @@ def check_abstract():
             raise SystemExit("abstract source missing from paper: " + s)
 
 
+def rename_shorter_list(text):
+    """The thesis name is compact list. Log paths such as R81_slim stay."""
+    for old, new in (
+        ("Shorter Tool List", "Compact Tool List"),
+        ("Shorter tool list", "Compact tool list"),
+        ("shorter tool list", "compact tool list"),
+        ("shorter-list", "compact-list"),
+        ("Shorter only", "Compact only"),
+        ("Shorter list", "Compact list"),
+        ("shorter list", "compact list"),
+    ):
+        text = text.replace(old, new)
+    return text
+
+
 def check_output(tex):
     if "—" in tex or "---" in tex:
         raise SystemExit("em dash in thesis")
@@ -844,8 +911,14 @@ def check_output(tex):
         raise SystemExit("33 tasks should be stated once in the main text")
     if pre.count("p=0.023") != 1:
         raise SystemExit("p=0.023 should be stated once in the main text")
-    if r"\section{The Best Setup: A Shorter Tool List}" not in tex:
+    if r"\section{The Best Setup: A Compact Tool List}" not in tex:
         raise SystemExit("best-setup section missing")
+    if re.search(r"[Ss]horter(?: tool|-) list|[Ss]horter only", tex):
+        raise SystemExit("shorter list name remains")
+    if "untested guess" in tex:
+        raise SystemExit("untested guess remains")
+    if "fig:compact" not in tex:
+        raise SystemExit("compact-list figure missing")
     if r"\section{Shorter Tool List, Same Tools}" in tex:
         raise SystemExit("old shorter-list heading still present")
     for banned in (
@@ -899,6 +972,7 @@ def main():
     for k, v in parts.items():
         tpl = tpl.replace("%%" + k + "%%", v)
     tpl = abbreviate_figure_refs(tpl)
+    tpl = rename_shorter_list(tpl)
     if "%%" in re.sub(r"%%%+", "", tpl):
         raise SystemExit("unfilled slot")
     check_output(tpl)
