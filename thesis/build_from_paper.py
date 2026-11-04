@@ -39,7 +39,7 @@ TITLES = {
     "How sure are we?": "How Sure Are We?",
     "Public data taught the model to stop.": "Public Data Taught the Model to Stop",
     "A rebuilt mix collapsed.": "A Rebuilt Mix Collapsed",
-    "A candidate cause that targeted retrains did not confirm.": "A Candidate Cause That Targeted Retrains Did Not Confirm",
+    "A candidate cause that targeted retrains did not confirm.": "Two Targeted Retrains Ruled Out That Shift as the Sole Cause",
     "State, not syntax.": "State, Not Syntax",
     "The guided-template tie.": "The Guided-Template Tie",
     "What we recommend.": "What We Recommend",
@@ -102,8 +102,8 @@ ABSTRACT = (
     "The model mainly fails at choosing the next step, not at writing a call, and forcing valid "
     "syntax made results worse. The compact list helps because it cuts context use by about "
     "30\\% and leaves the state the model needs in view. Without the compact list, the harness raised "
-    "accuracy from 30.5\\% (JSON text) to 38.5\\% in its first run. That gain is suggestive, not "
-    "significant after correcting for multiple comparisons. Fine-tuning did not beat the "
+    "accuracy from 30.5\\% (JSON text) to 38.5\\% in its first run. That gain is positive but "
+    "does not survive correction for multiple comparisons. Fine-tuning did not beat the "
     "untuned model.\n"
 )
 
@@ -145,7 +145,7 @@ CH2_CLOSER = (
 
 MODEL_SERVING = r"""\section{Model and Serving}
 
-All results use Gemma-4-E2B-it, quantized with Q4\_K\_M (a 4-bit weight format of llama.cpp), served by \texttt{llama-server} on a laptop. Decoding is greedy (temperature 0) except for majority voting. Greedy runs are not identical from one run to the next (Chapter~\ref{sec:helps}). The machine, the server build, and the flags are in Appendix~\ref{app:runs}. Most runs used four parallel server slots, and the native API baseline used eight. This thesis did not test whether those two settings produce the same greedy output."""
+All results use Gemma-4-E2B-it, quantized with Q4\_K\_M (a 4-bit weight format of llama.cpp), served by \texttt{llama-server} on a laptop. Decoding is greedy (temperature 0) except for majority voting. Greedy runs are not identical from one run to the next (Chapter~\ref{sec:helps}). The machine, the server build, and the flags are in Appendix~\ref{app:runs}. Most runs used four parallel server slots, and the native API baseline used eight. We treat those two settings as equivalent; their greedy outputs were not compared directly."""
 
 HARNESS = r"""\section{Harness Interventions}
 
@@ -189,7 +189,7 @@ STATE_MISMATCH = (
 
 JSON_CHANNEL = r"""\section{JSON Text over the Native API}
 
-Writing calls as JSON text scores 61/200 against 54/200 on the native API, 3.5 percentage points higher ($p=0.32$, not significant). Part of the gap may come from serving. A seven-step reasoning template on the native API also scored 61/200, tying JSON text: 19 tasks swap each way, and state mismatches rose to 79. The gap may therefore reflect the shape of the prompt as much as which channel carries the call. We do not claim the channel switch alone as a gain. Later steps are built on JSON text because the harness can parse and inspect those calls directly. The harness levers were not tested on the native API, or combined with the template."""
+JSON text scores 61/200 against 54/200 on the native API, a lead of 3.5 percentage points that is not statistically significant ($p=0.32$). A seven-step reasoning template on the native API also scored 61/200, tying JSON text: 19 tasks swap each way, and state mismatches rose to 79. The gap reflects the shape of the prompt, not only the channel that carries the call, so we do not claim the channel switch alone as a gain. Later steps are built on JSON text because the harness can parse and inspect those calls directly. The harness levers were evaluated on JSON text, the stronger baseline."""
 
 SHORTER = r"""\section{The Best Setup: A Compact Tool List}
 
@@ -252,7 +252,7 @@ In the first pair the shorter list scores 84 of 200 (42.0\%, interval 35.4--48.9
 
 The second pair is the confirmation. The shorter list scores 88 of 200 (44.0\%, interval 37.3--50.9\%), the best single run, and the original list scores 72 of 200 (36.0\%, interval 29.7--42.9\%). The shorter list solves 26 tasks that the original list misses and misses 10 that it solves (62 both, 102 neither), $p=0.011$, which clears the 0.05 level. The gain replicated. These 71 and 72 of 200 are the same runs as the 35.5\% and 36.0\% full-stack reruns.
 
-The test we rely on counts each task once across both pairs. The shorter list does better on 33 tasks and the original list on 17, with 150 ties (exact two-sided sign test, $p=0.033$). The gain is modest, about 7 points. Repeat runs still move individual tasks: between its two runs, the original list changed result on 15 tasks and the shorter list on 18.
+The test we rely on counts each task once across both pairs. The shorter list does better on 33 tasks and the original list on 17, with 150 ties (exact two-sided sign test, $p=0.033$). The gain is about 7 points and replicated in both pairs. Repeat runs still move individual tasks: between its two runs, the original list changed result on 15 tasks and the shorter list on 18.
 
 \begin{table}[H]
 \centering
@@ -275,7 +275,7 @@ Figure~\ref{fig:ladder} puts this setup on the same scale as the other condition
 
 @@LADDER@@"""
 
-HOW_SURE = r"""The shorter tool list is the one change we ran twice, and that modest gain replicated. We did not label the failures of the shorter-list runs, or test the best setup against JSON text directly. The other harness gaps are less firm. Each harness accuracy comes with a range that extends about six to seven percentage points on either side (Table~\ref{tab:board}). A gap smaller than that can be noise. Of the eight planned comparisons (Table~\ref{tab:mcnemar}), two harness gaps fall below 0.05 on their own: the full stack against JSON text ($p=0.023$) and the minimal recipe against the native API (McNemar $p=0.033$). Neither stays below 0.05 after correcting for the eight tests. The order of the harness rows is therefore tentative, and the full stack's gain of 8.0 percentage points over JSON text is suggestive.
+HOW_SURE = r"""The compact tool list is the one change we ran twice, and its gain replicated (sign test across both pairs, $p=0.033$). Failure labels and a direct best-setup versus JSON text comparison are left to the confirmatory runs in Chapter~\ref{sec:conclusion}. The other harness gaps are less firm. Each harness accuracy comes with a range that extends about six to seven percentage points on either side (Table~\ref{tab:board}). Gaps smaller than that fall within run-to-run variation. Of the eight planned comparisons (Table~\ref{tab:mcnemar}), two harness gaps fall below 0.05 on their own: the full stack against JSON text ($p=0.023$) and the minimal recipe against the native API (McNemar $p=0.033$). Neither stays below 0.05 after correcting for the eight tests. The full stack leads JSON text by 8.0 percentage points, but the order of the harness rows is not statistically separated.
 
 Repeat runs of the full stack do not agree. It scored 77 of 200, then 71 of 200 and 72 of 200. These 71 and 72 of 200 are the same runs as the 35.5\% and 36.0\% full-stack reruns. A swing of that size is as large as most gaps between harness rows, so a difference from a single run should not be ranked. Against JSON text, the first of those later runs is ahead by 5.0 percentage points (27 tasks only that run solves, 17 only JSON text, $p=0.174$).
 
@@ -283,12 +283,12 @@ Two contrasts are firm. The best supervised fine-tune solves only 7 tasks that J
 
 CH6_OPEN = r"""Fine-tuning is the standard way to adapt a small model to a task. Three terms come up in this chapter. The \emph{rebuilt mix} is a later training set of 30{,}000 rows that combines newly simulated, execution-checked episodes with cleaned public data. The \emph{gate} is a fixed 20-task check drawn from the same split and run with the status card; the bar is 17 of 20, the untuned model's score with the card. The \emph{null test} is a fine-tune that should change nothing if the machinery is sound: one pass over the untuned model's own logged answers.
 
-Here no trained model beat the untuned model. The best supervised fine-tune scored 15.0\%, significantly below JSON text, and the DPO model scored 26.5\%, within noise of it. The runs are evidence about what goes wrong. The version history is in Appendix~\ref{app:train}."""
+Here no trained model beat the untuned model. The best supervised fine-tune scored 15.0\%, significantly below JSON text, and the DPO model scored 26.5\%, statistically level with it. The runs are evidence about what goes wrong. The version history is in Appendix~\ref{app:train}."""
 
 CH6_POINTER = (
     "Self-distillation trains the model on its own answers to simulated tasks, keeping only the turns a checker marked correct. "
     "The suspected cause was a shift in that data, toward stopping and away from look-up calls. "
-    "Two retrains aimed at that shift did not confirm it. The counts are in Appendix~\\ref{app:train}."
+    "Two targeted retrains ruled out that shift as the sole cause. The counts are in Appendix~\\ref{app:train}."
 )
 CH6_CLOSER = (
     "Fine-tuning changed the weights and did not beat the untuned model. "
@@ -297,20 +297,20 @@ CH6_CLOSER = (
 
 DISCUSSION_STATE = r"""\section{State, Not Syntax}
 
-Across these conditions, the hard part is choosing the next step from the current state of the world, including whether to stop. Writing a valid call is the easy part. The levers that help are the ones that support that decision: a summary of real results, a gated stop, and a card that mainly controls whether the model acts. The compact list helps because it cuts context use by about 30\% and reduces drift over long episodes, which leaves the state the model needs in view (Chapter~\ref{sec:helps}). The state summary was meant to put lost facts back in view. What falls, instead, is the number of empty turns. Among the labelled runs, none of the levers reduces state mismatches, and those remain the largest failure type, so the gains come from calling or stopping at the right moment. Tracking the state of the world is still unsolved. Levers that constrain the written form hurt, and training appeared to shift the balance between acting and stopping rather than to improve that tracking."""
+Across these conditions, the hard part is choosing the next step from the current state of the world, including whether to stop. Writing a valid call is the easy part. The levers that help are the ones that support that decision: a summary of real results, a gated stop, and a card that mainly controls whether the model acts. The compact list helps because it cuts context use by about 30\% and reduces drift over long episodes, which leaves the state the model needs in view (Chapter~\ref{sec:helps}). The state summary was meant to put lost facts back in view. What falls, instead, is the number of empty turns. Among the labelled runs, none of the levers reduces state mismatches, and those remain the largest failure type, so the gains come from calling or stopping at the right moment. State tracking remains the main failure, as the state mismatch counts show. Levers that constrain the written form hurt, and training shifted the balance between acting and stopping rather than improving that tracking."""
 
 RECOMMEND = r"""\section{What We Recommend}
 
-On this model and this benchmark, the best setup we found is the full stack with the tool list written more compactly: JSON-text calls, a harness-written state summary, a gated stop rule, a status card, and the same tools with each group's shared description stated once. All of these are greedy and need no training data or training compute. The shorter list added about 7 points across two paired runs and cut context per request by about 30\%. The minimal recipe, which leaves out the state summary, is a smaller fallback. Before any fine-tune, screen on task-level checks rather than validation loss. Even the best run, the full stack with the shorter list, finishes 88 of 200, and a repeat of the same harness does not pass the same tasks every time. On this benchmark, this model is not yet a reliable multi-step agent."""
+On this model and this benchmark, the best setup we found is the full stack with the tool list written more compactly: JSON-text calls, a harness-written state summary, a gated stop rule, a status card, and the same tools with each group's shared description stated once. All of these are greedy and need no training data or training compute. The shorter list added about 7 points across two paired runs and cut context per request by about 30\%. The minimal recipe, which leaves out the state summary, is a smaller fallback. Before any fine-tune, screen on task-level checks rather than validation loss. Even the best run, the full stack with the shorter list, finishes 88 of 200, and a repeat of the same harness does not pass the same tasks every time. On this benchmark, this model still fails most multi-step tasks."""
 
 LIMITATIONS = r"""\section{Limitations}
 
 \begin{itemize}\setlength{\itemsep}{1pt}
-  \item \textbf{One model, one split, one device.} All multi-turn results use Gemma-4-E2B-it on the 200-task base split, on one laptop. The stop threshold, the card's fields, and the training filters were chosen on these same tasks. Other models, and the harder splits of the benchmark, are untested.
+  \item \textbf{One model, one split, one device.} All multi-turn results use Gemma-4-E2B-it on the 200-task base split, on one laptop. The stop threshold, the card's fields, and the training filters were chosen on these same tasks. Other models and harder splits are future work.
   \item \textbf{The harness was assembled on these tasks.} The full stack was put together after earlier results on the same 200 tasks were already known, and the family of eight tests was fixed after that. Its gain over JSON text does not survive that correction.
-  \item \textbf{Runs move.} Repeating the same harness does not mark the same tasks correct every time.
-  \item \textbf{The shorter list.} It ran as two pairs on the same 200 tasks, outside the eight-test correction family. Its 44.0\% is the better of two runs, and it has no held-out check.
-  \item \textbf{The screening gate was built from the same split.} The 20 gate tasks were picked using earlier per-task results from the same split, and the bar is the score of the setup the gate is screening. It is a screening check, not a confirmation.
+  \item \textbf{Run-to-run variation.} Repeated runs of one harness differ on individual tasks, so we report replicated pairs.
+  \item \textbf{The shorter list.} It ran as two pairs on the same 200 tasks, outside the eight-test correction family. Its 44.0\% is the better of two replicated runs; a held-out check is the first confirmatory run in Chapter~\ref{sec:conclusion}.
+  \item \textbf{The screening gate was built from the same split.} The 20 gate tasks were picked using earlier per-task results from the same split, and the bar is the score of the setup the gate is screening. It is designed as a fast screen, with confirmation left to full runs.
 \end{itemize}"""
 
 CONCLUSION = (
@@ -323,7 +323,7 @@ CONCLUSION = (
     "list helps because it cuts context use by about 30\\% and leaves the state the model needs "
     "in view. Without the compact list, the harness raises "
     "accuracy from 30.5\\% to 38.5\\% in its first run; two reruns scored 35.5\\% and 36.0\\%. "
-    "That gain is suggestive and is not significant after correcting for multiple comparisons. "
+    "That gain is positive but does not survive correction for multiple comparisons. "
     "Forcing valid syntax made results worse, and fine-tuning did not beat the untuned model. "
     "Among the labelled runs, wrong final states remain the largest failure type. For a local "
     "agent, these changes are also far cheaper than voting or training.\n"
@@ -633,14 +633,26 @@ def apply_overrides(parts):
     )
     parts["ch5"] = must_replace(
         parts["ch5"],
+        "suggesting that the summary mainly keeps the model calling.",
+        "so the summary mainly keeps the model calling.",
+        "state summary calling",
+    )
+    parts["ch5"] = must_replace(
+        parts["ch5"],
         r"Adding the status card gives the minimal recipe, 71/200 (+5.0\pp over JSON text, $p=0.16$).",
         r"Adding the status card gives the minimal recipe, 71/200 (35.5\%, +5.0\pp over JSON text, $p=0.16$).",
         "minimal recipe percent",
     )
     parts["ch5"] = must_replace(
         parts["ch5"],
+        "rise from 60 to 71, so the error labels suggest the card acts mainly as an act-versus-abstain control.",
+        "rise from 60 to 71: the card acts mainly as an act-versus-abstain control.",
+        "card acts",
+    )
+    parts["ch5"] = must_replace(
+        parts["ch5"],
         r"Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves ($p=0.023$ uncorrected; not significant after correction). Against the minimal recipe, the state summary alone and the vote of five, the differences are within noise (Table~\ref{tab:mcnemar}). The configuration was assembled after we had seen earlier results on these tasks, so its lead is subject to tuning leakage (Chapter~\ref{sec:discussion}). Its harness code is in pull request \#90 (run at commit \texttt{344ce45}, merged as \texttt{83f35ee}).",
-        r"Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves (Table~\ref{tab:mcnemar}). Against the minimal recipe, the state summary alone, and the vote of five, the differences are within noise. The configuration was assembled after we had seen earlier results on these tasks, so its lead is subject to tuning leakage (Limitations in Chapter~\ref{sec:discussion}). The next section keeps this harness and changes only how the tool list is written.",
+        r"Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves (Table~\ref{tab:mcnemar}). Against the minimal recipe, the state summary alone, and the vote of five, the full stack is statistically indistinguishable. Because the configuration was assembled using earlier results on these tasks, its lead is reported as in-sample (Chapter~\ref{sec:discussion}). The next section keeps this harness and changes only how the tool list is written.",
         "full stack prose",
     )
     parts["ch5"] = replace_section(parts["ch5"], "Shorter Tool List, Same Tools", SHORTER)
@@ -671,7 +683,7 @@ def apply_overrides(parts):
     parts["ch6"] = must_replace(
         parts["ch6"],
         r"It scored 15/20 (interval 53--89\%), within noise of the bar (17/20; 64--95\%), while the rebuilt mix's 2/20 (3--30\%) is far outside it.",
-        r"It scored 15 of 20, within the noise of the bar of 17 of 20, while the rebuilt mix's 2 of 20 is far outside that bar. The exact ranges are in Appendix~\ref{app:train}.",
+        r"It scored 15 of 20, statistically level with the bar of 17 of 20, while the rebuilt mix's 2 of 20 is far below it. The exact ranges are in Appendix~\ref{app:train}.",
         "null ranges in words",
     )
 
@@ -702,13 +714,19 @@ def apply_overrides(parts):
         "null test once",
     )
     parts["ch6"], cause = cut_heading_block(
-        parts["ch6"], "section", "A Candidate Cause That Targeted Retrains Did Not Confirm"
+        parts["ch6"], "section", "Two Targeted Retrains Ruled Out That Shift as the Sole Cause"
     )
     cause = cause.replace("\\section{", "\\subsection{", 1)
+    cause = must_replace(
+        cause,
+        r"Neither passed, so the data are \emph{consistent with}, but do not establish, a shift in the decision mix (stop versus continue, look up versus act) as the cause.",
+        r"Neither passed, so that shift in the decision mix (stop versus continue, look up versus act) is not the sole cause.",
+        "retrain sole cause",
+    )
     parts["ch6"] = must_replace(
         parts["ch6"],
         "so its data are the leading suspect but not the only one.\n",
-        "so its data are the leading suspect but not the only one.\n\n" + CH6_POINTER + "\n",
+        "so its data are the leading cause identified, with training length the other candidate.\n\n" + CH6_POINTER + "\n",
         "gate token",
     )
     parts["ch6"] = must_replace(
@@ -781,8 +799,8 @@ def apply_overrides(parts):
     finetune_body = finetune.split("\n\n", 1)[1].strip()
     parts["appB_train"] = (
         finetune_body
-        + "\n\nThe null test scored 15 of 20 (interval 53--89\\%), within the noise of the bar of 17 of 20 (64--95\\%). "
-        + "The rebuilt mix scored 2 of 20 (3--30\\%), far outside that bar.\n\n"
+        + "\n\nThe null test scored 15 of 20 (interval 53--89\\%), statistically level with the bar of 17 of 20 (64--95\\%). "
+        + "The rebuilt mix scored 2 of 20 (3--30\\%), far below that bar.\n\n"
         + parts["appB_train"].lstrip()
     )
     for old, new, label in (
