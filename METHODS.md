@@ -42,9 +42,10 @@ Each method in this section operates at inference time without modifying model w
 - [Run 69 — BASE+OODA mid20 calibration Acc (17/20 = 85%; not N=200; fresh mid20 bar)](#run-69--baseooda-mid20-calibration-acc-1720--85-not-n200-fresh-mid20-bar) (`iffc-ooda-card`; BASE `gemma4-e2b`; **no** adapters; Acc **17/20 = 85.0%**; run_id=**69**; scores.id=**42** ≠ Run 42; **not** N=200; **not** PE bar; **not** a method win; +2 vs R42-subset **not attributed**; **no full-200**)
 - [SFT-v11 data build (READY_FOR_TRAIN; full CE train STOPPED 26500; mid20 FAIL)](#sft-v11-data-build-ready_for_train-full-ce-train-stopped-26500-mid20-fail) (data **READY_FOR_TRAIN**; full CE **stopped at 26500/32000** by early-stop; best val **0.030 @22000**; mid20 **FAIL**: R70 2/20, R71 1/20, R72 2/20 vs bar **17/20** = R69; v13 R73 null 15/20, R74 self-distill 8/20 — autopsy: stop rows not give-ups; likely cause lookup-call share 37.9%→19.7% (unproven); rebalanced retrains then failed: R75 stop-cap 14/20, R76 lookup-sims 12/20 (7 regressions vs R69, 9/66 empty turns), R77 fresh bank 2/20 vs base 3/20; mix-shift is now only a candidate cause — see THESIS.md Runs 70–77)
 - PR89 overnight evals (2026-10-14):
-  - **Run 78** full stack `iffc-state-ooda` (IFFC + STATE + OODA card + stop-repeat MIN=6): **77/200 = 38.5%**, the best measured multi_turn_base row. Code is on draft PR #90 @ `344ce45`, unmerged. The config was picked after seeing earlier results on the same tasks.
+  - **Run 78** full stack `iffc-state-ooda` (IFFC + STATE + OODA card + stop-repeat MIN=6): **77/200 = 38.5%** on the first run. Code is PR #90 @ `344ce45`, merged as `83f35ee`. The config was picked after seeing earlier results on the same tasks. A fresh rerun of this setup later scored **71/200**. Keep both.
+  - **Runs 80-85 (shorter tool list on the Run 78 harness): the gain replicated (modest, about 7 pp).** Keep every tool, state each group's shared description once, print schemas without indentation. Run 80 (scores.id 59) smoke original list **5/10**; Run 81 (scores.id 60) smoke shorter list **8/10**. Recorded calls differed from R78 on tasks 55, 69, 26, 179, and 59; the plan's gate required 0/10 to differ (**GATE FAIL**), so the full pair uses a fresh rerun of the original list (Run 82, scores.id 61, **71/200 = 35.5%**) rather than the first 77/200. Run 83 (scores.id 62) **84/200 = 42.0%**, 13 more tasks, paired 26/13/58/103, exact McNemar **p = 0.053** (0.053252), just short of the 0.05 level set in the plan. Confirmation pair (R82, shorter list run first): Run 84 (scores.id 63) shorter list **88/200 = 44.0%** vs Run 85 (scores.id 64) original list **72/200 = 36.0%**, paired 26/10/62/102, exact McNemar **p = 0.011**. Across both pairs: 172/400 vs 143/400; task-level sign test **33 vs 17**, 150 ties, **p = 0.033** (pooled McNemar 52 vs 23, p = 0.001, optimistic because the tasks repeat). Repeat runs flipped 15 (original) and 18 (shorter) tasks. Opening prompt median 4,923.5 to 2,888 tokens (**41%**, exact 41.3%). Mean context per request 4,990 vs 7,107 (about 30%; pair 2: 5,001 vs 7,121). Logs `R81_slim/{smoke,full}_{off,on}.log` and `R82_confirm/full_{on,off}.log`. Details: `THESIS.md`.
   - **Run 79** Gemma-4-E2B single-turn NFC: **823/990 = 83.1%** on the same 5-category set as the other models (all 7 categories: 1159/1390). Details and per-task McNemar results are in THESIS.md.
-  - **Source note (no result doc exists for R78/R79):** benchmark.db `scores.id` **51** (R78) and **52–58** (R79); logs `sft/v13/paper_evals/runs/b_fullstack_mtb200.log` and `sft/v13/paper_evals/runs/a_single_turn_gemma.log` (plus `queue.log`); R78 harness code = draft PR #90 commit `344ce45`.
+  - **Source note (no result doc exists for R78/R79):** benchmark.db `scores.id` **51** (R78) and **52–58** (R79); logs `sft/v13/paper_evals/runs/b_fullstack_mtb200.log` and `sft/v13/paper_evals/runs/a_single_turn_gemma.log` (plus `queue.log`); R78 harness code = PR #90 commit `344ce45`, **merged** as `83f35ee`.
 - [DPO β0.2 smoke100 10-ID PASS (Run 49; health gate)](#dpo-β02-smoke100-10-id-pass-run-49--health-gate-not-a-bfcl-) (plain-IFFC 10-ID; **not** a BFCL %; full DPO **scored** Run 51 **53/200 = 26.5%** — **not** a method win)
 - [Prioritized Recommendations](#prioritized-recommendations)
 - [Post–Run27 consensus (2026-09-28)](#post-run27-consensus-2026-09-28) (Part II; Run 46 iffc-ptc-a **13.5%** scored FAIL / closed; Run 42 **35.5%** still best non-BoN; Run 30 **32.5%** untouched; SFT HOLD; DPO β0.2 smoke100 Run 49 **PASS**; DPO-full Run 51 **26.5%** scored / not a win; Run 61 Decision+OODA **26.0% FAIL**; Run 58 Decision **25.0% FAIL**; Run 64 Choice-SLM **5.5% FAIL**; PR #57 stays draft, **not** more PTC/OODA remix)
@@ -662,6 +663,10 @@ This changes the thesis narrative from "grammar-constrained decoding could help"
 ### Source
 
 Local source code analysis: `llama.cpp/common/chat.cpp`, `llama.cpp/common/json-schema-to-grammar.cpp`, `llama.cpp/grammars/README.md`
+
+### Experiment log (2026-10-19): llama.cpp Jinja `tojson` float rounding — unverified, not a method
+
+llama.cpp [PR #30362](https://github.com/ggml-org/llama.cpp/pull/30362) (merged 2026-10-14; "jinja : write floats in tojson as Python does") fixes the chat-template engine that previously wrote floats through a C++ stream: at most 6 significant digits, and the trailing `.0` dropped (`1.0` → `1`). Numbers in tool definitions and past tool-call arguments could reach the model changed. The first published release that includes the fix is **b11622** (2026-10-14). **b11620 and older** do not include it. There is no published tag **b11625**. This could cause a train/serve text mismatch versus MLX Python Jinja. **Unverified** whether this harness hits that code path. **Not a numbered method. Not scored. Do not invent Acc.**
 
 ---
 
@@ -1378,6 +1383,30 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 - **2026-10-15 candidate sweep ([§46](#46-setpo-selective-teacher-guided-policy-optimization)–[§52](#52-cacherl-cached-rollouts--tier-aware-reward)):** SeTPO (selective reverse-KL teacher guidance on low-reward GRPO rollouts + aux SFT; 0.5B–3B students), Davinci-Tool (execution-verified trajectories + restorable-state decision-level DPO; 30B MoE primary), ActionOPD (black-box-teacher action-agreement OPD), StepGate (inference-time step-level local→stronger-model handoff gate; needs a second model), State-OPD (state-grounded teacher conditioning + entropy-targeted resampling; no BFCL), STI-OPD (stochastic teacher takeover OPD; no BFCL), CacheRL (cached-rollout GRPO + cache-tier-aware reward; RL adds little over SFT). All 7 arXiv ids resolve and quoted numbers were checked against the papers on 2026-10-15. **Title flags:** arXiv:2610.18459 is titled "Teacher-Guided Tool Learning for Small Language Models via Bidirectional KL Constraints" (SeTPO = method name); arXiv:2610.07816 is titled "Do I Need the Cloud? …" (StepGate = method name). Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%**; v11 CE **stopped at 26500/32000** (mid20 FAIL); v11 leak gate (own-named tools, **0** BFCL names).
 
+**Related options (logged 2026-10-19, all `CANDIDATE` / not run; paper numbers are theirs; docs only — no Acc/train from this pass):**
+
+- **2026-10-19 candidate sweep ([§53](#53-prod-progress-aware-distillation)–[§57](#57-insight-memory-textual-lessons-vs-tool-graph-memory)):** ProD (SFT on teacher trajectories, then a preference loss where the student repeats actions instead of making progress; LoRA; **no BFCL**), DeltaTTG (frozen token-to-go meter redistributes GRPO step credit; BFCL **v3** Multi-Turn is the average of all four categories, **not** `multi_turn_base` alone), ECHO (frozen judge labels which step caused an error vs inherited it; BFCL **v3** Base column is theirs), Asking Earns Nothing (inference/eval: one act-don't-ask line; **not tested on small models**; 151 base twins, **not** our 200-item sheet), Insight memory (short written lessons in the prompt instead of next-tool hints; 160-task BFCL **v4** holdout across all four categories is theirs; **conflicts with the leak gate**). All 5 arXiv ids resolve and quoted numbers were checked against the papers on 2026-10-19. Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%**; v11 CE **stopped at 26500/32000** (mid20 FAIL); v11 leak gate (own-named tools, **0** BFCL names).
+
+**Related options (logged 2026-10-22, all `CANDIDATE` / not run; paper numbers are theirs; docs only — no Acc/train from this pass):**
+
+- **2026-10-22 candidate sweep ([§58](#58-toolopd-credit-aware-on-policy-distillation)–[§61](#61-sure-act-a-trained-controller-over-a-frozen-agent)):** ToolOPD (teacher token-level supervision on student rollouts, reweighted by a hindsight skill of the trajectory and its outcome, trained jointly with GRPO; their BFCL is **likely v4, not stated**, and is **not** our sheet; Qwen3-1.7B Base **15.5→19.0** sits under TurnSight **24.0**; MTOA **13.4** does not lead that column, where GRPO is **14.3** and TurnSight is **18.3**), SCA (inference-time SMT check of constraints mined from API docs and traces; AppWorld repair **45.1→50.5** at 40 calls and **59.5→69.3** with silent errors; failed-call removal **59–67%** for GPT-5.4-mini and **48–87%** for Qwen3.5-9B, which the abstract's 59–87% compresses; **no BFCL**; no open agent under 5B), StaGPO (arXiv title "Not Every User Says It All…"; the agent writes what the task needs, what is missing, and how it is being filled, and GRPO groups turns that share that state; ToolWOZ **76.8%**; Qwen3.5-4B τ² edge **+3.5** vs GRPO and **+1.0** vs hybrid, within noise; **no BFCL**), SURE-Act (arXiv title "Agents' Last Doubt…"; a Qwen3-1.7B controller ranks Ask, Search, Act-Reversible, and Commit-Irreversible for a frozen agent; unseen-family Qwen3-4B ToolSandbox Overall **+0.0575**, serving noise **±0.0095**, family-clustered CI includes zero; **no BFCL**). All 4 arXiv ids resolve and quoted numbers were checked against the papers on 2026-10-22. **Title flags:** arXiv:2610.24294 is "Not Every User Says It All…"; arXiv:2610.24194 is "Agents' Last Doubt…". Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%**; v11 CE **stopped at 26500/32000** (mid20 FAIL); v11 leak gate (own-named tools, **0** BFCL names).
+
+**Screened, not logged (2026-10-22):** SchemaShield-Lite (arXiv:2610.23342; title "Robust Function Calling for LLM Agents Under Interface Drift") — its BFCL-200 **0.580→0.805** is a single-turn slice (simple Python, multiple-function, live-simple, live-multiple, equal parts) on Qwen3.5-9B under composite interface drift (stale descriptions, schema renames, and distractor tools; schema edits alone are the less harmful drift in that paper), **not** `multi_turn_base`. Bud ContextCompact 2.0 (arXiv:2610.25516) overlaps [ACON §5](#5-context-compression-for-multi-turn). SpecAgent (arXiv:2610.21463) is edge–cloud weak/strong collaboration. All three ids resolve.
+
+**Related options (logged 2026-10-26, all `CANDIDATE` / not run; paper numbers are theirs; docs only, no Acc/train from this pass):**
+
+- **2026-10-26 candidate sweep ([§62](#62-spod-success-preserving-on-policy-distillation) to [§68](#68-brace-calibrated-rollout-budgets)):** SPOD (arXiv title "Beyond the Teacher..."; masks conflicting teacher supervision on successful student actions and adds a soft probability floor; Qwen3.5-2B from Qwen3.5-27B, three-benchmark average ordinary OPD **53.3** to SPOD **65.7**, also above that run's best ordinary-OPD checkpoint **58.2**; ALFWorld, WebShop, ScienceWorld; **no BFCL**; same table, Gemma-4-E4B from Gemma-4-31B overall **56.0** to **66.2**), PROVE (arXiv title "Synthesize and Reward..."; 20 live MCP servers, 343 tools, **13,517** examples, then GRPO; the penalty is an adaptive call-budget term, not a token-length penalty; BFCL Multi-Turn version **not stated**; "up to +10.2" is **Qwen3-4B Overall 18.8 to 29.0**, the best overall of the four models; same row Base **+12.0** and Miss Func **+15.0**; **not** our sheet), ReflectPO (BFCL-**v3**; Qwen3-4B Thinking multi-turn overall **33.9 to 36.9**; Base **45.0 to 44.5**; Miss-Func **37.0 to 40.0**, Miss-Param **26.0 to 32.0**, Long-Context **27.5 to 31.0**; **not** our sheet), DynaWeave (SFT on **2,095** trajectories with mid-task events; Qwen3.5-2B CostBench task completion **3.00% to 70.34%**; **no BFCL**), hierarchical agent distillation (arXiv title "Beyond On-Policy vs. Off-Policy..."; Qwen3-8B, Qwen3-14B, and Ministral-3-14B; student histories with teacher action prefixes are strongest standalone in **10 of 12** settings; the paper does not name DAgger; **no** single headline number; **no BFCL**), R2S (arXiv title "Capable Teacher, Myopic Scorer..."; the **12** cells are two teachers, two students each, and **three** environments, ALFWorld, WebShop, and ScienceWorld; abstract **+12.8** is the average over the best of TCOD-F2B, Guided-OPD, and FutureBridge in each cell; **no BFCL**), BRACE (295 held-out AWM tasks at step 100: Qwen3-VL-Instruct 2B/4B/8B solve **12.5 / 14.9 / 16.5** vs uniform GRPO **8.9 / 11.4 / 13.2**, gains **3.6 / 3.5 / 3.3** pp; BFCL v4 multi-turn transfer is Figure 5 only, **800** tasks, exact rates **not printed**). All 7 arXiv ids resolve and quoted numbers were checked against the PDFs on 2026-10-26. **Title flags:** arXiv:2610.25034 is "Beyond the Teacher..."; arXiv:2606.03892 is "Synthesize and Reward..."; arXiv:2610.31918 is "Beyond On-Policy vs. Off-Policy..."; arXiv:2610.28586 is "Capable Teacher, Myopic Scorer..."; arXiv:2610.28785 is "Measure First, Then Allocate...". Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%** (the fine-tuning track did not help); v11 CE **stopped at 26500/32000** (mid20 FAIL R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**); v11 leak gate (own-named tools, **0** BFCL names).
+
+**Related options (logged 2026-10-29, all `CANDIDATE` / not run; paper numbers are theirs; docs only, no Acc/train from this pass):**
+
+- **2026-10-29 candidate sweep ([§69](#69-effectworld-effect-typed-tool-traces) to [§70](#70-trajectory2gym-decision-grounded-interaction-synthesis)):** EffectWorld (arXiv title "Small agents should know what their tools do"; LoRA SFT on frozen Qwen3-4B-Instruct-2507, rank 16, alpha 16, dropout 0.05, attention and MLP up/down, **26.0M** trainable parameters; BFCL **v4**; Table 5 Multi-turn group **21.9 to 26.6** is not multi-turn base; Section 6.2 multi-turn base is **26.0 to 35.5**; non-live **88.0 to 84.8**; non-live irrelevance **88.8 to 75.0**; in-distribution test success, program / stepwise, **52.6 / 50.6 to 99.2 / 100.0**, which the abstract rounds to 53% to 99%; Qwen3-1.7B same recipe, Table 6 multi-turn **13.5 to 11.5** and irrelevance **81.2 to 35.4**; raw mix non-live **88.0 to 31.4**, clean mix **84.8**; suppression and DPO do not beat the SFT-only control on held-out world splits, and unlikelihood still moves BFCL against that control; about **10.2** A100-40GB hours, **27.5 GB** peak; no code URL in the PDF), Trajectory2Gym (one epoch full-parameter parent-normalized SFT, not LoRA; **11,583 to 19,937** trajectories, about **13.0M to 23.9M** target tokens; BFCL version **not stated**, **1,718** examples, four non-live, three live, and Multi-turn Base; Qwen3-1.7B **12.00 to 48.00**, Qwen3-4B **21.00 to 62.00**; abstract three-benchmark mean **+16.9 to +29.8** percentage points across five Qwen3 scales, 1.7B to 30B-A3B; the BFCL train/eval membership sentence is a validity risk; code https://github.com/yihaohu0118/Trajectory2Gym). Both arXiv v1 PDFs were checked on 2026-10-29. Training-time entries are future work only; **no blanket GRPO**. Do **not** invent `multi_turn_base` Acc. Current state unchanged: harness full stack R78 **77/200 = 38.5%** (best measured row); SFT **15.0%** / DPO **26.5%** (the fine-tuning track did not help); v11 CE **stopped at 26500/32000** (mid20 FAIL R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**); v11 leak gate (own-named tools, **0** BFCL names). Sanskar's Mac has **48 GB** for MLX. A rank-16 LoRA on a 4B model is plausible there and would be slower than EffectWorld's A100 job (**our estimate**, not a paper measurement).
+
+**Related options (logged 2026-11-02, all `CANDIDATE` / not run; paper numbers are theirs; docs only, no Acc/train from this pass):**
+
+- **2026-11-02 candidate sweep:** [§71 SynthAPI](#71-synthapi-controllable-tool-environment-synthesis-and-scaling-laws) (`CANDIDATE`), [§72 CGAP](#72-cgap-capability-grounded-agentic-planning) (`CANDIDATE`), [§73 EvoMCP](#73-evomcp-co-evolving-mcp-agents-and-training-data) (`CANDIDATE`).
+
+**Skipped this round (2026-10-29):** EnvSched (arXiv:2610.37609), CASEL (arXiv:2610.36570), FlashScript (arXiv:2610.33876), Context-as-pipeline (arXiv:2610.36114), MCP-Injector faults (arXiv:2610.32555). The five abs pages resolved on 2026-10-29. No thesis-critical llama.cpp tool-calling changes Oct 22-29.
+
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
 
 **v1 (Run 12):** Mac `benchmark.db` `run_id=12`: **1/200 = 0.5%** (`gemma4-e2b-sft-iffc`, `--fc-mode iffc`, fused Q4_K_M best val @ iter 1000, `val=0.206`, mlx-lm 0.32). Only win: `multi_turn_base_50`. 200 responses, 199 `eval_errors`, 200 `multi_turn_timings`. Started `2026-09-20T12:19:15Z`, finished `2026-09-20T12:33:00Z`. All 200 `flags` empty — **zero** `iffc_unparseable`.
@@ -2078,6 +2107,27 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Zhang, Zheng, Liu, Yu, et al. State-OPD. arXiv:2610.13238. https://arxiv.org/abs/2610.13238 ([§50](#50-state-opd-state-grounded-on-policy-distillation); **`CANDIDATE` / not run**; no BFCL; 26.07 = strongest baseline, not base)
 - Liu, Luo, Chen, Mao, et al. Stochastic Teacher Intervention for Agentic On-Policy Distillation (STI-OPD). arXiv:2610.10878. https://arxiv.org/abs/2610.10878 ([§51](#51-sti-opd-stochastic-teacher-intervention-opd); **`CANDIDATE` / not run**; no BFCL; needs teacher token probabilities)
 - Islam, Thakur, Chen, Park, et al. CacheRL. arXiv:2606.14179. https://arxiv.org/abs/2606.14179 ([§52](#52-cacherl-cached-rollouts--tier-aware-reward); **`CANDIDATE` / not run**; not BFCL; 0.920 is an SFT row)
+- Cao, Sathe, Wang, Yin, Ma, & Chen. Progress-Aware Distillation (ProD). arXiv:2610.19439. https://arxiv.org/abs/2610.19439 ([§53](#53-prod-progress-aware-distillation); **`CANDIDATE` / not run**; no BFCL; 81.9→85.2 is MATH vs SFT, not our sheet)
+- Ye, Fu, Fan, Cui, Lin, & Lu. DeltaTTG. arXiv:2610.17666. https://arxiv.org/abs/2610.17666 ([§54](#54-deltattg-token-to-go-progress-meter); **`CANDIDATE` / not run**; BFCL v3 Multi-Turn average ≠ `multi_turn_base`; code https://github.com/Xuyan923r/DeltaTTG)
+- Diao, Yang, Huang, Yuan, et al. ECHO. arXiv:2610.16027. https://arxiv.org/abs/2610.16027 ([§55](#55-echo-responsibility-aware-credit-assignment); **`CANDIDATE` / not run**; BFCL v3 Base 50.50 is theirs, not our v4 sheet; code https://github.com/xid32/ECHO)
+- Liu & Han. Asking Earns Nothing. arXiv:2610.04429. https://arxiv.org/abs/2610.04429 ([§56](#56-asking-earns-nothing-scoring-the-decision-to-act); **`CANDIDATE` / not run**; 39.2→62.7 is 151 base twins, not our 200; code https://github.com/YangzeLiu/asking-earns-nothing)
+- Hwang, Xuan, & Kim. Insight memory (tool graph memory). arXiv:2610.21571. https://arxiv.org/abs/2610.21571 ([§57](#57-insight-memory-textual-lessons-vs-tool-graph-memory); **`CANDIDATE` / not run**; 160-task four-category holdout ≠ our sheet; leak-gate conflict)
+- Zhao, Tang, Wang, Zhao, Guo, et al. ToolOPD. arXiv:2610.25693. https://arxiv.org/abs/2610.25693 ([§58](#58-toolopd-credit-aware-on-policy-distillation); **`CANDIDATE` / not run**; their BFCL likely v4, version not stated, ≠ our sheet; 1.7B Base 19.0 is under TurnSight 24.0; MTOA 13.4 does not lead that column (GRPO 14.3, TurnSight 18.3); repo https://github.com/MagicAgent-Search/ToolOPD is not linked from the paper)
+- Lee & Barke. Symbolic Constraint Agents (SCA). arXiv:2610.25552. https://arxiv.org/abs/2610.25552 ([§59](#59-symbolic-constraint-agents-sca); **`CANDIDATE` / not run**; no BFCL; +5.4 is 45.1→50.5 at 40 calls and +9.8 is 59.5→69.3 with silent errors, GPT-5.4-mini; failed-call removal 59–67% (GPT-5.4-mini) and 48–87% (Qwen3.5-9B); abstract 59–87% compresses that)
+- Bao, Zhang, Shi, & Ye. Not Every User Says It All (StaGPO). arXiv:2610.24294. https://arxiv.org/abs/2610.24294 ([§60](#60-stagpo-state-grouped-policy-optimization); **`CANDIDATE` / not run**; arXiv title is "Not Every User Says It All…", not "StaGPO"; no BFCL; 76.8% is ToolWOZ weak-user; Qwen3.5-4B τ² edge +3.5 vs GRPO and +1.0 vs hybrid, within noise)
+- Liu, Jiao, Guo, Dai, et al. Agents' Last Doubt (SURE-Act). arXiv:2610.24194. https://arxiv.org/abs/2610.24194 ([§61](#61-sure-act-a-trained-controller-over-a-frozen-agent); **`CANDIDATE` / not run**; arXiv title is "Agents' Last Doubt…", not "SURE-Act"; four meta-actions Ask / Search / Act-Reversible / Commit-Irreversible; no BFCL; +0.0575 is unseen-family Qwen3-4B Overall, serving noise ±0.0095; family-clustered interval includes zero)
+- Zhong, Li, Lai, Xiao, et al. Beyond the Teacher (SPOD). arXiv:2610.25034. https://arxiv.org/abs/2610.25034 ([§62](#62-spod-success-preserving-on-policy-distillation); **`CANDIDATE` / not run**; arXiv title is "Beyond the Teacher...", not "SPOD"; no BFCL; 53.3 to 65.7 is Qwen3.5-2B ordinary OPD to SPOD on the three-benchmark average; code https://github.com/Jike338/SPOD)
+- Abdelaziz, Munawar, Basu, Crouse, et al. Synthesize and Reward (PROVE). arXiv:2606.03892. https://arxiv.org/abs/2606.03892 ([§63](#63-prove-programmatic-rewards-on-verified-environments); **`CANDIDATE` / not run**; arXiv title is "Synthesize and Reward...", not "PROVE"; +10.2 is Qwen3-4B BFCL Multi-Turn Overall 18.8 to 29.0, version not stated, not our sheet; code not yet released)
+- Li & Cai. ReflectPO. arXiv:2610.30933. https://arxiv.org/abs/2610.30933 ([§64](#64-reflectpo-reflection-guided-policy-optimization); **`CANDIDATE` / not run**; BFCL-v3 Multi-Turn overall 33.9 to 36.9, Base 45.0 to 44.5; Miss-Func also rises 37.0 to 40.0; not our v4 sheet)
+- Yang, Liu, Xin, Xu, & Miao. DynaWeave. arXiv:2610.29443. https://arxiv.org/abs/2610.29443 ([§65](#65-dynaweave-dynamic-scenario-synthesis); **`CANDIDATE` / not run**; no BFCL; 3.00 to 70.34 is Qwen3.5-2B CostBench task completion; code https://github.com/Miaow-Lab/DynaWeave)
+- Gao, Zou, & Marttinen. Beyond On-Policy vs. Off-Policy (hierarchical agent distillation). arXiv:2610.31918. https://arxiv.org/abs/2610.31918 ([§66](#66-hierarchical-agent-distillation-history-vs-action-prefix); **`CANDIDATE` / not run**; no BFCL; no single headline number; Ministral-3 is the 14B instruct checkpoint; the paper does not name DAgger)
+- Zhao & Yu. Capable Teacher, Myopic Scorer (R2S). arXiv:2610.28586. https://arxiv.org/abs/2610.28586 ([§67](#67-r2s-rollout-to-scorer-distillation); **`CANDIDATE` / not run**; arXiv title is "Capable Teacher, Myopic Scorer...", not "R2S"; no BFCL; +12.8 is the abstract average over 12 cells and three environments, not only ALFWorld and WebShop; code https://github.com/Tree-Shu-Zhao/miles-agent)
+- Tran, Yao, Kwon, & Yu. Measure First, Then Allocate (BRACE). arXiv:2610.28785. https://arxiv.org/abs/2610.28785 ([§68](#68-brace-calibrated-rollout-budgets); **`CANDIDATE` / not run**; arXiv title is "Measure First, Then Allocate...", not "BRACE"; +3.6/+3.5/+3.3 is held-out AWM, not BFCL; BFCL v4 multi-turn rates are not printed)
+- Kovalenko & Redchych. Small agents should know what their tools do (EffectWorld). arXiv:2610.35981. https://arxiv.org/abs/2610.35981 ([§69](#69-effectworld-effect-typed-tool-traces); **`CANDIDATE` / not run**; arXiv title is "Small agents should know what their tools do", not "EffectWorld"; BFCL v4; 21.9 to 26.6 is the multi-turn group, multi-turn base is 26.0 to 35.5; not our sheet; no code URL in the PDF)
+- Hu, Wen, Lin, Lu, et al. Trajectory2Gym. arXiv:2610.33568. https://arxiv.org/abs/2610.33568 ([§70](#70-trajectory2gym-decision-grounded-interaction-synthesis); **`CANDIDATE` / not run**; one epoch full-parameter SFT; Multi-turn Base 12.00 to 48.00 at 1.7B and 21.00 to 62.00 at 4B on a 1,718-example sheet, version not stated, not our sheet; BFCL train/eval membership is a validity risk; code https://github.com/yihaohu0118/Trajectory2Gym)
+- Szot, Abnar, Attia, Kazerouni, Kirchhof, Hsieh, Vemulapalli, & Toshev. Scaling Laws for Tool-Use Agents via Controllable Environment Synthesis (SynthAPI). arXiv:2610.37648. https://arxiv.org/abs/2610.37648 ([§71](#71-synthapi-controllable-tool-environment-synthesis-and-scaling-laws); **`CANDIDATE` / not run**; BFCL v3 multi-turn, all 800 tasks, not our 200-item sheet; Qwen3.5-4B zero-shot 27.3 to SynthAPI-Big 51.1 is theirs; no data or code release link in the paper)
+- Shrestha, Yeoh, Zhang, & Vorobeychik. Capability-Grounded Agentic Planning (CGAP). arXiv:2610.41040. https://arxiv.org/abs/2610.41040 ([§72](#72-cgap-capability-grounded-agentic-planning); **`CANDIDATE` / not run**; BFCL v4 multi-turn, stratified 200-conversation subset, not our sheet; smallest model tested is gpt-oss-20b; no code link found)
+- Gao, Lin, Shi, Deng, Shen, Meng, Wu, Yang, & Liu. EvoMCP: Co-Evolving MCP Agents and Training Data. arXiv:2610.41479. https://arxiv.org/abs/2610.41479 ([§73](#73-evomcp-co-evolving-mcp-agents-and-training-data); **`CANDIDATE` / not run**; no BFCL; student Qwen3.6-27B; Toolathlon 36.9 to 53.4 is theirs; code https://github.com/xagao/EvoMCP)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
@@ -2221,6 +2271,14 @@ Each method in this section involves modifying model weights — via supervised 
 - [50. State-OPD: State-Grounded On-Policy Distillation](#50-state-opd-state-grounded-on-policy-distillation)
 - [51. STI-OPD: Stochastic Teacher Intervention OPD](#51-sti-opd-stochastic-teacher-intervention-opd)
 - [52. CacheRL: Cached Rollouts + Tier-Aware Reward](#52-cacherl-cached-rollouts--tier-aware-reward)
+- [53. ProD: Progress-Aware Distillation](#53-prod-progress-aware-distillation)
+- [54. DeltaTTG: Token-to-Go Progress Meter](#54-deltattg-token-to-go-progress-meter)
+- [55. ECHO: Responsibility-Aware Credit Assignment](#55-echo-responsibility-aware-credit-assignment)
+- [56. Asking Earns Nothing: Scoring the Decision to Act](#56-asking-earns-nothing-scoring-the-decision-to-act)
+- [57. Insight Memory: Textual Lessons vs Tool-Graph Memory](#57-insight-memory-textual-lessons-vs-tool-graph-memory)
+- [71. SynthAPI](#71-synthapi-controllable-tool-environment-synthesis-and-scaling-laws) (`CANDIDATE`)
+- [72. CGAP](#72-cgap-capability-grounded-agentic-planning) (`CANDIDATE`)
+- [73. EvoMCP](#73-evomcp-co-evolving-mcp-agents-and-training-data) (`CANDIDATE`)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
 - [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling) (survey; Choice/router KD **path B first** ranking **PASS**; Acc harness IMPL **CONFIRM_PASS_WITH_FLAGS**; Run 64 Acc **11/200 = 5.5% scored FAIL**; ranking ≠ Acc; Acc remains **not** a GO)
@@ -3633,6 +3691,872 @@ Paper results (Islam et al., 2026; Table 3; **theirs**). ACEBench **multi-step p
 ### Source
 
 Islam, M. A., Thakur, S., Chen, H., Park, S. M., et al. "CacheRL: Multi-Turn Tool-Calling Agents via Cached Rollouts and Hybrid Reward." arXiv:2606.14179, 2026. https://arxiv.org/abs/2606.14179
+
+---
+
+## 53. ProD: Progress-Aware Distillation
+
+### Overview
+
+ProD (Cao, Sathe, Wang, Yin, Ma, & Chen, 2026) is distillation for small agents that get stuck repeating the same action. The student is first trained by SFT on successful teacher trajectories. It then runs tasks itself. Where it repeats actions instead of making progress, a preference loss pushes toward the teacher's run. The loss is weighted by how much more the student repeats than the teacher, and the SFT term is kept.
+
+**Train vs infer: training-time** (SFT, then a progress-aware preference loss). **Tag: `CANDIDATE` / not run.** Logged 2026-10-19 (docs only). Targets the identical-call looping failure.
+
+### Mechanism
+
+1. Collect successful teacher trajectories (GPT-4.1) and SFT the student on them (LoRA in the paper).
+2. The student then generates its own trajectories. A turn-level stagnation score measures repetition. The lexical form is the max ROUGE-L overlap of the current thought+action with earlier turns.
+3. A preference loss uses an adaptive margin from the student–teacher stagnation gap, so trajectories that repeat more than the teacher are penalized harder. The SFT term stays in the objective.
+4. The procedure can be repeated: regenerate student trajectories and recompute the gap.
+
+### Evidence
+
+Paper results (Cao et al., 2026; Table 3; **theirs**). Final-answer accuracy vs plain SFT distillation, GPT-4.1 teacher. **No BFCL.**
+
+- **Qwen3-4B, MATH:** **81.9 → 85.2**. **HotpotQA:** **66.6 → 70.8**.
+- On the 0.6B–1B rows (Qwen3-0.6B, Llama-3.2-1B-Instruct, Gemma-3-1B-it), the same table's in-domain gains over SFT are about **3–6** points.
+- Tasks are code-assisted math and search (MATH, HotpotQA, plus Omni-MATH and 2WikiMultiHopQA). Teacher is GPT-4.1.
+
+Do **not** write as thesis Acc.
+
+**Cite check (2026-10-19):** arXiv:2610.19439 resolves; title and the Qwen3-4B numbers match Table 3. The PDF includes a NeurIPS checklist; acceptance is not confirmed from the abstract page.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH.** The failure it targets (repeating a call instead of making progress) is the same family as over-call loops. Mac feasibility is **good**: LoRA, a text-overlap repetition score, and a small custom MLX loss. Training-time, so future work only. **No blanket GRPO.**
+- **BFCL categories:** none evaluated.
+- **Complexity:** Medium (LoRA SFT plus one on-policy preference stage).
+- **Limitation:** code and search agents, not function-calling sims; lexical overlap is the score they emphasize.
+
+### Source
+
+Cao, Y., Sathe, S., Wang, H., Yin, Z., Ma, F., & Chen, J. "Progress-Aware Distillation for Mitigating Stagnation in Small Language Model Agents." arXiv:2610.19439, 2026. https://arxiv.org/abs/2610.19439
+
+---
+
+## 54. DeltaTTG: Token-to-Go Progress Meter
+
+### Overview
+
+DeltaTTG (Ye, Fu, Fan, Cui, Lin, & Lu, 2026) trains multi-turn agents with a small helper that estimates work left. The helper's target is Token-to-Go: how many assistant tokens remain until the task is finished. During GRPO, changes in that frozen estimate redistribute the trajectory's outcome credit across steps. The reward itself is not changed.
+
+**Train vs infer: training-time** (RL). **Tag: `CANDIDATE` / not run.** Logged 2026-10-19 (docs only). **No blanket GRPO.** Relevant only if RL is unlocked.
+
+### Mechanism
+
+1. Train a progress meter on recorded trajectories from several policies. One meter per domain. The tool-use meter is trained on AgentWorldModel and initialized from Qwen3-4B-Instruct-2507.
+2. Freeze the meter. At actor-training time it scores each state; the change in estimated remaining work splits the outcome advantage across steps.
+3. GRPO still supplies the terminal reward. The meter does not add a second reward.
+
+### Evidence
+
+Paper results (Ye et al., 2026; Table 1; **theirs**). Qwen3-4B on **BFCL v3 Multi-Turn**, the average of all four multi-turn categories (Base, Missing Function, Missing Parameter, Long Context; 200 each):
+
+- **DeltaTTG 41.09** vs **plain GRPO 36.33** vs the **ReAct row 28.00**.
+- This is **not** `multi_turn_base` alone. Do **not** write 41.09 as a thesis `multi_turn_base` Acc.
+- Actors are trained on AgentWorldModel environments. BFCL is test only (no BFCL train overlap in the paper).
+
+**Cite check (2026-10-19):** arXiv:2610.17666 resolves; title and the three Multi-Turn numbers match Table 1. 41.09 − 36.33 is the paper's "about 4.8 points over the strongest RL baseline" on that column.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM**, and only if RL is unlocked. Mac feasibility is **poor** (live RL plus a second model for the meter). Training-time, so future work only.
+- **BFCL categories:** v3 Multi-Turn average in the paper. Not our v4 `multi_turn_base` sheet.
+- **Complexity:** High (actor GRPO + a separately trained meter).
+- **Limitation:** reported spread is repeated eval of one checkpoint, not independent training seeds; two actor families.
+
+### Source
+
+Ye, X., Fu, X., Fan, S., Cui, J., Lin, Y., & Lu, W. "DeltaTTG: Training Multi-Turn Agents with a Token-to-Go Progress Meter." arXiv:2610.17666, 2026. https://arxiv.org/abs/2610.17666
+
+Code: https://github.com/Xuyan923r/DeltaTTG
+
+---
+
+## 55. ECHO: Responsibility-Aware Credit Assignment
+
+### Overview
+
+ECHO (Diao, Yang, Huang, Yuan, et al., 2026) is reinforcement learning for tool-use agents. A large frozen judge separates a step that caused an error from a step that only inherited one. RL then assigns credit step by step: a shared downstream consequence is counted once, and credit for repairing a self-caused error is funded from that error's penalty.
+
+**Train vs infer: training-time** (RL). **Tag: `CANDIDATE` / not run.** Logged 2026-10-19 (docs only). **No blanket GRPO.** RL-only.
+
+### Mechanism
+
+1. A frozen judge proposes events from the full trajectory, then labels each selected action from the policy-visible prefix only: newly introduced error, inherited consequence, missed correction, or successful correction.
+2. Shared consequences are charged once across the responsible actions. Repair credit cannot exceed the source error's penalty.
+3. The resulting bounded action-level corrections are optimized together with the terminal reward.
+
+### Evidence
+
+Paper results (Diao et al., 2026; Tables 1 and 3; **theirs**). Qwen3-4B, trained on the **τ²-Bench training split**:
+
+- **BFCL v3 Multi-Turn Base:** **50.50** vs base Qwen3-4B **32.00** vs Arctic-AWM **48.55**.
+- **All four v3 multi-turn categories (unweighted mean):** **41.24** vs Arctic-AWM **38.89** (base Qwen3-4B on that mean is **25.38**).
+- **BFCL v4 overall:** **53.71**. That aggregate is not `multi_turn_base`.
+
+Do **not** write any of these as thesis v4 `multi_turn_base` Acc.
+
+**Cite check (2026-10-19):** arXiv:2610.16027 resolves; title and the numbers above match Tables 1 and 3. The fixed judge in the main setup is Kimi-K2.6 Thinking; the paper also compares Qwen3.5-122B-A10B.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM**, and only as RL. Mac feasibility is **poor** (a 100B+ judge, Kimi-K2.6 or Qwen3.5-122B, plus RL). Training-time, so future work only.
+- **BFCL categories:** v3 Multi-Turn (including Base) and a v4 overall score in the paper. Not our harness.
+- **Complexity:** High (online rollouts + a large frozen judge).
+- **Limitation:** 4B/8B Qwen3 only; judge quality is a separate variable from the policy.
+
+### Source
+
+Diao, X., Yang, T., Huang, W., Yuan, X., et al. "Of Errors and Echoes: Responsibility-Aware Credit Assignment for Tool-Use Agents." arXiv:2610.16027, 2026. https://arxiv.org/abs/2610.16027
+
+Code: https://github.com/xid32/ECHO
+
+---
+
+## 56. Asking Earns Nothing: Scoring the Decision to Act
+
+### Overview
+
+Asking Earns Nothing (Liu & Han, 2026) is an evaluation of how BFCL multi-turn scores the choice to act. Two of the four categories are built around a turn where the model is supposed to ask. The gold trajectory on that turn is empty, the checker skips it, and the scripted user cannot answer, so a clarifying question earns nothing. One added system line that says to act and not ask raises the official score.
+
+**Train vs infer: inference / eval** (one prompt line; no weight update). **Tag: `CANDIDATE` / not run.** Logged 2026-10-19 (docs only). Log as a cheap prompt-harness test. **Not tested on small models.**
+
+### Mechanism
+
+1. The finding is in the scorer: an empty gold trajectory is skipped, so ask-vs-guess on that turn is not compared.
+2. The intervention is one sentence. The "act, don't ask" line is applied to gpt-5.4. The reverse "ask first" line is applied to gemma-4-31B-it.
+3. The authors also release 31 manually verified bad BFCL multi-turn answer keys.
+
+### Evidence
+
+Paper results (Liu & Han, 2026; Appendix F; **theirs**):
+
+- **gpt-5.4**, act-don't-ask: official **base** score on the twins **39.2% → 62.7%**. Those twins are **151 of 200** `multi_turn_base` items (the 223 certified pairs share 151 base items). **Not** the full 200-item category, and **not** our sheet.
+- Reverse "ask first": **gemma-4-31B-it** official base **65.0% → 58.5%**.
+- **Not tested on small models.** gemma-4-E4B-it appears in the decision table, not in this prompt arm.
+
+Do **not** write 62.7% or 58.5% as thesis Acc.
+
+**Cite check (2026-10-19):** arXiv:2610.04429 resolves; title and both prompt deltas match Appendix F. Bad-key release: https://github.com/YangzeLiu/asking-earns-nothing
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM.** A one-line harness prompt is cheap to try, and the 31 bad keys are a scorer audit, not a method. The published lift is on gpt-5.4 and a 31B Gemma, so it does not transfer to E2B until we measure it. No `--fc-mode` today.
+- **BFCL categories:** multi-turn, including a 151-item base-twin subset and the gemma-4-31B-it base category. Theirs.
+- **Complexity:** Low (prompt only) if we ever run it.
+- **Limitation:** scripted user still cannot answer a question; the score move is execution on later turns, which the paper separates from the ask/act decision.
+
+### Source
+
+Liu, Y., & Han, Z. "Asking Earns Nothing: Scoring the Decision to Act in BFCL Multi-Turn." arXiv:2610.04429, 2026. https://arxiv.org/abs/2610.04429
+
+Release: https://github.com/YangzeLiu/asking-earns-nothing
+
+---
+
+## 57. Insight Memory: Textual Lessons vs Tool-Graph Memory
+
+### Overview
+
+Hwang, Xuan, & Kim (2026) compare tool-graph memory (hints about which tool comes next) with **insight memory**: short written lessons from past runs, placed in the prompt. The paper's claim is that the lessons help more than the next-tool hints, and that they add almost no extra model calls.
+
+**Train vs infer: inference-time** (retrieved text in the prompt; no weight update). **Tag: `CANDIDATE` / not run.** Logged 2026-10-19 (docs only).
+
+### Mechanism
+
+1. Roll out training tasks and keep episodic summaries, including failed runs.
+2. Cluster the summaries and have the agent model write what to do and what to avoid for each cluster.
+3. At each turn, add the lessons of the most similar clusters to the prompt. This is situation-level text, not a prescribed next tool.
+
+### Evidence
+
+Paper results (Hwang et al., 2026; Table 1 and Table 6; **theirs**). **160 held-out BFCL v4 multi-turn tasks**, all four categories (40 underlying tasks × four variants). Mean of three runs:
+
+- **gemma-4-E4B-it:** **0.221 → 0.285** (significant; paired p = 0.006).
+- **Qwen3.5-2B:** **0.133 → 0.165** (not significant; paired p = 0.166).
+
+This is a four-category holdout, **not** our 200-item `multi_turn_base` sheet. Do **not** write 0.285 as thesis Acc.
+
+The lessons are built from the other **640** BFCL v4 multi-turn tasks. That **conflicts with the leak gate** (own-named tools, **0** BFCL names) and overlaps few-shot retrieval.
+
+**Cite check (2026-10-19):** arXiv:2610.21571 resolves. The paper title is "Rethinking the Role of Tool Graph Memory in Multi-Turn Tool Use"; insight memory is the alternative they introduce. The two BFCL rows match Tables 1 and 6.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. LOW–MEDIUM.** Prompt-only lessons are cheap, but building them from BFCL tasks breaks the leak gate, and the idea overlaps few-shot retrieval already logged in Part I. A version on own-named sims would be a different experiment.
+- **BFCL categories:** 160-task v4 multi-turn holdout (all four categories) in the paper. Not our sheet.
+- **Complexity:** Low–medium (offline clustering + retrieval into the prompt).
+- **Limitation:** the 2B gain is not significant; several larger models in the same table do not gain.
+
+### Source
+
+Hwang, U., Xuan, R., & Kim, T. "Rethinking the Role of Tool Graph Memory in Multi-Turn Tool Use." arXiv:2610.21571, 2026. https://arxiv.org/abs/2610.21571
+
+---
+
+## 58. ToolOPD: Credit-Aware On-Policy Distillation
+
+### Overview
+
+ToolOPD (Zhao, Tang, Wang, Zhao, Guo, et al., 2026) is on-policy distillation for long-horizon tool use. The teacher writes a short hindsight skill from the finished student trajectory and its outcome. Token-level teacher supervision on the student's own actions is then reweighted by how much that skill shifts the teacher's probability for each action, so critical calls get most of the signal. The weighted distillation loss is trained together with GRPO.
+
+**Train vs infer: training-time** (on-policy distillation + RL). **Tag: `CANDIDATE` / not run.** Logged 2026-10-22 (docs only). Same family as [ActionOPD §48](#48-actionopd-action-level-on-policy-distillation), [State-OPD §50](#50-state-opd-state-grounded-on-policy-distillation), and [STI-OPD §51](#51-sti-opd-stochastic-teacher-intervention-opd). The BFCL table below also reports [TurnSight §44](#44-turnsight-turn-level-hindsight-self-distillation). **No blanket GRPO.**
+
+### Mechanism
+
+1. The student rolls out the task. The frozen teacher reads the full trajectory and the binary outcome and writes one hindsight skill: a short rule for what worked, or what to avoid.
+2. For each student action token, credit is the change in the teacher's log-probability when the skill is added. On a success, only increases are kept. On a failure, only decreases are kept. That weight scales the distillation loss on action tokens.
+3. The same update adds a GRPO term on the environmental reward. The teacher stays frozen. At inference the student runs alone.
+
+### Evidence
+
+Paper results (Zhao et al., 2026; Table 2; **theirs**). Students **Qwen3-0.6B** and **Qwen3-1.7B**. The teacher is **Qwen3-4B-Instruct** after GRPO (the 150-step checkpoint; Appendix C calls it a GRPO-trained Qwen3-4B). This table is trained on **FTRL** only. BFCL and ToolHop are out-of-distribution.
+
+The BFCL version is **not stated**. Appendix J lists multi-turn Base, Missing Function, Missing Parameter, Long Context, Multi-Turn Overall Accuracy (MTOA), and Agent Memory, so the sheet is **likely v4**.
+
+- **Qwen3-1.7B, multi-turn Base:** vanilla **15.5**, GRPO **18.0**, ToolOPD **19.0**. TurnSight in the same table is **24.0** on that Base cell.
+- **Qwen3-1.7B, MTOA:** vanilla **11.8**, ToolOPD **13.4**, GRPO **14.3**, TurnSight **18.3**. ToolOPD does not lead that column.
+- **Qwen3-0.6B, multi-turn Base:** vanilla **4.0**, ToolOPD **5.0**.
+
+Do **not** write any of these as thesis `multi_turn_base` Acc.
+
+Compute: **8 A800 GPUs**, **4 student / 4 teacher** (Appendix C). Not practical on the 48 GB Mac as written.
+
+**Cite check (2026-10-22):** arXiv:2610.25693 resolves (submitted 2026-10-19); the title matches. The Table 2 cells above match the HTML. The arXiv HTML and Atom comment do not link code. https://github.com/MagicAgent-Search/ToolOPD exists and its description matches the title (checked 2026-10-22).
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM–LOW.** The credit idea sits with ActionOPD, State-OPD, and STI-OPD. On the 1.7B BFCL row, TurnSight's Base (**24.0**) and MTOA (**18.3**) are higher than ToolOPD. Mac feasibility is **poor** (two models on 8 GPUs). Training-time, so future work only. **No blanket GRPO.**
+- **BFCL categories:** their multi-turn Base, missing function, missing parameter, long context, memory, and MTOA. Likely v4; version not stated. Not our sheet.
+- **Complexity:** High (on-policy rollouts, a frozen teacher, and GRPO).
+- **Limitation:** the 1.7B Base cell beats vanilla and GRPO in their table and still sits under TurnSight **24.0**. MTOA **13.4** does not lead that column: GRPO is **14.3** and TurnSight is **18.3**.
+
+### Source
+
+Zhao, C., Tang, L., Wang, Y., Zhao, J., Guo, G., Chen, Z., Zhao, Y., & Huang, F. "ToolOPD: Credit-Aware On-Policy Distillation for Tool-Use Agents." arXiv:2610.25693, 2026. https://arxiv.org/abs/2610.25693
+
+Repo (not linked from the paper): https://github.com/MagicAgent-Search/ToolOPD
+
+---
+
+## 59. Symbolic Constraint Agents (SCA)
+
+### Overview
+
+Symbolic Constraint Agents (Lee & Barke, 2026) mine tool-call preconditions and dependencies from API documentation, refine them against execution traces, and check each call with an SMT solver at runtime. A violation comes back as a natural-language warning, or as a repair when exactly one replacement satisfies the constraints.
+
+**Train vs infer: inference-time** (harness; no weight update). **Tag: `CANDIDATE` / not run.** Logged 2026-10-22 (docs only). Related to [verification loops §9](#9-verification-and-self-correction-loops) and the harness warning in [§36](#36-keyword-harnesses-fail-open).
+
+### Mechanism
+
+1. An initializer agent writes first-order constraints from API docs (value provenance, call order, types). A refiner edits that catalog against sample traces. The paper builds the catalog once with GPT-5.5 and then freezes it.
+2. At runtime, Z3 checks the proposed call against the history. When the call is unsatisfiable and MaxSMT finds exactly one legal argument value, that value is substituted. Otherwise the agent sees a warning and the call is left as written.
+
+### Evidence
+
+Paper results (Lee & Barke, 2026; Tables 1 and 2; **theirs**). **No BFCL.**
+
+- **AppWorld test-challenge (417 tasks), GPT-5.4-mini, repair:** 40-call budget **45.1% → 50.5%** (+5.4; significant). Silent errors (environment errors hidden) **59.5% → 69.3%** (+9.8; significant).
+- Failed calls removed by repair: **59–67%** for GPT-5.4-mini and **48–87%** for Qwen3.5-9B across settings. The abstract's **59–87%** compresses that split.
+- **τ²-bench:** repair raises success by up to **5.6** points (GPT-5.4-mini; Qwen3.5-9B is **+5.5** in the same paragraph).
+- Error-detection F1 after refinement: **39.3 → 61.9** on Qwen3.5-27B traces. GPT-5.5 traces in the same table move **37.0 → 58.3**.
+
+Agent models are GPT-5.5, GPT-5.4-mini, Sonnet 5, Qwen3.5-9B, and Qwen3.5-27B. The smallest open agent is Qwen3.5-9B.
+
+Do **not** write any of these as thesis Acc.
+
+**Cite check (2026-10-22):** arXiv:2610.25552 resolves (submitted 2026-10-18); the title matches. The cells above match Table 2 and the detection table. The abstract's 59–87% compresses the body split of 59–67% (GPT-5.4-mini) and 48–87% (Qwen3.5-9B). +5.4 is 45.1→50.5 at 40 calls; +9.8 is 59.5→69.3 with silent errors.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM–LOW.** The check targets stateful dependency errors, such as acting before the required setup call. A harness of this kind would compete with the prompt-engineering bar, Run 42 **71/200 = 35.5%**. The per-call check is Z3. The paper's catalog is mined by GPT-5.5, and every reported agent is larger than Gemma-4-E2B.
+- **BFCL categories:** none evaluated.
+- **Complexity:** Medium (offline constraint mining plus a per-call SMT check).
+- **Limitation:** repair runs only when one fix is valid. The paper reports little help when failures are omissions or hidden environment state.
+
+### Source
+
+Lee, J., & Barke, S. "Symbolic Constraint Agents: Mining Formal Tool-Call Constraints to Prevent Agent Errors." arXiv:2610.25552, 2026. https://arxiv.org/abs/2610.25552
+
+---
+
+## 60. StaGPO: State-Grouped Policy Optimization
+
+### Overview
+
+StaGPO (Bao, Zhang, Shi, & Ye, 2026) trains a tool-using agent against simulated users who leave out part of what they said. Before each action the agent writes a short state note: what the task needs, what is still missing, and how that gap is being filled. GRPO groups turns from different rollouts that reach the same state and assigns step-level credit inside the group. Training is a small SFT cold start, then LoRA RL in verl.
+
+**Train vs infer: training-time** (SFT cold start, then RL). **Tag: `CANDIDATE` / not run.** Logged 2026-10-22 (docs only). The written state is an RL grouping key. That use of state is related to harness STATE ([IFFC+STATE](#experiment-iffc--harness-state---fc-mode-iffc-state)) and to [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls). **No blanket GRPO.**
+
+### Mechanism
+
+1. Weak users are the same simulator with sentences replaced by `[inaudible]` at a fixed rate. The task and the user's knowledge stay fixed.
+2. Each turn is a hidden JSON state (need, gap, fill) plus the action. A fixed abstraction of that state is the group key.
+3. Turns of one task that share the key are compared by discounted return. That step advantage is added to GRPO's episode advantage. The cold start is SFT on 33 of the model's own training dialogues. Updates are LoRA, non-thinking mode, in verl.
+
+### Evidence
+
+Paper results (Bao et al., 2026; Table 2 and Section 6.2; **theirs**). **No BFCL.**
+
+- **ToolWOZ, Qwen3.5-2B, weak users (mask 0.4):** StaGPO **76.8%**. That is **+4.8** over GRPO (**72.0**) and **+2.8** over InfoPO (**74.0**), the strongest baseline in that cell.
+- **τ²-bench, weak users, Qwen3.5-4B:** StaGPO is the best policy in the table by a small margin: **+3.5** over GRPO and **+1.0** over the hybrid-mask policy (**41.7**), which the paper places inside evaluation noise.
+
+Do **not** write 76.8% as thesis Acc.
+
+**Cite check (2026-10-22):** arXiv:2610.24294 resolves (submitted 2026-10-16). The arXiv title is "Not Every User Says It All: Training Tool-Using Agents Beyond Ideal Simulated Users". StaGPO is the method name. The 76.8 / +4.8 / +2.8 cells match Table 2 and Section 6.2. LoRA and verl match the Training subsection placed just before Section 6 (the HTML has no Section 5 heading).
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. LOW–MEDIUM.** The explicit state note is the piece that relates to IFFC+STATE, with a different job: theirs is the RL grouping key, and the harness STATE block is a prompt prefix. Mac feasibility is **poor** (verl RL). Training-time, and only if RL is unlocked after a healthy SFT. **No blanket GRPO.**
+- **BFCL categories:** none evaluated.
+- **Complexity:** High (SFT cold start plus multi-turn GRPO with a custom advantage).
+- **Limitation:** weak users are sentence masks, not BFCL's scripted user. The 4B τ² margin over the next policy is inside the paper's noise band.
+
+### Source
+
+Bao, H., Zhang, Z., Shi, K., & Ye, Y. "Not Every User Says It All: Training Tool-Using Agents Beyond Ideal Simulated Users." arXiv:2610.24294, 2026. https://arxiv.org/abs/2610.24294
+
+---
+
+## 61. SURE-Act: A Trained Controller over a Frozen Agent
+
+### Overview
+
+SURE-Act (Liu, Jiao, Guo, Dai, et al., 2026) is a small controller that picks the next meta-action for a frozen tool-using agent. It is trained on **3,115** counterfactual action outcomes from ToolSandbox: at each saved decision point every legal meta-action is executed and scored. At inference the controller ranks those actions and the frozen agent carries out the winner.
+
+**Train vs infer: inference-time** (a trained controller; the agent weights stay frozen). **Tag: `CANDIDATE` / not run.** Logged 2026-10-22 (docs only). Related to [Asking Earns Nothing §56](#56-asking-earns-nothing-scoring-the-decision-to-act), which scores the decision to act inside BFCL. **No BFCL** in this paper.
+
+### Mechanism
+
+1. The legal meta-actions are **Ask**, **Search**, **Act-Reversible**, and **Commit-Irreversible**. The controller is a Qwen3-1.7B encoder with LoRA and a three-output head (task success, interaction cost, critical-error risk).
+2. Labels come from branching a checkpoint: force one meta-action, then let the frozen backbone finish the episode. The training pool is Qwen3-8B and Qwen3-14B rollouts (**1,036** decision points, **3,115** scored outcomes).
+3. At deployment the controller stays on until it repeats the same meta-action three times, then the unmodified agent finishes the episode.
+
+### Evidence
+
+Paper results (Liu et al., 2026; abstract and Table 3; **theirs**). **No BFCL.**
+
+- ToolSandbox Overall Score, 89 unseen families, frozen **Qwen3-4B**: mean **+0.0575**, serving noise **±0.0095** (positive on 20/22 partitions). The abstract calls this gain "up to 0.0575". The same table's Qwen3-8B and Qwen3-14B means are **+0.0216** and **+0.0252**.
+- The family-clustered 95% interval for the 4B comparison includes zero (Appendix D.8: **[−0.0063, 0.1303]**).
+
+Do **not** write 0.0575 as thesis Acc.
+
+**Cite check (2026-10-22):** arXiv:2610.24194 resolves (submitted 2026-10-16). The arXiv title is "Agents' Last Doubt: Knowing When to Act and When to Step Back in Tool-Using Agents". SURE-Act is the method name. The controller ranks four meta-actions: Ask, Search, Act-Reversible, and Commit-Irreversible. The paper's introduction discusses escalation to a person; the action set does not include an escalate label. +0.0575 is the unseen-family Qwen3-4B Overall Score, with serving noise ±0.0095; the family-clustered interval includes zero. 3,115 outcomes match the abstract.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. LOW.** The choice among ask, search, and act is adjacent to §56, and the controller is a 1.7B LoRA, but the measured gain is ToolSandbox Overall Score on a frozen Qwen3-4B agent. The family-level interval includes zero. Building the labels needs counterfactual rollouts from 8B and 14B backbones.
+- **BFCL categories:** none evaluated.
+- **Complexity:** High (environment branching for the 3,115 labels, then a separate LoRA controller).
+- **Limitation:** the paper reports that critical-error occurrence rises in the repaired evaluations it breaks out. The Overall Score move is a ToolSandbox number, and the 4B family interval includes zero.
+
+### Source
+
+Liu, Q., Jiao, Q., Guo, B., Dai, W., et al. "Agents' Last Doubt: Knowing When to Act and When to Step Back in Tool-Using Agents." arXiv:2610.24194, 2026. https://arxiv.org/abs/2610.24194
+
+---
+
+## 62. SPOD: Success-Preserving On-Policy Distillation
+
+### Overview
+
+SPOD (Zhong, Li, Lai, Xiao, et al., 2026) is on-policy distillation that tries to keep a student from unlearning its own successful actions. On a successful trajectory, if the teacher gives an action lower probability than the student, SPOD drops the distillation loss on that action and adds a soft probability floor. Other actions still get ordinary forward-KL teacher supervision.
+
+**Train vs infer: training-time** (on-policy distillation; no extra reward model). **Tag: `CANDIDATE` / not run.** Logged 2026-10-26 (docs only). Same family as [ActionOPD §48](#48-actionopd-action-level-on-policy-distillation), [State-OPD §50](#50-state-opd-state-grounded-on-policy-distillation), [STI-OPD §51](#51-sti-opd-stochastic-teacher-intervention-opd), and [ToolOPD §58](#58-toolopd-credit-aware-on-policy-distillation). **No BFCL.**
+
+### Mechanism
+
+1. The student rolls out the episode. The frozen teacher scores the student's actions, as in ordinary on-policy distillation.
+2. An action is protected only when the episode succeeds and the teacher's sequence log-probability is below the student's. Failed episodes are not protected. Successful episodes are not protected as a whole.
+3. On a protected action the distillation term is removed. A soft floor (tau0 = 0.5, lambda = 1, fixed in every setting) pushes that action's probability up only while it sits below 0.5. The floor is the smallest value at which the protected action stays the student's most likely action. Masking and the floor are both required: the floor alone settles below the teacher.
+
+The paper's name for the failure mode is distillation overshoot: repair of weak decisions first outruns erosion of successful choices the teacher dislikes, then erosion wins and the gain disappears.
+
+### Evidence
+
+Paper results (Zhong et al., 2026; Table 1; **theirs**). **No BFCL.** Benchmarks are ALFWorld, WebShop, and ScienceWorld. Overall is the average of the three.
+
+- **Qwen3.5-2B student, Qwen3.5-27B teacher:** ordinary OPD final overall **53.3**, SPOD **65.7** (+12.4). Per benchmark, ordinary OPD to SPOD: ALFWorld **80.7 to 91.0** (+10.3), WebShop **38.0 to 50.3** (+12.3), ScienceWorld **41.3 to 55.9** (+14.6). The best ordinary-OPD checkpoint in that row, chosen with evaluation results, is overall **58.2**. SPOD's final checkpoint is above it. Teacher 0-shot overall is **52.2**. Student 0-shot overall is **8.5**.
+- **Gemma-4-E4B student, Gemma-4-31B teacher:** ordinary OPD overall **56.0**, SPOD **66.2** (+10.2). ALFWorld **73.7 to 88.9** (+15.2). That 15.2 point ALFWorld cell is the abstract's "up to 15.2".
+
+Do **not** write 65.7 or 66.2 as thesis Acc.
+
+**Cite check (2026-10-26):** arXiv:2610.25034 resolves (submitted 2026-10-18). The arXiv title is "Beyond the Teacher: Understanding and Preserving Distillation Overshoot in Agentic On-Policy Distillation". SPOD is the method name (Success-Preserving On-Policy Distillation). The Table 1 cells above match the PDF. The figure on page 1 links https://github.com/Jike338/SPOD (HTTP 200 on 2026-10-26).
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH-MEDIUM.** The Gemma-4-E4B row is the closest student in this sweep to Gemma-4-E2B, and the loss is a small change on top of ordinary on-policy distillation. It is still training-time, it needs a frozen teacher in the 27B to 31B range, and it is not a harness change. The fine-tuning track did not help: best SFT is v4 **15.0%** (Run 15), below IFFC **30.5%**, and DPO Run 51 is **26.5%**. The v11 full CE train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). Do not open a distillation run from this note. **No blanket GRPO.**
+- **BFCL categories:** none evaluated.
+- **Complexity:** High (on-policy rollouts plus a frozen teacher scoring every action).
+- **Limitation:** the measured tasks are household, shopping, and science sims. The 53.3 figure is ordinary OPD's final checkpoint, not the student before training and not the 58.2 peak.
+
+### Source
+
+Zhong, J., Li, M., Lai, Y., Xiao, X., Zhang, S., Chaudhry, R., Chen, T., Xie, J., Mai, Z., Lo, S.-Y., Psounis, K., & Lei, Y. "Beyond the Teacher: Understanding and Preserving Distillation Overshoot in Agentic On-Policy Distillation." arXiv:2610.25034, 2026. https://arxiv.org/abs/2610.25034
+
+Code: https://github.com/Jike338/SPOD
+
+---
+
+## 63. PROVE: Programmatic Rewards on Verified Environments
+
+### Overview
+
+PROVE (Abdelaziz, Munawar, Basu, Crouse, et al., 2026) builds multi-turn tool-use training data on live stateful servers, then runs GRPO against a programmatic reward. The data pipeline is a state machine grounded in entities that the live server actually returns. The reward includes an adaptive efficiency penalty so coverage rewards do not pay the model to emit extra calls.
+
+**Train vs infer: training-time** (synthetic multi-turn data, then GRPO). **Tag: `CANDIDATE` / not run.** Logged 2026-10-26 (docs only). Related to [Data Turnstile §24](#24-data-turnstile-open-function-calling-data-generation), [Turnslide §38](#38-turnslide-fsm-walk-multi-turn-data-synthesis), and [DiGiT-TC §42](#42-digit-tc-schema-only-multi-turn-data-synthesis). **No blanket GRPO.**
+
+### Mechanism
+
+1. A library of **20** stateful MCP servers exposes **343** tools. The same servers are used for synthesis and for RL, with session-scoped state.
+2. The synthesizer samples real entities from each server, drives a state-machine teacher through multi-turn conversations, and replay-validates every trace. The training mixture is **13,517** examples: **10,895** multi-turn MCP conversations, **1,500** clarification, **806** When2Call, and **316** xLAM-Irrelevance. The abstract's "~13K" is this mixture.
+3. GRPO (350 steps, verl, 8x H100) uses a five-part programmatic reward: validity, dependency-ordered coverage, an adaptive efficiency penalty with a complexity-scaled call budget, a tool-name signal, and an argument-value bonus. There is no LLM judge. The efficiency term is a call-budget penalty, not a token-length penalty.
+
+### Evidence
+
+Paper results (Abdelaziz et al., 2026; Table 3 and Section 4.2; **theirs**). BFCL Multi-Turn, four categories: Base, Miss Param, Miss Func, Long Context, plus Overall. **Version not stated.** This is not our 200-item `multi_turn_base` sheet.
+
+The abstract's "up to +10.2" on BFCL Multi-Turn is **Qwen3-4B Overall**, the largest overall gain of the four models. The footnote names that base model Qwen3-4B-Instruct-2507. The table header says Qwen3-4B.
+
+- **Qwen3-4B, Overall: 18.8 to 29.0 (+10.2).** Base **23.5 to 35.5** (+12.0). Miss Param **14.5 to 18.5** (+4.0). Miss Func **14.0 to 29.0** (+15.0). Long Context **23.0 to 33.0** (+10.0). Miss Func is the largest delta on this row. Section 4.2 says the Base subcategory "shows the strongest gain on Qwen3-4B (+12.0)". Across the four models, +12.0 is also the largest Base delta.
+- Other overall deltas: Qwen2.5-7B **13.1 to 16.8** (+3.7), Qwen3-8B **26.0 to 26.9** (+0.9), Granite-4.1-8B **33.4 to 33.5** (+0.1).
+
+Do **not** write 29.0 as thesis `multi_turn_base` Acc.
+
+**Cite check (2026-10-26):** arXiv:2606.03892 resolves (v2, 2026-06-03). The arXiv title is "Synthesize and Reward -- Reinforcement Learning for Multi-Step Tool Use in Live Environments". PROVE is the method name (Programmatic Rewards On Verified Environments). The Table 3 cells above match the PDF. The PDF says code, the 20 servers, the data, and the checkpoints will be released soon. No code URL is printed.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM-HIGH.** This is the only entry in this sweep with a printed BFCL multi-turn table, and the largest overall move is on a 4B model. It is GRPO on 8x H100 after a live-server data build, not a harness change. The fine-tuning track did not help (best SFT v4 **15.0%**, DPO **26.5%**). The v11 train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). Do not treat +10.2 as a reason to unlock GRPO. **No blanket GRPO.**
+- **BFCL categories:** their Base, missing parameter, missing function, and long context. Version not stated. Not our sheet.
+- **Complexity:** High (20 live MCP servers, then multi-turn GRPO).
+- **Limitation:** Qwen3-8B and Granite overall moves are +0.9 and +0.1. SFT on the same data regresses tau2-bench on three of four models (Section 4.6). The servers are not the BFCL APIs.
+
+### Source
+
+Abdelaziz, I., Munawar, A., Basu, K., Crouse, M., Gunasekara, C., Katrekar, S., & Kapanipathi, P. "Synthesize and Reward -- Reinforcement Learning for Multi-Step Tool Use in Live Environments." arXiv:2606.03892, 2026. https://arxiv.org/abs/2606.03892
+
+---
+
+## 64. ReflectPO: Reflection-Guided Policy Optimization
+
+### Overview
+
+ReflectPO (Li & Cai, 2026) is reinforcement learning for long-horizon tool use. During training it builds recovery hints from branch differences and from repeated visits, then rolls the agent forward from those recovery points. Credit is assigned on the resulting trajectory tree, from parent-child reward gaps and from the gain of a recovery.
+
+**Train vs infer: training-time** (RL; the hints are training prompts, not an inference overlay). **Tag: `CANDIDATE` / not run.** Logged 2026-10-26 (docs only). Related to [Critical-State RL §25](#25-critical-state-rl-diagnosing-trainable-multi-turn-calls) and [ECHO §55](#55-echo-responsibility-aware-credit-assignment). **No blanket GRPO.**
+
+### Mechanism
+
+1. Contrast sampling groups trajectories of one task into a prefix tree and writes a hint from the difference between branches. Loop sampling builds a local interaction graph and writes a hint from a repeated visit.
+2. From those anchors the agent generates recovery trajectories. The hints are not a test-time card.
+3. Tree-structured credit uses the reward difference between a parent and a child, plus the gain from the recovery. The reported run is 8x H800, batch 32, 3 epochs, scores taken at step 210.
+
+### Evidence
+
+Paper results (Li & Cai, 2026; Table 2; **theirs**). **BFCL-v3 Multi-Turn**, not v4. Columns are Base, Miss-Func, Miss-Param, Long-Context, and Overall. The base model row is "Qwen3-4B Thinking". This average is not our 200-item `multi_turn_base` sheet.
+
+- **Qwen3-4B, Overall: 33.9 to 36.9** (+3.0). The paper states that +3.0 in Section 5.2.
+- **Base: 45.0 to 44.5** (a drop). **Miss-Func: 37.0 to 40.0.** **Miss-Param: 26.0 to 32.0.** **Long-Context: 27.5 to 31.0.** The overall gain is not only miss-param and long-context. Miss-func also rises. Base is the column that falls.
+- Qwen3-8B in the same table: Overall **41.8 to 48.1**. The combined score across BFCL-v3 and tau2-bench moves **33.2 to 36.6** on the 4B model. That 33.2 is not the BFCL overall.
+
+Do **not** write 36.9 as thesis Acc.
+
+**Cite check (2026-10-26):** arXiv:2610.30933 resolves (submitted 2026-10-22). The title matches. The Table 2 cells above match the PDF. The PDF does not link code.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM.** The benchmark is multi-turn function calling, but it is BFCL v3, the base column falls, and the method is RL rather than a harness prefix. A recovery hint in the prompt would be a different experiment from this training recipe, closer to the scored OODA card (Run 42 **71/200 = 35.5%**) than to ReflectPO. The fine-tuning track did not help (SFT v4 **15.0%**, DPO **26.5%**). The v11 train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). **No blanket GRPO.**
+- **BFCL categories:** v3 Base, missing function, missing parameter, long context. Not v4. Not our sheet.
+- **Complexity:** High (multi-turn RL with branch sampling on 8 GPUs).
+- **Limitation:** on the 4B BFCL-v3 row, Base moves the wrong way. The hints are a training-time device.
+
+### Source
+
+Li, R., & Cai, X. "ReflectPO: Reflection-Guided Policy Optimization for Long-Horizon LLM Agents." arXiv:2610.30933, 2026. https://arxiv.org/abs/2610.30933
+
+---
+
+## 65. DynaWeave: Dynamic Scenario Synthesis
+
+### Overview
+
+DynaWeave (Yang, Liu, Xin, Xu, & Miao, 2026) turns static tool-use tasks into scenarios where outside events fire during the episode. Events can change the task, the environment state, or external information. A dynamic verifier rewrites only the checks those events affect. The collected trajectories are used for supervised fine-tuning.
+
+**Train vs infer: training-time** (SFT on synthesized trajectories). **Tag: `CANDIDATE` / not run.** Logged 2026-10-26 (docs only). Related to [SAP §35](#35-sap-state-guided-synthesis-with-argument-provenance) and [Turnslide §38](#38-turnslide-fsm-walk-multi-turn-data-synthesis). **No BFCL.**
+
+### Mechanism
+
+1. For each static task the framework writes exogenous events, lays them out as a DAG, and activates them from an execution engine (after a named action, after virtual time, or at random), respecting dependencies.
+2. The verifier keeps every check that no fired event touched, and revises the checks that a fired event invalidates.
+3. With Qwen3.5-35B-A3B as the teacher, they keep **2,095** verified trajectories across **36** environments and SFT Qwen3.5-2B, 4B, and 9B.
+
+### Evidence
+
+Paper results (Yang et al., 2026; Table 1 and the introduction; **theirs**). **No BFCL.** CostBench TCR is the percentage of correctly completed tasks.
+
+- **Qwen3.5-2B, CostBench TCR: 3.00 to 70.34.** The introduction calls this **+67.34** percentage points. The same row's invalid-tool rate moves **19.81 to 0.16**, and the ToolMaze composite moves **18.52 to 23.49**.
+- **Qwen3.5-4B, CostBench TCR: 72.41 to 90.81.** **Qwen3.5-9B: 86.76 to 92.39.**
+
+Do **not** write 70.34% as thesis Acc.
+
+**Cite check (2026-10-26):** arXiv:2610.29443 resolves (submitted 2026-10-21). The title matches. The 3.00 and 70.34 cells match Table 1 and the introduction. Code: https://github.com/Miaow-Lab/DynaWeave (HTTP 200 on 2026-10-26).
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM.** Mid-task changes are a data idea, and the 2B completion jump is large on CostBench. It is another SFT corpus, not a harness control. The fine-tuning track did not help (best SFT v4 **15.0%**, DPO **26.5%**). The v11 train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). A new synthetic mix does not reopen that gate. The v11 leak gate still applies (own-named tools, **0** BFCL names).
+- **BFCL categories:** none evaluated.
+- **Complexity:** High (event DAG synthesis, a teacher in the 35B-A3B class, then SFT).
+- **Limitation:** the headline cell is CostBench task completion, not function-calling accuracy. Gaia2 overall for the 2B model stays low (**0.4 to 1.3** in Table 1).
+
+### Source
+
+Yang, X., Liu, C., Xin, H., Xu, H., & Miao, N. "DynaWeave: Learning to Adapt through Dynamic Scenario Synthesis." arXiv:2610.29443, 2026. https://arxiv.org/abs/2610.29443
+
+Code: https://github.com/Miaow-Lab/DynaWeave
+
+---
+
+## 66. Hierarchical Agent Distillation: History vs Action Prefix
+
+### Overview
+
+Gao, Zou, & Marttinen (2026) split agent distillation into two choices that are usually collapsed: who produced the interaction history, and who produced the token prefix of the current action. The four pairings are teacher history with teacher prefix (TT), student history with teacher prefix (ST), teacher history with student prefix (TS), and student history with student prefix (SS). The study is self-distillation: teacher and student start from the same checkpoint, and only the frozen teacher sees task guidance.
+
+**Train vs infer: training-time** (LoRA distillation, rank 128, eight rounds). **Tag: `CANDIDATE` / not run.** Logged 2026-10-26 (docs only). Same family as [SPOD §62](#62-spod-success-preserving-on-policy-distillation) and [R2S §67](#67-r2s-rollout-to-scorer-distillation). **No BFCL. No single headline number.**
+
+### Mechanism
+
+1. History source and action-prefix source are chosen independently. ST means the student induced the history and the teacher writes the action prefix that the student is trained to match.
+2. Training runs for eight rounds. Between rounds, student-dependent data is refreshed: student trajectories for SS, teacher continuations on those histories for ST, and student continuations on cached teacher histories for TS.
+3. The paper does not call this DAgger. The refresh is the iterative part: new student data, then teacher labels on the histories that depend on the student.
+
+### Evidence
+
+Paper results (Gao et al., 2026; Section 4.1; **theirs**). Students are **Qwen3-8B**, **Qwen3-14B**, and **Ministral-3-14B-Instruct-2512** (abbreviated Ministral-3 in the paper). Environments are ToolQA, OfficeBench, ALFWorld, and WebShop. **No BFCL.** There is no one number that summarizes the paper.
+
+- With forward KL, ST has the highest success rate in **10 of 12** settings, the highest pass@3 in all **12**, and the highest WebShop task score for all three backbones.
+- The two exceptions are ToolQA, where TT exceeds ST by **0.6** points for Qwen3-8B and for Ministral-3. ST still has the higher pass@3 there.
+- SS has the lowest success rate and the lowest pass@3 among the four distilled variants in every setting. Its average success-rate gap under ST is **10.2** points on Qwen3-8B and **7.7** points on Qwen3-14B.
+- On student histories, teacher prefixes beat student prefixes by **3.6 to 14.4** points. On teacher histories, teacher prefixes beat student prefixes by at most **1.9** points.
+
+Do **not** write any of these as thesis Acc.
+
+**Cite check (2026-10-26):** arXiv:2610.31918 resolves (submitted 2026-10-22). The title is "Beyond On-Policy vs. Off-Policy: At What Level Should LLM Agent Distillation Follow the Student?" The summary counts above match Section 4.1. The PDF does not link code. Ministral-3 in the experiments section is Ministral-3-14B-Instruct-2512, not a 3B model.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM.** The useful design note is the split: student histories help when the teacher still writes the action, and following the student at both levels is the weak standalone setting. The students are 8B and 14B self-distillations, not Gemma-4-E2B, and nothing is measured on BFCL. The fine-tuning track did not help (SFT v4 **15.0%**, DPO **26.5%**). The v11 train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). This does not pick a next mix. **No blanket GRPO.**
+- **BFCL categories:** none evaluated.
+- **Complexity:** High (eight rounds of refresh plus a privileged teacher on three 8B-14B backbones).
+- **Limitation:** the paper reports a pattern across 12 settings, not a single delta to copy. Fully on-policy data helps only inside a mixture (Section 4), which is a separate stage from the Table 1 standalones.
+
+### Source
+
+Gao, Y., Zou, Z., & Marttinen, P. "Beyond On-Policy vs. Off-Policy: At What Level Should LLM Agent Distillation Follow the Student?" arXiv:2610.31918, 2026. https://arxiv.org/abs/2610.31918
+
+---
+
+## 67. R2S: Rollout-to-Scorer Distillation
+
+### Overview
+
+R2S (Zhao & Yu, 2026) repairs the teacher that scores on-policy distillation before the student is trained. The claim is that the teacher can still finish from the states where the student disagrees with it, but its next-token scores let delaying moves pass. R2S fine-tunes a copy of the teacher so those scores, informed by the teacher's own takeovers, are available without the takeover in context. The repaired teacher is then frozen and used as the scorer for ordinary on-policy distillation. No task reward is used in the repair or in the distillation.
+
+**Train vs infer: training-time** (teacher repair, then on-policy distillation). **Tag: `CANDIDATE` / not run.** Logged 2026-10-26 (docs only). Same family as [SPOD §62](#62-spod-success-preserving-on-policy-distillation) and [STI-OPD §51](#51-sti-opd-stochastic-teacher-intervention-opd). **No BFCL. No blanket GRPO.**
+
+### Mechanism
+
+1. The untrained student plays the training tasks. In each episode R2S keeps the turn where the student's thinking diverges most from the teacher.
+2. The teacher takes over from those states (K = 8). States are kept when enough takeovers pass a reward-free check (consensus, or an LLM judge).
+3. A copy of the teacher is fine-tuned to match the takeover-informed token scores on every assistant token from the divergence turn onward, with the takeover not in context. That copy is frozen and becomes the only scorer for standard on-policy distillation.
+
+### Evidence
+
+Paper results (Zhao & Yu, 2026; abstract, Section 5.1, and Table 2; **theirs**). **No BFCL.** Success is environment success, in percent.
+
+The abstract's **+12.8** is the average, over **12** teacher-student-environment cells, of R2S minus the best of three named agentic-OPD methods in that cell (TCOD-F2B, Guided-OPD, FutureBridge). It is not an average over only ALFWorld and WebShop, and it is not the gap versus vanilla OPD.
+
+The 12 cells are:
+
+- **Qwen3.5-9B** teaching **Qwen3.5-2B** and **Qwen3.5-4B**, on ALFWorld, WebShop, and ScienceWorld (6 cells).
+- **Qwen3-30B-A3B-Instruct-2507** teaching **Qwen3-4B** and **Qwen3-8B**, on the same three environments (6 cells).
+
+Section 5.2 states a separate comparison with vanilla OPD: average **+17.8** from the 9B teacher and **+9.8** from the 30B-A3B teacher. One Table 2 cell, for scale: Qwen3.5-9B to Qwen3.5-2B, ALFWorld, R2S **77.9** versus vanilla OPD **58.0**, TCOD-F2B **62.7**, Guided-OPD **63.6**, FutureBridge **56.8** (mean over three decodes of the final checkpoint).
+
+Do **not** write 12.8 or 77.9 as thesis Acc.
+
+**Cite check (2026-10-26):** arXiv:2610.28586 resolves (submitted 2026-10-20). The arXiv title is "Capable Teacher, Myopic Scorer: Reward-Free Teacher Repair for Agentic On-Policy Distillation". R2S is the method name (Rollout-to-Scorer Distillation). The 12.8 figure is the abstract's. The cell list and the +17.8 / +9.8 lines match Section 5. The project page printed in the abstract is https://tree-shu-zhao.github.io/r2s/ . Appendix D points at tag `r2s` of https://github.com/Tree-Shu-Zhao/miles-agent (HTTP 200 on 2026-10-26).
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM.** The diagnosis (a teacher that can act but scores delay too kindly) sits next to SPOD's overshoot note, with a different fix: change the scorer, then distill. It is two training stages and a teacher of at least 9B, not a harness change, and it is not on BFCL. The fine-tuning track did not help (SFT v4 **15.0%**, DPO **26.5%**). The v11 train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). **No blanket GRPO.**
+- **BFCL categories:** none evaluated.
+- **Complexity:** High (takeover mining, a teacher fine-tune, then on-policy distillation).
+- **Limitation:** the +12.8 average excludes vanilla OPD when vanilla is the stronger baseline in a cell. ScienceWorld is a third of the grid. The students in the 9B half are Qwen3.5-2B and 4B, not Gemma-4-E2B.
+
+### Source
+
+Zhao, S., & Yu, T. "Capable Teacher, Myopic Scorer: Reward-Free Teacher Repair for Agentic On-Policy Distillation." arXiv:2610.28586, 2026. https://arxiv.org/abs/2610.28586
+
+Project page: https://tree-shu-zhao.github.io/r2s/
+
+Code: https://github.com/Tree-Shu-Zhao/miles-agent
+
+---
+
+## 68. BRACE: Calibrated Rollout Budgets
+
+### Overview
+
+BRACE (Tran, Yao, Kwon, & Yu, 2026) decides, before generation, which GRPO tasks are likely to produce a mixed-reward group, and spends the rollout budget there. The forecast uses a historical bank of task outcomes, uncertainty in the success rate, and a model of correlation across rollouts of the same task. A separate procedure, Discord, tests a harness edit with paired runs and stops once the remaining tasks cannot change the keep-or-drop decision. Only disagreeing pairs count.
+
+**Train vs infer: training-time** for BRACE (rollout allocation inside GRPO). Discord is an evaluation rule for harness edits. **Tag: `CANDIDATE` / not run.** Logged 2026-10-26 (docs only). **No blanket GRPO.**
+
+### Mechanism
+
+1. Discord runs the incumbent harness and the candidate on the same tasks. Agreements are not evidence. Evaluation can stop early when the remaining tasks cannot flip the retention decision.
+2. BRACE keeps a capped bank of past successes and failures per task, forecasts which fixed-size groups will be mixed, and weights task sampling by that forecast. Uniform exploration remains (epsilon 0.05 at 2B and 4B, 0.10 at 8B).
+3. Training is GRPO in verl with rank-32 LoRA on Qwen3-VL-Instruct. Every method in the comparison generates 160 attempts per step. The historical bank is counted separately from those new rollouts.
+
+### Evidence
+
+Paper results (Tran et al., 2026; Table 2 and Section 5.3; **theirs**). **295 held-out AWM tasks**, excluded from training and from bank initialization, four evaluation seeds, scores at step 100.
+
+- **Qwen3-VL-2B:** BRACE solve rate **12.5%**, uniform GRPO **8.9%**, gain **3.6** pp.
+- **Qwen3-VL-4B:** **14.9%** vs **11.4%**, gain **3.5** pp.
+- **Qwen3-VL-8B:** **16.5%** vs **13.2%**, gain **3.3** pp.
+
+The untrained bases in the same table are **8.6 / 9.7 / 11.4**. The strongest non-BRACE trained baselines at those scales reach **10.7 / 12.7 / 14.0**, so the margin over that stronger baseline is **1.8 / 2.2 / 2.5** pp, which the paper also states.
+
+BFCL v4 multi-turn is a transfer test with no further training (Section 5.4 and Figure 5). The figure plots percentage-point change versus the untrained base. **Exact BFCL rates are not printed.** Appendix B.5 says the sheet is **800** tasks, four categories, **200** each: base, long context, miss func, and miss param. Uniform GRPO is not in the Figure 5 legend. Do **not** read a number off the chart.
+
+Do **not** write 12.5 or any BFCL bar as thesis Acc.
+
+**Cite check (2026-10-26):** arXiv:2610.28785 resolves (submitted 2026-10-20). The arXiv title is "Measure First, Then Allocate: Calibrated Rollout Budgets for MCP Agents in Reinforcement Learning". BRACE is the method name (Bank-calibrated Rollout Allocation under Correlated Episodes). The 3.6 / 3.5 / 3.3 gains and the 12.5 / 14.9 / 16.5 solve rates match Table 2 and Section 5.3. The footnote links https://anonymous.4open.science/r/brace-38DC . A fetch on 2026-10-26 returned HTTP 403, so the code link is **not verified** as reachable.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM-LOW.** Discord's paired test is the piece that looks like a harness check: do not keep an edit on agreements alone. The measured BRACE gain is AWM solve rate under GRPO, on Qwen3-VL, not Gemma-4-E2B and not `multi_turn_base`. The BFCL v4 transfer bars have no printed rates, so they cannot be compared with Run 78 **77/200 = 38.5%**. The fine-tuning track did not help (SFT v4 **15.0%**, DPO **26.5%**). The v11 train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). **No blanket GRPO.**
+- **BFCL categories:** v4 multi-turn transfer only, four categories, 800 tasks, figure only, exact rates not printed. Not our sheet.
+- **Complexity:** High (a historical outcome bank plus GRPO). Discord itself is a paired evaluation rule.
+- **Limitation:** the +3.6 / +3.5 / +3.3 figures are against uniform GRPO on AWM at step 100. The bank's collection cost is excluded from the new-rollout count. No exact BFCL number is available to cite.
+
+### Source
+
+Tran, H., Yao, Z., Kwon, S., & Yu, H. "Measure First, Then Allocate: Calibrated Rollout Budgets for MCP Agents in Reinforcement Learning." arXiv:2610.28785, 2026. https://arxiv.org/abs/2610.28785
+
+---
+
+## 69. EffectWorld: Effect-Typed Tool Traces
+
+### Overview
+
+EffectWorld (Kovalenko & Redchych, 2026) is an executable tool world in which every tool declares an effect (pure, read, write, or destructive), whether it is idempotent, and which resources it reads and writes. A replay verifier scores effect safety without labels or a judge model. The training result logged here is LoRA supervised fine-tuning on verified traces from that world, mixed with filtered public tool-use data.
+
+**Train vs infer: training-time** (LoRA SFT). **Tag: `CANDIDATE` / not run.** Logged 2026-10-29 (docs only). Related to the MLX SFT track above and to [Turnslide §38](#38-turnslide-fsm-walk-multi-turn-data-synthesis). **No blanket GRPO.**
+
+### Mechanism
+
+1. Gold trajectories come from the workspace generator, in program mode (several dependent calls in one turn) and stepwise mode (one call per turn). The raw mix is 5,976 gold trajectories plus 15,001 public trajectories from Nemotron-Agentic-v1, Hermes function calling, and ToolACE (20,977 examples). The clean mix drops 1,751 public trajectories that contain refusal templates, caps first-turn no-call examples at 5% of each public source, and removes one arithmetic item, leaving 20,975 examples.
+2. The reference recipe, SFTclean, is two epochs of token-level negative log-likelihood on assistant turns only. The backbone is frozen Qwen3-4B-Instruct-2507. The adapter is LoRA rank 16, alpha 16, dropout 0.05, on the attention projections and the MLP up and down projections (26.0M trainable parameters). Sequences go to 4,096 tokens.
+3. A second stage can add unlikelihood, negative preference optimization (NPO), or DPO on verified negative pairs, continued from the SFTclean adapter. The SFT-only control continues SFT for the same 300 steps. The held-out comparison is against that control.
+
+### Evidence
+
+Paper results (Kovalenko & Redchych, 2026; Tables 3, 5, and 6, and Section 6.2; **theirs**). **BFCL v4**, three offline groups, 4,441 prompts. Not our 200-item `multi_turn_base` sheet.
+
+- **In distribution, test split, program / stepwise success:** base **52.6 / 50.6**, SFTclean **99.2 / 100.0**. The abstract rounds this pair to 53% to 99%.
+- **BFCL v4, Qwen3-4B, SFTclean vs base.** Table 5's Multi-turn column, the multi-turn group, is **21.9 to 26.6**. That column is not multi-turn base. Section 6.2 states multi-turn base as **26.0% to 35.5%** (+9.5; Appendix D interval [+3.5, +15.5]). The same paragraph states the setting that withholds a required parameter as **15.5% to 22.5%**. Non-live **88.0 to 84.8**. Non-live irrelevance **88.8 to 75.0**. Live **76.2 to 76.5**, which is the abstract's "matches". The four-column BFCL average in Table 3 (non-live, irrelevance, live, multi-turn) falls **68.7 to 65.7**. SFTclean does not beat the base on that average. SFTnear-miss does: **70.0** against **68.7**, with non-live irrelevance **89.6** against **88.8** (the difference is not significant).
+- **Refusal templates.** SFTraw, the same recipe on the unfiltered mix, cuts non-live accuracy from **88.0 to 31.4**. The clean mix restores **84.8**. The abstract attributes the collapse to refusal templates in public tool-use corpora, which teach the model not to call.
+- **Negatives.** The abstract says suppression and preference objectives on the verified negatives add nothing over an SFT-only control. None of unlikelihood, NPO, or DPO beats that control on any held-out world split. On BFCL, unlikelihood versus the control still gains **+1.6** live and **+3.8** multi-turn, and **+5.0** on multi-turn base, while non-live irrelevance in Table 5 falls from **77.5 to 66.2** (the prose says 66.3). DPO gains nothing on live or multi-turn and loses **8.3** irrelevance points.
+- **Qwen3-1.7B, same SFTclean recipe (Table 6):** BFCL multi-turn **13.5 to 11.5**. Irrelevance **81.2 to 35.4**. Non-live **84.2 to 80.4**. Live **74.5 to 67.1**. The 1.7B row is a BFCL loss, not a smaller copy of the 4B multi-turn gain.
+- **Compute.** One SFT recipe takes about **10.2** GPU-hours on a single A100 40 GB, about 30 s per step, **27.5 GB** peak.
+
+Do **not** write 35.5, 26.6, or 99.2 as thesis Acc.
+
+**Cite check (2026-10-29):** arXiv:2610.35981v1 resolves (arXiv stamp 2026-10-26; preprint date line October 28, 2026). The title is "Small agents should know what their tools do". EffectWorld is the world and the benchmark. The cells above match the PDF. Appendix E says code, data generators, and configurations are listed in the project's RESULTS.md. No code URL is printed in the PDF or on the abs page, so a code link is **not verified**.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH.** The pieces closest to our data track are the refusal-template filter and effect-typed, replay-checked traces. The model in the headline BFCL table is Qwen3-4B-Instruct-2507, not Gemma-4-E2B. Our measured path is harness-side control at inference on BFCL multi-turn (full stack Run 78 **77/200 = 38.5%**). This recipe is training-time. The fine-tuning track has not helped: best SFT is v4 **15.0%** (Run 15), below IFFC **30.5%**, and DPO Run 51 is **26.5%**. The v11 full CE train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). Do not open a new mix from this note. A rank-16 LoRA on a 4B model is plausible in MLX on Sanskar's 48 GB Mac, and it would be slower than this paper's single A100 job. That fit and speed note is **our estimate**, not a paper measurement. **No blanket GRPO.**
+- **BFCL categories:** v4 non-live, live, and multi-turn (base, missing function, missing parameters, long context). Group accuracies are in Table 5. A few subcategory rates are in Section 6.2. Not our sheet.
+- **Complexity:** Medium for the LoRA recipe itself (26.0M trainable parameters, one 40 GB GPU in their run). High if the effect-typed world has to be rebuilt, because no code URL is printed.
+- **Limitation:** the 4B multi-turn gain comes with a non-live drop and an irrelevance drop, and the same recipe lowers the 1.7B multi-turn column. The in-domain jump to 99.2% is EffectWorld task success, not BFCL. The code link is not verified.
+
+### Source
+
+Kovalenko, A., & Redchych, A. "Small agents should know what their tools do." arXiv:2610.35981, 2026. https://arxiv.org/abs/2610.35981
+
+---
+
+## 70. Trajectory2Gym: Decision-Grounded Interaction Synthesis
+
+### Overview
+
+Trajectory2Gym (Hu, Wen, Lin, Lu, et al., 2026) builds executable tool-use interactions around multi-step dependencies that the candidate pool under-covers, then supervises only the actions that the agent's visible history can justify. Rejected calls are masked out of the loss, and their real errors stay in the context. The loss gives each whole trajectory equal weight, instead of weighting each rendered example.
+
+**Train vs infer: training-time** (one epoch of full-parameter SFT, not LoRA). **Tag: `CANDIDATE` / not run.** Logged 2026-10-29 (docs only). Related to [DiGiT-TC §42](#42-digit-tc-schema-only-multi-turn-data-synthesis) and [EffectWorld §69](#69-effectworld-effect-typed-tool-traces). **No blanket GRPO.**
+
+### Mechanism
+
+1. Compositional coverage adds executable interactions for under-supported structures (discovery, recovery, completion). Structural-support selection then sets how many trajectories each structure gets. That count grows with scale: 1, 2, 3, 4, and 8 from 1.7B to 30B-A3B.
+2. Decision grounding keeps a call as a training target only when the tool was available to the agent and its identifier-like arguments are supported by preceding visible information. A rejected call and its authentic error stay visible context and carry no imitation loss. The grounded recovery that follows can be a target.
+3. Parent-normalized SFT: one semantic trajectory may render as several examples. Per-example averaging would give a long trajectory more of the loss. Equation (8) averages the certified tokens inside a trajectory, then averages trajectories with equal weight. In the paper's illustration, two interactions that render as three examples and one example get weights 3/4 and 1/4 under row averaging, and 1/2 each under parent normalization. Inside a parent, that weight is split in proportion to certified target-token counts.
+
+### Evidence
+
+Paper results (Hu et al., 2026; Tables 1, 2, and 3, and Appendix A; **theirs**). Five Qwen3 scales: 1.7B, 4B, 8B, 14B, and 30B-A3B. Each starts from the public checkpoint and trains for one epoch of full-parameter, assistant-token cross-entropy. Not LoRA. The selected views contain **11,583**, **13,986**, **14,819**, **15,805**, and **19,937** interactions (the main text's "11.6k to 19.9k"), and about **13.0M**, **18.0M**, **19.4M**, **20.6M**, and **23.9M** supervised target tokens.
+
+BFCL here is **1,718** examples: four non-live categories, three live categories, and Multi-turn Base. **Version not stated.** Their Overall equally averages the non-live mean, the live mean, and Multi-turn Base, so Multi-turn Base is one third of Overall. Table 2 has no missing-function, missing-parameter, or long-context column. A parallel score of 0.00 is **0/100**, so that cell is out of 100. This is not our 200-item `multi_turn_base` sheet.
+
+- **Multi-turn Base:** Qwen3-1.7B **12.00 to 48.00**. Qwen3-4B **21.00 to 62.00**. Also printed: 8B **36.00 to 68.00**, 14B **46.00 to 67.00**, 30B-A3B **65.00 to 72.00**. Section 5.3 says Multi-turn Base rises by 7 to 41 points. Overall still rises where single-turn cells fall: 1.7B **55.88 to 66.48** (+10.60), 4B **62.92 to 74.85** (+11.93). The paper's consistent single-turn exception is Live Simple, down 6 to 13 points at four of five scales.
+- **Three-benchmark mean:** the abstract's **+16.9 to +29.8** percentage points is the equal-weight mean of Tau1, Tau2, and BFCL Overall, across the five scales. Recomputed from the printed cells in Tables 1 and 2, **16.9** is the 1.7B paired gain and **29.8** is the 14B paired gain. The other three scales fall between those endpoints. The paper does not print a per-scale three-benchmark column.
+- **Parent normalization, Qwen3-8B matched ablation (Table 3):** rendered-row averaging mean **59.94** (Tau2 **52.50**, BFCL **77.79**) versus parent normalization mean **67.97** (Tau2 **74.17**, BFCL **78.62**), gain **+8.04**. That is the largest of the four matched gains (+3.55, +2.75, +2.32, +8.04). In that pair the BFCL cell barely moves. The isolated gain is Tau2, not Multi-turn Base.
+- **Membership.** Appendix A.2 says: "BFCL follows its released training-side and evaluation memberships. This provides example-level separation, although semantically related tool behaviors may occur across the two populations." The paper does not name the BFCL version or the files. Example-level separation is claimed, semantic overlap is admitted, and train/eval domain overlap is not ruled out. That is a validity risk for the BFCL numbers above. The paper separately marks Tau1 Airline as a seen-task, transductive setting.
+
+Do **not** write 48.00 or 62.00 as thesis `multi_turn_base` Acc.
+
+**Cite check (2026-10-29):** arXiv:2610.33568v1 resolves (arXiv stamp 2026-10-24). The title is "Trajectory2Gym: Decision-Grounded Compositional Interaction Synthesis for Tool-Use Agents". The Table 2 Multi-turn Base cells and the token counts above match the PDF. Page 1 links https://github.com/yihaohu0118/Trajectory2Gym , https://huggingface.co/datasets/mis2/Trajectory2gym , and https://yihaohu0118.github.io/Trajectory2Gym-page/ . On 2026-10-29 the GitHub repository, the dataset page, and https://huggingface.co/mis2/Trajectory2Gym-4B returned HTTP 200. The README says the dataset is the 34,772-interaction candidate pool, not the rendered scale-specific SFT views and not the expanded 30B-A3B corpus, and that the code snapshot alone does not recreate the reported numbers.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH-MEDIUM.** The piece that stands alone from the synthesis stack is the parent-normalized loss: equal weight per trajectory, then a split by certified target tokens. On their 8B ablation that is the largest isolated three-benchmark gain, and the movement in that pair is Tau2. Our model is Gemma-4-E2B. Our measured path is harness-side control at inference on BFCL multi-turn (Run 78 **77/200 = 38.5%**). This paper updates every weight for one epoch. The 48 GB MLX note in [§69](#69-effectworld-effect-typed-tool-traces) is an estimate for rank-16 LoRA. No MLX memory figure for this full-parameter recipe is in the paper or in our logs. The fine-tuning track has not helped (SFT v4 **15.0%**, DPO **26.5%**). The v11 train **stopped at 26500/32000** and failed the 20-task gate (R70 **2/20**, R71 **1/20**, R72 **2/20** vs bar **17/20**). Do not start a full-parameter run from this note. **No blanket GRPO.**
+- **BFCL categories:** the 1,718-example sheet (four non-live, three live, Multi-turn Base only). Version not stated. Not our sheet.
+- **Complexity:** High for the full recipe (synthesis, certification, then full-parameter SFT on up to about 23.9M target tokens). The loss weight alone is a small change on a later SFT run.
+- **Limitation:** the Multi-turn Base jumps are on Qwen3, under a BFCL partition the paper does not name. Single-turn cells can fall while Multi-turn Base rises. The public dataset, per the README, is the candidate pool, not the rendered training views used for the table.
+
+### Source
+
+Hu, Y., Wen, Z., Lin, Y., Lu, S., Wang, P., Wu, W., Yang, J.-M., & Lin, T. "Trajectory2Gym: Decision-Grounded Compositional Interaction Synthesis for Tool-Use Agents." arXiv:2610.33568, 2026. https://arxiv.org/abs/2610.33568
+
+Code: https://github.com/yihaohu0118/Trajectory2Gym
+
+Dataset: https://huggingface.co/datasets/mis2/Trajectory2gym
+
+---
+
+## 71. SynthAPI: Controllable Tool-Environment Synthesis and Scaling Laws
+
+### Overview
+
+SynthAPI (Szot et al., 2026, Apple) has an LLM write whole apps in Python (a database schema plus the tools that read and change it), then generate tasks, starting database states, and checker code for each app. A stronger teacher solves the tasks, and only checker-verified solutions are distilled into a small student. The paper's main finding is about the mix of training data, not its size: as the data budget grows, more different tools and more starting database states per task help more than more tasks.
+
+**Train vs infer: training-time** (SFT distillation; the paper does not say LoRA). **Tag: `CANDIDATE` / not run.** Logged 2026-11-02 (docs only). Related to [EffectWorld §69](#69-effectworld-effect-typed-tool-traces) and [Trajectory2Gym §70](#70-trajectory2gym-decision-grounded-interaction-synthesis). **No blanket GRPO.**
+
+### Mechanism
+
+1. Gemini-3.1 Pro (the "builder LLM") writes **64** apps, with **10,472** APIs in total (6,266 write, 4,206 read).
+2. For each task the builder writes the instruction, a starting database state, a verifier, and an oracle solver.
+3. Four knobs set the data mix: number of apps, tasks per app, starting databases per task, and amount of distractor data per database.
+4. GLM-5.2 is the teacher, with up to **4** attempts per task. The first verified success is kept; tasks with no success are dropped. The student (Qwen3.5 family) is trained with next-token loss on the teacher's reasoning and action tokens only. Settings: bf16, learning rate **2e-5**. The dataset is **5.9B** tokens, of which **721M** are supervised reasoning and action tokens.
+5. The agent acts by writing Python code blocks and finds tools through meta-tools (list apps, list tools, read one tool's docs) instead of getting every tool definition in the prompt.
+
+### Evidence
+
+Paper results (Szot et al., 2026; Tables 1 and 2; **theirs**). **BFCL v3 multi-turn, all 800 tasks** (the paper says it uses the multi-turn split only, with its missing-API, missing-parameter, and long-context splits). Not our 200-item `multi_turn_base` sheet.
+
+- **Qwen3.5-4B, BFCL:** zero-shot **27.3** to SynthAPI-Big **51.1**.
+- **Qwen3-4B / Qwen3-8B, BFCL (Table 2):** zero-shot **33.5 / 41.3** to SynthAPI-Big **50.5 / 55.6**. The best prior baseline at 4B is EnvFactory **48.5**; at 8B it is EnvScaler **51.9**. The paper notes those baselines use SFT plus RL on smaller data, so the comparison does not isolate the synthesis method.
+- **AppWorld Test-Challenge, Qwen3.5-4B:** **14.7** to **66.4**.
+- **Data-mix finding:** as the budget grows, more tool diversity and more starting databases per task beat more tasks, and added distractor data (complexity) helps.
+
+Do **not** write 51.1 or 50.5 as thesis Acc.
+
+**Cite check (2026-11-02):** arXiv:2610.37648 resolves. The title is "Scaling Laws for Tool-Use Agents via Controllable Environment Synthesis". Authors: Szot, Abnar, Attia, Kazerouni, Kirchhof, Hsieh, Vemulapalli, Toshev (Apple). The cells above match the HTML. No data or code release link is printed in the paper.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH-MEDIUM.** The usable piece is the data-mix rule for our own generator: more distinct tools and more starting states per task, rather than more tasks. The models are Qwen3 / Qwen3.5, not Gemma-4-E2B. Our measured path is harness-side control at inference (Run 78 **77/200 = 38.5%**). The fine-tuning track has not helped (SFT v4 **15.0%**, DPO **26.5%**), and v11 **stopped at 26500/32000**. A LoRA version in mlx-lm on the 48 GB Mac is **our idea**, not something the paper tested. **No blanket GRPO.**
+- **BFCL categories:** v3 multi-turn, all 800 tasks. Not our sheet.
+- **Complexity:** High for the full pipeline (frontier builder model, GLM-5.2 teacher, 5.9B tokens on 8xB200 nodes). Low to borrow the composition rule.
+- **Limitation:** no data or code release found. Baselines differ in training regime. The scaling law is fit on one pipeline.
+
+### Source
+
+Szot, A., Abnar, S., Attia, O., Kazerouni, A., Kirchhof, M., Hsieh, C.-Y., Vemulapalli, R., & Toshev, A. "Scaling Laws for Tool-Use Agents via Controllable Environment Synthesis." arXiv:2610.37648, 2026. https://arxiv.org/abs/2610.37648
+
+---
+
+## 72. CGAP: Capability-Grounded Agentic Planning
+
+### Overview
+
+CGAP (Shrestha, Yeoh, Zhang, & Vorobeychik, 2026) turns the tool catalog into a formal planning problem (PDDL) without an LLM: each tool's required inputs become preconditions and its outputs become effects. An LLM turns the user request into goals, a classical planner (breadth-first search) picks the order of calls, every argument must cite where its value came from, and an LLM verifier checks each result before it counts as done.
+
+**Train vs infer: inference-time** (no training). **Tag: `CANDIDATE` / not run.** Logged 2026-11-02 (docs only). **No blanket GRPO.**
+
+### Mechanism
+
+1. Compile the catalog: each tool becomes an action whose preconditions are "these input fields are available" and whose effects are "these output fields are available". The planner tracks which fields are available, not their values.
+2. An LLM parses the request into one goal per requested result.
+3. Breadth-first search finds the shortest plan. An execution LLM fills in each call, citing a source for every argument (a span of the user's message or a field of an earlier tool response). It may add extra lookups only if the rest of the plan stays valid.
+4. A result counts as delivered only after deterministic checks and an LLM verifier accept it.
+
+### Evidence
+
+Paper results (Shrestha et al., 2026; **theirs**). **BFCL multi-turn, a stratified 200-conversation subset (50 each of base, missing function, missing parameter, long context), from the BFCL v4 multi-turn datasets.** Three runs per task, scored by majority. Not our 200-item `multi_turn_base` sheet.
+
+- **BFCL multi-turn, plain agent to CGAP:** gpt-oss-20b **34.0 to 52.0** (+18.0), Qwen3-32B **48.0 to 62.0** (+14.0), GPT-5 mini **56.5 to 62.5** (+6.0).
+- **Ablation, gpt-oss-20b:** an LLM writing the plan instead of the search costs **10.0** points on BFCL; a simpler graph planner keeps most of the gain there.
+- No model under 20B is tested.
+
+Do **not** write 52.0 or 62.0 as thesis Acc.
+
+**Cite check (2026-11-02):** arXiv:2610.41040 resolves. The title is "Capability-Grounded Agentic Planning". Authors: Shrestha, Yeoh, Zhang, Vorobeychik (Washington University in St. Louis). The cells above match the HTML. The BFCL data is v4 multi-turn, not v3. No code link was found.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. MEDIUM-LOW.** This is the closest of the three to our harness-side, inference-time path: it checks call order and argument sources outside the model. It is untested on small models, and it adds an LLM verifier call per result, which is costly on Gemma-4-E2B. Our measured path is Run 78 **77/200 = 38.5%**.
+- **BFCL categories:** v4 multi-turn, 50 per category. Not our sheet.
+- **Complexity:** Medium-high (catalog compiler, planner, source-citing runtime, verifier). CGAP uses 1.3 to 1.6 times the plain agent's tokens with gpt-oss-20b.
+- **Limitation:** subset only, majority of three runs, not comparable to single-run scores. Smallest model is gpt-oss-20b.
+
+### Source
+
+Shrestha, S., Yeoh, W., Zhang, N., & Vorobeychik, Y. "Capability-Grounded Agentic Planning." arXiv:2610.41040, 2026. https://arxiv.org/abs/2610.41040
+
+---
+
+## 73. EvoMCP: Co-Evolving MCP Agents and Training Data
+
+### Overview
+
+EvoMCP (Gao, Lin, Shi, et al., 2026) runs a loop: test the student, find what it gets wrong, edit verified seed tasks (instructions, environment state, or both) to target those weaknesses, have a teacher solve the new tasks, fine-tune the student on the verified solutions, and repeat.
+
+**Train vs infer: training-time** (full-parameter SFT). **Tag: `CANDIDATE` / not run.** Logged 2026-11-02 (docs only). **No blanket GRPO.**
+
+### Mechanism
+
+1. Score the student's rollouts and pick learning targets from its failures.
+2. Evolve verified seed tasks toward those targets, keeping the verifier in step with the change.
+3. The teacher (Qwen3.8-Max) solves the tasks. Failed rollouts can be recovered with skill guidance. Only verifier-passing trajectories are kept.
+4. Full-parameter SFT: **2,400** trajectories per round, 3 epochs per round, learning rate **2e-6**, **3** rounds.
+
+### Evidence
+
+Paper results (Gao et al., 2026; Table 1; **theirs**). Student Qwen3.6-27B. **No BFCL.**
+
+- **Toolathlon:** **36.9 to 53.4** (+16.5).
+- **MCPMark:** **56.7 to 66.9** (+10.2).
+- **MCP-Atlas:** **61.0 to 73.6** (+12.6).
+- Against a Static SFT baseline, EvoMCP leads (R3 margins **13.6**, **8.7**, **6.4** on Toolathlon, MCPMark, MCP-Atlas).
+
+**Cite check (2026-11-02):** arXiv:2610.41479 resolves. The title is "EvoMCP: Co-Evolving MCP Agents and Training Data". Authors: Gao, Lin, Shi, Deng, Shen, Meng, Wu, Yang, Liu (Shanghai Jiao Tong University, Ant Group). The cells above match the HTML. Project page https://github.com/xagao/EvoMCP returned HTTP 200 on 2026-11-02. The benchmark task sets also supply the student feedback, so the scores are measured under benchmark-guided feedback.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. LOW-MEDIUM.** The idea of building new training tasks from the student's own failures fits a future data track. Only a 27B model is tested, there is no BFCL number, and the recipe is full-parameter SFT. The fine-tuning track has not helped (SFT v4 **15.0%**, DPO **26.5%**). **No blanket GRPO.**
+- **BFCL categories:** none.
+- **Complexity:** High (teacher model, task evolution, three rounds of full SFT).
+- **Limitation:** one model size; benchmark tasks are used for feedback and for scoring.
+
+### Source
+
+Gao, X., Lin, K., Shi, X., Deng, Y., Shen, S., Meng, C., Wu, X., Yang, J., & Liu, W. "EvoMCP: Co-Evolving MCP Agents and Training Data." arXiv:2610.41479, 2026. https://arxiv.org/abs/2610.41479
+
+Code: https://github.com/xagao/EvoMCP
 
 ---
 
