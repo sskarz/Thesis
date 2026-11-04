@@ -129,7 +129,7 @@ CONTRIBUTIONS = r"""Our contributions:
 \begin{enumerate}
   \item \textbf{A harness plus a compact tool list.} The weights stay fixed. The program around the model records the current state, stops repeated calls, and shows a short card advising the next move. On that harness, writing the same tool list more compactly helps further, and that gain replicated (Chapter~\ref{sec:helps}).
   \item \textbf{Where the failures are.} The model fails at choosing the next step. A needed call never happens, or the backend ends in the wrong state. The failure analysis is why we built the harness. The compact list helps because it cuts context use and reduces drift over long episodes, which leaves the state the model needs in view (Chapter~\ref{sec:helps}). Forcing each call into valid syntax makes results worse (Chapter~\ref{sec:fail}).
-  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The rebuilt training set is the leading suspect, and it also differed in training length (Chapter~\ref{sec:train}).
+  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The rebuilt training data is the leading cause we identified, and two targeted retrains showed the act-versus-stop shift is not the sole cause (Chapter~\ref{sec:train}).
 \end{enumerate}"""
 
 CH2_INTRO = (
