@@ -96,6 +96,7 @@ SHORT_LIST = {
     "tab:mcnemar-x": "Exploratory paired tests",
     "tab:board": "Every scored condition",
     "tab:runs": "Every scored condition",
+    "tab:repro": "Runs and logs",
 }
 
 ABSTRACT = (
@@ -110,8 +111,9 @@ ABSTRACT = (
     "forcing every call to be valid syntax made results worse. The remedy is a harness, the "
     "program around the model, with the weights untouched. It records the current state for the "
     "model, stops repeated calls, and adds a short card advising whether to call, ask, finish or "
-    "refuse. This raised accuracy from 30.5\\% to 38.5\\%, a suggestive gain, and matched a "
-    "five-sample vote at about a seventh of the generation time. Writing the tool list more "
+    "refuse. This raised accuracy from 30.5\\%, the JSON-text baseline, to 38.5\\%. "
+    "The gain is suggestive: it is not significant after correcting for multiple comparisons. "
+    "It matched a five-sample vote at about a seventh of the generation time. Writing the tool list more "
     "compactly added about 7 points in two paired runs, the best reaching 44.0\\%. Wrong final "
     "states remain the largest failure type. Fine-tuning the model did not help; the best tuned "
     "model scored 15.0\\%, below the untuned model.\n"
@@ -130,6 +132,8 @@ ABSTRACT_SOURCES = [
     "about 7 points",
     "a seventh",
     "five-sample",
+    "JSON-text baseline",
+    "not significant after correcting for multiple comparisons",
 ]
 
 CONTRIBUTIONS = r"""Our contributions:
@@ -137,7 +141,7 @@ CONTRIBUTIONS = r"""Our contributions:
 \begin{enumerate}
   \item \textbf{Where the failures are.} The model usually handles a single call, and it usually fails when the task needs several. A needed call never happens, or the backend ends in the wrong state. Forcing each call to be valid syntax makes this worse (Chapter~\ref{sec:fail}).
   \item \textbf{A harness that helps without training.} The weights stay fixed. The program around the model records the current state, stops repeated calls, and shows a short card advising the next move. Together these raise accuracy by a suggestive amount. A more compact tool list helps further, and the harness keeps up with a five-sample vote at a fraction of the generation time (Chapter~\ref{sec:helps}).
-  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A control fine-tune that should change nothing, if the machinery is sound, stays close to the untuned model. The later training set is the leading suspect, and it also differed in training length (Chapter~\ref{sec:train}).
+  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The later training set is the leading suspect, and it also differed in training length (Chapter~\ref{sec:train}).
 \end{enumerate}"""
 
 CH2_INTRO = (
@@ -153,28 +157,28 @@ CH2_CLOSER = (
 
 MODEL_SERVING = r"""\section{Model and Serving}
 
-All results use Gemma-4-E2B-it, quantized with Q4\_K\_M (a 4-bit weight format of llama.cpp), served by \texttt{llama-server} on a laptop. Decoding is greedy (temperature 0) except for majority voting. Greedy runs are not identical from one run to the next (Chapter~\ref{sec:helps}). The machine, the server build, and the flags are in Appendix~\ref{app:runs}. Most runs used four parallel server slots (requests the server processes at the same time) and the native API baseline used eight, a serving difference that could affect its results. This thesis did not test whether the eight-slot and four-slot greedy outputs match."""
+All results use Gemma-4-E2B-it, quantized with Q4\_K\_M (a 4-bit weight format of llama.cpp), served by \texttt{llama-server} on a laptop. Decoding is greedy (temperature 0) except for majority voting. Greedy runs are not identical from one run to the next (Chapter~\ref{sec:helps}). The machine, the server build, and the flags are in Appendix~\ref{app:runs}. Most runs used four parallel server slots, and the native API baseline used eight. This thesis did not test whether those two settings produce the same greedy output."""
 
 HARNESS = r"""\section{Harness Interventions}
 
-All leave the weights untouched. A task is correct only when the BFCL multi-turn checker returns valid. Appendix~\ref{app:method} gives the rule for each intervention except the shorter tool list. By design, the state summary targets lost state, the stop rule targets runaway repetition, and the status card targets the choice between acting and abstaining.
+All leave the weights untouched. A task is correct only when the multi-turn checker returns valid. Appendix~\ref{app:method} gives each rule except the shorter tool list. The state summary targets lost state, the stop rule targets repetition, and the status card targets whether to act or stop.
 \begin{itemize}\setlength{\itemsep}{1pt}
   \item \textbf{JSON text} instead of the native API. The harness parses the calls.
   \item \textbf{State summary.} After each executed call, the harness writes a short \texttt{[STATE]} snapshot of facts from real results (current directory, known files, last calls) into the conversation.
-  \item \textbf{Stop on repeats.} The harness ends the current turn when the model repeats its previous set of calls, or when it re-proposes calls already executed in this turn after at least six tool steps. An \emph{ungated} variant drops the six-step minimum.
-  \item \textbf{Status card.} A four-line card (goal, known facts, last call and outcome, and an advisory next move: call, ask, finish, or refuse) is prefixed to the latest user message. The card prints finish as \texttt{final}. The harness fills the card from fixed rules on the conversation and executed results; it never sees reference answers. JSON text, stop on repeats, and the card, together, are the \emph{minimal recipe}.
+  \item \textbf{Stop on repeats.} The harness ends the turn when the model repeats its previous calls, or when it re-proposes calls already executed in this turn after at least six tool steps. An \emph{ungated} variant drops that minimum.
+  \item \textbf{Status card.} A four-line card is prefixed to the latest user message. It advises call, ask, finish, or refuse (the card prints finish as \texttt{final}) from fixed rules on the conversation and executed results, and it never sees reference answers. JSON text, stop on repeats, and the card, together, are the \emph{minimal recipe}.
   \item \textbf{Full stack.} JSON text, the state summary, stop on repeats, and the status card, decoded greedily. On its first run this is the harness we compare with JSON text.
-  \item \textbf{Shorter tool list.} On the full stack, every tool stays in the prompt. The harness states each tool group's shared description once, instead of repeating it, and prints each schema without indentation. The model, the four pieces above, and the tasks stay the same. The shorter list is text in the context, so this lever, like the state summary and the status card, is harness-side control delivered through the context.
+  \item \textbf{Shorter tool list.} On the full stack, every tool stays in the prompt. The harness states each tool group's shared description once, instead of repeating it, and prints each schema without indentation. The model, the four pieces above, and the tasks stay the same.
   \item \textbf{Vote of five.} On top of the state summary, at each step the harness samples five candidate calls at temperature 0.7 and executes the most common one. This is the compute-heavy comparison point.
   \item \textbf{Forced-valid decoding.} \emph{Constrained decoding} restricts output in two passes (tool names, then arguments by schema). A \emph{tool-name automaton} constrains only the name, inspired by~\cite{yu2026ptc}.
 \end{itemize}
 
-The state summary and the status card are short notes the harness writes from results it has already executed. A state summary looks like this:
-\begin{quote}\singlespacing\footnotesize\ttfamily
+A state summary, written from results the harness has already executed, looks like this:
+\begin{quote}\singlespacing\footnotesize\ttfamily\setlength{\topsep}{2pt}\setlength{\partopsep}{0pt}
 [STATE]\\ cwd: /workspace/notes\\ files: todo.txt, log.csv\\ last: cd(folder='notes')->ok
 \end{quote}
 A status card, prefixed to the latest user message, looks like this:
-\begin{quote}\singlespacing\footnotesize\ttfamily
+\begin{quote}\singlespacing\footnotesize\ttfamily\setlength{\topsep}{2pt}\setlength{\partopsep}{0pt}
 [OODA]\\ goal: lock the doors and start the engine\\ slots: lockStatus=locked\\ last: startEngine()->error: brake pedal must be pressed\\ next: call
 \end{quote}"""
 
@@ -182,15 +186,14 @@ STATISTICS = r"""\section{Statistics}
 
 Each reported accuracy comes with a Wilson 95\% interval~\cite{wilson1927}, a range that stays reliable when few tasks are correct. When two conditions are compared on the same 200 tasks, we use an exact two-sided McNemar test~\cite{mcnemar1947}. It counts only the tasks the two conditions decide differently. The $p$-value is the chance of a gap at least that large if the conditions were equal.
 
-Eight comparisons were planned as one family. The family covers the full stack and the minimal recipe against their baselines, the switch from the native API to JSON text, and the best fine-tune. Four of the eight use the full stack, and the family was fixed after that configuration was built. Four single-lever comparisons are exploratory and were left out of the family (Table~\ref{tab:mcnemar-x}): the state summary against JSON text, the vote against the state summary, stop on repeats against JSON text, and the minimal recipe against stop on repeats. We report the raw $p$-value, and we say when Holm's correction~\cite{holm1979} changes the conclusion. That correction keeps the chance of any false alarm among the eight tests at 5\%.
-
-The shorter tool list is not one of the eight tests. It is judged at the 0.05 level set in the plan. It was run as two pairs, the second in the opposite order. To combine them, we count how many of its two runs each list solved for each task, and we apply an exact two-sided sign test to the tasks where the counts differ. Why the comparison uses a fresh rerun, rather than the first full-stack run, is recorded in Appendix~\ref{app:trim}."""
+Eight comparisons were corrected together so that the chance of any false alarm among them stays at 5\%. The shorter tool list was a separate test, run twice in opposite order. Which comparisons are in the family, and how the two pairs were combined, is in Appendix~\ref{app:stats}."""
 
 STATE_MISMATCH = (
-    "A \\emph{state mismatch} is a task where the calls ran and the backend still ended wrong. "
-    "The loop in Figure~\\ref{fig:vignette} is an example. The model locks the doors and then tries to start the engine. "
-    "Both calls are valid. The backend says the brake pedal has to be pressed first. "
-    "The model never presses it, so the engine stays off and the check fails.\n\n"
+    "An \\emph{under-call} is a task where a required tool never ran. "
+    "The loop in Figure~\\ref{fig:vignette} is one. The model locks the doors and then tries to start the engine. "
+    "Both of those calls are valid. The backend says the brake pedal has to be pressed first. "
+    "The model never presses the brake, so that required call never ran, the engine stays off, and the check fails. "
+    "A \\emph{state mismatch} is the other kind: the tools did run, and the backend's final state still differs from the reference.\n\n"
 )
 
 JSON_CHANNEL = r"""\section{JSON Text over the Native API}
@@ -201,12 +204,12 @@ SHORTER = r"""\section{Shorter Tool List, Same Tools}
 
 The full stack still sends every tool. The list is long because tools that share a group also share a description, and that description was repeated on every tool, with each schema indented. We state each group's shared description once and print the schemas without indentation. Nothing else changes: the model, the four pieces above, and the tasks stay the same. Like the state summary and the card, this reaches the model as text in its context.
 
-We compared the shorter list with a fresh run of the original list, then repeated the comparison with the shorter list run first (Table~\ref{tab:trim}). The shorter list scores 84 of 200 (42.0\%) against 71 of 200 (35.5\%) in the first pair, and 88 of 200 (44.0\%) against 72 of 200 (36.0\%) in the second. The second pair is the best single run. The first pair falls just short of the 0.05 level set in the plan, and the second clears it. Counting each task once across both pairs, the shorter list does better on 33 tasks and the original list on 17, with 150 ties ($p=0.033$). The gain replicated. It is modest, about 7 points, and repeat runs still move individual tasks: the original list changed on 15 tasks and the shorter list on 18. Length and timing are in Appendix~\ref{app:trim}.
+We compared the shorter list with a fresh run of the original list, then repeated the comparison with the shorter list run first (Table~\ref{tab:trim}). The shorter list scores 84 of 200 (42.0\%) against 71 of 200 (35.5\%) in the first pair, and 88 of 200 (44.0\%) against 72 of 200 (36.0\%) in the second. The second pair is the best single run. The first pair falls just short of the 0.05 level, and the second clears it. Counting each task once across both pairs, the shorter list does better on 33 tasks and the original list on 17, with 150 ties ($p=0.033$). The gain replicated. It is modest, about 7 points, and it cut context per request by about 30\%. Repeat runs still move individual tasks: the original list changed on 15 tasks and the shorter list on 18. Length and timing are in Appendix~\ref{app:trim}.
 
 \begin{table}[H]
 \centering
 \footnotesize
-\caption{Shorter tool list against the original list (same model, tasks, and other harness parts). Pair 1 compares the shorter list with a fresh run of the original list. Pair 2 runs the shorter list first. ``Shorter only'' counts tasks the shorter list solves and the original list misses. $p$ is an exact two-sided McNemar test, judged at the 0.05 level set in the plan, outside Table~\ref{tab:mcnemar}.}
+\caption{Shorter tool list against the original list (same model, tasks, and other harness parts). Pair 1 compares the shorter list with a fresh run of the original list. Pair 2 runs the shorter list first. ``Shorter only'' counts tasks the shorter list solves and the original list misses. $p$ is an exact two-sided McNemar test, judged at the 0.05 level, outside Table~\ref{tab:mcnemar}.}
 \label{tab:trim}
 \begin{tabular}{@{}lrrrrc@{}}
 \toprule
@@ -233,8 +236,9 @@ CH6_OPEN = r"""Fine-tuning is the standard way to adapt a small model to a task.
 Here no trained model beat the untuned model. The best supervised fine-tune scored 15.0\%, significantly below JSON text, and the DPO model scored 26.5\%, within noise of it. The runs are evidence about what goes wrong. The version history is in Appendix~\ref{app:train}."""
 
 CH6_POINTER = (
-    "The self-distillation bars in Figure~\\ref{fig:gate}, and the retrains aimed at one suspected cause, "
-    "are described in Appendix~\\ref{app:train}. Those retrains did not confirm the cause."
+    "Self-distillation trains the model on its own answers to simulated tasks, keeping only the turns a checker marked correct. "
+    "The suspected cause was a shift in that data, toward stopping and away from look-up calls. "
+    "Two retrains aimed at that shift did not confirm it. The counts are in Appendix~\\ref{app:train}."
 )
 CH6_CLOSER = (
     "Fine-tuning changed the weights and did not beat the untuned model. "
@@ -274,10 +278,39 @@ CONCLUSION = (
     "the untuned model. For a local agent, these harness changes are also far cheaper than voting or training.\n"
 )
 
+REPRO = r"""\section{Reproducibility}
+
+Hardware: MacBook Pro, Apple M4~Pro, 48~GB, with Metal acceleration (Apple's GPU interface). Temperature is 0 except for voting (0.7, $N{=}5$, one seed). The native API baseline used eight server slots; the runs below used four. BFCL v4 is read through the \texttt{bfcl-eval} package (the exact version per run was not logged). Failure labels come from the checker messages in the \texttt{eval\_errors} table. Figures are regenerated from these counts by \texttt{paper/figures/src/make\_refocus\_figs.py}. The 91.9\% interval is the Wilson formula on 772/840 in the single-call log.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.15}
+\caption{Runs and logs.}
+\label{tab:repro}
+\begin{tabular}{@{}rlr>{\RaggedRight\arraybackslash}p{5.6cm}@{}}
+\toprule
+Run & What & scores.id & Log \\
+\midrule
+78 & Full stack, first run & 51 & \texttt{sft/v13/paper\_evals/runs/b\_fullstack\_mtb200.log} \\
+79 & Single-call categories & & \texttt{sft/v13/paper\_evals/runs/a\_single\_turn\_gemma.log} \\
+80 & 10-task original list, 5/10 & 59 & \texttt{R81\_slim/smoke\_off.log} \\
+81 & 10-task shorter list, 8/10 & 60 & \texttt{R81\_slim/smoke\_on.log} \\
+82 & 200-task original list & 61 & \texttt{R81\_slim/full\_off.log} \\
+83 & 200-task shorter list & 62 & \texttt{R81\_slim/full\_on.log} \\
+84 & 200-task shorter list, second pair & 63 & \texttt{R82\_confirm/full\_on.log} \\
+85 & 200-task original list, second pair & 64 & \texttt{R82\_confirm/full\_off.log} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Earlier runs used llama.cpp build 8111 (commit \texttt{11c325c6e}). Runs 78 and 80--85 used commit \texttt{d344123fe}. The full stack's harness was run at commit \texttt{344ce45} and merged as \texttt{83f35ee}. Server flags for those runs: \texttt{llama-server -{}-jinja -fa on -ngl 99 -c 65536 -{}-temp 0.0 -np 4 -cb -ub 1024}. Opening-prompt lengths are medians from \texttt{R81\_slim/*.metrics.jsonl}.
+"""
+
 TRIM = r"""\section{Shorter Tool List Checks}
 \label{app:trim}
 
-A 10-task check scored 5 of 10 with the original list and 8 of 10 with the shorter list. The recorded calls differed from the first full-stack run on five tasks. The plan required none of those ten to differ, so that check failed. The plan had paired the test with the first full-stack run (77 of 200). After the check failed, the comparison used a fresh rerun of the original list instead.
+A 10-task check scored 5 of 10 with the original list and 8 of 10 with the shorter list. The recorded calls differed from the first full-stack run on five tasks, so the 200-task comparison used a fresh rerun of the original list (77 of 200) rather than that first run.
 
 The context window is 16{,}384 tokens per request (65{,}536 shared across four slots). The opening prompt on the original list is about 5{,}000 tokens. Its median length falls from 4{,}923.5 tokens to 2{,}888, a 41\% cut (41.3\%). Mean context per request falls from 7{,}107 tokens to 4{,}990, about 30\%. Invalid tool names stay at zero (0 of 1{,}276 calls with the shorter list, 0 of 1{,}244 with the original list). Invalid arguments are 2 of 1{,}276 against 9 of 1{,}244. Format errors are 1 of 1{,}801 model replies against 0 of 1{,}773. Mean server time per model request, prompt reading plus generation, with four slots, is 15.4\,s with the shorter list and 18.8\,s with the original list (medians 12.7\,s and 15.9\,s). Most of the drop is generation (16.2\,s to 13.5\,s). Prompt reading falls from 2.53\,s to 1.86\,s.
 
@@ -468,6 +501,12 @@ def apply_overrides(parts):
         "on a laptop. Through the server's built-in tool-call field, the native API,",
         "ch1 hardware",
     )
+    parts["ch1"] = must_replace(
+        parts["ch1"],
+        "Two of these levers, a state summary and a status card, reach the model as text in its context, so the harness acts partly through the context; both are computed from executed results. ",
+        "",
+        "cut context sentence",
+    )
     parts["ch1"] = replace_span(
         parts["ch1"],
         "Our contributions:",
@@ -502,6 +541,18 @@ def apply_overrides(parts):
         "cut tripwire pointer",
     )
     parts["ch3"] = replace_section(parts["ch3"], "Statistics", STATISTICS)
+    parts["ch3"] = replace_paragraph_starting(
+        parts["ch3"],
+        "Each failed task gets one primary label",
+        r"Each failed task gets one primary label: \emph{empty turn} (no call when one was needed), \emph{under-call} (a required tool never ran), or \emph{state mismatch} (tools ran, but the final state differs). A call the harness cannot parse counts as no call.",
+        "shorter error labels",
+    )
+    parts["ch3"] = replace_paragraph_starting(
+        parts["ch3"],
+        "We train LoRA adapters",
+        r"We train LoRA adapters on Gemma-4-E2B-it with MLX~\cite{mlx}, merge and quantize to Q4\_K\_M, and evaluate with JSON text. The \emph{rebuilt mix} has 30{,}000 rows, about 45\% newly simulated episodes plus cleaned public data; earlier mixes use ToolACE and sampled xLAM data. One DPO model is trained too. The \emph{gate} is 20 tasks from the same split, run with the status card; the bar is 17/20.",
+        "shorter training paragraph",
+    )
 
     # Chapter 4: a plain state-mismatch example; drop the draft caption clause.
     parts["ch4"] = must_replace(
@@ -547,7 +598,7 @@ def apply_overrides(parts):
     parts["ch5"] = must_replace(
         parts["ch5"],
         r"Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves ($p=0.023$ uncorrected; not significant after correction). Against the minimal recipe, the state summary alone and the vote of five, the differences are within noise (Table~\ref{tab:mcnemar}). The configuration was assembled after we had seen earlier results on these tasks, so its lead is subject to tuning leakage (Chapter~\ref{sec:discussion}). Its harness code is in pull request \#90 (run at commit \texttt{344ce45}, merged as \texttt{83f35ee}).",
-        r"Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves (Table~\ref{tab:mcnemar}). Against the minimal recipe, the state summary alone, and the vote of five, the differences are within noise. The configuration was assembled after we had seen earlier results on these tasks, so its lead is subject to tuning leakage (Chapter~\ref{sec:discussion}).",
+        r"Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves (Table~\ref{tab:mcnemar}). Against the minimal recipe, the state summary alone, and the vote of five, the differences are within noise. The configuration was assembled after we had seen earlier results on these tasks, so its lead is subject to tuning leakage (Limitations in Chapter~\ref{sec:discussion}).",
         "full stack prose",
     )
     parts["ch5"] = replace_section(parts["ch5"], "Shorter Tool List, Same Tools", SHORTER)
@@ -568,6 +619,18 @@ def apply_overrides(parts):
         "200 tasks each, same task IDs",
         "200 tasks each, the same tasks",
         "mcnemar caption",
+    )
+    parts["ch5"] = must_replace(
+        parts["ch5"],
+        r"Top bar: the full stack with a shorter tool list, the better of its two runs (88/200; the other scored 84/200, and two reruns of the original list scored 71/200 and 72/200; Table~\ref{tab:trim}).",
+        r"Top bar: the full stack with a shorter tool list, the better of its two runs (Table~\ref{tab:trim}).",
+        "shorten ladder caption",
+    )
+    parts["ch6"] = must_replace(
+        parts["ch6"],
+        r"It scored 15/20 (interval 53--89\%), within noise of the bar (17/20; 64--95\%), while the rebuilt mix's 2/20 (3--30\%) is far outside it.",
+        r"It scored 15 of 20, within the noise of the bar of 17 of 20, while the rebuilt mix's 2 of 20 is far outside that bar. The exact ranges are in Appendix~\ref{app:train}.",
+        "null ranges in words",
     )
 
     # Chapter 6: define the three terms, drop two asides, move the candidate-cause section.
@@ -667,6 +730,36 @@ def apply_overrides(parts):
         "Hardware: MacBook Pro, Apple M4~Pro, 48~GB, with Metal acceleration (Apple's GPU interface).",
         "metal in appendix",
     )
+    parts["appA"], finetune = cut_heading_block(parts["appA"], "section", "Fine-Tuning Setup")
+    finetune_body = finetune.split("\n\n", 1)[1].strip()
+    parts["appB_train"] = (
+        finetune_body
+        + "\n\nThe null test scored 15 of 20 (interval 53--89\\%), within the noise of the bar of 17 of 20 (64--95\\%). "
+        + "The rebuilt mix scored 2 of 20 (3--30\\%), far outside that bar.\n\n"
+        + parts["appB_train"].lstrip()
+    )
+    for old, new, label in (
+        (r"Full stack, first run (\texttt{iffc-state-ooda}, PR \#90)", "Full stack, first run", "drop stack log name"),
+        (r"Vote of five on state summary (BoN $N{=}5$ on IFFC+STATE)", "Vote of five on the state summary", "drop vote log name"),
+        (r"State summary (IFFC+STATE)", "State summary on JSON text", "drop state log name"),
+        (r"JSON text (IFFC)", "JSON text", "drop JSON log name"),
+        (r"Guided template on native API (GST+NFC)", "Guided template on the native API", "drop template log name"),
+        (r"Native API (NFC)", "Native API", "drop native log name"),
+        (r"Tool-name automaton (PTC-A)", "Tool-name automaton", "drop automaton log name"),
+        (r"Minimal recipe: card on stop on repeats (``R42'')", "Minimal recipe: card on stop on repeats", "drop R42"),
+        (
+            "The ID is the internal log id, with the internal name in parentheses. ",
+            "The ID is the internal log id. ",
+            "scoreboard caption",
+        ),
+        (
+            "Recorded calls differed from the first full-stack run on tasks 55, 69, 26, 179, and 59. The plan's gate required 0 of 10 to differ, so the gate failed. ",
+            "The recorded calls differed from the first full-stack run on five tasks, so the 200-task comparison used a fresh rerun. ",
+            "drop task ids",
+        ),
+    ):
+        parts["appC_board"] = must_replace(parts["appC_board"], old, new, label)
+    parts["appC_repro"] = REPRO
     parts["glossary"] = edit_glossary(parts["glossary"])
     parts["appC_trim"] = TRIM
     parts["appC_board"] = parts["appC_board"].replace(
@@ -723,9 +816,23 @@ def check_output(tex):
         "10-Task Tripwire",
         "@@LADDER@@",
         "@@GATE@@",
+        "set in the plan",
+        "acts partly through the context",
     ):
         if banned in pre:
             raise SystemExit("banned in main text: " + banned)
+    for banned in (
+        "set in the plan",
+        "plan's gate",
+        "tasks 55, 69",
+        "PTC-A",
+        "R42",
+        "iffc-state-ooda",
+        "(IFFC)",
+        "(NFC)",
+    ):
+        if banned in tex:
+            raise SystemExit("banned in thesis: " + banned)
     if pre.count("77 of 200, then 71 of 200 and 72 of 200") != 1:
         raise SystemExit("repeat-run triple should be stated once")
     if pre.count("33 tasks") != 1:

@@ -41,7 +41,7 @@
 \usepackage{indentfirst} % sample indents the first paragraph of every chapter
 \usepackage[hidelinks]{hyperref}
 
-\graphicspath{{../paper/figures/}}
+\graphicspath{{figures/}{../paper/figures/}}
 
 \hypersetup{
   pdftitle={State, Not Syntax: Harness Optimization for Small-Model Multi-Turn Tool Calling},
@@ -261,10 +261,10 @@ Sanskar Thapa\par}
 \addtocontents{lot}{\protect\noindent Table\protect\par}
 \addtocontents{lof}{\protect\noindent Figure\protect\par}
 
-% Glossary follows the lists on the same page so a short list does not sit alone.
+% Glossary on its own page so the lists are not packed against it.
 % Acknowledgments stay commented out above; this does not reorder title, copyright,
 % approval, abstract, or the three lists.
-\vspace{\baselineskip}
+\clearpage
 \begin{center}
 GLOSSARY
 \end{center}
@@ -339,7 +339,6 @@ The rest of this thesis is organized as follows. Chapters~\ref{sec:related} to~\
 \appendix
 \clearpage
 \addtocontents{toc}{\protect\noindent Appendix\protect\par}
-\addtocontents{toc}{\protect\setcounter{tocdepth}{0}}% list appendix titles only
 \addtocontents{toc}{\protect\renewcommand{\protect\cftchapaftersnum}{.}}
 \renewcommand{\chaptertitlename}{Appendix}
 
@@ -352,6 +351,13 @@ The rest of this thesis is organized as follows. Chapters~\ref{sec:related} to~\
 \label{app:fail}
 
 %%appB%%
+
+\section{Planned Comparisons}
+\label{app:stats}
+
+Eight comparisons were planned as one family. The family covers the full stack and the minimal recipe against their baselines, the switch from the native API to JSON text, and the best fine-tune. Four of the eight use the full stack, and the family was fixed after that configuration was built. Four single-lever comparisons were left out of the family (Table~\ref{tab:mcnemar-x}): the state summary against JSON text, the vote against the state summary, stop on repeats against JSON text, and the minimal recipe against stop on repeats. The raw $p$-value is reported, and so is whether Holm's correction~\cite{holm1979} changes the conclusion. That correction keeps the chance of any false alarm among the eight tests at 5\%.
+
+The shorter tool list is not one of those eight tests. It is judged at the 0.05 level. It was run as two pairs, the second in the opposite order. To combine the pairs, count how many of its two runs each list solved for each task, and apply an exact two-sided sign test to the tasks where the counts differ.
 
 \section{Training History}
 \label{app:train}

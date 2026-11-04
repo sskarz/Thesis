@@ -41,7 +41,7 @@
 \usepackage{indentfirst} % sample indents the first paragraph of every chapter
 \usepackage[hidelinks]{hyperref}
 
-\graphicspath{{../paper/figures/}}
+\graphicspath{{figures/}{../paper/figures/}}
 
 \hypersetup{
   pdftitle={State, Not Syntax: Harness Optimization for Small-Model Multi-Turn Tool Calling},
@@ -232,7 +232,7 @@ Sanskar Thapa\par}
 
 Small language models can run on a laptop and call tools to act for a user, but they often fail when a task needs several calls in a row. This thesis asks why, and what helps, using Gemma-4-E2B-it, a model with about two billion effective parameters, on 200 multi-turn tasks from the Berkeley Function Calling Leaderboard. Tasks are graded by the final state of a simulated backend, for example whether a car's engine is on.
 
-The main finding is that the model fails at deciding what to do next, not at writing calls. It handles single calls well (91.9\%) but completes only 27.0\% of multi-turn tasks, and forcing every call to be valid syntax made results worse. The remedy is a harness, the program around the model, with the weights untouched. It records the current state for the model, stops repeated calls, and adds a short card advising whether to call, ask, finish or refuse. This raised accuracy from 30.5\% to 38.5\%, a suggestive gain, and matched a five-sample vote at about a seventh of the generation time. Writing the tool list more compactly added about 7 points in two paired runs, the best reaching 44.0\%. Wrong final states remain the largest failure type. Fine-tuning the model did not help; the best tuned model scored 15.0\%, below the untuned model.
+The main finding is that the model fails at deciding what to do next, not at writing calls. It handles single calls well (91.9\%) but completes only 27.0\% of multi-turn tasks, and forcing every call to be valid syntax made results worse. The remedy is a harness, the program around the model, with the weights untouched. It records the current state for the model, stops repeated calls, and adds a short card advising whether to call, ask, finish or refuse. This raised accuracy from 30.5\%, the JSON-text baseline, to 38.5\%. The gain is suggestive: it is not significant after correcting for multiple comparisons. It matched a five-sample vote at about a seventh of the generation time. Writing the tool list more compactly added about 7 points in two paired runs, the best reaching 44.0\%. Wrong final states remain the largest failure type. Fine-tuning the model did not help; the best tuned model scored 15.0\%, below the untuned model.
 
 
 % == Acknowledgments: left out until Sanskar writes them. ==
@@ -264,10 +264,10 @@ The main finding is that the model fails at deciding what to do next, not at wri
 \addtocontents{lot}{\protect\noindent Table\protect\par}
 \addtocontents{lof}{\protect\noindent Figure\protect\par}
 
-% Glossary follows the lists on the same page so a short list does not sit alone.
+% Glossary on its own page so the lists are not packed against it.
 % Acknowledgments stay commented out above; this does not reorder title, copyright,
 % approval, abstract, or the three lists.
-\vspace{\baselineskip}
+\clearpage
 \begin{center}
 GLOSSARY
 \end{center}
@@ -338,12 +338,12 @@ To check a calendar or lock a car, a language model emits a \emph{tool call}: a 
 
 Running this loop locally with a small model keeps private data on the device, works offline and has no per-request cost. The catch is accuracy. We study Gemma-4-E2B-it~\cite{gemma4e2b} (``E2B'': about two billion effective parameters, meaning the inference footprint; ``it'': instruction-tuned) on BFCL v4~\cite{patil2024bfcl}, served with the llama.cpp inference engine~\cite{llamacpp} on a laptop. Through the server's built-in tool-call field, the native API, it completes 27.0\% of 200 multi-turn tasks.
 
-Is the model failing to \emph{write} calls or to \emph{choose} them? Chapter~\ref{sec:fail} shows it is mostly the latter: tasks fail because a needed tool never ran or the backend ended in the wrong state. We therefore treat the problem as \emph{harness optimization}. The weights stay fixed; we change the loop around the model: how calls are parsed, what state the harness records and shows back, when it ends a turn, and how the next step is framed. Two of these levers, a state summary and a status card, reach the model as text in its context, so the harness acts partly through the context; both are computed from executed results. We compare harness control with two other families of fixes: forcing syntactically valid output, and fine-tuning the weights. Our contributions:
+Is the model failing to \emph{write} calls or to \emph{choose} them? Chapter~\ref{sec:fail} shows it is mostly the latter: tasks fail because a needed tool never ran or the backend ended in the wrong state. We therefore treat the problem as \emph{harness optimization}. The weights stay fixed; we change the loop around the model: how calls are parsed, what state the harness records and shows back, when it ends a turn, and how the next step is framed. We compare harness control with two other families of fixes: forcing syntactically valid output, and fine-tuning the weights. Our contributions:
 
 \begin{enumerate}
   \item \textbf{Where the failures are.} The model usually handles a single call, and it usually fails when the task needs several. A needed call never happens, or the backend ends in the wrong state. Forcing each call to be valid syntax makes this worse (Chapter~\ref{sec:fail}).
   \item \textbf{A harness that helps without training.} The weights stay fixed. The program around the model records the current state, stops repeated calls, and shows a short card advising the next move. Together these raise accuracy by a suggestive amount. A more compact tool list helps further, and the harness keeps up with a five-sample vote at a fraction of the generation time (Chapter~\ref{sec:helps}).
-  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A control fine-tune that should change nothing, if the machinery is sound, stays close to the untuned model. The later training set is the leading suspect, and it also differed in training length (Chapter~\ref{sec:train}).
+  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The later training set is the leading suspect, and it also differed in training length (Chapter~\ref{sec:train}).
 \end{enumerate}
 
 The rest of this thesis is organized as follows. Chapters~\ref{sec:related} to~\ref{sec:fail} introduce the benchmark, the setup, and the failures. Chapters~\ref{sec:helps} and~\ref{sec:train} report the harness and the fine-tuning. Chapter~\ref{sec:discussion} says what to use, Chapter~\ref{sec:conclusion} closes with future work and the conclusion, and the appendices hold the details and the full list of runs.
@@ -381,48 +381,46 @@ The following chapters use only these ideas. They ask where a small model fails,
 
 \section{Model and Serving}
 
-All results use Gemma-4-E2B-it, quantized with Q4\_K\_M (a 4-bit weight format of llama.cpp), served by \texttt{llama-server} on a laptop. Decoding is greedy (temperature 0) except for majority voting. Greedy runs are not identical from one run to the next (Chapter~\ref{sec:helps}). The machine, the server build, and the flags are in Appendix~\ref{app:runs}. Most runs used four parallel server slots (requests the server processes at the same time) and the native API baseline used eight, a serving difference that could affect its results. This thesis did not test whether the eight-slot and four-slot greedy outputs match.
+All results use Gemma-4-E2B-it, quantized with Q4\_K\_M (a 4-bit weight format of llama.cpp), served by \texttt{llama-server} on a laptop. Decoding is greedy (temperature 0) except for majority voting. Greedy runs are not identical from one run to the next (Chapter~\ref{sec:helps}). The machine, the server build, and the flags are in Appendix~\ref{app:runs}. Most runs used four parallel server slots, and the native API baseline used eight. This thesis did not test whether those two settings produce the same greedy output.
 
 
 \section{Harness Interventions}
 
-All leave the weights untouched. A task is correct only when the BFCL multi-turn checker returns valid. Appendix~\ref{app:method} gives the rule for each intervention except the shorter tool list. By design, the state summary targets lost state, the stop rule targets runaway repetition, and the status card targets the choice between acting and abstaining.
+All leave the weights untouched. A task is correct only when the multi-turn checker returns valid. Appendix~\ref{app:method} gives each rule except the shorter tool list. The state summary targets lost state, the stop rule targets repetition, and the status card targets whether to act or stop.
 \begin{itemize}\setlength{\itemsep}{1pt}
   \item \textbf{JSON text} instead of the native API. The harness parses the calls.
   \item \textbf{State summary.} After each executed call, the harness writes a short \texttt{[STATE]} snapshot of facts from real results (current directory, known files, last calls) into the conversation.
-  \item \textbf{Stop on repeats.} The harness ends the current turn when the model repeats its previous set of calls, or when it re-proposes calls already executed in this turn after at least six tool steps. An \emph{ungated} variant drops the six-step minimum.
-  \item \textbf{Status card.} A four-line card (goal, known facts, last call and outcome, and an advisory next move: call, ask, finish, or refuse) is prefixed to the latest user message. The card prints finish as \texttt{final}. The harness fills the card from fixed rules on the conversation and executed results; it never sees reference answers. JSON text, stop on repeats, and the card, together, are the \emph{minimal recipe}.
+  \item \textbf{Stop on repeats.} The harness ends the turn when the model repeats its previous calls, or when it re-proposes calls already executed in this turn after at least six tool steps. An \emph{ungated} variant drops that minimum.
+  \item \textbf{Status card.} A four-line card is prefixed to the latest user message. It advises call, ask, finish, or refuse (the card prints finish as \texttt{final}) from fixed rules on the conversation and executed results, and it never sees reference answers. JSON text, stop on repeats, and the card, together, are the \emph{minimal recipe}.
   \item \textbf{Full stack.} JSON text, the state summary, stop on repeats, and the status card, decoded greedily. On its first run this is the harness we compare with JSON text.
-  \item \textbf{Shorter tool list.} On the full stack, every tool stays in the prompt. The harness states each tool group's shared description once, instead of repeating it, and prints each schema without indentation. The model, the four pieces above, and the tasks stay the same. The shorter list is text in the context, so this lever, like the state summary and the status card, is harness-side control delivered through the context.
+  \item \textbf{Shorter tool list.} On the full stack, every tool stays in the prompt. The harness states each tool group's shared description once, instead of repeating it, and prints each schema without indentation. The model, the four pieces above, and the tasks stay the same.
   \item \textbf{Vote of five.} On top of the state summary, at each step the harness samples five candidate calls at temperature 0.7 and executes the most common one. This is the compute-heavy comparison point.
   \item \textbf{Forced-valid decoding.} \emph{Constrained decoding} restricts output in two passes (tool names, then arguments by schema). A \emph{tool-name automaton} constrains only the name, inspired by~\cite{yu2026ptc}.
 \end{itemize}
 
-The state summary and the status card are short notes the harness writes from results it has already executed. A state summary looks like this:
-\begin{quote}\singlespacing\footnotesize\ttfamily
+A state summary, written from results the harness has already executed, looks like this:
+\begin{quote}\singlespacing\footnotesize\ttfamily\setlength{\topsep}{2pt}\setlength{\partopsep}{0pt}
 [STATE]\\ cwd: /workspace/notes\\ files: todo.txt, log.csv\\ last: cd(folder='notes')->ok
 \end{quote}
 A status card, prefixed to the latest user message, looks like this:
-\begin{quote}\singlespacing\footnotesize\ttfamily
+\begin{quote}\singlespacing\footnotesize\ttfamily\setlength{\topsep}{2pt}\setlength{\partopsep}{0pt}
 [OODA]\\ goal: lock the doors and start the engine\\ slots: lockStatus=locked\\ last: startEngine()->error: brake pedal must be pressed\\ next: call
 \end{quote}
 
 
 \section{Training}
 
-We train LoRA adapters on Gemma-4-E2B-it with MLX~\cite{mlx}, Apple's machine-learning framework, merge them into the weights, quantize to Q4\_K\_M and evaluate with JSON text. Early mixes combine ToolACE dialogues with sampled xLAM data; a later \emph{rebuilt mix} (30{,}000 rows) combines about 45\% newly simulated, execution-checked episodes with cleaned public data. We also train one DPO model. Because full 200-task runs are slow, trained models first face a fixed 20-task \emph{gate} drawn from the same split and run with the status card; the bar is 17/20, the untuned model's score with the card.
+We train LoRA adapters on Gemma-4-E2B-it with MLX~\cite{mlx}, merge and quantize to Q4\_K\_M, and evaluate with JSON text. The \emph{rebuilt mix} has 30{,}000 rows, about 45\% newly simulated episodes plus cleaned public data; earlier mixes use ToolACE and sampled xLAM data. One DPO model is trained too. The \emph{gate} is 20 tasks from the same split, run with the status card; the bar is 17/20.
 
 \section{Error Labels}
 
-Each failed task gets one primary label from the checker's message: \emph{empty turn} (no call on a turn that needed one), \emph{under-call} (a required tool never ran), or \emph{state mismatch} (tools ran but the backend's final state differs from the reference). Output the harness cannot parse counts as no call, so a parse failure can only appear as an empty turn.
+Each failed task gets one primary label: \emph{empty turn} (no call when one was needed), \emph{under-call} (a required tool never ran), or \emph{state mismatch} (tools ran, but the final state differs). A call the harness cannot parse counts as no call.
 
 \section{Statistics}
 
 Each reported accuracy comes with a Wilson 95\% interval~\cite{wilson1927}, a range that stays reliable when few tasks are correct. When two conditions are compared on the same 200 tasks, we use an exact two-sided McNemar test~\cite{mcnemar1947}. It counts only the tasks the two conditions decide differently. The $p$-value is the chance of a gap at least that large if the conditions were equal.
 
-Eight comparisons were planned as one family. The family covers the full stack and the minimal recipe against their baselines, the switch from the native API to JSON text, and the best fine-tune. Four of the eight use the full stack, and the family was fixed after that configuration was built. Four single-lever comparisons are exploratory and were left out of the family (Table~\ref{tab:mcnemar-x}): the state summary against JSON text, the vote against the state summary, stop on repeats against JSON text, and the minimal recipe against stop on repeats. We report the raw $p$-value, and we say when Holm's correction~\cite{holm1979} changes the conclusion. That correction keeps the chance of any false alarm among the eight tests at 5\%.
-
-The shorter tool list is not one of the eight tests. It is judged at the 0.05 level set in the plan. It was run as two pairs, the second in the opposite order. To combine them, we count how many of its two runs each list solved for each task, and we apply an exact two-sided sign test to the tasks where the counts differ. Why the comparison uses a fresh rerun, rather than the first full-stack run, is recorded in Appendix~\ref{app:trim}.
+Eight comparisons were corrected together so that the chance of any false alarm among them stays at 5\%. The shorter tool list was a separate test, run twice in opposite order. Which comparisons are in the family, and how the two pairs were combined, is in Appendix~\ref{app:stats}.
 
 
 
@@ -435,7 +433,7 @@ On three single-call BFCL categories (840 cases), Gemma-4-E2B-it through the nat
 
 \section{Most Failures Are About the World}
 
-A \emph{state mismatch} is a task where the calls ran and the backend still ended wrong. The loop in Figure~\ref{fig:vignette} is an example. The model locks the doors and then tries to start the engine. Both calls are valid. The backend says the brake pedal has to be pressed first. The model never presses it, so the engine stays off and the check fails.
+An \emph{under-call} is a task where a required tool never ran. The loop in Figure~\ref{fig:vignette} is one. The model locks the doors and then tries to start the engine. Both of those calls are valid. The backend says the brake pedal has to be pressed first. The model never presses the brake, so that required call never ran, the engine stays off, and the check fails. A \emph{state mismatch} is the other kind: the tools did run, and the backend's final state still differs from the reference.
 
 Figure~\ref{fig:fail} breaks down the failed tasks (full counts in Table~\ref{tab:failfull}). For every JSON-text condition, state mismatch is the largest bucket (53--109 tasks). With plain JSON text it is followed by empty turns (41) and under-calls (38); the native API has more empty turns (59) and far fewer under-calls (19). Harness control mainly removes empty turns: the full stack has 20, against 41 for JSON text, while its state mismatches are 68 (60 for JSON text). Because parse failures can only appear as empty turns, most of what remains is not a formatting problem.
 
@@ -470,18 +468,18 @@ The gated stop rule scores 65/200 (+2.0\pp, $p=0.48$). Stopping at the \emph{fir
 
 \section{Full Stack}
 
-Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves (Table~\ref{tab:mcnemar}). Against the minimal recipe, the state summary alone, and the vote of five, the differences are within noise. The configuration was assembled after we had seen earlier results on these tasks, so its lead is subject to tuning leakage (Chapter~\ref{sec:discussion}).
+Combining all four greedy changes scores 77/200 (38.5\%, interval 32.0--45.4\%). Paired against JSON text, it solves 30 tasks that JSON text misses and misses 14 that JSON text solves (Table~\ref{tab:mcnemar}). Against the minimal recipe, the state summary alone, and the vote of five, the differences are within noise. The configuration was assembled after we had seen earlier results on these tasks, so its lead is subject to tuning leakage (Limitations in Chapter~\ref{sec:discussion}).
 
 \section{Shorter Tool List, Same Tools}
 
 The full stack still sends every tool. The list is long because tools that share a group also share a description, and that description was repeated on every tool, with each schema indented. We state each group's shared description once and print the schemas without indentation. Nothing else changes: the model, the four pieces above, and the tasks stay the same. Like the state summary and the card, this reaches the model as text in its context.
 
-We compared the shorter list with a fresh run of the original list, then repeated the comparison with the shorter list run first (Table~\ref{tab:trim}). The shorter list scores 84 of 200 (42.0\%) against 71 of 200 (35.5\%) in the first pair, and 88 of 200 (44.0\%) against 72 of 200 (36.0\%) in the second. The second pair is the best single run. The first pair falls just short of the 0.05 level set in the plan, and the second clears it. Counting each task once across both pairs, the shorter list does better on 33 tasks and the original list on 17, with 150 ties ($p=0.033$). The gain replicated. It is modest, about 7 points, and repeat runs still move individual tasks: the original list changed on 15 tasks and the shorter list on 18. Length and timing are in Appendix~\ref{app:trim}.
+We compared the shorter list with a fresh run of the original list, then repeated the comparison with the shorter list run first (Table~\ref{tab:trim}). The shorter list scores 84 of 200 (42.0\%) against 71 of 200 (35.5\%) in the first pair, and 88 of 200 (44.0\%) against 72 of 200 (36.0\%) in the second. The second pair is the best single run. The first pair falls just short of the 0.05 level, and the second clears it. Counting each task once across both pairs, the shorter list does better on 33 tasks and the original list on 17, with 150 ties ($p=0.033$). The gain replicated. It is modest, about 7 points, and it cut context per request by about 30\%. Repeat runs still move individual tasks: the original list changed on 15 tasks and the shorter list on 18. Length and timing are in Appendix~\ref{app:trim}.
 
 \begin{table}[H]
 \centering
 \footnotesize
-\caption[Shorter tool list against the original list]{Shorter tool list against the original list (same model, tasks, and other harness parts). Pair 1 compares the shorter list with a fresh run of the original list. Pair 2 runs the shorter list first. ``Shorter only'' counts tasks the shorter list solves and the original list misses. $p$ is an exact two-sided McNemar test, judged at the 0.05 level set in the plan, outside Table~\ref{tab:mcnemar}.}
+\caption[Shorter tool list against the original list]{Shorter tool list against the original list (same model, tasks, and other harness parts). Pair 1 compares the shorter list with a fresh run of the original list. Pair 2 runs the shorter list first. ``Shorter only'' counts tasks the shorter list solves and the original list misses. $p$ is an exact two-sided McNemar test, judged at the 0.05 level, outside Table~\ref{tab:mcnemar}.}
 \label{tab:trim}
 \begin{tabular}{@{}lrrrrc@{}}
 \toprule
@@ -498,7 +496,7 @@ Figure~\ref{fig:ladder} shows these runs on one scale. The top bar is the shorte
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{ladder_n200.pdf}
-\caption[Multi-turn accuracy by condition]{Multi-turn accuracy on 200 BFCL v4 tasks, Gemma-4-E2B-it. Each bar is a separate run, not a stack of the bars below it. Bars: share of tasks fully correct; error bars: Wilson 95\% intervals. Dark green: harness control on JSON text (the first full-stack run is outlined and in bold); light green: majority vote, the compute-heavy comparison; grey: output format alone; red: forced-valid output; orange: training. Dotted line: JSON-text baseline (30.5\%). Top bar: the full stack with a shorter tool list, the better of its two runs (88/200; the other scored 84/200, and two reruns of the original list scored 71/200 and 72/200; Table~\ref{tab:trim}).}
+\caption[Multi-turn accuracy by condition]{Multi-turn accuracy on 200 BFCL v4 tasks, Gemma-4-E2B-it. Each bar is a separate run, not a stack of the bars below it. Bars: share of tasks fully correct; error bars: Wilson 95\% intervals. Dark green: harness control on JSON text (the first full-stack run is outlined and in bold); light green: majority vote, the compute-heavy comparison; grey: output format alone; red: forced-valid output; orange: training. Dotted line: JSON-text baseline (30.5\%). Top bar: the full stack with a shorter tool list, the better of its two runs (Table~\ref{tab:trim}).}
 \label{fig:ladder}
 \end{figure}
 
@@ -551,9 +549,9 @@ The first mixes scored 1/200 (0.5\%). A \emph{stop target} is a training respons
 
 \section{A Rebuilt Mix Collapsed}
 
-The best-validation checkpoint of the rebuilt mix scored 2/20 on the gate (Figure~\ref{fig:gate}); validation loss did not predict the collapse. The collapsed model usually made one call and stopped, even when a setup step was needed (looking up a stock symbol, changing directory, logging in), and invented missing values such as an order number. Without the card it scored 1/20, and continued training on tool lists laid out like the test still scored 2/20. To test the pipeline, the null test trained the untuned model for one pass (39 updates) on 156 of its own logged answers, through the same template, adapter, merge, quantization, and serving steps. It scored 15/20 (interval 53--89\%), within noise of the bar (17/20; 64--95\%), while the rebuilt mix's 2/20 (3--30\%) is far outside it. The null test rules out those pipeline steps as the cause at small update budgets. The rebuilt mix differs from it in both content and training length (22{,}000 steps for the evaluated checkpoint), so its data are the leading suspect but not the only one.
+The best-validation checkpoint of the rebuilt mix scored 2/20 on the gate (Figure~\ref{fig:gate}); validation loss did not predict the collapse. The collapsed model usually made one call and stopped, even when a setup step was needed (looking up a stock symbol, changing directory, logging in), and invented missing values such as an order number. Without the card it scored 1/20, and continued training on tool lists laid out like the test still scored 2/20. To test the pipeline, the null test trained the untuned model for one pass (39 updates) on 156 of its own logged answers, through the same template, adapter, merge, quantization, and serving steps. It scored 15 of 20, within the noise of the bar of 17 of 20, while the rebuilt mix's 2 of 20 is far outside that bar. The exact ranges are in Appendix~\ref{app:train}. The null test rules out those pipeline steps as the cause at small update budgets. The rebuilt mix differs from it in both content and training length (22{,}000 steps for the evaluated checkpoint), so its data are the leading suspect but not the only one.
 
-The self-distillation bars in Figure~\ref{fig:gate}, and the retrains aimed at one suspected cause, are described in Appendix~\ref{app:train}. Those retrains did not confirm the cause.
+Self-distillation trains the model on its own answers to simulated tasks, keeping only the turns a checker marked correct. The suspected cause was a shift in that data, toward stopping and away from look-up calls. Two retrains aimed at that shift did not confirm it. The counts are in Appendix~\ref{app:train}.
 
 \begin{figure}[H]
 \centering
@@ -621,7 +619,6 @@ What helped was the harness, the program around the model, with the weights left
 \appendix
 \clearpage
 \addtocontents{toc}{\protect\noindent Appendix\protect\par}
-\addtocontents{toc}{\protect\setcounter{tocdepth}{0}}% list appendix titles only
 \addtocontents{toc}{\protect\renewcommand{\protect\cftchapaftersnum}{.}}
 \renewcommand{\chaptertitlename}{Appendix}
 
@@ -660,9 +657,7 @@ Two requests per call: the first constrained to an empty list or a list of valid
 
 A live finite automaton restricts the tool name to valid names while arguments are free, on JSON text, not stacked on stop on repeats. Execution accuracy here is not comparable to the F1 reported by Yu et al.~\cite{yu2026ptc}.
 
-\section{Fine-Tuning Setup}
 
-LoRA adapters~\cite{hu2021lora} on Gemma-4-E2B-it with mlx-lm; best-validation checkpoint fused and quantized to Q4\_K\_M; evaluated with JSON text. The rebuilt mix: 30{,}000 training / 1{,}500 validation rows; 45/40/10/5\% simulated / APIGen / ToolACE / xLAM; 22\% empty-list targets (all after a tool result); 41.2\% of rows with multi-call targets; no evaluation tool names copied into simulations. DPO: $\beta{=}0.2$, LoRA, scored on JSON text.
 
 \chapter{Failure Labels, Exploratory Tests and Training History}
 \label{app:fail}
@@ -703,8 +698,19 @@ Minimal recipe (35.5\%) & Stop on repeats & 26 & 20 & 0.46 \\
 \end{tabular}
 \end{table}
 
+\section{Planned Comparisons}
+\label{app:stats}
+
+Eight comparisons were planned as one family. The family covers the full stack and the minimal recipe against their baselines, the switch from the native API to JSON text, and the best fine-tune. Four of the eight use the full stack, and the family was fixed after that configuration was built. Four single-lever comparisons were left out of the family (Table~\ref{tab:mcnemar-x}): the state summary against JSON text, the vote against the state summary, stop on repeats against JSON text, and the minimal recipe against stop on repeats. The raw $p$-value is reported, and so is whether Holm's correction~\cite{holm1979} changes the conclusion. That correction keeps the chance of any false alarm among the eight tests at 5\%.
+
+The shorter tool list is not one of those eight tests. It is judged at the 0.05 level. It was run as two pairs, the second in the opposite order. To combine the pairs, count how many of its two runs each list solved for each task, and apply an exact two-sided sign test to the tasks where the counts differ.
+
 \section{Training History}
 \label{app:train}
+
+LoRA adapters~\cite{hu2021lora} on Gemma-4-E2B-it with mlx-lm; best-validation checkpoint fused and quantized to Q4\_K\_M; evaluated with JSON text. The rebuilt mix: 30{,}000 training / 1{,}500 validation rows; 45/40/10/5\% simulated / APIGen / ToolACE / xLAM; 22\% empty-list targets (all after a tool result); 41.2\% of rows with multi-call targets; no evaluation tool names copied into simulations. DPO: $\beta{=}0.2$, LoRA, scored on JSON text.
+
+The null test scored 15 of 20 (interval 53--89\%), within the noise of the bar of 17 of 20 (64--95\%). The rebuilt mix scored 2 of 20 (3--30\%), far outside that bar.
 
 \subsection{Version History}
 
@@ -731,7 +737,7 @@ Stop targets were 22\% of all rebuilt-mix rows, all after a tool result, a diffe
 \renewcommand{\arraystretch}{1.0}
 \centering
 \setlength{\tabcolsep}{3pt}
-\caption[Every scored condition]{Every scored condition (Gemma-4-E2B-it Q4\_K\_M). The ID is the internal log id, with the internal name in parentheses. Interval: Wilson 95\%. Rows of 20 are screening checks, not 200-task accuracies.}
+\caption[Every scored condition]{Every scored condition (Gemma-4-E2B-it Q4\_K\_M). The ID is the internal log id. Interval: Wilson 95\%. Rows of 20 are screening checks, not 200-task accuracies.}
 \label{tab:board}\label{tab:runs}
 \scriptsize
 \setlength{\aboverulesep}{0.5pt}
@@ -743,20 +749,20 @@ ID & Condition & Result & Acc. & 95\% interval \\
 \multicolumn{5}{@{}l}{\emph{Multi-turn base, 200 tasks}} \\
 84 & Shorter tool list on the full stack, second pair (best single run)$^{a}$ & 88/200 & 44.0\% & 37.3--50.9 \\
 83 & Shorter tool list on the full stack, first pair$^{a}$ & 84/200 & 42.0\% & 35.4--48.9 \\
-78 & Full stack, first run (\texttt{iffc-state-ooda}, PR \#90) & 77/200 & 38.5\% & 32.0--45.4 \\
-11 & Vote of five on state summary (BoN $N{=}5$ on IFFC+STATE) & 73/200 & 36.5\% & 30.1--43.4 \\
+78 & Full stack, first run & 77/200 & 38.5\% & 32.0--45.4 \\
+11 & Vote of five on the state summary & 73/200 & 36.5\% & 30.1--43.4 \\
 85 & Full stack, second rerun, original tool list$^{a}$ & 72/200 & 36.0\% & 29.7--42.9 \\
 82 & Full stack, fresh rerun, original tool list$^{a}$ & 71/200 & 35.5\% & 29.2--42.3 \\
-42 & Minimal recipe: card on stop on repeats (``R42'') & 71/200 & 35.5\% & 29.2--42.3 \\
-10 & State summary (IFFC+STATE) & 68/200 & 34.0\% & 27.8--40.8 \\
+42 & Minimal recipe: card on stop on repeats & 71/200 & 35.5\% & 29.2--42.3 \\
+10 & State summary on JSON text & 68/200 & 34.0\% & 27.8--40.8 \\
 30 & Stop on repeats, gated at six steps (MIN=6) & 65/200 & 32.5\% & 26.4--39.3 \\
-5 & JSON text (IFFC) & 61/200 & 30.5\% & 24.5--37.2 \\
-9 & Guided template on native API (GST+NFC) & 61/200 & 30.5\% & 24.5--37.2 \\
-4 & Native API (NFC) & 54/200 & 27.0\% & 21.3--33.5 \\
+5 & JSON text & 61/200 & 30.5\% & 24.5--37.2 \\
+9 & Guided template on the native API & 61/200 & 30.5\% & 24.5--37.2 \\
+4 & Native API & 54/200 & 27.0\% & 21.3--33.5 \\
 27 & Stop on first repeat (ungated) & 54/200 & 27.0\% & 21.3--33.5 \\
 51 & DPO, full train & 53/200 & 26.5\% & 20.9--33.0 \\
 15 & Best SFT, repaired mix (SFT-v4) & 30/200 & 15.0\% & 10.7--20.6 \\
-46 & Tool-name automaton (PTC-A) & 27/200 & 13.5\% & 9.4--18.9 \\
+46 & Tool-name automaton & 27/200 & 13.5\% & 9.4--18.9 \\
 18 & SFT, filters on first-turn targets off$^\dagger$ (SFT-v6) & 26/200 & 13.0\% & 9.0--18.4 \\
 16 & Best SFT + state summary (SFT-v4+STATE) & 26/200 & 13.0\% & 9.0--18.4 \\
 17 & SFT, extra first-turn and state filters$^\dagger$ (SFT-v5) & 23/200 & 11.5\% & 7.8--16.7 \\
@@ -780,19 +786,44 @@ ID & Condition & Result & Acc. & 95\% interval \\
 \bottomrule
 \end{tabular}
 
-\parbox{\linewidth}{\RaggedRight\scriptsize $^\dagger$First-turn filters drop or require training examples where the first response is empty or under-specified; state filters drop continuations inconsistent with executed tool results. $^\ddagger$The two parallel-call categories are excluded because earlier runs on this server hit a tool-grammar bug that truncated multi-call output. $^{a}$Run 80 (scores.id 59) is the 10-task original list, 5/10. Run 81 (scores.id 60) is the 10-task shorter list, 8/10. Recorded calls differed from the first full-stack run on tasks 55, 69, 26, 179, and 59. The plan's gate required 0 of 10 to differ, so the gate failed. Run 82 is the 200-task original list and run 83 the 200-task shorter list (pair 1, $p=0.053$). Runs 84 (shorter list, run first) and 85 (original list) are pair 2 ($p=0.011$). Across both pairs the shorter list does better on 33 tasks and worse on 17 (sign test, $p=0.033$).}
+\parbox{\linewidth}{\RaggedRight\scriptsize $^\dagger$First-turn filters drop or require training examples where the first response is empty or under-specified; state filters drop continuations inconsistent with executed tool results. $^\ddagger$The two parallel-call categories are excluded because earlier runs on this server hit a tool-grammar bug that truncated multi-call output. $^{a}$Run 80 (scores.id 59) is the 10-task original list, 5/10. Run 81 (scores.id 60) is the 10-task shorter list, 8/10. The recorded calls differed from the first full-stack run on five tasks, so the 200-task comparison used a fresh rerun. Run 82 is the 200-task original list and run 83 the 200-task shorter list (pair 1, $p=0.053$). Runs 84 (shorter list, run first) and 85 (original list) are pair 2 ($p=0.011$). Across both pairs the shorter list does better on 33 tasks and worse on 17 (sign test, $p=0.033$).}
 \end{table}
 
 \begin{sloppypar}
 \section{Reproducibility}
 
-Hardware: MacBook Pro, Apple M4~Pro, 48~GB, with Metal acceleration (Apple's GPU interface). Earlier runs in this thesis are recorded as llama.cpp build 8111 (commit \texttt{11c325c6e}). Runs 78 and 80--85 used commit \texttt{d344123fe}, with \texttt{llama-server -{}-jinja -fa on -ngl 99 -c 65536 -{}-temp 0.0 -np 4 -cb -ub 1024}. The native-API baseline used \texttt{-np 8}. BFCL v4 via the \texttt{bfcl-eval} package (exact version per run not logged). Temperature 0 except voting (0.7, $N{=}5$, one seed). The full stack (ID 78 in Table~\ref{tab:board}) is \texttt{benchmark.db} \texttt{scores.id} 51 with log \path{sft/v13/paper_evals/runs/b_fullstack_mtb200.log}; its harness code is pull request \#90, run at commit \texttt{344ce45} and merged as \texttt{83f35ee}. The shorter-list runs are 80 (scores.id 59, 10-task original list, log \path{R81_slim/smoke_off.log}), 81 (scores.id 60, 10-task shorter list, \path{R81_slim/smoke_on.log}), 82 (scores.id 61, 200-task original list, \path{R81_slim/full_off.log}), and 83 (scores.id 62, 200-task shorter list, \path{R81_slim/full_on.log}). The second pair is runs 84 (scores.id 63, 200-task shorter list, \path{R82_confirm/full_on.log}) and 85 (scores.id 64, 200-task original list, \path{R82_confirm/full_off.log}). Opening-prompt lengths are medians from \path{R81_slim/*.metrics.jsonl}. Failure labels for the other rows are derived from the checker messages in the \texttt{eval\_errors} table. Figures are regenerated from these counts by \texttt{paper/\allowbreak{}figures/\allowbreak{}src/\allowbreak{}make\_refocus\_figs.py}. Single-call ID 79 is the simple, multiple, and irrelevance rows in the log \path{sft/v13/paper_evals/runs/a_single_turn_gemma.log}; the 91.9\% interval is that script's Wilson formula on 772/840.
+Hardware: MacBook Pro, Apple M4~Pro, 48~GB, with Metal acceleration (Apple's GPU interface). Temperature is 0 except for voting (0.7, $N{=}5$, one seed). The native API baseline used eight server slots; the runs below used four. BFCL v4 is read through the \texttt{bfcl-eval} package (the exact version per run was not logged). Failure labels come from the checker messages in the \texttt{eval\_errors} table. Figures are regenerated from these counts by \texttt{paper/\allowbreak{}figures/\allowbreak{}src/\allowbreak{}make\_refocus\_figs.py}. The 91.9\% interval is the Wilson formula on 772/840 in the single-call log.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.15}
+\caption[Runs and logs]{Runs and logs.}
+\label{tab:repro}
+\begin{tabular}{@{}rlr>{\RaggedRight\arraybackslash}p{5.6cm}@{}}
+\toprule
+Run & What & scores.id & Log \\
+\midrule
+78 & Full stack, first run & 51 & \texttt{sft/\allowbreak{}v13/\allowbreak{}paper\_evals/\allowbreak{}runs/\allowbreak{}b\_fullstack\_mtb200.log} \\
+79 & Single-call categories & & \texttt{sft/\allowbreak{}v13/\allowbreak{}paper\_evals/\allowbreak{}runs/\allowbreak{}a\_single\_turn\_gemma.log} \\
+80 & 10-task original list, 5/10 & 59 & \texttt{R81\_slim/\allowbreak{}smoke\_off.log} \\
+81 & 10-task shorter list, 8/10 & 60 & \texttt{R81\_slim/\allowbreak{}smoke\_on.log} \\
+82 & 200-task original list & 61 & \texttt{R81\_slim/\allowbreak{}full\_off.log} \\
+83 & 200-task shorter list & 62 & \texttt{R81\_slim/\allowbreak{}full\_on.log} \\
+84 & 200-task shorter list, second pair & 63 & \texttt{R82\_confirm/\allowbreak{}full\_on.log} \\
+85 & 200-task original list, second pair & 64 & \texttt{R82\_confirm/\allowbreak{}full\_off.log} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Earlier runs used llama.cpp build 8111 (commit \texttt{11c325c6e}). Runs 78 and 80--85 used commit \texttt{d344123fe}. The full stack's harness was run at commit \texttt{344ce45} and merged as \texttt{83f35ee}. Server flags for those runs: \texttt{llama-server -{}-jinja -fa on -ngl 99 -c 65536 -{}-temp 0.0 -np 4 -cb -ub 1024}. Opening-prompt lengths are medians from \texttt{R81\_slim/\allowbreak{}*.metrics.jsonl}.
+
 \end{sloppypar}
 
 \section{Shorter Tool List Checks}
 \label{app:trim}
 
-A 10-task check scored 5 of 10 with the original list and 8 of 10 with the shorter list. The recorded calls differed from the first full-stack run on five tasks. The plan required none of those ten to differ, so that check failed. The plan had paired the test with the first full-stack run (77 of 200). After the check failed, the comparison used a fresh rerun of the original list instead.
+A 10-task check scored 5 of 10 with the original list and 8 of 10 with the shorter list. The recorded calls differed from the first full-stack run on five tasks, so the 200-task comparison used a fresh rerun of the original list (77 of 200) rather than that first run.
 
 The context window is 16{,}384 tokens per request (65{,}536 shared across four slots). The opening prompt on the original list is about 5{,}000 tokens. Its median length falls from 4{,}923.5 tokens to 2{,}888, a 41\% cut (41.3\%). Mean context per request falls from 7{,}107 tokens to 4{,}990, about 30\%. Invalid tool names stay at zero (0 of 1{,}276 calls with the shorter list, 0 of 1{,}244 with the original list). Invalid arguments are 2 of 1{,}276 against 9 of 1{,}244. Format errors are 1 of 1{,}801 model replies against 0 of 1{,}773. Mean server time per model request, prompt reading plus generation, with four slots, is 15.4\,s with the shorter list and 18.8\,s with the original list (medians 12.7\,s and 15.9\,s). Most of the drop is generation (16.2\,s to 13.5\,s). Prompt reading falls from 2.53\,s to 1.86\,s.
 
