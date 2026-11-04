@@ -301,7 +301,7 @@ Same category, same model family, same hardware class as the controls:
 | CD (TagDispatch-style two-pass; **not** XGrammar-2) | 8 | 21/200 | 10.5% | −16.5 pp / −33 entries |
 | GST+NFC (He Detail template on NFC; **not** GBNF) | 9 | 61/200 | 30.5% | +3.5 pp / +7 entries |
 
-GST **ties IFFC** (61 = 61) and is **+40.0 pp / +40 entries vs CD**. The IFFC tie is a **count coincidence**, not the same 61 rows (see overlap). GST is **measured**; it does not beat IFFC on this slice.
+GST **ties IFFC** (61 = 61) and is **+20.0 pp / +40 entries vs CD**. The IFFC tie is a **count coincidence**, not the same 61 rows (see overlap). GST is **measured**; it does not beat IFFC on this slice.
 
 #### Overlap (unique `entry_id`)
 
