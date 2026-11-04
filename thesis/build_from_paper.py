@@ -85,20 +85,6 @@ CHAPTER_LABELS = {
     "sec:conclusion",
 }
 
-SHORT_LIST = {
-    "fig:vignette": "The multi-turn tool-calling loop",
-    "fig:fail": "Why multi-turn tasks fail",
-    "fig:ladder": "Multi-turn accuracy by condition",
-    "fig:gate": "Scores on the 20-task gate",
-    "tab:trim": "Shorter tool list against the original list",
-    "tab:mcnemar": "Paired tests on the 200 tasks",
-    "tab:failfull": "Primary error for each failed task",
-    "tab:mcnemar-x": "Exploratory paired tests",
-    "tab:board": "Every scored condition",
-    "tab:runs": "Every scored condition",
-    "tab:repro": "Runs and logs",
-}
-
 ABSTRACT = (
     "Small language models can run on a laptop and call tools for a user, but they often fail "
     "when a later call depends on an earlier one. This thesis studies Gemma-4-E2B-it, a model "
@@ -369,26 +355,12 @@ def raw(a, b, level="section", titles=None):
     return fix(L(a, b), level, titles)
 
 
-def add_short_captions(text):
-    """List-of-figures / list-of-tables entries are short titles, not '1. TABLE 1. full caption'."""
-
-    def repl_float(m):
-        block = m.group(0)
-        labels = re.findall(r"\\label\{([^}]+)\}", block)
-        short = next((SHORT_LIST[lab] for lab in labels if lab in SHORT_LIST), None)
-        if short is None:
-            raise SystemExit("no short list title for " + ", ".join(labels))
-        block2, n = re.subn(r"\\caption\{", r"\\caption[" + short + "]{", block, count=1)
-        if n != 1:
-            raise SystemExit("caption insert failed for " + ", ".join(labels))
-        return block2
-
-    return re.sub(
-        r"\\begin\{(?:figure|table)\}.*?\\end\{(?:figure|table)\}",
-        repl_float,
-        text,
-        flags=re.S,
-    )
+def abbreviate_figure_refs(text):
+    """Body cross-references use the sample's 'Fig. N', including a bare 'Figure 3'."""
+    text = text.replace("Figure~\\ref", "Fig.~\\ref")
+    text = text.replace("Figures 2 and 4", "Fig. 2 and 4")
+    text = text.replace("Figure 3 uses", "Fig. 3 uses")
+    return text
 
 
 def _float_span(text, label):
@@ -889,6 +861,10 @@ def check_output(tex):
         raise SystemExit("sign test not named next to p=0.033")
     if "McNemar $p=0.033$" not in tex:
         raise SystemExit("McNemar not named next to p=0.033")
+    if "Figure~\\ref" in tex or "Figures " in tex or re.search(r"\bFigure \d", tex):
+        raise SystemExit("figure cross-reference still says Figure")
+    if r"\caption[" in tex:
+        raise SystemExit("short captions would replace the full list entries")
 
 
 def main():
@@ -915,8 +891,6 @@ def main():
         ),
     }
     parts = apply_overrides(parts)
-    for key, text in list(parts.items()):
-        parts[key] = add_short_captions(text)
     parts["ch5"] = move_float_to_token(parts["ch5"], "fig:ladder", "@@LADDER@@")
     parts["ch6"] = move_float_to_token(parts["ch6"], "fig:gate", "@@GATE@@")
     parts["appC_repro"] = allow_path_breaks(parts["appC_repro"])
@@ -924,6 +898,7 @@ def main():
     tpl = (here / "main.tpl.tex").read_text()
     for k, v in parts.items():
         tpl = tpl.replace("%%" + k + "%%", v)
+    tpl = abbreviate_figure_refs(tpl)
     if "%%" in re.sub(r"%%%+", "", tpl):
         raise SystemExit("unfilled slot")
     check_output(tpl)

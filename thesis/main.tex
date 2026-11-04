@@ -65,6 +65,21 @@
 \AtBeginDocument{\RaggedRight}
 \setlength{\parskip}{0pt}
 \setlength{\bibsep}{0pt}
+% Sample references: "[n]" right-aligned at 0.25 in, the entry's first line at
+% 0.5 in, wrapped lines at 1 in. No extra gap above the first entry.
+\makeatletter
+\renewcommand\NAT@bibsetnum[1]{%
+  \settowidth{\labelwidth}{\@biblabel{#1}}%
+  \setlength{\labelsep}{0.25in}%
+  \setlength{\leftmargin}{1in}%
+  \setlength{\itemindent}{-0.5in}%
+  \setlength{\listparindent}{0pt}%
+  \setlength{\topsep}{0pt}%
+  \setlength{\partopsep}{0pt}%
+  \setlength{\itemsep}{\bibsep}%
+  \setlength{\parsep}{0pt}%
+}
+\makeatother
 
 % == Continuous figure/table numbering (sample: Table 1..6, Fig. 1..10) ==
 \counterwithout{figure}{chapter}
@@ -85,9 +100,9 @@
 %      level-2 headings flush left bold, unnumbered. ==
 \setcounter{secnumdepth}{0}  % number chapters only
 \titleformat{\chapter}[display]{\normalfont\normalsize\bfseries\centering}{\MakeUppercase{\chaptertitlename}~\thechapter}{0pt}{}
-\titlespacing*{\chapter}{0pt}{-\baselineskip}{\baselineskip}
+\titlespacing*{\chapter}{0pt}{-\baselineskip}{0pt}
 \titleformat{name=\chapter,numberless}[block]{\normalfont\normalsize\centering}{}{0pt}{}
-\titlespacing*{name=\chapter,numberless}{0pt}{-\baselineskip}{\baselineskip}
+\titlespacing*{name=\chapter,numberless}{0pt}{-\baselineskip}{0pt}
 \titleformat{\section}[block]{\normalfont\normalsize\bfseries}{}{0pt}{}
 \titlespacing*{\section}{0pt}{0pt}{0pt}
 \titleformat{\subsection}[block]{\normalfont\normalsize\bfseries\itshape}{}{0pt}{}
@@ -122,26 +137,68 @@
 \renewcommand{\cftpartleader}{\cftdotfill{\cftdotsep}}
 \setlength{\cftbeforepartskip}{0pt}
 \setlength{\cftpartindent}{0pt}
-% chapters: "1. Introduction", indented 0.5 in, dotted, not bold
+% chapters: "1. Introduction" at 0.375 in (sample tab), dotted, not bold.
+% The number box is only as wide as "1. " or "A. ", so the title follows the period.
 \renewcommand{\cftchapfont}{\normalfont}
 \renewcommand{\cftchappagefont}{\normalfont}
 \renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
 \renewcommand{\cftchapaftersnum}{.}
 \setlength{\cftbeforechapskip}{0pt}
-\setlength{\cftchapindent}{0.5in}
-\setlength{\cftchapnumwidth}{2em}
-% level-2 headings: indented 1.0 in
-\setlength{\cftsecindent}{1.0in}
+\setlength{\cftchapindent}{0.375in}
+\makeatletter
+\AtBeginDocument{%
+  \settowidth{\cftchapnumwidth}{1.\ }%
+  \settowidth{\@tempdima}{A.\ }%
+  \ifdim\@tempdima>\cftchapnumwidth
+    \setlength{\cftchapnumwidth}{\@tempdima}%
+  \fi
+}
+\makeatother
+% level-2 headings: 0.75 in, the sample's second tab
+\setlength{\cftsecindent}{0.75in}
 \setlength{\cftsecnumwidth}{0pt}
-% list entries: "1. caption", indented
-\renewcommand{\cftfigaftersnum}{.}
-\renewcommand{\cfttabaftersnum}{.}
-\setlength{\cftfigindent}{0.25in}
-\setlength{\cfttabindent}{0.25in}
-\setlength{\cftfignumwidth}{2.2em}
-\setlength{\cfttabnumwidth}{2.2em}
-\setlength{\cftbeforefigskip}{4pt}
-\setlength{\cftbeforetabskip}{4pt}
+% Lists: "1." at 0.25 in, "TABLE N." / "Fig. N." at 0.5 in, wrapped lines at 0.75 in.
+% Table entries are the full caption in capitals, as the sample prints them.
+% No extra skip between entries: the body double spacing is the line pitch.
+\setlength{\cftbeforefigskip}{0pt}
+\setlength{\cftbeforetabskip}{0pt}
+\makeatletter
+\newcommand{\thesis@listline}[3]{%
+  % #1 is the list entry (a link around \numberline{n}{caption}), #2 the page,
+  % #3 the prefix word (TABLE or Fig.).
+  \begingroup
+    \leftskip 0.75in
+    \rightskip \@tocrmarg
+    \parfillskip -\rightskip
+    \parindent 0pt
+    \interlinepenalty 10000
+    \hyphenpenalty 10000
+    \def\numberline##1##2{%
+      \hb@xt@ 0.25in{##1.\hfil}%
+      #3\ ##1.\ %
+      \ifx\thesis@uppercaps\relax
+        \MakeUppercase{##2}%
+      \else
+        ##2%
+      \fi
+    }%
+    \noindent\hspace*{-0.5in}%
+    #1%
+    \nobreak
+    \cftfigfillnum{#2}%
+  \endgroup
+}
+\renewcommand{\l@table}[2]{%
+  \ifnum\c@lotdepth>\z@
+    {\let\thesis@uppercaps\relax\thesis@listline{#1}{#2}{TABLE}}%
+  \fi
+}
+\renewcommand{\l@figure}[2]{%
+  \ifnum\c@lofdepth>\z@
+    {\def\thesis@uppercaps{0}\thesis@listline{#1}{#2}{Fig.}}%
+  \fi
+}
+\makeatother
 \cftsetrmarg{3.2em plus 1fil}
 \cftsetpnumwidth{2em}
 \renewcommand{\cftdotsep}{1}
@@ -222,7 +279,6 @@ December 2026
 
 % == Abstract (iv) ==
 \chapter*{ABSTRACT}
-\vspace{-\baselineskip}% title block directly under the heading, as in the sample
 \tocline{Abstract}
 {\centering
 State, Not Syntax: Harness Optimization for\\
@@ -251,16 +307,14 @@ The model mainly fails at choosing the next step, not at writing a call, and for
 \endgroup
 \clearpage
 \tocline{List of Tables}
-\begingroup\singlespacing\hyphenpenalty=10000
+\begingroup
 \renewcommand{\addvspace}[1]{}% drop the per-chapter 10 pt gaps so entry spacing is even
 \listoftables
 \endgroup
-\vspace{\baselineskip}
+\clearpage
 \tocline{List of Figures}
-\begingroup\singlespacing\hyphenpenalty=10000
+\begingroup
 \renewcommand{\addvspace}[1]{}% drop the per-chapter 10 pt gaps so entry spacing is even
-\let\clearpage\relax
-\let\cleardoublepage\relax
 \listoffigures
 \endgroup
 \addtocontents{lot}{\protect\noindent Table\protect\par}
@@ -319,7 +373,7 @@ GLOSSARY
 \chapter{Introduction}
 \label{sec:intro}
 
-To check a calendar or lock a car, a language model emits a \emph{tool call}: a function name plus arguments. A surrounding program, the \emph{harness}, runs the call against a \emph{backend} (here a simulated vehicle or filesystem) and feeds the result back to the model (Figure~\ref{fig:vignette}). Real tasks chain several dependent calls, which we call \emph{multi-turn} tool calling: look up a value, use it, check the outcome, and know when to stop.
+To check a calendar or lock a car, a language model emits a \emph{tool call}: a function name plus arguments. A surrounding program, the \emph{harness}, runs the call against a \emph{backend} (here a simulated vehicle or filesystem) and feeds the result back to the model (Fig.~\ref{fig:vignette}). Real tasks chain several dependent calls, which we call \emph{multi-turn} tool calling: look up a value, use it, check the outcome, and know when to stop.
 
 \begin{figure}[H]
 \centering
@@ -334,7 +388,7 @@ To check a calendar or lock a car, a language model emits a \emph{tool call}: a 
 \node[box, below=0.16cm of s2] (chk) {\textbf{Checker} compares the vehicle's \emph{final state} with a reference. Typical failure: every call was valid JSON, but the model never pressed the brake and retried, so the engine is off and the final state is wrong.};
 \draw[arr] (user) -- (s1); \draw[arr] (s1) -- (s2); \draw[arr] (s2) -- (chk);
 \end{tikzpicture}
-\caption[The multi-turn tool-calling loop]{The multi-turn tool-calling loop studied in this thesis. Grading uses the final state of the simulated backend; whether the calls parse is not enough. Illustrative, not a scored task.}
+\caption{The multi-turn tool-calling loop studied in this thesis. Grading uses the final state of the simulated backend; whether the calls parse is not enough. Illustrative, not a scored task.}
 \label{fig:vignette}
 \end{figure}
 
@@ -437,14 +491,14 @@ On three single-call BFCL categories (840 cases), Gemma-4-E2B-it through the nat
 
 \section{Most Failures Are About the World}
 
-An \emph{under-call} is a task where a required tool never ran. The loop in Figure~\ref{fig:vignette} is one. The model locks the doors and then tries to start the engine. Both of those calls are valid. The backend says the brake pedal has to be pressed first. The model never presses the brake, so that required call never ran, the engine stays off, and the check fails. A \emph{state mismatch} is the other kind: the tools did run, and the backend's final state still differs from the reference.
+An \emph{under-call} is a task where a required tool never ran. The loop in Fig.~\ref{fig:vignette} is one. The model locks the doors and then tries to start the engine. Both of those calls are valid. The backend says the brake pedal has to be pressed first. The model never presses the brake, so that required call never ran, the engine stays off, and the check fails. A \emph{state mismatch} is the other kind: the tools did run, and the backend's final state still differs from the reference.
 
-Figure~\ref{fig:fail} breaks down the failed tasks (full counts in Table~\ref{tab:failfull}). For every JSON-text condition, state mismatch is the largest bucket (53--109 tasks). With plain JSON text it is followed by empty turns (41) and under-calls (38); the native API has more empty turns (59) and far fewer under-calls (19). Harness control mainly removes empty turns: the full stack has 20, against 41 for JSON text, while its state mismatches are 68 (60 for JSON text). Because parse failures can only appear as empty turns, most of what remains is not a formatting problem.
+Fig.~\ref{fig:fail} breaks down the failed tasks (full counts in Table~\ref{tab:failfull}). For every JSON-text condition, state mismatch is the largest bucket (53--109 tasks). With plain JSON text it is followed by empty turns (41) and under-calls (38); the native API has more empty turns (59) and far fewer under-calls (19). Harness control mainly removes empty turns: the full stack has 20, against 41 for JSON text, while its state mismatches are 68 (60 for JSON text). Because parse failures can only appear as empty turns, most of what remains is not a formatting problem.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{failure_anatomy.pdf}
-\caption[Why multi-turn tasks fail]{Why tasks fail. Each bar is one condition on the same 200 tasks (* marks the first full-stack run; Constr.\ decod.\ = constrained decoding; Name autom.\ = tool-name automaton; Best SFT = best fine-tune; conditions as in Chapter~\ref{sec:setup}); its height is the number of failed tasks, split by primary error label (Chapter~\ref{sec:setup}). Harness control mostly removes empty turns (grey); wrong final states (blue) remain. Forced-valid output and the best fine-tune shift failures into under-calls (orange) and state mismatches. The shorter tool list is omitted.}
+\caption{Why tasks fail. Each bar is one condition on the same 200 tasks (* marks the first full-stack run; Constr.\ decod.\ = constrained decoding; Name autom.\ = tool-name automaton; Best SFT = best fine-tune; conditions as in Chapter~\ref{sec:setup}); its height is the number of failed tasks, split by primary error label (Chapter~\ref{sec:setup}). Harness control mostly removes empty turns (grey); wrong final states (blue) remain. Forced-valid output and the best fine-tune shift failures into under-calls (orange) and state mismatches. The shorter tool list is omitted.}
 \label{fig:fail}
 \end{figure}
 
@@ -489,7 +543,7 @@ The test we rely on counts each task once across both pairs. The shorter list do
 \begin{table}[H]
 \centering
 \footnotesize
-\caption[Shorter tool list against the original list]{Shorter tool list against the original list (same model, tasks, and other harness parts). Pair 1 compares the shorter list with a fresh run of the original list. Pair 2 runs the shorter list first. ``Shorter only'' counts tasks the shorter list solves and the original list misses. $p$ is an exact two-sided McNemar test, judged at the 0.05 level, outside Table~\ref{tab:mcnemar}. The sign test that counts each task once is in the text.}
+\caption{Shorter tool list against the original list (same model, tasks, and other harness parts). Pair 1 compares the shorter list with a fresh run of the original list. Pair 2 runs the shorter list first. ``Shorter only'' counts tasks the shorter list solves and the original list misses. $p$ is an exact two-sided McNemar test, judged at the 0.05 level, outside Table~\ref{tab:mcnemar}. The sign test that counts each task once is in the text.}
 \label{tab:trim}
 \begin{tabular}{@{}lrrrrc@{}}
 \toprule
@@ -503,12 +557,12 @@ Pair 2 & 26 & 10 & 62 & 102 & 0.011 \\
 
 A shorter list might leave more room for the state the model needs next. That is an untested guess. The shorter list is also text in the context. The repeated group description is written once. Mean context per request falls by about 30\%. Invalid tool names stay at zero for both lists.
 
-Figure~\ref{fig:ladder} puts this setup on the same scale as the other conditions. The top bar is the shorter tool list, the better of its two runs.
+Fig.~\ref{fig:ladder} puts this setup on the same scale as the other conditions. The top bar is the shorter tool list, the better of its two runs.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{ladder_n200.pdf}
-\caption[Multi-turn accuracy by condition]{Multi-turn accuracy on 200 BFCL v4 tasks, Gemma-4-E2B-it. Each bar is a separate run, not a stack of the bars below it. Bars: share of tasks fully correct; error bars: Wilson 95\% intervals. Dark green: harness control on JSON text (the first full-stack run is outlined and in bold); light green: majority vote, the compute-heavy comparison; grey: output format alone; red: forced-valid output; orange: training. Dotted line: JSON-text baseline (30.5\%). Top bar: the full stack with a shorter tool list, the better of its two runs (Table~\ref{tab:trim}).}
+\caption{Multi-turn accuracy on 200 BFCL v4 tasks, Gemma-4-E2B-it. Each bar is a separate run, not a stack of the bars below it. Bars: share of tasks fully correct; error bars: Wilson 95\% intervals. Dark green: harness control on JSON text (the first full-stack run is outlined and in bold); light green: majority vote, the compute-heavy comparison; grey: output format alone; red: forced-valid output; orange: training. Dotted line: JSON-text baseline (30.5\%). Top bar: the full stack with a shorter tool list, the better of its two runs (Table~\ref{tab:trim}).}
 \label{fig:ladder}
 \end{figure}
 
@@ -529,7 +583,7 @@ Two contrasts are firm. The best supervised fine-tune solves only 7 tasks that J
 \begin{table}[H]
 \centering
 \footnotesize
-\caption[Paired tests on the 200 tasks]{Exact two-sided McNemar tests on per-task results (200 tasks each, the same tasks). ``A only'' and ``B only'' count tasks that one condition solves and the other misses. $p$ is uncorrected; ``Corrected'' marks whether it stays below 0.05 after correcting for these eight tests (Holm's method). Full stack: JSON text + state summary + stop on repeats + status card; minimal recipe: JSON text + stop on repeats + card. Exploratory comparisons outside this family are in Table~\ref{tab:mcnemar-x}.}
+\caption{Exact two-sided McNemar tests on per-task results (200 tasks each, the same tasks). ``A only'' and ``B only'' count tasks that one condition solves and the other misses. $p$ is uncorrected; ``Corrected'' marks whether it stays below 0.05 after correcting for these eight tests (Holm's method). Full stack: JSON text + state summary + stop on repeats + status card; minimal recipe: JSON text + stop on repeats + card. Exploratory comparisons outside this family are in Table~\ref{tab:mcnemar-x}.}
 \label{tab:mcnemar}
 \begin{tabular}{@{}llrrrc@{}}
 \toprule
@@ -561,12 +615,12 @@ The first mixes scored 1/200 (0.5\%). A \emph{stop target} is a training respons
 
 \section{A Rebuilt Mix Collapsed}
 
-The best-validation checkpoint of the rebuilt mix scored 2/20 on the gate (Figure~\ref{fig:gate}).
+The best-validation checkpoint of the rebuilt mix scored 2/20 on the gate (Fig.~\ref{fig:gate}).
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{gate20.pdf}
-\caption[Scores on the 20-task gate]{20-task gate (the same 20 tasks for every bar; these are not 200-task accuracies). Error bars: Wilson 95\% intervals, in tasks. Green: the untuned model with the status card, which sets the bar (17/20). Orange: fine-tuned models, run with the card except the one marked ``no card''. Grey: the null test. ``Layout'': continued training on tool lists laid out like the test; ``stops cap'' and ``look-ups'': retrains with the stop share capped or look-up episodes added. Every model trained on the rebuilt mix fails (1--2/20), while the null test stays close to the bar. Self-distillation (training on the model's own checker-approved answers to simulated tasks) and its two rebalanced retrains land in between.}
+\caption{20-task gate (the same 20 tasks for every bar; these are not 200-task accuracies). Error bars: Wilson 95\% intervals, in tasks. Green: the untuned model with the status card, which sets the bar (17/20). Orange: fine-tuned models, run with the card except the one marked ``no card''. Grey: the null test. ``Layout'': continued training on tool lists laid out like the test; ``stops cap'' and ``look-ups'': retrains with the stop share capped or look-up episodes added. Every model trained on the rebuilt mix fails (1--2/20), while the null test stays close to the bar. Self-distillation (training on the model's own checker-approved answers to simulated tasks) and its two rebalanced retrains land in between.}
 \label{fig:gate}
 \end{figure}
 
@@ -676,7 +730,7 @@ A live finite automaton restricts the tool name to valid names while arguments a
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
-\caption[Primary error for each failed task]{Primary error per failed task (200 tasks). Native is the native API. JSON text is calls written as JSON text. Stop = stop on repeats (gated); Ungated = stop on first repeat; Summary = state summary; Minimal = minimal recipe; Full = full stack; Vote = vote of five; CD = constrained decoding; Autom.\ = tool-name automaton; SFT = best fine-tune. Labels as defined in Chapter~\ref{sec:setup}.}
+\caption{Primary error per failed task (200 tasks). Native is the native API. JSON text is calls written as JSON text. Stop = stop on repeats (gated); Ungated = stop on first repeat; Summary = state summary; Minimal = minimal recipe; Full = full stack; Vote = vote of five; CD = constrained decoding; Autom.\ = tool-name automaton; SFT = best fine-tune. Labels as defined in Chapter~\ref{sec:setup}.}
 \label{tab:failfull}
 \begin{tabular}{@{}lrrrrrrrrrrr@{}}
 \toprule
@@ -694,7 +748,7 @@ Failed & 146 & 139 & 135 & 146 & 132 & 129 & 123 & 127 & 179 & 173 & 170 \\
 \begin{table}[H]
 \centering
 \footnotesize
-\caption[Exploratory paired tests]{Exploratory McNemar tests, outside the eight-test correction family (uncorrected $p$; columns as in Table~\ref{tab:mcnemar}).}
+\caption{Exploratory McNemar tests, outside the eight-test correction family (uncorrected $p$; columns as in Table~\ref{tab:mcnemar}).}
 \label{tab:mcnemar-x}
 \begin{tabular}{@{}llrrr@{}}
 \toprule
@@ -747,7 +801,7 @@ Stop targets were 22\% of all rebuilt-mix rows, all after a tool result, a diffe
 \renewcommand{\arraystretch}{1.0}
 \centering
 \setlength{\tabcolsep}{3pt}
-\caption[Every scored condition]{Every scored condition (Gemma-4-E2B-it Q4\_K\_M). The ID is the internal log id. Interval: Wilson 95\%. Rows of 20 are screening checks, not 200-task accuracies.}
+\caption{Every scored condition (Gemma-4-E2B-it Q4\_K\_M). The ID is the internal log id. Interval: Wilson 95\%. Rows of 20 are screening checks, not 200-task accuracies.}
 \label{tab:board}\label{tab:runs}
 \scriptsize
 \setlength{\aboverulesep}{0.5pt}
@@ -802,13 +856,13 @@ ID & Condition & Result & Acc. & 95\% interval \\
 \begin{sloppypar}
 \section{Reproducibility}
 
-Hardware: MacBook Pro, Apple M4~Pro, 48~GB, with Metal acceleration (Apple's GPU interface). Temperature is 0 except for voting (0.7, $N{=}5$, one seed). The native API baseline used eight server slots; the runs below used four (Table~\ref{tab:repro}). BFCL v4 is read through the \texttt{bfcl-eval} package (the exact version per run was not logged). Failure labels come from the checker messages in the \texttt{eval\_errors} table. Figures 2 and 4 are regenerated from these counts by \texttt{paper/\allowbreak{}figures/\allowbreak{}src/\allowbreak{}make\_refocus\_figs.py}. Figure 3 uses those same counts; it is a copy of that ladder with the log abbreviations removed from two bar labels. The 91.9\% interval is the Wilson formula on 772/840 in the single-call log.
+Hardware: MacBook Pro, Apple M4~Pro, 48~GB, with Metal acceleration (Apple's GPU interface). Temperature is 0 except for voting (0.7, $N{=}5$, one seed). The native API baseline used eight server slots; the runs below used four (Table~\ref{tab:repro}). BFCL v4 is read through the \texttt{bfcl-eval} package (the exact version per run was not logged). Failure labels come from the checker messages in the \texttt{eval\_errors} table. Fig. 2 and 4 are regenerated from these counts by \texttt{paper/\allowbreak{}figures/\allowbreak{}src/\allowbreak{}make\_refocus\_figs.py}. Fig. 3 uses those same counts; it is a copy of that ladder with the log abbreviations removed from two bar labels. The 91.9\% interval is the Wilson formula on 772/840 in the single-call log.
 
 \begin{table}[H]
 \centering
 \scriptsize
 \renewcommand{\arraystretch}{1.15}
-\caption[Runs and logs]{Runs and logs.}
+\caption{Runs and logs.}
 \label{tab:repro}
 \begin{tabular}{@{}rlr>{\RaggedRight\arraybackslash}p{5.6cm}@{}}
 \toprule
