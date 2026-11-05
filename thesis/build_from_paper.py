@@ -39,7 +39,7 @@ TITLES = {
     "How sure are we?": "How Sure Are We?",
     "Public data taught the model to stop.": "Public Data Taught the Model to Stop",
     "A rebuilt mix collapsed.": "A Rebuilt Mix Collapsed",
-    "A candidate cause that targeted retrains did not confirm.": "Two Targeted Retrains Ruled Out That Shift as the Sole Cause",
+    "A candidate cause that targeted retrains did not confirm.": "A Candidate Cause That Targeted Retrains Did Not Confirm",
     "State, not syntax.": "State, Not Syntax",
     "The guided-template tie.": "The Guided-Template Tie",
     "What we recommend.": "What We Recommend",
@@ -100,8 +100,9 @@ ABSTRACT = (
     "these tasks.\n"
     "\n"
     "The model mainly fails at choosing the next step, not at writing a call, and forcing valid "
-    "syntax made results worse. The compact list helps because it cuts context use by about "
-    "30\\% and leaves the state the model needs in view. Without the compact list, the harness raised "
+    "syntax made results worse. The compact list cuts context use by about 30\\%, and the likely "
+    "reason it helps is that this leaves the state the model needs in view. Without the compact "
+    "list, the harness raised "
     "accuracy from 30.5\\% (JSON text) to 38.5\\% in its first run. That gain is positive but "
     "does not survive correction for multiple comparisons. Fine-tuning did not beat the "
     "untuned model.\n"
@@ -128,8 +129,8 @@ CONTRIBUTIONS = r"""Our contributions:
 
 \begin{enumerate}
   \item \textbf{A harness plus a compact tool list.} The weights stay fixed. The program around the model records the current state, stops repeated calls, and shows a short card advising the next move. On that harness, writing the same tool list more compactly helps further, and that gain replicated (Chapter~\ref{sec:helps}).
-  \item \textbf{Where the failures are.} The model fails at choosing the next step. A needed call never happens, or the backend ends in the wrong state. The failure analysis is why we built the harness. The compact list helps because it cuts context use and reduces drift over long episodes, which leaves the state the model needs in view (Chapter~\ref{sec:helps}). Forcing each call into valid syntax makes results worse (Chapter~\ref{sec:fail}).
-  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The rebuilt training data is the leading cause we identified, and two targeted retrains showed the act-versus-stop shift is not the sole cause (Chapter~\ref{sec:train}).
+  \item \textbf{Where the failures are.} The model fails at choosing the next step. A needed call never happens, or the backend ends in the wrong state. The failure analysis is why we built the harness. The compact list cuts context use, which is the likely reason it helps (Chapter~\ref{sec:helps}). Forcing each call into valid syntax makes results worse (Chapter~\ref{sec:fail}).
+  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The rebuilt training data is the leading suspect, with training length the other candidate (Chapter~\ref{sec:train}).
 \end{enumerate}"""
 
 CH2_INTRO = (
@@ -269,7 +270,7 @@ Pair 2 & 26 & 10 & 62 & 102 & 0.011 \\
 \end{tabular}
 \end{table}
 
-The compact list helps because it cuts context use (mean context per request falls about 30\%, from about 7{,}100 to 5{,}000 tokens) and reduces the model's drift over long multi-turn episodes, which leaves the state it needs in view. The compact list is also text in the context. Invalid tool names stay at zero for both lists.
+The compact list cuts context use: mean context per request falls about 30\%, from about 7{,}100 to 5{,}000 tokens. The likely reason it helps is that a shorter context reduces the model's drift over long multi-turn episodes and leaves the state it needs in view. We did not test that explanation directly. The compact list is also text in the context. Invalid tool names stay at zero for both lists.
 
 Figure~\ref{fig:ladder} puts this setup on the same scale as the other conditions. The top bar is the shorter tool list, the better of its two runs.
 
@@ -288,7 +289,8 @@ Here no trained model beat the untuned model. The best supervised fine-tune scor
 CH6_POINTER = (
     "Self-distillation trains the model on its own answers to simulated tasks, keeping only the turns a checker marked correct. "
     "The suspected cause was a shift in that data, toward stopping and away from look-up calls. "
-    "Two targeted retrains ruled out that shift as the sole cause. The counts are in Appendix~\\ref{app:train}."
+    "Two targeted retrains that corrected that shift scored 14 and 12 of 20, below the bar of 17 but not clearly separable from it on 20 tasks, "
+    "so they neither confirm nor rule out the shift as the cause. The counts are in Appendix~\\ref{app:train}."
 )
 CH6_CLOSER = (
     "Fine-tuning changed the weights and did not beat the untuned model. "
@@ -297,7 +299,7 @@ CH6_CLOSER = (
 
 DISCUSSION_STATE = r"""\section{State, Not Syntax}
 
-Across these conditions, the hard part is choosing the next step from the current state of the world, including whether to stop. Writing a valid call is the easy part. The levers that help are the ones that support that decision: a summary of real results, a gated stop, and a card that mainly controls whether the model acts. The compact list helps because it cuts context use by about 30\% and reduces drift over long episodes, which leaves the state the model needs in view (Chapter~\ref{sec:helps}). The state summary was meant to put lost facts back in view. What falls, instead, is the number of empty turns. Among the labelled runs, none of the levers reduces state mismatches, and those remain the largest failure type, so the gains come from calling or stopping at the right moment. State tracking remains the main failure, as the state mismatch counts show. Levers that constrain the written form hurt, and training shifted the balance between acting and stopping rather than improving that tracking."""
+Across these conditions, the hard part is choosing the next step from the current state of the world, including whether to stop. Writing a valid call is the easy part. The levers that help are the ones that support that decision: a summary of real results, a gated stop, and a card that mainly controls whether the model acts. The compact list cuts context use by about 30\%, and the likely reason it helps is that this reduces drift over long episodes and leaves the state the model needs in view (Chapter~\ref{sec:helps}). The state summary was meant to put lost facts back in view. What falls, instead, is the number of empty turns. Among the labelled runs, none of the levers reduces state mismatches, and those remain the largest failure type, so the gains come from calling or stopping at the right moment. State tracking remains the main failure, as the state mismatch counts show. Levers that constrain the written form hurt, and training shifted the balance between acting and stopping rather than improving that tracking."""
 
 RECOMMEND = r"""\section{What We Recommend}
 
@@ -320,8 +322,8 @@ CONCLUSION = (
     "the same runs as the 35.5\\% and 36.0\\% full-stack reruns. All of these runs used the same "
     "200 tasks. The gain from that shorter list replicated. The model fails at choosing the next "
     "step, not at writing a call. The failure analysis is why we built the harness. The compact "
-    "list helps because it cuts context use by about 30\\% and leaves the state the model needs "
-    "in view. Without the compact list, the harness raises "
+    "list cuts context use by about 30\\%, and the likely reason it helps is that this leaves the "
+    "state the model needs in view. Without the compact list, the harness raises "
     "accuracy from 30.5\\% to 38.5\\% in its first run; two reruns scored 35.5\\% and 36.0\\%. "
     "That gain is positive but does not survive correction for multiple comparisons. "
     "Forcing valid syntax made results worse, and fine-tuning did not beat the untuned model. "
@@ -714,19 +716,19 @@ def apply_overrides(parts):
         "null test once",
     )
     parts["ch6"], cause = cut_heading_block(
-        parts["ch6"], "section", "Two Targeted Retrains Ruled Out That Shift as the Sole Cause"
+        parts["ch6"], "section", "A Candidate Cause That Targeted Retrains Did Not Confirm"
     )
     cause = cause.replace("\\section{", "\\subsection{", 1)
     cause = must_replace(
         cause,
         r"Neither passed, so the data are \emph{consistent with}, but do not establish, a shift in the decision mix (stop versus continue, look up versus act) as the cause.",
-        r"Neither passed, so that shift in the decision mix (stop versus continue, look up versus act) is not the sole cause.",
+        r"Neither reached the bar, but on 20 tasks neither is clearly separable from it, so these retrains neither confirm nor rule out that shift in the decision mix (stop versus continue, look up versus act) as the cause.",
         "retrain sole cause",
     )
     parts["ch6"] = must_replace(
         parts["ch6"],
         "so its data are the leading suspect but not the only one.\n",
-        "so its data are the leading cause identified, with training length the other candidate.\n\n" + CH6_POINTER + "\n",
+        "so its data are the leading suspect, with training length the other candidate.\n\n" + CH6_POINTER + "\n",
         "gate token",
     )
     parts["ch6"] = must_replace(
@@ -933,8 +935,11 @@ def check_output(tex):
         raise SystemExit("best-setup section missing")
     if re.search(r"[Ss]horter(?: tool|-) list|[Ss]horter only", tex):
         raise SystemExit("shorter list name remains")
-    if "untested guess" in tex or "likely reason" in tex or "did not test why" in tex:
+    if "untested guess" in tex or "did not test why" in tex:
         raise SystemExit("compact-list hedge remains")
+    for banned in ("list helps because", "sole cause", "leading cause"):
+        if banned in tex:
+            raise SystemExit("unsupported causal wording came back: " + banned)
     if "fig:compact" not in tex:
         raise SystemExit("compact-list figure missing")
     if r"\section{Shorter Tool List, Same Tools}" in tex:
