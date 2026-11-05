@@ -86,26 +86,26 @@ CHAPTER_LABELS = {
 }
 
 ABSTRACT = (
-    "Small language models can run on a laptop and call tools for a user, but they often fail "
+    "Small language models can run on a laptop and call tools, but they often fail "
     "when a later call depends on an earlier one. This thesis studies Gemma-4-E2B-it, a model "
     "with about two billion effective parameters, on 200 multi-turn tasks from the Berkeley "
     "Function Calling Leaderboard. A task is correct only when a simulated backend ends in the "
     "right state, such as a car's engine being on.\n"
     "\n"
     "The best setup leaves the weights fixed. A harness, the program around the model, writes "
-    "calls as JSON text, records the current state, stops repeated calls, and shows a short "
-    "card advising the next move. Writing the tool list more compactly on that harness gave "
-    "the best result: 88 of 200 (44.0\\%) in its better run and 84 of 200 (42.0\\%) in the other. "
-    "The original list scored 71 and 72 of 200 in the same two runs, so the gain held up on "
-    "these tasks.\n"
+    "calls as JSON text, records the current state, stops repeated calls, and shows a short card "
+    "advising the next move. On that harness, a compact tool list (the same tools, with each "
+    "group's shared description stated once) gave the best result: 88 of 200 (44.0\\%) in one "
+    "run and 84 of 200 (42.0\\%) in another. The original list scored 71 and 72 of 200 in the "
+    "matching runs, so the gain held both times.\n"
     "\n"
     "The model mainly fails at choosing the next step, not at writing a call, and forcing valid "
-    "syntax made results worse. The compact list cuts context use by about 30\\%, and the likely "
-    "reason it helps is that this leaves the state the model needs in view. Without the compact "
-    "list, the harness raised "
-    "accuracy from 30.5\\% (JSON text) to 38.5\\% in its first run. That gain is positive but "
-    "does not survive correction for multiple comparisons. Fine-tuning did not beat the "
-    "untuned model.\n"
+    "syntax made results worse. The compact list makes the prompt sent with each request about "
+    "30\\% shorter, which likely helps by keeping the state the model needs in view. "
+    "Without the compact list, the harness raised accuracy from 30.5\\% for JSON text alone to "
+    "38.5\\% in its first run, a gain that is not significant after correcting for multiple "
+    "comparisons. Fine-tuning did not improve accuracy: the best fine-tuned model scored "
+    "15.0\\%, below the untuned model's 30.5\\%.\n"
 )
 
 # Strings that must already appear in paper/main.tex, with the same meaning.
@@ -123,14 +123,20 @@ ABSTRACT_SOURCES = [
     "first run",
     "untested guess",
     "not significant after correcting for multiple comparisons",
+    "15.0\\%",
+    "about 30\\%",
 ]
 
-CONTRIBUTIONS = r"""Our contributions:
+CONTRIBUTIONS = r"""
+
+\section{Contributions}
+
+This thesis makes three contributions.
 
 \begin{enumerate}
   \item \textbf{A harness plus a compact tool list.} The weights stay fixed. The program around the model records the current state, stops repeated calls, and shows a short card advising the next move. On that harness, writing the same tool list more compactly helps further, and that gain replicated (Chapter~\ref{sec:helps}).
-  \item \textbf{Where the failures are.} The model fails at choosing the next step. A needed call never happens, or the backend ends in the wrong state. The failure analysis is why we built the harness. The compact list cuts context use, which is the likely reason it helps (Chapter~\ref{sec:helps}). Forcing each call into valid syntax makes results worse (Chapter~\ref{sec:fail}).
-  \item \textbf{Fine-tuning did not help.} The best supervised fine-tune scores below the untuned model, and preference tuning does not beat it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The rebuilt training data is the leading suspect, with training length the other candidate (Chapter~\ref{sec:train}).
+  \item \textbf{Where the failures are.} The model fails at choosing the next step. A needed call never happens, or the backend ends in the wrong state. The failure analysis is why we built the harness. The compact list makes the prompt about 30\% shorter, which is the likely reason it helps (Chapter~\ref{sec:helps}). Forcing each call into valid syntax makes results worse (Chapter~\ref{sec:fail}).
+  \item \textbf{Fine-tuning did not improve the model.} The results show that fine-tuning did not raise accuracy over the untuned model. The best supervised fine-tune scored 15.0\%, below the untuned model's 30.5\% with the same JSON-text calls, and preference tuning scored 26.5\%, statistically level with it. A fine-tune on the untuned model's own logged answers, which should change nothing if the training steps are sound, stayed close to the untuned model. The rebuilt training data is the leading suspect, with training length the other candidate (Chapter~\ref{sec:train}).
 \end{enumerate}"""
 
 CH2_INTRO = (
@@ -293,7 +299,7 @@ CH6_POINTER = (
     "so they neither confirm nor rule out the shift as the cause. The counts are in Appendix~\\ref{app:train}."
 )
 CH6_CLOSER = (
-    "Fine-tuning changed the weights and did not beat the untuned model. "
+    "Fine-tuning changed the weights but did not improve accuracy over the untuned model. "
     "The next chapter asks what that means for someone choosing a method."
 )
 
@@ -322,11 +328,12 @@ CONCLUSION = (
     "the same runs as the 35.5\\% and 36.0\\% full-stack reruns. All of these runs used the same "
     "200 tasks. The gain from that shorter list replicated. The model fails at choosing the next "
     "step, not at writing a call. The failure analysis is why we built the harness. The compact "
-    "list cuts context use by about 30\\%, and the likely reason it helps is that this leaves the "
-    "state the model needs in view. Without the compact list, the harness raises "
+    "list makes the prompt the model reads with each request about 30\\% shorter, and the likely "
+    "reason it helps is that this leaves the state the model needs in view. Without the compact list, the harness raises "
     "accuracy from 30.5\\% to 38.5\\% in its first run; two reruns scored 35.5\\% and 36.0\\%. "
     "That gain is positive but does not survive correction for multiple comparisons. "
-    "Forcing valid syntax made results worse, and fine-tuning did not beat the untuned model. "
+    "Forcing valid syntax made results worse. The results also show that fine-tuning did not "
+    "improve the model: the best fine-tune scored 15.0\\%, below the untuned model's 30.5\\%. "
     "Among the labelled runs, wrong final states remain the largest failure type. For a local "
     "agent, these changes are also far cheaper than voting or training.\n"
 )

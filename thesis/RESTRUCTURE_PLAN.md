@@ -38,14 +38,14 @@ Dr. Mohammad Pourhomayoun). Output: a separate document, `thesis/main.tex` built
 | Abstract | ABSTRACT (p. iv) | Same text; heading block as in sample |
 | (none) | ACKNOWLEDGMENTS commented out | Not printed. There is no Acknowledgments page. Uncomment the three lines in `main.tpl.tex` to restore the page and its table-of-contents entry |
 | (none) | TABLE OF CONTENTS, LIST OF TABLES, LIST OF FIGURES, then GLOSSARY | Generated. The glossary is the old Appendix C glossary, moved forward. List entries use a short title, not "1. TABLE 1." |
-| 1 Introduction (incl. Figure 1 vignette) | Chapter 1 Introduction | Contributions and the roadmap have no result counts. The roadmap is three sentences |
+| 1 Introduction (incl. Figure 1 vignette) | Chapter 1 Introduction | Contributions is a level-2 heading (advisor, Nov 5). The roadmap is three sentences |
 | 2 Background and Related Work | Chapter 2 Background and Related Work | Run-in `\paragraph` labels become level-2 headings |
 | 3 Setup and Methods | Chapter 3 Setup and Methods | Same |
 | 4 Where Small Models Fail | Chapter 4 Where Small Models Fail | Same |
 | 5 What Helps: Harness-Side Control | Chapter 5 What Helps: Harness-Side Control | Same |
-| 6 Fine-Tuning Did Not Help | Chapter 6 Fine-Tuning Did Not Help | Same, one em-dash pair changed to commas |
+| 6 Fine-Tuning Did Not Help | Chapter 6 Fine-Tuning | Title shortened at the advisor's request (Nov 5); one em-dash pair changed to commas |
 | 7 Discussion and Limitations | Chapter 7 Discussion (Limitations is a level-2 heading inside it) | Chapter title shortened |
-| 8 Future Work and Conclusion | Chapter 8 Future Work and Conclusion | Future Work section, then a Conclusion section. The conclusion is last |
+| 8 Future Work and Conclusion | Chapter 8 Conclusions and Future Work | Conclusions section, then a Future Work section (advisor's order, Nov 5) |
 | References | REFERENCES | Same bibliography (`paper/references.bib`) |
 | Appendix A Intervention details | Appendix A Intervention Details | Title Case |
 | Appendix B Failure labels, exploratory tests and training history (B.1 Training history) | Appendix B Failure Labels, Exploratory Tests and Training History (section "Training History"; its run-in labels such as Version History are subsections under it) | No lone "B.1" heading. Chapters 3 and 6 point at this section with `\ref{app:train}` |
@@ -68,7 +68,7 @@ The committee chair is Dr. Mohammad Pourhomayoun. The department chair is Dr. Ch
 
 1. Cross-references "Section N" now read "Chapter N" (chapters replaced sections).
 2. Run-in paragraph labels (e.g. "Benchmark.") are now Title Case level-2 headings without the period (e.g. "Benchmark").
-3. The run-in label "Conclusion." was dropped. Chapter 8 is "Future Work and Conclusion": a Future Work section, then a Conclusion section.
+3. The run-in label "Conclusion." was dropped. Chapter 8 is "Conclusions and Future Work": a Conclusions section, then a Future Work section.
 4. Chapter 7 title "Discussion and Limitations" became "Discussion". Limitations is one of its sections.
 5. Appendix titles in Title Case.
 6. Chapter 6, one sentence: the em-dash pair around "training on the model's own answers ... marked correct" became commas.
