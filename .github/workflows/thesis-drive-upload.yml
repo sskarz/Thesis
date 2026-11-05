@@ -1,0 +1,37 @@
+# Upload the committed CSULA thesis PDF to Google Drive whenever it changes on main.
+# It overwrites the existing Drive file in place, so the file id and link stay the same.
+# Setup (one time): docs/DRIVE_AUTOUPLOAD.md.
+name: Thesis PDF to Drive
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - thesis/Thesis_CSULA_Format.pdf
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thesis-drive-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Google API client
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet google-api-python-client==2.190.0 google-auth==2.55.0
+
+      - name: Replace the Drive file's contents
+        env:
+          GDRIVE_SA_KEY: ${{ secrets.GDRIVE_SA_KEY }}
+          GDRIVE_FILE_ID: ${{ vars.GDRIVE_THESIS_FILE_ID || '1a80RKhDKND6hQ-isJn_AoXkoLIIhOVUH' }}
+          PDF_PATH: thesis/Thesis_CSULA_Format.pdf
+        run: .venv/bin/python .github/scripts/upload_thesis_pdf.py
