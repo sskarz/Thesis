@@ -47,9 +47,9 @@ Dr. Mohammad Pourhomayoun). Output: a separate document, `thesis/main.tex` built
 | 7 Discussion and Limitations | Chapter 7 Discussion (Limitations is a level-2 heading inside it) | Chapter title shortened |
 | 8 Future Work and Conclusion | Chapter 8 Conclusions and Future Work | Conclusions section, then a Future Work section (advisor's order, Nov 5) |
 | References | REFERENCES | Same bibliography (`paper/references.bib`) |
-| Appendix A Intervention details | Appendix A Intervention Details | Title Case |
-| Appendix B Failure labels, exploratory tests and training history (B.1 Training history) | Appendix B Failure Labels, Exploratory Tests and Training History (section "Training History"; its run-in labels such as Version History are subsections under it) | No lone "B.1" heading. Chapters 3 and 6 point at this section with `\ref{app:train}` |
-| Appendix C Full scoreboard, reproducibility and glossary | Appendix C Full Scoreboard and Reproducibility | Glossary moved to the front matter. Shorter-list checks (the 10-task protocol and the token and timing counts) are a section here. The pooled row and the first-token timing check are not copied |
+| Appendix A Intervention details | (folded into Chapter 3, Harness Interventions) | Advisor review, Nov 5: each rule's details now sit in the Chapter 3 bullet for that intervention; the appendix is gone |
+| Appendix B Failure labels, exploratory tests and training history (B.1 Training history) | Appendix A Failure Labels, Exploratory Tests and Training History (section "Training History" is a three-paragraph summary) | Advisor review, Nov 5: the training-history subsections became one short summary. Chapters 3 and 6 point at it with `\ref{app:train}` |
+| Appendix C Full scoreboard, reproducibility and glossary | Appendix B Full Scoreboard and Reproducibility | Glossary moved to the front matter. Advisor review, Nov 5: the runs-and-logs table and commit ids were cut from Reproducibility, and the scoreboard's compact-list footnote points to the checks section. Compact-list checks are a section here |
 
 Figures and tables follow `paper/main.tex`: Fig. 1 (loop vignette), Fig. 2 (failure anatomy),
 Fig. 3 (ladder), Fig. 4 (20-task gate); Table 1 (shorter tool list), Table 2 (McNemar),
