@@ -373,7 +373,7 @@ The rest of this thesis is organized as follows. Chapters~\ref{sec:related} and~
 
 %%ch5%%
 
-\chapter{Fine-Tuning Did Not Help}
+\chapter{Fine-Tuning}
 \label{sec:train}
 
 %%ch6%%
@@ -383,14 +383,14 @@ The rest of this thesis is organized as follows. Chapters~\ref{sec:related} and~
 
 %%ch7%%
 
-\chapter{Future Work and Conclusion}
+\chapter{Conclusions and Future Work}
 \label{sec:conclusion}
 
-%%ch8_future%%
-
-\section{Conclusion}
+\section{Conclusions}
 
 %%ch8_concl%%
+
+%%ch8_future%%
 
 %======================== BACK MATTER ========================
 \clearpage
@@ -409,11 +409,6 @@ The rest of this thesis is organized as follows. Chapters~\ref{sec:related} and~
 \addtocontents{toc}{\protect\renewcommand{\protect\cftchapaftersnum}{.}}
 \renewcommand{\chaptertitlename}{Appendix}
 
-\chapter{Intervention Details}
-\label{app:method}
-
-%%appA%%
-
 \chapter{Failure Labels, Exploratory Tests and Training History}
 \label{app:fail}
 
@@ -422,7 +417,7 @@ The rest of this thesis is organized as follows. Chapters~\ref{sec:related} and~
 \section{Planned Comparisons}
 \label{app:stats}
 
-Eight comparisons were planned as one family. The family covers the full stack and the minimal recipe against their baselines, the switch from the native API to JSON text, and the best fine-tune. Four of the eight use the full stack, and the family was fixed after that configuration was built. Four single-lever comparisons were left out of the family (Table~\ref{tab:mcnemar-x}): the state summary against JSON text, the vote against the state summary, stop on repeats against JSON text, and the minimal recipe against stop on repeats. The raw $p$-value is reported, and so is whether Holm's correction~\cite{holm1979} changes the conclusion. That correction keeps the chance of any false alarm among the eight tests at 5\%.
+Eight comparisons were planned as one family. The family covers the full stack and the minimal recipe against their baselines, the switch from the native API to JSON text, and the best fine-tune. Four of the eight use the full stack, and the family was fixed after that configuration was built. Four single-lever comparisons were left out of the family (Table~\ref{tab:mcnemar-x}): the state summary against JSON text, the vote against the state summary, stop on repeats against JSON text, and the minimal recipe against stop on repeats. The raw $p$-value is reported, and so is whether Holm's correction~\cite{holm1979} changes the conclusion.
 
 The compact tool list is not one of those eight tests. It is judged at the 0.05 level. It was run as two pairs, the second in the opposite order. To combine the pairs, count how many of its two runs each list solved for each task, and apply an exact two-sided sign test to the tasks where the counts differ.
 
