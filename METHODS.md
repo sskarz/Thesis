@@ -668,6 +668,8 @@ Local source code analysis: `llama.cpp/common/chat.cpp`, `llama.cpp/common/json-
 
 llama.cpp [PR #30362](https://github.com/ggml-org/llama.cpp/pull/30362) (merged 2026-10-14; "jinja : write floats in tojson as Python does") fixes the chat-template engine that previously wrote floats through a C++ stream: at most 6 significant digits, and the trailing `.0` dropped (`1.0` → `1`). Numbers in tool definitions and past tool-call arguments could reach the model changed. The first published release that includes the fix is **b11622** (2026-10-14). **b11620 and older** do not include it. There is no published tag **b11625**. This could cause a train/serve text mismatch versus MLX Python Jinja. **Unverified** whether this harness hits that code path. **Not a numbered method. Not scored. Do not invent Acc.**
 
+**FYI (2026-11-09, not a candidate):** llama.cpp build **b12199** (Nov 8, [PR #31861](https://github.com/ggml-org/llama.cpp/pull/31861)) sanitizes invalid UTF-8 in PEG-parsed tool call arguments. **Not a numbered method. Not scored.**
+
 ---
 
 ## Experiment: TagDispatch-style CD (`--fc-mode cd`)
@@ -1405,6 +1407,10 @@ Training-time counterpart to the inference-time IFFC channel. **v1 and v2 both s
 
 - **2026-11-02 candidate sweep:** [§71 SynthAPI](#71-synthapi-controllable-tool-environment-synthesis-and-scaling-laws) (`CANDIDATE`), [§72 CGAP](#72-cgap-capability-grounded-agentic-planning) (`CANDIDATE`), [§73 EvoMCP](#73-evomcp-co-evolving-mcp-agents-and-training-data) (`CANDIDATE`).
 
+**Related options (logged 2026-11-09, all `CANDIDATE` / not run; paper numbers are theirs; docs only, no Acc/train from this pass):**
+
+- **2026-11-09 candidate:** [§74 CAREFUL-Bench](#74-careful-bench-effect-aware-judge-free-evaluation) (`CANDIDATE` / not run). Evaluation layer over pinned bfcl-eval 2026.3.23, not a training or inference method. Judge-free replay of logged BFCL multi-turn runs. Reference only: no more thesis experiments (Sanskar, Nov 3).
+
 **Skipped this round (2026-10-29):** EnvSched (arXiv:2610.37609), CASEL (arXiv:2610.36570), FlashScript (arXiv:2610.33876), Context-as-pipeline (arXiv:2610.36114), MCP-Injector faults (arXiv:2610.32555). The five abs pages resolved on 2026-10-29. No thesis-critical llama.cpp tool-calling changes Oct 22-29.
 
 Planning with Sanskar next. Scaffolding (unscored): `sft/format_apigen_mt.py`, `sft/build_mix_v7.py`, `sft/mix_stats_v7.py`, registry key `gemma4-e2b-sft-iffc-v7`. Hub Accept on `Salesforce/APIGen-MT-5k` (CC-BY-NC) is required before download. No thin-filter-only ToolACE+xLAM remakes. No BoN on collapsed/below-IFFC SFT. No more epochs on failed mixes.
@@ -2128,6 +2134,7 @@ Do **not**: more epochs on the v1 mix **or** the v2 filtered mix **or** the v4 m
 - Szot, Abnar, Attia, Kazerouni, Kirchhof, Hsieh, Vemulapalli, & Toshev. Scaling Laws for Tool-Use Agents via Controllable Environment Synthesis (SynthAPI). arXiv:2610.37648. https://arxiv.org/abs/2610.37648 ([§71](#71-synthapi-controllable-tool-environment-synthesis-and-scaling-laws); **`CANDIDATE` / not run**; BFCL v3 multi-turn, all 800 tasks, not our 200-item sheet; Qwen3.5-4B zero-shot 27.3 to SynthAPI-Big 51.1 is theirs; no data or code release link in the paper)
 - Shrestha, Yeoh, Zhang, & Vorobeychik. Capability-Grounded Agentic Planning (CGAP). arXiv:2610.41040. https://arxiv.org/abs/2610.41040 ([§72](#72-cgap-capability-grounded-agentic-planning); **`CANDIDATE` / not run**; BFCL v4 multi-turn, stratified 200-conversation subset, not our sheet; smallest model tested is gpt-oss-20b; no code link found)
 - Gao, Lin, Shi, Deng, Shen, Meng, Wu, Yang, & Liu. EvoMCP: Co-Evolving MCP Agents and Training Data. arXiv:2610.41479. https://arxiv.org/abs/2610.41479 ([§73](#73-evomcp-co-evolving-mcp-agents-and-training-data); **`CANDIDATE` / not run**; no BFCL; student Qwen3.6-27B; Toolathlon 36.9 to 53.4 is theirs; code https://github.com/xagao/EvoMCP)
+- Kovalenko & Redchych. CAREFUL-Bench: Effect-Aware, Judge-Free Evaluation of Multi-Turn LLM Function Calling. arXiv:2611.02978. https://arxiv.org/abs/2611.02978 ([§74](#74-careful-bench-effect-aware-judge-free-evaluation); **`CANDIDATE` / not run**; evaluation layer, not a training or inference method; bfcl-eval 2026.3.23; 322 of 734 base turns are destructive without confirmation; Llama-xLAM-2-8B loses 14.5 on base, not our sheet; no code URL in the v2 PDF)
 - Zhao et al. "Calibration is the Bottleneck" (GAR). arXiv:2609.00949. https://arxiv.org/abs/2609.00949 (Acc ≤ GAR; SRI/CRI can hurt Acc — frames Run 27 ungated miss; Run 30 gated recover past IFFC)
 - Zhang, J., et al. "xLAM: A Family of Large Action Models to Empower AI Agent Systems." arXiv:2409.03215, 2024.
 - mlx-lm LoRA: https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md
@@ -2279,6 +2286,7 @@ Each method in this section involves modifying model weights — via supervised 
 - [71. SynthAPI](#71-synthapi-controllable-tool-environment-synthesis-and-scaling-laws) (`CANDIDATE`)
 - [72. CGAP](#72-cgap-capability-grounded-agentic-planning) (`CANDIDATE`)
 - [73. EvoMCP](#73-evomcp-co-evolving-mcp-agents-and-training-data) (`CANDIDATE`)
+- [74. CAREFUL-Bench](#74-careful-bench-effect-aware-judge-free-evaluation) (`CANDIDATE`)
 - [20. End-to-End Agent RL (Agent-R1 / VerlTool)](#20-end-to-end-agent-rl-agent-r1--verltool)
 - [21. DiaTool-DPO: Preference Optimization for Multi-Turn Tool Calling](#21-diatool-dpo-preference-optimization-for-multi-turn-tool-calling)
 - [22. Knowledge Distillation for Tool Calling](#22-knowledge-distillation-for-tool-calling) (survey; Choice/router KD **path B first** ranking **PASS**; Acc harness IMPL **CONFIRM_PASS_WITH_FLAGS**; Run 64 Acc **11/200 = 5.5% scored FAIL**; ranking ≠ Acc; Acc remains **not** a GO)
@@ -4557,6 +4565,50 @@ Paper results (Gao et al., 2026; Table 1; **theirs**). Student Qwen3.6-27B. **No
 Gao, X., Lin, K., Shi, X., Deng, Y., Shen, S., Meng, C., Wu, X., Yang, J., & Liu, W. "EvoMCP: Co-Evolving MCP Agents and Training Data." arXiv:2610.41479, 2026. https://arxiv.org/abs/2610.41479
 
 Code: https://github.com/xagao/EvoMCP
+
+---
+
+## 74. CAREFUL-Bench: Effect-Aware, Judge-Free Evaluation
+
+### Overview
+
+CAREFUL-Bench (Kovalenko & Redchych, 2026) is a judge-free replay scorer over pinned bfcl-eval 2026.3.23. It re-scores any logged BFCL multi-turn run. Next to the official score, it counts unrequested destructive calls, duplicate writes, redundant reads, failed calls, surplus steps, and their token cost. An optional confirmation-aware protocol adds a deterministic scripted user that answers proposals. The arXiv title is "CAREFUL-Bench: Effect-Aware, Judge-Free Evaluation of Multi-Turn LLM Function Calling". The name expands to Confirmation-Aware Replay Evaluation of Function calling Under effect Labels.
+
+**Train vs infer: neither** (evaluation layer, not a training or inference method). **Tag: `CANDIDATE` / not run. HIGH-MEDIUM.** Logged 2026-11-09 (docs only). Related to [EffectWorld §69](#69-effectworld-effect-typed-tool-traces). **No blanket GRPO. No new runs.**
+
+### Mechanism
+
+1. Effect declarations for all 128 multi-turn functions come from executing each function in the BFCL simulators and diffing the state. Four annotators (two humans and two language models, Fleiss kappa 0.75) label which writes are destructive, and the labels are adjudicated.
+2. The scorer reads a result file in the form `bfcl generate` writes, replays each call, and reports the counts above beside the official score. A release test reproduces BFCL results on all 800 reference trajectories. Failed calls are a replay rule in Section 5; the abstract's shorter report list names unrequested destructive calls, duplicate writes, redundant reads, surplus steps, and their token cost.
+3. The optional protocol inserts a deterministic scripted user that answers proposals, so a model that asks can continue inside the same turn.
+
+### Evidence
+
+Paper results (Kovalenko & Redchych, 2026; abstract, Section 3, Section 7, and Table 3; **theirs**). Pinned **bfcl-eval 2026.3.23**. Not our 200-item `multi_turn_base` sheet, and not our harness.
+
+- It reproduces BFCL results on all **800** reference trajectories.
+- In `multi_turn_base`, **322 of 734** reference turns make a destructive call without confirmation. The **1,142** reference calls split into **342** destructive, **268** other writes, and **532** reads.
+- Across **11** open models up to 8B, the effect-aware score keeps the official ranking (Spearman rho **0.98** on the base runs; rho **1.00** on the four-category mean). The leader, Llama-xLAM-2-8B, loses **14.5** points on base (Table 3: **77.0** to **62.5**).
+- Base official vs effect-safe: Qwen3-4B-2507 **26.0** vs **24.5**, Qwen3-1.7B **15.0** vs **13.5**, xLAM-2-3B **72.5** vs **68.5**.
+- Surplus steps take **2 to 28%** of input tokens.
+- Effect hints in the tool docs made no measurable change for any of **8** models.
+- An answering user gives up to **+4** points, only for models that ask.
+- The paper cites prior work (Kovalenko & Redchych, 2026, [arXiv:2610.35981](https://arxiv.org/abs/2610.35981), [§69](#69-effectworld-effect-typed-tool-traces)) where an adapter trained to confirm before destructive calls lost about **1.5** points of BFCL multi-turn accuracy.
+
+Do **not** write 14.5, 26.0, or 72.5 as thesis Acc.
+
+**Cite check (2026-11-09):** arXiv:2611.02978v2 resolves (arXiv stamp 3 Nov 2026; preprint date line November 4, 2026). The title matches. The cells above match the v2 PDF. Authors are Alexander Kovalenko and Artem Redchych (Czech Technical University in Prague). No code URL is printed in the PDF, so a code link is **not verified**. The paper says the release is Apache-2.0.
+
+### Applicability
+
+- **Thesis role:** **`CANDIDATE` / not run. HIGH-MEDIUM.** CPU-only Python re-scoring of existing `multi_turn_base` result logs, with no new model runs. It would work as a secondary metric, for example to check whether a harness or adapter wins by making extra calls. Our runs used our own harness rather than the registered BFCL handlers, so re-scoring would need our logs converted to `bfcl generate` result-file format. Sanskar has said there will be no more experiments for the thesis (Nov 3), so this is logged for reference only. The measured path stays harness-side (Run 78 **77/200 = 38.5%**). **No blanket GRPO.**
+- **BFCL categories:** v4 multi-turn on pinned bfcl-eval 2026.3.23. Their tables cover base, missing function, missing parameter, and long context. The reference-call split above is `multi_turn_base`. Not our sheet.
+- **Complexity:** Low for a CPU-only rescore of `bfcl generate` files. Extra conversion work for this harness.
+- **Limitation:** an evaluation layer, not a training or inference method. The official ranking can stay in place while the effect-safe score drops. Effect hints did not move the eight models they tested.
+
+### Source
+
+Kovalenko, A., & Redchych, A. "CAREFUL-Bench: Effect-Aware, Judge-Free Evaluation of Multi-Turn LLM Function Calling." arXiv:2611.02978, 2026. https://arxiv.org/abs/2611.02978
 
 ---
 
