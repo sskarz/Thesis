@@ -1,0 +1,11 @@
+REVIEW POLICY (read first; it overrides the length and style of the task below)
+
+Report ONLY findings that are MAJOR. A finding is major only if it could do at least one of these:
+  1. make a reported number wrong, or make a result silently mislabeled or uninterpretable (wrong model, wrong adapter, wrong scale, wrong bank, wrong build, duplicated or missing tasks, leaked held-out data, a control that does not control what it claims);
+  2. make a conclusion in the plan or text stronger than the evidence allows (causal claims from single runs, dropped hedges, invented or unsourced numbers);
+  3. leave a process running that holds the GPU or port 8080 after the run ends or is cancelled, or let the run exceed its registered time cap by more than a few minutes;
+  4. violate the hard rules of docs/DISTILLATION_HANDOFF_ROUND6.md section 4.
+
+Do NOT report: style, naming, comment wording, defensive checks for states that cannot occur, theoretical races that need an unlikely sequence of events, extra logging, extra tests, tolerances that are already far tighter than the effect being measured, or anything that is only "could be cleaner". If you notice such things, do not list them at all.
+
+Format: at most 5 findings, each tagged BLOCKER and with file:line, the concrete way it would damage a result, and a one-line fix. If you find no major problem, write exactly "No major problems found." and then one final sentence: ready, or not, and why. Do not pad.

@@ -43,6 +43,12 @@ from .stop_on_repeat import is_exec_observation
 CARD_OPEN = "[OODA]"
 CARD_CLOSE = "[/OODA]"
 NEXT_MODES = ("call", "ask", "final", "refuse")
+# Round 4 H (docs/DISTILLATION_ROUND4_H_SPEC.md): extra next-mode, used only by iffc-ooda-card-recover.
+NEXT_MODES_RECOVER = NEXT_MODES + ("retry",)
+RECOVER_EXEC_NOTE = (
+    "Note: at least one call above returned an error. Read the error message and call again "
+    "with corrected arguments, or call a lookup function to find valid values."
+)
 
 _MAX_GOAL_CHARS = 160
 _MAX_SLOTS = 8
@@ -98,6 +104,19 @@ OODA_ADDENDUM = (
 )
 
 
+# Round 4 H wording: identical to OODA_ADDENDUM except for the next-mode list.
+OODA_ADDENDUM_RECOVER = (
+    f"A {CARD_OPEN}...{CARD_CLOSE} block prefixed on the latest user message "
+    "is a harness-written one-pass snapshot (goal, known slots, last execution "
+    "fact, next-mode hint). It is not model text and is not a second OODA pass. "
+    "next is one of call, retry, ask, final, refuse: call = emit function calls; "
+    "retry = the previous call returned an error, emit corrected function calls "
+    "(or a lookup call to find valid values); ask / final / refuse = return []. "
+    "Continue to answer only with a JSON "
+    'list of dictionaries with "function_name" and "parameters", or [].'
+)
+
+
 # Compose (``iffc-state-ooda``) wording: the card sits after the [STATE]
 # block rather than being prefixed. Same contract otherwise.
 OODA_ADDENDUM_AFTER_STATE = (
@@ -119,8 +138,10 @@ class OodaCardTracker:
         self.last_fact: str | None = None
         self.last_error: str | None = None
         self.last_name: str | None = None
+        self.step_error: bool = False  # any error in the most recent executed step
 
     def update(self, func_strings: list[str], exec_results: list[Any]) -> None:
+        self.step_error = any(is_error_result(r) for r in exec_results)
         for call, raw in zip(func_strings, exec_results):
             name, args = parse_func_string(call)
             parsed = coerce_exec_result(raw)
@@ -157,17 +178,18 @@ class OodaCardTracker:
             self.slots.pop(next(iter(self.slots)))
 
 
-def build_ooda_system_prompt(tools_or_bfcl_docs: list[dict] | None) -> str:
+def build_ooda_system_prompt(tools_or_bfcl_docs: list[dict] | None, recover: bool = False) -> str:
     """Appendix B IFFC prompt plus a short one-pass card addendum (no STATE)."""
-    return build_iffc_system_prompt(tools_or_bfcl_docs) + "\n\n" + OODA_ADDENDUM
+    return build_iffc_system_prompt(tools_or_bfcl_docs) + "\n\n" + (OODA_ADDENDUM_RECOVER if recover else OODA_ADDENDUM)
 
 
 def ensure_ooda_system_message(
     chat_history: list[dict],
     tools_or_bfcl_docs: list[dict] | None,
+    recover: bool = False,
 ) -> None:
     """Insert or refresh the IFFC+OODA system message when tools change."""
-    content = build_ooda_system_prompt(tools_or_bfcl_docs)
+    content = build_ooda_system_prompt(tools_or_bfcl_docs, recover=recover)
     if chat_history and chat_history[0].get("role") == "system":
         if chat_history[0].get("content") != content:
             chat_history[0] = {"role": "system", "content": content}
@@ -175,7 +197,9 @@ def ensure_ooda_system_message(
     chat_history.insert(0, {"role": "system", "content": content})
 
 
-def build_state_ooda_system_prompt(tools_or_bfcl_docs: list[dict] | None) -> str:
+def build_state_ooda_system_prompt(
+    tools_or_bfcl_docs: list[dict] | None, *, compact: bool = False
+) -> str:
     """Appendix B IFFC prompt + STATE-trust addendum + card addendum.
 
     Used by ``iffc-state-ooda``. Both addenda are appended (STATE first,
@@ -183,8 +207,18 @@ def build_state_ooda_system_prompt(tools_or_bfcl_docs: list[dict] | None) -> str
     """
     from .iffc_state import STATE_ADDENDUM
 
+    if compact:
+        from .compact_tools import format_available_functions_compact
+        from .iffc import IFFC_SYSTEM_PROMPT
+
+        base = IFFC_SYSTEM_PROMPT.replace(
+            "{available_functions}",
+            format_available_functions_compact(tools_or_bfcl_docs),
+        )
+    else:
+        base = build_iffc_system_prompt(tools_or_bfcl_docs)
     return (
-        build_iffc_system_prompt(tools_or_bfcl_docs)
+        base
         + "\n\n"
         + STATE_ADDENDUM
         + "\n\n"
@@ -195,9 +229,11 @@ def build_state_ooda_system_prompt(tools_or_bfcl_docs: list[dict] | None) -> str
 def ensure_state_ooda_system_message(
     chat_history: list[dict],
     tools_or_bfcl_docs: list[dict] | None,
+    *,
+    compact: bool = False,
 ) -> None:
     """Insert or refresh the IFFC+STATE+OODA system message when tools change."""
-    content = build_state_ooda_system_prompt(tools_or_bfcl_docs)
+    content = build_state_ooda_system_prompt(tools_or_bfcl_docs, compact=compact)
     if chat_history and chat_history[0].get("role") == "system":
         if chat_history[0].get("content") != content:
             chat_history[0] = {"role": "system", "content": content}
@@ -228,6 +264,7 @@ def hint_next_mode(
     chat_history: list[dict],
     *,
     has_tools: bool,
+    recover: bool = False,
 ) -> str:
     """Deterministic When2Call-style hint. Advisory — does not force decode.
 
@@ -245,6 +282,14 @@ def hint_next_mode(
     goal = current_goal(chat_history)
     if goal and _FINAL_UTTERANCE_RE.search(goal):
         return "final"
+    if (
+        recover
+        and tracker.step_error
+        and chat_history
+        and str(chat_history[-1].get("content") or "").startswith("Function execution results:")
+        and RECOVER_EXEC_NOTE in str(chat_history[-1].get("content") or "")
+    ):
+        return "retry"
     return "call"
 
 
@@ -253,6 +298,7 @@ def render_card(
     chat_history: list[dict],
     *,
     has_tools: bool,
+    recover: bool = False,
 ) -> str:
     """Format the four-field card. Always includes goal / slots / last / next."""
     goal = current_goal(chat_history) or "(none)"
@@ -261,8 +307,8 @@ def render_card(
         for k, v in list(tracker.slots.items())[:_MAX_SLOTS]
     ) or "(none)"
     last = tracker.last_fact or "(none)"
-    nxt = hint_next_mode(tracker, chat_history, has_tools=has_tools)
-    if nxt not in NEXT_MODES:
+    nxt = hint_next_mode(tracker, chat_history, has_tools=has_tools, recover=recover)
+    if nxt not in (NEXT_MODES_RECOVER if recover else NEXT_MODES):
         nxt = "call"
     lines = [
         CARD_OPEN,
@@ -284,6 +330,7 @@ def inject_card(
     tracker: OodaCardTracker,
     *,
     has_tools: bool,
+    recover: bool = False,
 ) -> list[dict]:
     """Return a **copy** of *chat_history* with the card prefixed on the last user.
 
@@ -292,7 +339,7 @@ def inject_card(
     is no user message to prefix.
     """
     messages = [dict(m) for m in chat_history]
-    block = render_card(tracker, chat_history, has_tools=has_tools)
+    block = render_card(tracker, chat_history, has_tools=has_tools, recover=recover)
     for i in range(len(messages) - 1, -1, -1):
         if messages[i].get("role") != "user":
             continue

@@ -1,0 +1,23 @@
+# Round 3c: LoRA on ALL linear modules of the same last 16 layers as before (19-34; q,o,gate,up,down exist there; all-35-layers OOMed on Metal at 9.5k tokens), AB think-marker data, rank 8, scale 2, lr 2e-5, 320 microbatches = 80 updates. Only the target set changes vs lora_config_r3_think_AB.yaml.
+# Base: Thesis/sft/models/gemma-4-e2b-it-mlx. Data sft/data/distill/r3/mlx-AB-think. Adapter applied at RUNTIME on the bartowski GGUF.
+fine_tune_type: lora
+seed: 61
+num_layers: 16
+batch_size: 1
+iters: 320
+val_batches: -1
+learning_rate: 2.0e-5
+steps_per_report: 10
+steps_per_eval: 1000
+save_every: 100
+max_seq_length: 9500
+mask_prompt: true
+grad_checkpoint: true
+grad_accumulation_steps: 4
+adapter_path: sft/adapters-r3-allmods16-AB
+
+lora_parameters:
+  rank: 8
+  scale: 2.0
+  dropout: 0.0
+  keys: ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.o_proj", "mlp.gate_proj", "mlp.up_proj", "mlp.down_proj"]

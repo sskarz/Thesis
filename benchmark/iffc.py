@@ -181,6 +181,7 @@ def strip_trailing_empty_assistant(chat_history: list[dict]) -> int:
 def format_iffc_execution_user_message(
     func_strings: list[str],
     exec_results: list[Any],
+    recover_note: str | None = None,
 ) -> str:
     """User-role observation after tool execution (IFFC stays instruction-following)."""
     lines = ["Function execution results:"]
@@ -188,6 +189,9 @@ def format_iffc_execution_user_message(
         lines.append(f"- {call} -> {exec_result}")
     if not func_strings:
         lines.append("- (no functions were executed)")
+    if recover_note:
+        lines.append("")
+        lines.append(recover_note)
     lines.append("")
     lines.append(
         'Respond with a JSON list of function calls (each with "function_name" '

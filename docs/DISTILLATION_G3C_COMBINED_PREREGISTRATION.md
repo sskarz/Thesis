@@ -1,0 +1,43 @@
+# G3c: combined retrain on batch 1 + batch 2 data, pre-registration (approved 2026-11-10 10:5x ET Mac clock; NOT launched; conditions in section 8)
+
+**Status.** Approved by Sans through the advisor relay, not launched. Approval line (advisor note 2026-11-10 17:05 UTC): `SANS APPROVED (2026-11-10): "Yes"` in answer to "pre-approve the final retrain? what: retrain on all 502 tasks, in whichever format (A or B) scores higher on the screening bank, then score it on the same bank. cost: up to 36h of gpu training plus about 2h scoring, $0. conditions: both versions have been screened, the leak checks pass on the combined rows, and the write-up clears codex." Cap: 36 h training, about 2 h scoring, $0, nothing on the BFCL 200. Numbers marked [ANALYSIS] are my arithmetic on measured values.
+**Task count note:** the question said 502 tasks; the measured combined count is **501** (324 + 177, after one batch 1 task was removed by the provenance gate). The approval is read as covering the combined rows as they stand; nothing is added to reach 502.
+**Registered before arm A's score exists (this edit precedes it):** the arm is chosen by the higher run-1 FK composite, ties to arm A (this is option 2 of section 4; option 1 is withdrawn). **If neither arm meets the 70 of 155 threshold on run 1, the combined retrain still runs under this approval, on the arm with the higher composite, and is reported as the data-scale test.** Because the arm is selected on the screening bank (FK shares its author with the training data), the combined result is exploratory and is read with that caveat everywhere it appears. The choice, both run-1 scores and the date are recorded here before the combined run starts.
+
+## 1. Question
+Does more clean data change the FK screen result of the arm that was screened first? Same adapter, same recipe, same screen, about 1.5 times the rows (data-scaling comparison). Not a claim about the BFCL 200 (that is G4, separate go from Sans).
+
+## 2. Data (all frozen files will get hashes in `sft/g3c_expected.sha` before launch)
+| | arm A rows (JSON call list) | arm B rows (teacher sentences) |
+|---|---|---|
+| batch 1 (`rows_final_*`, G3) | 2,667 train / 272 valid, 324 tasks | 2,494 / 249 |
+| batch 2 (`rows_clean`, `rows_B` of attempt 20261110_040120_g2full.wjjYRA) | 1,416 / 125, 177 tasks (159 train + 18 valid) | 1,312 / 118, minus the 4 rows below |
+| **combined** | **4,083 train / 397 valid, 501 tasks** | **3,803 train / 366 valid** (3 train + 1 valid row of batch 2 removed) |
+* Batch 2 provenance: arm A passes (177 tasks, no hits); arm B fails on 4 rows (tasks `distill_g2e0_0152`, `distill_g2e3_0079`, `distill_g2g4_0096`) whose teacher sentences share an 8-gram with a held-out task; those 4 rows are removed from arm B only, as in batch 1, and the gate is re-run on the final files. **Batch 2's authoring gate status is FAILED-BY-CAP** (the cost guard and the spend monitor stopped authoring; 270 guard refusals counted as lost slots; 0 real API rejects) and is stated with every use.
+* Cross-batch checks before launch: task ids disjoint (checked: 0 overlap between batch 1 and batch 2 tasks); provenance gate re-run on the combined final files of each arm, bound by sha256 to the frozen rows; train/valid task-disjoint inside each batch (checked for batch 2: 0 overlap); arm B a subset of arm A.
+* Batch 2 accuracy review (the 40-task A1 sample, at most 2 wrong) has **not** been run yet; it is a launch condition (section 6).
+
+## 3. Training (same as G3)
+Adapter layers 8 to 34, rank 16, scale 2.0, 149 modules, lr 1e-4, 5% warm-up then linear decay, gradient accumulation 4, prompt mask, seed 61, rows over 6,999 tokens dropped and counted, checkpoint at the end of pass 1 (kept, not scored), validation loss logged only. Render parity against the matching compact-list server (arm A: 0 think markers; arm B: exactly 1 per row) on all combined rows before training. Pass count: **2 passes, always.** The comparison with arms A and B needs the same recipe; one pass over 4,083 rows is only about 1,021 updates, fewer than arm A's 1,333, and a null result could then not be read as "more data did not help". If the estimate exceeds the 30 h cap, the approval line asks for a **longer time cap** (Sans decides); the number of passes is not cut.
+* **Estimate [ANALYSIS], from total training tokens times arm A's measured seconds per token over its whole run so far** (not from a short smoke; row length varies). Tokens per pass after the 6,999-token cut (rendered with the arm's own thinking setting; `/tmp/tok.py` on the Mac, tokenizer only): arm A batch 1 10,203,367 + batch 2 5,570,096 (1,415 of 1,416 rows; one row of 7,210 tokens is dropped and counted) = **15,773,463**; arm B batch 1 9,736,423 + batch 2 5,227,164 (1,308 of 1,309 rows after the 4 provenance removals; one over-length row dropped) = **14,963,587**. Arm A's measured speed at micro-batch 941 of 5,334 (3,598,887 tokens in 12,208 s): **3.392 s per 1,000 tokens**, mean 3,825 tokens per row (arm B's smoke: 3.39 s per 1,000). Two passes: arm A 31,546,926 tokens x 3.392 s/1k = 107,000 s = **29.7 h**; arm B 29,927,174 x about 3.39 = 101,500 s = **28.2 h**; plus the validation sweeps (forward only, 2 sweeps; not yet measured, about 1 h) and the final steps. **Arm A would therefore sit at or just over the 30 h cap, so the approval line must ask for a longer cap (36 h proposed)**; the estimate is re-computed from arm A's complete run (final seconds per token) before the approval is requested, and a 12-micro-batch smoke on the combined rows only confirms that the pipeline runs.
+
+## 4. Which arm and the screen
+Option 2, fixed by the approval line above: the arm with the higher run-1 FK composite, ties to arm A; combined rows of that arm only (batch 1 + batch 2). Validation split: batch 1's validation tasks stay in validation, batch 2's 18 validation tasks are added; train and validation task-disjoint. **Recorded at launch time: arm = __, run-1 scores A = __, B = __, date = __.**
+* Screen: FK (F 81 + K2 74), thinking-matched adapter server, greedy, run 1 against the thinking-on base (G3 base: 59 and 61; mean 60.0; thinking off 54) and the same threshold (70 of 155), a restarted repeat if run 1 meets it. Reported next to the first-round arm result (same bank, same harness, same session conditions apart from the date).
+
+## 5. Time and the Nov 25 stop [ANALYSIS]
+Arm A should finish about 00:50 to 03:00 ET Nov 11, screen about 2 h; arm B about 18 h after that (about Nov 11 evening) plus its screen; a combined retrain of 26 to 29 h would then end about Nov 13, plus the screen. G4 (BFCL 200, about 11 h, Sans's go) is planned from Nov 17. Nothing new starts after Nov 25.
+
+## 6. Launch conditions (all must hold; if one fails, do not launch and report why)
+1. Arm A and arm B both finished FK run 1 (and the repeat where run 1 met the threshold).
+2. Arm choice recorded (section 4) with both scores and the date.
+3. Combined rows of the chosen arm, same adapter and settings, 2 passes, pass-1 checkpoint saved.
+4. Provenance gate passes on the combined rows (sentences included if arm B), frozen by sha256 in `sft/g3c_expected.sha`; render parity 0 mismatches with the right think-marker count.
+5. Estimate recomputed from the chosen arm's complete run and **under 36 h**.
+6. This pre-registration finalized, one Codex pass, no major problem.
+7. Batch 2 accuracy review: done, passed at the limit for Codex (G2B prereg section 7 result).
+8. GPU free.
+
+## 7. Spend and limits
+$0 (GPU only). The data cost so far is in `docs/TRAINING_RESULTS_LOG.md` (ledger total of all attempts $23.22; the key's own usage counter reads $31.68, the project total; about $8.5 of the key's usage is outside these attempt ledgers, most likely earlier rounds and unlogged or abandoned requests [ANALYSIS], to be reconciled before any new paid step).
+Limits stated with every comparison: FK shares its author with the training data; one seed; arm B has about 6.5% fewer rows than arm A; batch 2 authoring gate FAILED-BY-CAP; batch 2 rows have had no accuracy review yet.

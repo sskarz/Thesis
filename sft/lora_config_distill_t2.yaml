@@ -1,0 +1,26 @@
+# Distillation round 2 (on-policy relabeling): rows from sft/data/distill/onpolicy/rows2.
+# Same hyperparameters as distill_t1 / Run 73 (rank 8, scale 2.0, lr 5e-6, batch 1 x accum 4, seed 61,
+# 156 micro-batches = 39 optimizer updates) so ONLY the data changes. max_seq_length raised 8192 -> 11000
+# because on-policy histories carry the student's own reasoning (longest row 10,522 tokens); dropping them
+# would bias against late-step states. Base: Thesis/sft/models/gemma-4-e2b-it-mlx. No resume.
+fine_tune_type: lora
+seed: 61
+num_layers: 16
+batch_size: 1
+iters: 156
+val_batches: -1
+learning_rate: 5.0e-6
+steps_per_report: 10
+steps_per_eval: 1000
+save_every: 50
+max_seq_length: 11000
+mask_prompt: true
+grad_checkpoint: true
+grad_accumulation_steps: 4
+adapter_path: sft/adapters-distill-t2
+
+lora_parameters:
+  rank: 8
+  scale: 2.0
+  dropout: 0.0
+  keys: ["self_attn.q_proj", "self_attn.v_proj"]

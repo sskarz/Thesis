@@ -77,6 +77,9 @@ def _notes_with_run_meta(args: argparse.Namespace) -> str | None:
         )
     if args.categories:
         extra.append(f"categories={','.join(args.categories)}")
+    import os as _os
+    if _os.environ.get("BFCL_ENTRY_IDS"):
+        extra.append(f"entry_ids={_os.environ['BFCL_ENTRY_IDS']}")
     if not extra:
         return args.notes
     tag = " ".join(extra)
@@ -216,7 +219,10 @@ def main():
             "iffc-decision-ooda = Decision sidecar + OODA card + "
             "stop-repeat MIN=6 (compose); "
             "iffc-state-ooda = full stack: IFFC + STATE + OODA card "
-            "(STATE before card) + stop-repeat MIN=6."
+            "(STATE before card) + stop-repeat MIN=6; "
+            "iffc-state-ooda-slim = iffc-state-ooda with a compact tool "
+            "list (byte-identical class preambles hoisted under 'Tool "
+            "classes:', unindented schema JSON, tool order unchanged)."
         ),
     )
     parser.add_argument(
@@ -354,6 +360,8 @@ def main():
             if args.fc_mode == config.FC_IFFC_DECISION
             else " (iffc-state-ooda = IFFC + STATE + OODA card + stop-repeat MIN=6)"
             if args.fc_mode == config.FC_IFFC_STATE_OODA
+            else " (iffc-state-ooda-slim = iffc-state-ooda + compact tool list)"
+            if args.fc_mode == config.FC_IFFC_STATE_OODA_SLIM
             else " (NFC = native tools)"
         )
     )
