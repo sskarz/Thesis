@@ -5,7 +5,7 @@
 # usage: bash sft/r6_extrabase.sh extrabase     Reuses sft/evallib6.sh unchanged (owned server, identity checks, caps, probe, F then K2).
 set -u
 case "${1:-}" in extrabase) ;; *) echo "usage: $0 extrabase"; exit 2;; esac
-cd /Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6 || exit 2
+cd /Users/USER/Documents/GitHub/Thesis-wt-r6 || exit 2
 source sft/evallib6.sh
 init_attempt extrabase
 echo "$(date +%T) extrabase start, attempt $ATT"

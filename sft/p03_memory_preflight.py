@@ -14,7 +14,7 @@ from mlx_lm.utils import load
 from mlx_lm.tuner.lora import LoRALinear
 from mlx_lm.tuner.trainer import default_loss, grad_checkpoint
 
-MODEL = "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
+MODEL = "/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
 ATTN = ["q_proj", "o_proj", "k_proj", "v_proj"]
 MLP = ["gate_proj", "up_proj", "down_proj"]
 

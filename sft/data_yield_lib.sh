@@ -1,8 +1,8 @@
 # Data-yield check helpers (source from sft/data_yield_chain.sh). API + CPU only: no GPU, no llama-server, no port 8080.
 export PYTHONDONTWRITEBYTECODE=1
-R5=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill
-ABSW=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-data
-PY=/Users/sanskarthapa/Documents/GitHub/Thesis/.venv/bin/python
+R5=/Users/USER/Documents/GitHub/Thesis-wt-distill
+ABSW=/Users/USER/Documents/GitHub/Thesis-wt-data
+PY=/Users/USER/Documents/GitHub/Thesis/.venv/bin/python
 DD=$R5/sft/data/distill
 YD=$ABSW/sft/data/distill/yield
 F_SHA=7a45cd08b7b2226ebad135f1e7e9aa8b4fdd098801742ddd673df08262f13709
@@ -53,7 +53,7 @@ preflight() {
   for f in $EX $HELD; do [ -s "$f" ] || die "missing or empty input file $f"; done
   [ "$(df -k "$YD" | awk 'NR==2{print $4}')" -gt 5000000 ] || die "less than 5 GB free"
   if pgrep -f "distill_tasks|distill_solve|yield_author" > /dev/null; then die "another authoring/solve process is running"; fi
-  diff -rq "$ABSW/benchmark" "/Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6/benchmark" -x __pycache__ > /dev/null || die "benchmark/ differs from the Round 6 diagnostics worktree (harness code must be identical to what is evaluated)"
+  diff -rq "$ABSW/benchmark" "/Users/USER/Documents/GitHub/Thesis-wt-r6/benchmark" -x __pycache__ > /dev/null || die "benchmark/ differs from the Round 6 diagnostics worktree (harness code must be identical to what is evaluated)"
   command -v timeout > /dev/null || die "timeout(1) not found"
   # cross-attempt spend ledger: every earlier real attempt counts against the same $5 total
   SPENT_BEFORE=$($PY -B - "$YD/attempts" <<'PYEOF'

@@ -15,10 +15,10 @@ Read-only review completed; no model runs or file writes. F inspection and repor
 
    Two corrections are required:
 
-   - **“Termination tokens” are actually `<turn|>` plus an ordinary newline:** 320 turn-end tokens + 320 newlines in train; 35 + 35 in valid. Rename this segment “template suffix” or separate the two. Replace the broad special-token heuristic with explicit expected boundaries. See [token_segments_audit.py:29](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/token_segments_audit.py:29).
-   - **The installed MLX trainer supervises one additional `<pad>` target per row.** Its batch iterator pads beyond the full sequence, while its shifted loss mask uses `steps <= length`. Consequently, current training masks cover **109,717 train / 13,296 valid targets**, rather than the reported continuation totals. See [trainer.py:94](/Users/sanskarthapa/Documents/GitHub/Thesis/.venv/lib/python3.13/site-packages/mlx_lm/tuner/trainer.py:94). Audit this explicitly and resolve it before implementing Sw’s masks or claiming equal-loss reproduction.
+   - **“Termination tokens” are actually `<turn|>` plus an ordinary newline:** 320 turn-end tokens + 320 newlines in train; 35 + 35 in valid. Rename this segment “template suffix” or separate the two. Replace the broad special-token heuristic with explicit expected boundaries. See [token_segments_audit.py:29](~/Documents/GitHub/Thesis-wt-distill/sft/token_segments_audit.py:29).
+   - **The installed MLX trainer supervises one additional `<pad>` target per row.** Its batch iterator pads beyond the full sequence, while its shifted loss mask uses `steps <= length`. Consequently, current training masks cover **109,717 train / 13,296 valid targets**, rather than the reported continuation totals. See [trainer.py:94](~/Documents/GitHub/Thesis/.venv/lib/python3.13/site-packages/mlx_lm/tuner/trainer.py:94). Audit this explicitly and resolve it before implementing Sw’s masks or claiming equal-loss reproduction.
 
-   The required `diag_mlx` explanation is also incomplete. Its separator is **included in reasoning NLL and excluded from answer NLL**, while `n_reason` excludes it and `n_answer` includes it. It is not excluded from all NLL. Document that exact mismatch. See [diag_mlx.py:38](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/diag_mlx.py:38).
+   The required `diag_mlx` explanation is also incomplete. Its separator is **included in reasoning NLL and excluded from answer NLL**, while `n_reason` excludes it and `n_answer` includes it. It is not excluded from all NLL. Document that exact mismatch. See [diag_mlx.py:38](~/Documents/GitHub/Thesis-wt-distill/sft/diag_mlx.py:38).
 
 2. **Declared Stage A subsets — VERIFIED.**
 
@@ -31,13 +31,13 @@ Read-only review completed; no model runs or file writes. F inspection and repor
    | H | 8 | 27 |
    | AB | 4 | 26 |
 
-   B1/B2 error-task counts are **26/25**, with union **27**. Each arm has 81 unique verdict tasks and zero API-error episodes. The saved subset output and Round 5 runlog entry are accurate. The [new tail logic](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/stageA_diag.py:63) implements the declared union correctly.
+   B1/B2 error-task counts are **26/25**, with union **27**. Each arm has 81 unique verdict tasks and zero API-error episodes. The saved subset output and Round 5 runlog entry are accurate. The [new tail logic](~/Documents/GitHub/Thesis-wt-distill/sft/stageA_diag.py:63) implements the declared union correctly.
 
 3. **Manifest — VERIFIED hashes; INCOMPLETE pins.**
 
    All **18 listed file hashes** match. The bar GGUF, HF tokenizer/template, server binary hashes, and recorded package versions also match. The local llama.cpp checkout describes itself as **`b10894-0-gd344123fe`**.
 
-   Required additions to [manifest.json](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/data/distill/r5/manifest.json:1):
+   Required additions to [manifest.json](~/Documents/GitHub/Thesis-wt-distill/sft/data/distill/r5/manifest.json:1):
 
    - Explicit server build string and HF→GGUF conversion source/hash.
    - Local MLX tokenizer configuration and model/config provenance. Its `tokenizer_config.json` **differs from HF’s**, although tokenizer JSON and template match.
@@ -61,7 +61,7 @@ Read-only review completed; no model runs or file writes. F inspection and repor
 
    The code uses `keep AND (after_error OR canonical(label) != canonical(student_calls))`, preserves call order, and canonicalizes argument-key order.
 
-   However, [dedupe happens before eligibility](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/r5_state_audit.py:67), retaining the first old/new/G occurrence. This matters: applying eligibility first produces **500 / 185**, or **491 / 183 after the same drops**. Three qualifying duplicate occurrences are otherwise suppressed by earlier nonqualifying representatives.
+   However, [dedupe happens before eligibility](~/Documents/GitHub/Thesis-wt-distill/sft/r5_state_audit.py:67), retaining the first old/new/G occurrence. This matters: applying eligibility first produces **500 / 185**, or **491 / 183 after the same drops**. Three qualifying duplicate occurrences are otherwise suppressed by earlier nonqualifying representatives.
 
    Explicitly register the representative/dedupe rule before freezing selection. Also sort states by the required `(task_id, episode_id, step)`; current iteration order is not sorted. Sorting before dedupe happens to retain the current 497 count.
 

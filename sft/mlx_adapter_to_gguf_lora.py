@@ -18,7 +18,7 @@ import numpy as np
 from safetensors import safe_open
 from safetensors.numpy import save_file
 
-ROOT = pathlib.Path("/Users/sanskarthapa/Documents/GitHub/Thesis")
+ROOT = pathlib.Path("/Users/USER/Documents/GitHub/Thesis")
 HF = glob.glob(str(pathlib.Path.home() / ".cache/huggingface/hub/models--google--gemma-4-e2b-it/snapshots/*"))[0]
 
 

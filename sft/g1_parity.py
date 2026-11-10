@@ -2,7 +2,7 @@
 """Render parity: the prompt the thinking-off llama-server builds (POST /apply-template) must equal the prompt the trainer builds (tokenizer, enable_thinking=False)
 for every G1 row, and must contain no <|think|> marker.   usage: g1_parity.py --rows g1_rows.jsonl --out parity.json   (server on :8080 must be up)"""
 import argparse, json, sys, requests
-MODEL = "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
+MODEL = "/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
 ap = argparse.ArgumentParser(); ap.add_argument("--rows", required=True); ap.add_argument("--out", required=True); a = ap.parse_args()
 from transformers import AutoTokenizer
 tok = AutoTokenizer.from_pretrained(MODEL)

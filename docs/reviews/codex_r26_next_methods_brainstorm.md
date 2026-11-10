@@ -17,7 +17,7 @@ This review was read-only. No training, model generation, benchmark evaluation, 
 | Base runs exchange **3 tasks each way** on dev103 and **5 each way** on F81. | Greedy serving is not task-deterministic. These observations do **not** establish a ±5 confidence interval or a reliable detection threshold. |
 | Recovery collection yields **45 strict JSON rows, representing 42 unique task-step pairs**. | The unique-row threshold of 100 was not reached. The findings document conflates strict row count with uniqueness. |
 
-Sources: [Round 3 findings](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND3_FINDINGS.md:46), [expanded-target result](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND3_FINDINGS.md:125), [Round 4 results and corrected counts](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:87).
+Sources: [Round 3 findings](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND3_FINDINGS.md:46), [expanded-target result](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND3_FINDINGS.md:125), [Round 4 results and corrected counts](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:87).
 
 ## 2. Ranked explanations for the losses
 
@@ -36,7 +36,7 @@ This makes the training distribution selective in two ways:
 
 That is useful for preserving native format, but it removes precisely the teacher corrections that could expand capability. It also rejects function-string differences that might be semantically equivalent. The nonempty-reasoning and length requirements add further selection.
 
-The result is closer to **reinforcing selected existing behavior** than transferring the teacher’s full corrective policy. This does not make the approach useless, but it limits the information available to training. [Native filtering implementation](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_rationalize.py:43)
+The result is closer to **reinforcing selected existing behavior** than transferring the teacher’s full corrective policy. This does not make the approach useless, but it limits the information available to training. [Native filtering implementation](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_rationalize.py:43)
 
 ### 2. Behavioral coverage is thin, even where API-class coverage exists
 
@@ -51,7 +51,7 @@ AB has **95 training tasks and 320 rows**. Training touches the difficult API cl
 
 The adapter improves exact agreement on the selected training probe, **9→17/35**, while held-out agreement moves **25→24/35**. That fits task-specific learning with limited behavioral transfer.
 
-The right expansion is more distinct decision patterns and states, rather than additional rows from the same few trajectories. [Coverage and failure audit](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_NEXT_METHODS.md:62)
+The right expansion is more distinct decision patterns and states, rather than additional rows from the same few trajectories. [Coverage and failure audit](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_NEXT_METHODS.md:62)
 
 ### 3. Teacher forcing teaches continuations more readily than autonomous decisions
 
@@ -67,7 +67,7 @@ A plausible mechanism is:
 
 Reasoning tokens dominate supervised token count, but “the model only learned reasoning/style” is too strong: answer tokens account for **51% of held-out NLL reduction** in the recorded diagnostic. The more defensible concern is **conditioning and exposure**, not merely token imbalance.
 
-Action-weighted loss deserves a control experiment, but the already tiny conditional answer NLL makes it an uncertain cure. [Split-loss diagnostics](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND3_FINDINGS.md:116)
+Action-weighted loss deserves a control experiment, but the already tiny conditional answer NLL makes it an uncertain cure. [Split-loss diagnostics](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND3_FINDINGS.md:116)
 
 ### 4. Failure supervision lacks sufficiently strong counterfactual labels
 
@@ -77,7 +77,7 @@ Current SFT mostly rewards successful outputs. It does not explicitly compare a 
 
 Importantly, an existing `act_ok` teacher label means the action executes cleanly and passes grounding checks. It does **not** prove successful continuation. Whole-episode hybrid verification is stronger, but teacher takeover success also does not prove that one teacher correction followed by the student succeeds.
 
-DPO is promising only after this distinction is handled. Otherwise, it can confidently prefer executable but unhelpful actions. [Label checks](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_onpolicy.py:97), [hybrid verification](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_hybrid.py:56)
+DPO is promising only after this distinction is handled. Otherwise, it can confidently prefer executable but unhelpful actions. [Label checks](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_onpolicy.py:97), [hybrid verification](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_hybrid.py:56)
 
 ### 5. Train/serve numerics could amplify adapter changes
 
@@ -87,7 +87,7 @@ The base backends agree on **30/35** held-out actions; with the adapter they agr
 
 Moreover, MLX+adapter itself achieves only **16/35** training and **26/35** held-out target actions. There is no demonstrated large hidden fine-tuning win in bf16 waiting to be recovered at serving.
 
-Keep numerics as a cheap diagnostic, rather than the leading rescue theory. [Parity findings](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_NEXT_METHODS.md:58)
+Keep numerics as a cheap diagnostic, rather than the leading rescue theory. [Parity findings](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_NEXT_METHODS.md:58)
 
 ### 6. Thinking and history representation may interact with learning
 
@@ -97,7 +97,7 @@ The missing thinking marker affected all original training prompts. Later checks
 
 What remains unresolved is behavioral: earlier reasoning is flattened into assistant content. Training copies that representation, so this is not an established train/serve mismatch. It could nevertheless encourage reliance on verbose historical reasoning or stale conclusions.
 
-A new reasoning-history representation would need matched training and inference. Changing inference alone would answer a different question. [Template audit](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND3_FINDINGS.md:103)
+A new reasoning-history representation would need matched training and inference. Changing inference alone would answer a different question. [Template audit](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND3_FINDINGS.md:103)
 
 ### 7. Capacity, dose, and forgetting remain possible contributors
 
@@ -107,7 +107,7 @@ The wider adapter has roughly twelve times as many trainable parameters and perf
 
 Likewise, larger runtime scales hurt probe agreement, but runtime scaling is not equivalent to more training. The dose comparison selected learning rate using validation loss, whose relationship to completion is demonstrably poor.
 
-A bounded lower-dose control is reasonable. Another broad capacity sweep is low priority. All-layer adaptation already encountered Metal OOM. [Capacity result](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND3_FINDINGS.md:125)
+A bounded lower-dose control is reasonable. Another broad capacity sweep is low priority. All-layer adaptation already encountered Metal OOM. [Capacity result](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND3_FINDINGS.md:125)
 
 ### What Round 4 changes
 
@@ -283,7 +283,7 @@ Do not begin by rewarding retry count or number of successful tool executions: b
 - **Pass rule:** S, plus fewer actual parse failures without increased under-calling.
 - **Risk/detectability:** low priority. Historical constrained decoding scored **21/200**, and the tool-name automaton **27/200**. If current parsing failures are rare, available headroom is too small.
 
-Those historical systems differ from this narrow proposal, but they are strong reasons to demand a measured syntax bottleneck first. [Historical results](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/PAPER_WRITING_PROCESS.md:27)
+Those historical systems differ from this narrow proposal, but they are strong reasons to demand a measured syntax bottleneck first. [Historical results](~/Documents/GitHub/Thesis-wt-distill/docs/PAPER_WRITING_PROCESS.md:27)
 
 ### E11. Observable-state supervision
 
@@ -376,19 +376,19 @@ Repeated evaluations improve knowledge of serving variability; they do not provi
 
 ## 8. Integrity and reporting issues to preserve
 
-1. **Correct recovery uniqueness:** 45 strict rows, **42 unique task-step pairs**. [Runlog correction](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:98)
+1. **Correct recovery uniqueness:** 45 strict rows, **42 unique task-step pairs**. [Runlog correction](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:98)
 
 2. **Do not generalize collection failure into impossibility.** The yield applies to this collection and sampling budget.
 
 3. **Keep the recovery-control confound explicit:** student-equivalent targets differ sharply between recovery and control candidates; the retention comparison does not isolate an error-state effect.
 
-4. **Restore the declared subset analysis:** the plan specifies episodes error-free in both base runs, while the log reports a B1-defined split. [Plan](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND4_PLAN.md:70)
+4. **Restore the declared subset analysis:** the plan specifies episodes error-free in both base runs, while the log reports a B1-defined split. [Plan](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND4_PLAN.md:70)
 
-5. **Preserve contamination disclosure:** five rows from two training tasks share fixture 8-grams with three dev tasks. Later collection records exclusions; the earlier result still carries that caveat. [Provenance findings](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_NEXT_METHODS.md:86)
+5. **Preserve contamination disclosure:** five rows from two training tasks share fixture 8-grams with three dev tasks. Later collection records exclusions; the earlier result still carries that caveat. [Provenance findings](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_NEXT_METHODS.md:86)
 
 6. **Clean up duplicated and superseded narrative:** Round 3 findings repeats its Round 3b section; early runlog claims about backend parity and “mostly format” were later corrected.
 
-7. **Avoid historical-base shortcuts:** the gate script freezes older base references. New precision, harness, or serving conditions need contemporary matched bases. [Gate implementation](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/distill_gate_eval.py:52)
+7. **Avoid historical-base shortcuts:** the gate script freezes older base references. New precision, harness, or serving conditions need contemporary matched bases. [Gate implementation](~/Documents/GitHub/Thesis-wt-distill/sft/distill_gate_eval.py:52)
 
 8. **Keep oracle and observable verification separate.** Gold checker access is legitimate training supervision. Evaluation-time gold selection changes the experiment into oracle-assisted search.
 

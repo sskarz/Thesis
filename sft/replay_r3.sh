@@ -1,7 +1,7 @@
 #!/bin/bash
 # OFFLINE replay of steps 5-8 of data_yield_chain.sh on the Round 3 artifacts (training-pool data; no API, no GPU).
 set -u
-cd /Users/sanskarthapa/Documents/GitHub/Thesis-wt-data || exit 2
+cd /Users/USER/Documents/GitHub/Thesis-wt-data || exit 2
 source sft/data_yield_lib.sh
 D=$DD; R=$D/r3
 HELD="$D/r3/dev_all.jsonl $D/dev/confirm_bank.jsonl $D/f/tasks_F.jsonl $D/k/tasks_K2.jsonl"

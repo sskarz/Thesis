@@ -5,12 +5,12 @@
 # usage: bash sft/g3_probe_pass1.sh <arm A attempt dir>      (waits for adapters_pass1/, then runs)
 export PYTHONDONTWRITEBYTECODE=1
 A=$1; [ -d "$A/train" ] || { echo "usage: $0 <attempt dir>"; exit 2; }
-R6=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6; cd $R6 || exit 2
-SLIM=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-slim
-PY=/Users/sanskarthapa/Documents/GitHub/Thesis/.venv/bin/python
-LLAMA=/Users/sanskarthapa/Documents/GitHub/Thesis/llama.cpp/build/bin/llama-server
-BAR=/Users/sanskarthapa/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf
-F=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/data/distill/f/tasks_F.jsonl
+R6=/Users/USER/Documents/GitHub/Thesis-wt-r6; cd $R6 || exit 2
+SLIM=/Users/USER/Documents/GitHub/Thesis-wt-slim
+PY=/Users/USER/Documents/GitHub/Thesis/.venv/bin/python
+LLAMA=/Users/USER/Documents/GitHub/Thesis/llama.cpp/build/bin/llama-server
+BAR=/Users/USER/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf
+F=/Users/USER/Documents/GitHub/Thesis-wt-distill/sft/data/distill/f/tasks_F.jsonl
 F_SHA=7a45cd08b7b2226ebad135f1e7e9aa8b4fdd098801742ddd673df08262f13709
 BUILD=b10894-d344123fe
 P=$A/probe_pass1_r2; mkdir -p $P; LOG=$P/probe.log; exec >> $LOG 2>&1

@@ -10,7 +10,7 @@ I read the requested documents, current code/configs, and both historical DPO fi
    B_j=35+K_j,\quad N=81+|K2|,\quad \mu_B=(B_1+B_2)/2.
    \]
 
-   Replace [the screening paragraph](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND5_PLAN.md:9) with:
+   Replace [the screening paragraph](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND5_PLAN.md:9) with:
 
    > Run 1 advances iff \(C_1\ge\lceil\mu_B+0.06N\rceil\) and \(C_1>B_*\). After one restarted repeat, advance iff \((C_1+C_2)/2\ge\mu_B+0.06N\) and each \(C_i>B_*\). \(B_*\) is the higher-count composite base run; ties select B1. No additional repeats.
 
@@ -33,11 +33,11 @@ I read the requested documents, current code/configs, and both historical DPO fi
 
    | Boundary | Files and implemented protection |
    |---|---|
-   | Round 3 sources | `r3/labels_old/labels.jsonl`, `r3/labels_new/labels.jsonl`, sourced from `r3/pool_all.jsonl`; family/similarity separation lives in [distill_split.py](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_split.py:48). |
+   | Round 3 sources | `r3/labels_old/labels.jsonl`, `r3/labels_new/labels.jsonl`, sourced from `r3/pool_all.jsonl`; family/similarity separation lives in [distill_split.py](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_split.py:48). |
    | G sources | `g/labels/labels.jsonl`, sourced from **`g/tasks_F.jsonl`** despite that filename; `g/author_g.sh` supplies prior banks for code-side deduplication, and `g/chainG1.sh` filters against dev, confirm, r3, and F. |
-   | F separation | [build_bank_f.py](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/build_bank_f.py:30) checks supplied-bank IDs, function signatures, and turn similarity. Authoring separately checks shared 8-grams. |
-   | Benchmark protection | [distill_exclusions.py](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_exclusions.py:112) loads all four BFCL multi-turn splits. Its explicit mid20/fresh-20 groups are subsets of the protected 200. |
-   | Final row protection | [check_provenance.py](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/check_provenance.py:59) requires explicitly supplied held-out banks and task sources; it is not automatic bank discovery. |
+   | F separation | [build_bank_f.py](~/Documents/GitHub/Thesis-wt-distill/sft/build_bank_f.py:30) checks supplied-bank IDs, function signatures, and turn similarity. Authoring separately checks shared 8-grams. |
+   | Benchmark protection | [distill_exclusions.py](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_exclusions.py:112) loads all four BFCL multi-turn splits. Its explicit mid20/fresh-20 groups are subsets of the protected 200. |
+   | Final row protection | [check_provenance.py](~/Documents/GitHub/Thesis-wt-distill/sft/check_provenance.py:59) requires explicitly supplied held-out banks and task sources; it is not automatic bank discovery. |
 
    My read-only aggregate checks found:
 
@@ -70,9 +70,9 @@ I read the requested documents, current code/configs, and both historical DPO fi
 
    The matching specification currently combines incompatible code:
 
-   - [distill_rationalize.py](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_rationalize.py:54) requires **exact function-string equality**, nonempty reasoning, and a 3,500-character reasoning limit.
-   - [same_effect()](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_onpolicy.py:122) compares **stringified execution returns**, not final backend states.
-   - [check_label()](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_onpolicy.py:97) makes `act_ok` an execution/grounding check, not a continuation-success label.
+   - [distill_rationalize.py](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_rationalize.py:54) requires **exact function-string equality**, nonempty reasoning, and a 3,500-character reasoning limit.
+   - [same_effect()](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_onpolicy.py:122) compares **stringified execution returns**, not final backend states.
+   - [check_label()](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_onpolicy.py:97) makes `act_ok` an execution/grounding check, not a continuation-success label.
 
    Equal returns can conceal different mutations; unequal returns can represent acceptable alternatives. A nonmatching action can be a useful lookup, a valid alternative order, or another successful plan. Even `[]` is context-dependent.
 
@@ -116,9 +116,9 @@ I read the requested documents, current code/configs, and both historical DPO fi
    Required edits:
 
    - Choose **BF16 or F16 now**, with a declared fallback; do not select precision after results.
-   - Pin snapshot, conversion source, server binary, tokenizer/template, and runtime LoRA scale. [The adapter converter](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/mlx_adapter_to_gguf_lora.py:21) currently hardcodes the other checkout and takes the first snapshot glob.
+   - Pin snapshot, conversion source, server binary, tokenizer/template, and runtime LoRA scale. [The adapter converter](~/Documents/GitHub/Thesis-wt-distill/sft/mlx_adapter_to_gguf_lora.py:21) currently hardcodes the other checkout and takes the first snapshot glob.
    - Verify effective prompt token identity. Sending already `<|think|>`-prefixed training messages to a server that inserts the marker risks duplication.
-   - Freeze the actual 35+35 prompt identities/hashes. [probe_action_change.py](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/probe_action_change.py:31) otherwise selects first-N rows and compares files with unchecked `zip`.
+   - Freeze the actual 35+35 prompt identities/hashes. [probe_action_change.py](~/Documents/GitHub/Thesis-wt-distill/sft/probe_action_change.py:31) otherwise selects first-N rows and compares files with unchecked `zip`.
    - Log HTTP failures and finish reasons. Its fixed 1,500-token generation cap can confound precision comparisons.
 
    Four additional held-out agreements is an **11.4-point difference-in-differences on 35 prompts**, clustered within few tasks. Fine as a diagnostic trigger; failure should read “no detected precision rescue on this probe.”

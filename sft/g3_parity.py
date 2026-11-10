@@ -2,7 +2,7 @@
 """G3 version (adds --think on|off; for on the expected marker count per row is exactly 1). Render parity: the prompt the thinking-off llama-server builds (POST /apply-template) must equal the prompt the trainer builds (tokenizer, enable_thinking=THINK)
 for every G1 row, and must contain no <|think|> marker.   usage: g1_parity.py --rows g1_rows.jsonl --out parity.json   (server on :8080 must be up)"""
 import argparse, json, sys, requests
-MODEL = "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
+MODEL = "/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
 ap = argparse.ArgumentParser(); ap.add_argument("--rows", required=True); ap.add_argument("--out", required=True); ap.add_argument("--think", choices=["on", "off"], required=True); a = ap.parse_args()
 THINK = a.think == "on"
 from transformers import AutoTokenizer

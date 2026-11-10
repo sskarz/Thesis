@@ -7,7 +7,7 @@
 # The server is started and stopped by this script only (never pkill); caps: 2.5 h per FK composite, 16 h whole chain.
 set -u
 case "${1:-}" in stage1) ;; *) echo "usage: $0 stage1"; exit 2;; esac
-cd /Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6 || exit 2
+cd /Users/USER/Documents/GitHub/Thesis-wt-r6 || exit 2
 source sft/evallib6.sh
 init_attempt stage1
 echo "$(date +%T) chain stage1 start, attempt $ATT"

@@ -10,9 +10,9 @@
 #   authoring spend A + judge cap + solve cap must stay within G2_CAP_USD, else the judge or solve is shrunk or refused. No automatic extension or top-up of any kind.
 set -u
 MODE=${1:-}; case "$MODE" in smoke|full) ;; solve) [ -d "${2:-}" ] || { echo "usage: $0 solve ATTEMPT_DIR"; exit 2; } ;; *) echo "usage: $0 smoke|full|solve ATTEMPT_DIR"; exit 2;; esac
-cd /Users/sanskarthapa/Documents/GitHub/Thesis-wt-g2b || exit 2
+cd /Users/USER/Documents/GitHub/Thesis-wt-g2b || exit 2
 source sft/data_yield_lib.sh                       # say, die, cleanup, bt, init_attempt; YD stays the shared attempts root of the data worktree
-ABSLIM=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-slim
+ABSLIM=/Users/USER/Documents/GitHub/Thesis-wt-slim
 D=$DD
 eval "$(sed -n '/^EX=/p;/^HELD=/p' sft/data_yield_chain.sh)"           # same strict-dedupe inputs and held-out banks as Part 1
 P1=$YD/attempts/20261109_144037_part1.E11FEx

@@ -12,7 +12,7 @@ Writes OUT/g1_tasks.jsonl (task records for the scoring bank), OUT/g1_rows.jsonl
 """
 import argparse, hashlib, json, pathlib, sys
 
-MODEL = "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
+MODEL = "/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
 
 
 def render_ids(tok, messages, add_generation_prompt=False):

@@ -1,9 +1,9 @@
 #!/bin/bash
 # Freeze the G3 training rows (after G2 batch 1 finished with floors and provenance passing): copies the arm A and arm B rows, checks they are task-disjoint between train and valid and that arm B is a subset of arm A, writes sft/g3_expected.sha.
 set -eu
-cd /Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6
-PY=/Users/sanskarthapa/Documents/GitHub/Thesis/.venv/bin/python
-B1=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-data/sft/data/distill/yield/attempts/20261109_212657_g2full.AUhok0
+cd /Users/USER/Documents/GitHub/Thesis-wt-r6
+PY=/Users/USER/Documents/GitHub/Thesis/.venv/bin/python
+B1=/Users/USER/Documents/GitHub/Thesis-wt-data/sft/data/distill/yield/attempts/20261109_212657_g2full.AUhok0
 F=sft/data/distill/r6g3/final
 for a in A B; do mkdir -p $F/$a; done
 for s in train valid; do cp $B1/rows_final_A/$s.jsonl $F/A/$s.jsonl; cp $B1/rows_final_B/$s.jsonl $F/B/$s.jsonl; done

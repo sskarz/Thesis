@@ -6,9 +6,9 @@
 # solve mode iffc-state-ooda-slim, k = 4, teacher writes two or three plain sentences of reasoning before the call list; total cap of the G2 run $15.
 set -u
 ATT_ARG=${1:-}; [ -d "$ATT_ARG" ] || { echo "usage: $0 ATTEMPT_DIR"; exit 2; }
-cd /Users/sanskarthapa/Documents/GitHub/Thesis-wt-g2p2 || exit 2
+cd /Users/USER/Documents/GitHub/Thesis-wt-g2p2 || exit 2
 source sft/data_yield_lib.sh                       # say, cleanup, bt, YD, PY, F_SHA, K2SHA, DD
-ABSLIM=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-slim
+ABSLIM=/Users/USER/Documents/GitHub/Thesis-wt-slim
 D=$DD
 eval "$(sed -n '/^EX=/p;/^HELD=/p' sft/data_yield_chain.sh)"
 eval "$(sed -n '/^N_TARGET=/,/^SMOKE_SLOTS=/p' sft/g2_chain.sh)"           # the same registered parameters as phase 1 (single source)

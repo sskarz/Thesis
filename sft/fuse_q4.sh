@@ -2,7 +2,7 @@
 # usage: fuse_q4.sh <adapter_dir_with_adapters.safetensors> <name>   -> sft/fused/<name>-Q4_K_M.gguf
 # Recipe as R74: mlx_lm fuse -> convert_hf_to_gguf F16 -> llama-quantize Q4_K_M; deletes the fused dir and F16.
 set -euo pipefail
-T=/Users/sanskarthapa/Documents/GitHub/Thesis
+T=/Users/USER/Documents/GitHub/Thesis
 AD="$1"; NAME="$2"
 FD=$T/sft/fused/$NAME
 F16=$T/sft/fused/$NAME-F16.gguf

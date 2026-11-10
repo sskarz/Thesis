@@ -15,7 +15,7 @@ D = "sft/data/distill/"
 STUDENT_DIRS = [D + "r3/student_pool_old", D + "r3/student_pool2", D + "g/student_pool"]
 TASK_SOURCES = [D + "r3/pool_all.jsonl", D + "g/tasks_F.jsonl"]
 LABELS = [D + "r3/labels_old/labels.jsonl", D + "r3/labels_new/labels.jsonl", D + "g/labels/labels.jsonl"]
-MODEL = "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
+MODEL = "/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
 MAX_REASONING_CHARS = 3500
 URL = "http://127.0.0.1:8080/v1/chat/completions"
 

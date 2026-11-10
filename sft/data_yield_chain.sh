@@ -5,7 +5,7 @@
 # solve $0.60 (hard stop 70 min), whole attempt $5.00. The API key is read from the environment by teacher_api.py and is never printed.
 set -u
 case "${1:-}" in part1) ;; *) echo "usage: $0 part1"; exit 2;; esac
-cd /Users/sanskarthapa/Documents/GitHub/Thesis-wt-data || exit 2
+cd /Users/USER/Documents/GitHub/Thesis-wt-data || exit 2
 source sft/data_yield_lib.sh
 D=$DD
 # strict-dedupe inputs for authoring: every earlier task file (including F and K2 text; used only for n-gram dedupe, never read by a person)

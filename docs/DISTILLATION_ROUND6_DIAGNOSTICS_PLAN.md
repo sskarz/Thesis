@@ -17,7 +17,7 @@ Neither is "established" by anything below; each arm gives a description of one 
 
 ## 2. Fixed materials
 
-Path convention: **R5** = `/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill` (Round 5 worktree, read-only for Round 6). **R6** = this worktree, `/Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6`; outputs under `R6/sft/data/distill/r6/` (gitignored).
+Path convention: **R5** = `~/Documents/GitHub/Thesis-wt-distill` (Round 5 worktree, read-only for Round 6). **R6** = this worktree, `~/Documents/GitHub/Thesis-wt-r6`; outputs under `R6/sft/data/distill/r6/` (gitignored).
 
 * Serving: bar GGUF (bartowski Q4_K_M, sha256 prefix `923c4c86177d2ee1`), llama.cpp build `b10894-d344123fe` (each server's `/props` is saved and checked), Run 69 argv via `sft/serve_gguf.sh`, greedy, harness mode `iffc-ooda-card`, server restarted before every run, `-np 4`.
 * Bank FK = F (81, `R5/sft/data/distill/f/tasks_F.jsonl`) + K2 (74, `R5/sft/data/distill/k/tasks_K2.jsonl`, sha256 `e2ac40e4ece912d07a3646a3b6a787c4dd880bd8a2b7dc1f2a4e966bfc98c8ef`) = 155. The F hash is logged at chain start. Aggregate-only use: nobody reads per-task text or per-task results. Neither is training data.

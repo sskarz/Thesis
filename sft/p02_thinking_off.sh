@@ -3,10 +3,10 @@
 # usage: bash sft/p02_thinking_off.sh OUTDIR     Starts and stops its OWN llama-server on :8080; aborts if the port is busy.
 set -u
 OUT=${1:?outdir}; mkdir -p "$OUT"
-R5=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill
-BAR=/Users/sanskarthapa/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf
-LLAMA=/Users/sanskarthapa/Documents/GitHub/Thesis/llama.cpp/build/bin/llama-server
-PY=/Users/sanskarthapa/Documents/GitHub/Thesis/.venv/bin/python
+R5=/Users/USER/Documents/GitHub/Thesis-wt-distill
+BAR=/Users/USER/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf
+LLAMA=/Users/USER/Documents/GitHub/Thesis/llama.cpp/build/bin/llama-server
+PY=/Users/USER/Documents/GitHub/Thesis/.venv/bin/python
 if lsof -nP -iTCP:8080 -sTCP:LISTEN > /dev/null 2>&1; then echo "port 8080 busy; not touching it"; exit 1; fi
 PID=""
 cleanup() { [ -n "$PID" ] && kill "$PID" 2>/dev/null; sleep 2; [ -n "$PID" ] && kill -9 "$PID" 2>/dev/null; true; }

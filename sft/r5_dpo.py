@@ -18,7 +18,7 @@ from mlx_lm import load
 from mlx_lm.tuner.trainer import grad_checkpoint
 from mlx_lm.tuner.utils import linear_to_lora_layers
 
-MODEL = "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
+MODEL = "/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
 LORA = {"rank": 8, "scale": 2.0, "dropout": 0.0, "keys": ["self_attn.q_proj", "self_attn.v_proj"]}
 NUM_LAYERS = 16
 MIN_PAIRS, MIN_TASKS = 150, 50   # registered pair floor (applied to the post-filter TRAIN set)

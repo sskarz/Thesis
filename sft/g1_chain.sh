@@ -6,7 +6,7 @@
 # Fail-fast only on INVALID runs; the outcome (PASS/FAIL) never stops anything. Owned-server lifecycle and caps come from sft/evallib6.sh (reviewed). Own attempt dir and own 10 h clock.
 set -u
 case "${1:-}" in g1) ;; *) echo "usage: $0 g1"; exit 2;; esac
-cd /Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6 || exit 2
+cd /Users/USER/Documents/GitHub/Thesis-wt-r6 || exit 2
 source sft/evallib6.sh
 D6=$ABS6/sft/data/distill/r6g1            # separate attempts directory and separate clock from the stage 1 chain
 CHAIN_CAP=36000                           # registered: G1 must finish within 10 h of its start (training itself is capped at 8 h)

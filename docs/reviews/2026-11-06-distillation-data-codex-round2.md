@@ -6,10 +6,10 @@ Reviewer: Codex CLI 0.167.0, gpt-6.1-sol, medium effort, read-only, env not inhe
 
 I reviewed all 156 targets and 26 source tasks, replayed their 183 gold calls offline, and checked retained actions against logged execution results. No files were modified.
 
-Row numbers below refer to [`mlx-t2-null156/train.jsonl`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/data/distill/mlx-t2-null156/train.jsonl).
+Row numbers below refer to [`mlx-t2-null156/train.jsonl`](~/Documents/GitHub/Thesis-wt-distill/sft/data/distill/mlx-t2-null156/train.jsonl).
 
 1. **Critical — Previous finding 1: PARTLY fixed. Wrong gold outcomes remain.**  
-   The nine quarantines remove the original sibling-directory cases, including `0103`. However, [`semantic_issue()`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_tasks.py:233) skips destinations containing dots:
+   The nine quarantines remove the original sibling-directory cases, including `0103`. However, [`semantic_issue()`](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_tasks.py:233) skips destinations containing dots:
    - Task **0067**, retained **row 115**, copies `ep_015.txt` to `destination='..'`. My replay created a **file named `..` inside `episodes`**, leaving no backup in `wavelength`.
    - Task **0098** gold and teacher both execute `mv(guest_list.txt, '..')`. Replay **removes the original name and creates `clients/..`**, rather than moving into `wedding_planner`. Only its earlier rows **155–156** enter this subset; the source episode remains semantically invalid.
    - Task **0005**, **row 36**, requests three decimal places, but `square_root(..., precision=3)` sets **three significant digits** and returns **3.84**. Gold has the same defect.

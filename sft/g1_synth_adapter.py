@@ -4,7 +4,7 @@ usage: g1_synth_adapter.py OUT_DIR [--layers 8-34] [--rank 16]   Shapes come fro
 import argparse, json, pathlib, numpy as np
 from safetensors import safe_open
 from safetensors.numpy import save_file
-MODEL = pathlib.Path("/Users/sanskarthapa/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx")
+MODEL = pathlib.Path("/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx")
 ATTN = ["q_proj", "o_proj", "k_proj", "v_proj"]; MLP = ["gate_proj", "up_proj", "down_proj"]
 ap = argparse.ArgumentParser(); ap.add_argument("out"); ap.add_argument("--layers", default="8-34"); ap.add_argument("--rank", type=int, default=16); a = ap.parse_args()
 idx = json.load(open(MODEL / "model.safetensors.index.json"))["weight_map"]

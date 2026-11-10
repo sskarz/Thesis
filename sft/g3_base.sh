@@ -5,7 +5,7 @@
 # usage: bash sft/g3_base.sh base
 set -u
 case "${1:-}" in base) ;; *) echo "usage: $0 base"; exit 2;; esac
-cd /Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6 || exit 2
+cd /Users/USER/Documents/GitHub/Thesis-wt-r6 || exit 2
 source sft/g3lib.sh
 init_attempt base
 echo "$(date +%T) g3 base start, attempt $ATT"

@@ -27,7 +27,7 @@ No replay/checker exceptions occurred. No responses were excluded for truncation
 
 **VERIFIED — floor and outcome-dependent selection**
 
-The [registered rule](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND5_PLAN.md:57) requires **≥150 train pairs from ≥50 tasks after filtering and splitting**. The task requirement passes; the pair requirement fails. Logs record pair-builder exit **2** and no subsequent B training.
+The [registered rule](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND5_PLAN.md:57) requires **≥150 train pairs from ≥50 tasks after filtering and splitting**. The task requirement passes; the pair requirement fails. Logs record pair-builder exit **2** and no subsequent B training.
 
 The current plan and builder match frozen commit `a8668f1`, preceding sampling; the saved outputs match that implementation. I found no evidence of outcome-based filter, pairing, split or floor changes.
 
@@ -35,11 +35,11 @@ The current plan and builder match frozen commit `a8668f1`, preceding sampling; 
 
 **BUG — exact runlog edits**
 
-At [runlog line 148](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:148), replace the state-count sentence with:
+At [runlog line 148](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:148), replace the state-count sentence with:
 
 > States with any exact response: 173; with a chosen-eligible exact response after the reasoning cap: 171; with a verified-inferior response: 299; with both chosen-eligible exact and verified-inferior responses: 99.
 
-At [line 149](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:149), replace:
+At [line 149](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:149), replace:
 
 > student originally agreed with teacher on 18.3% of states; mean branch length difference 18.6 tokens.
 
@@ -55,18 +55,18 @@ Other reported training-pair summaries reproduce: rejected classes **50/70**, re
 
 **BUG — exception handling does not fully implement v2.3**
 
-[Classifier exception handling](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/r5_pairs.py:164) calls helpers that swallow exceptions:
+[Classifier exception handling](~/Documents/GitHub/Thesis-wt-distill/sft/r5_pairs.py:164) calls helpers that swallow exceptions:
 
-- [`turn_complete`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_onpolicy.py:93) returns `False` on checker failure, potentially converting infrastructure failure into `premature_stop`.
-- [`same_effect`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/benchmark/distill_onpolicy.py:128) returns `False` on replay failure, hiding it as unresolved.
+- [`turn_complete`](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_onpolicy.py:93) returns `False` on checker failure, potentially converting infrastructure failure into `premature_stop`.
+- [`same_effect`](~/Documents/GitHub/Thesis-wt-distill/benchmark/distill_onpolicy.py:128) returns `False` on replay failure, hiding it as unresolved.
 
 Exact fix: add an optional exception-propagating mode to both helpers, use it from `r5_pairs.classify`, and catch those exceptions there as `replay_exception`. Preserve existing defaults for other callers. **No current recount changes:** the independent pass observed zero such exceptions.
 
 **CONCERN — audit completeness, not the stop decision**
 
-The [v2.3 final-row audit](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND5_PLAN.md:56) requires both branches of train and validation pairs to be checked. “Moot after the stop” overstates compliance.
+The [v2.3 final-row audit](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_ROUND5_PLAN.md:56) requires both branches of train and validation pairs to be checked. “Moot after the stop” overstates compliance.
 
-Replace [line 151](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:151) with:
+Replace [line 151](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:151) with:
 
 > Diagnostics copy: docs/reviews/r5_pair_diagnostics.json. The required final train-and-validation branch provenance audit was not performed; these counts are pre-audit and the pair set is not provenance-certified. Stage B remains stopped: any task exclusions and recomputed split can retain at most 132 total pairs, below the 150-train-pair floor.
 

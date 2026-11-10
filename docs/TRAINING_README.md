@@ -52,3 +52,7 @@ The tree is the result of merging nine work branches in dependency order. The br
 ## Limits that apply to every number here
 
 Single seed; greedy decoding; the screening banks share their author with the training data, so only the 200 test tasks can settle a claim; the 200-task result needs the paired test used in Chapter 5 and a separate decision; statistics wording is never stronger than the record. Reviewers of the synthetic tasks are models, not people, on 40-task samples.
+
+## Paths
+
+For privacy the author's home directory is replaced in this branch: `~` in documents, `/Users/USER` in scripts, configs and code. The scripts were run from the author's Mac with the real path; to run one, replace `/Users/USER` with your own home directory. Nothing else differs from the versions that produced the results.

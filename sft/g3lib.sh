@@ -1,15 +1,15 @@
 # G3 helpers: copy of evallib6.sh with compact-list mode from the slim port, thinking on/off servers, no probe. (source from the Thesis-wt-r6 chain). Read-only data root: the Round 5 worktree (R5).
 # v3: answers Codex r36. Owned-server lifecycle (never pkill), exact identity checks, enforced caps, unique attempt dirs.
 export PYTHONDONTWRITEBYTECODE=1                      # imports from the Round 5 worktree must not create __pycache__ there
-R5=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill
-ABS6=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6
-BAR=/Users/sanskarthapa/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf
+R5=/Users/USER/Documents/GitHub/Thesis-wt-distill
+ABS6=/Users/USER/Documents/GitHub/Thesis-wt-r6
+BAR=/Users/USER/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf
 BAR_SHA16=923c4c86177d2ee1
 BUILD=b10894-d344123fe
-LLAMA=/Users/sanskarthapa/Documents/GitHub/Thesis/llama.cpp/build/bin/llama-server
-PY=/Users/sanskarthapa/Documents/GitHub/Thesis/.venv/bin/python
+LLAMA=/Users/USER/Documents/GitHub/Thesis/llama.cpp/build/bin/llama-server
+PY=/Users/USER/Documents/GitHub/Thesis/.venv/bin/python
 D6=$ABS6/sft/data/distill/r6g3
-SLIM=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-slim
+SLIM=/Users/USER/Documents/GitHub/Thesis-wt-slim
 SLIM_COMMIT=dfdbc2b
 FC_MODE=iffc-state-ooda-slim
 F=$R5/sft/data/distill/f/tasks_F.jsonl

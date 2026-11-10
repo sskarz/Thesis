@@ -13,7 +13,7 @@ Thesis: "State, Not Syntax: Harness Optimization for Small-Model Multi-Turn Tool
 3. Findings: `DISTILLATION_ROUND2_FINDINGS.md`, `DISTILLATION_ROUND3_FINDINGS.md`, `DISTILLATION_ROUND4_FINDINGS.md`, `DISTILLATION_ROUND5_FINDINGS.md`.
 4. Pre-registered plans (the rules that decided each outcome): `DISTILLATION_ROUND3_PLAN.md`, `DISTILLATION_ROUND4_PLAN.md` (+ `_H_SPEC.md`), `DISTILLATION_ROUND5_PLAN.md` (v2 + v2.1/2.2/2.3).
 5. Method brainstorms: `DISTILLATION_NEXT_METHODS.md`, `docs/reviews/codex_r26_next_methods_brainstorm.md`, `docs/reviews/codex_r34_next_step.md`.
-6. Codex reviews of each step: `docs/reviews/codex_r*.md` and the older `2026-11-0*` files. Memory pointer: `~/.claude/projects/-Users-sanskarthapa-Documents-GitHub-thesis-vault/memory/thesis-distillation-pipeline.md`.
+6. Codex reviews of each step: `docs/reviews/codex_r*.md` and the older `2026-11-0*` files. Memory pointer: `~/.claude/projects/-Users-USER-Documents-GitHub-thesis-vault/memory/thesis-distillation-pipeline.md`.
 
 ## 3. Cumulative results (all against the untuned Q4_K_M base served from the same bar GGUF)
 

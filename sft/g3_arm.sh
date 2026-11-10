@@ -10,10 +10,10 @@ set -u
 MODE=${1:-}; ARM=${2:-}
 case "$MODE" in smoke|run) ;; *) echo "usage: $0 smoke|run A|B"; exit 2;; esac
 case "$ARM" in A) THINK=off; SRC=rows_clean;; B) THINK=on; SRC=rows_B;; *) echo "usage: $0 smoke|run A|B"; exit 2;; esac
-cd /Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6 || exit 2
+cd /Users/USER/Documents/GitHub/Thesis-wt-r6 || exit 2
 source sft/g3lib.sh
 D6=$ABS6/sft/data/distill/r6g3
-B1=/Users/sanskarthapa/Documents/GitHub/Thesis-wt-data/sft/data/distill/yield/attempts/20261109_212657_g2full.AUhok0
+B1=/Users/USER/Documents/GitHub/Thesis-wt-data/sft/data/distill/yield/attempts/20261109_212657_g2full.AUhok0
 FROZEN=$D6/final/$ARM
 if [ "$MODE" = smoke ]; then CHAIN_CAP=5400; else CHAIN_CAP=122400; fi
 T=sft/r6_tools.py
@@ -72,7 +72,7 @@ $PY -B - $B1 $ARM <<'PYEOF' || die "preconditions failed (G2 floors, provenance,
 import json, sys, glob, pathlib
 b1, arm = pathlib.Path(sys.argv[1]), sys.argv[2]
 g2 = json.load(open(b1 / "G2_REPORT.json")); prov = json.load(open(b1 / ("provenance_final_A.json" if arm == "A" else "provenance_final_B.json")))
-base = sorted(glob.glob("/Users/sanskarthapa/Documents/GitHub/Thesis-wt-r6/sft/data/distill/r6g3/attempts/*_base.*/G3_BASE_REPORT.json"))
+base = sorted(glob.glob("/Users/USER/Documents/GitHub/Thesis-wt-r6/sft/data/distill/r6g3/attempts/*_base.*/G3_BASE_REPORT.json"))
 ok = bool(g2["floor_met"]) and bool(prov["pass"]) and bool(base) and json.load(open(base[-1]))["valid"]
 print(json.dumps({"floor_met": g2["floor_met"], "surviving_tasks": g2["surviving_tasks"], "provenance_pass": prov["pass"], "base_report": base[-1] if base else None}))
 sys.exit(0 if ok else 1)

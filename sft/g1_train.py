@@ -10,7 +10,7 @@ Exit codes: 0 done; 4 non-finite loss; 5 diverged (mean loss of updates 76-100 a
 """
 import argparse, json, math, pathlib, random, sys, time
 
-MODEL = "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
+MODEL = "/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
 ATTN = ["q_proj", "o_proj", "k_proj", "v_proj"]
 MLP = ["gate_proj", "up_proj", "down_proj"]
 

@@ -7,7 +7,7 @@ usage: token_segments_audit.py <out.json> rows1.jsonl [rows2.jsonl ...]"""
 import json, sys, collections, statistics
 from transformers import AutoTokenizer
 
-M = "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
+M = "/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
 tok = AutoTokenizer.from_pretrained(M)
 END_THINK = tok.convert_tokens_to_ids("<channel|>")
 

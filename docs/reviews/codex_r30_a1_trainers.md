@@ -35,7 +35,7 @@ I also reconstructed the prompts offline using the local template and tokenizer,
 - Training rendering with the content marker equals that serving rendering after accounting for BOS.
 - The harness sends marker-free system content; its local API wrapper leaves the payload unchanged. The server adds the marker.
 
-One qualification: [`r5_precision_probe.py:59`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/r5_precision_probe.py:59) uses `add_special=False`, so its saved token hashes exclude BOS. The completion path adds special tokens separately. This does **not** reveal a prompt mismatch, but the hashes should be described as rendered-prompt token hashes, rather than a direct capture of the complete inference token sequence.
+One qualification: [`r5_precision_probe.py:59`](~/Documents/GitHub/Thesis-wt-distill/sft/r5_precision_probe.py:59) uses `add_special=False`, so its saved token hashes exclude BOS. The completion path adds special tokens separately. This does **not** reveal a prompt mismatch, but the hashes should be described as rendered-prompt token hashes, rather than a direct capture of the complete inference token sequence.
 
 The registered trigger was applied correctly:
 
@@ -45,7 +45,7 @@ Therefore **“no detected precision rescue on this probe”** is supported. A t
 
 **A1 — BUG: the earlier noise/subset note is false**
 
-[`DISTILLATION_RUNLOG.md:107`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:107) needs replacement:
+[`DISTILLATION_RUNLOG.md:107`](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:107) needs replacement:
 
 - Today’s first 35 train rows are **all arm B**.
 - They are **exactly equal, including metadata**, to `r3/probe/train35_think.jsonl`.
@@ -61,7 +61,7 @@ Historical probes lack rendered hashes and finish reasons, limiting stronger ret
 
 **A1 — CONCERN: the reading paragraph overreaches**
 
-Three phrases in [`DISTILLATION_RUNLOG.md:113`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:113) need changing:
+Three phrases in [`DISTILLATION_RUNLOG.md:113`](~/Documents/GitHub/Thesis-wt-distill/docs/DISTILLATION_RUNLOG.md:113) need changing:
 
 - **“quantization changes”** assigns causality despite different conversion provenance.
 - **“far above run-to-run variation”** generalizes from one repeat comparison.
@@ -76,7 +76,7 @@ Suggested replacement:
 
 The manifest already pins the BF16 output SHA, converter-script SHA, HF revision, server commit/binary, and `outtype=bf16`. Those are **not missing**.
 
-Still missing from [`manifest.json:63`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/data/distill/r5/manifest.json:63):
+Still missing from [`manifest.json:63`](~/Documents/GitHub/Thesis-wt-distill/sft/data/distill/r5/manifest.json:63):
 
 - Exact conversion argv, interpreter/environment, and log hash.
 - HF source `model.safetensors`, `config.json`, and HF `tokenizer_config.json` hashes.
@@ -84,13 +84,13 @@ Still missing from [`manifest.json:63`](/Users/sanskarthapa/Documents/GitHub/The
 - Probe-script, chain-script, and result/report hashes.
 - Verified bartowski source revision/conversion recipe; currently acknowledged as unknown. It must remain a limitation if unavailable.
 
-Also, [`r5_precision_probe.py:67`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/r5_precision_probe.py:67) catches failures and then exits successfully. The report can compare missing hashes as equal. Existing records are clean, so this does not invalidate them.
+Also, [`r5_precision_probe.py:67`](~/Documents/GitHub/Thesis-wt-distill/sft/r5_precision_probe.py:67) catches failures and then exits successfully. The report can compare missing hashes as equal. Existing records are clean, so this does not invalidate them.
 
 **Exact edits:** preserve outputs, then exit nonzero on errors or invalid cardinality; validate matching unique keys, targets, nonmissing hashes, marker counts, and adapter state before computing the trigger. Parse `/lora-adapters` structurally instead of grepping `"scale":1`, which also matches values such as `10`.
 
 **Weighted trainer — VERIFIED**
 
-[`train_mlx_weighted.py:18`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/train_mlx_weighted.py:18) implements the registered batch objective:
+[`train_mlx_weighted.py:18`](~/Documents/GitHub/Thesis-wt-distill/sft/train_mlx_weighted.py:18) implements the registered batch objective:
 
 `0.9 × mean(answer + separator + termination CE) + 0.1 × mean(reasoning CE)`.
 
@@ -120,11 +120,11 @@ The installed source confirms the [documented trainer flow](https://github.com/m
 
 **Weighted trainer — BUG / CONCERN: CLI and tests**
 
-At [`train_mlx_weighted.py:46`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/train_mlx_weighted.py:46), explicit `--mode weighted --model PATH` works. But omitted mode, `--mode=weighted`, and model supplied through YAML/defaults fail through manual indexing.
+At [`train_mlx_weighted.py:46`](~/Documents/GitHub/Thesis-wt-distill/sft/train_mlx_weighted.py:46), explicit `--mode weighted --model PATH` works. But omitted mode, `--mode=weighted`, and model supplied through YAML/defaults fail through manual indexing.
 
 **Exact edit:** parse wrapper arguments with `argparse.parse_known_args()`, resolve the effective MLX model configuration, and validate the separator ID.
 
-[`test_train_weighted.py:25`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/test_train_weighted.py:25) correctly uses size-proportional segment weights to reproduce equal **per-token** weighting. Using `0.5` would not reproduce stock loss.
+[`test_train_weighted.py:25`](~/Documents/GitHub/Thesis-wt-distill/sft/test_train_weighted.py:25) correctly uses size-proportional segment weights to reproduce equal **per-token** weighting. Using `0.5` would not reproduce stock loss.
 
 However:
 
@@ -136,7 +136,7 @@ However:
 
 **DPO — VERIFIED**
 
-The central implementation in [`r5_dpo.py:41`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/r5_dpo.py:41) is correct:
+The central implementation in [`r5_dpo.py:41`](~/Documents/GitHub/Thesis-wt-distill/sft/r5_dpo.py:41) is correct:
 
 - Head positions `offset−1 : n−2` predict targets `offset : n−1`. **No off-by-one bug.**
 - Continuation includes reasoning, separator, answer, and `<turn|>`; excludes trailing newline and pad.
@@ -155,13 +155,13 @@ The central implementation in [`r5_dpo.py:41`](/Users/sanskarthapa/Documents/Git
 
 **DPO — BUGS requiring edits**
 
-1. **Amended cap is not the default.** [`r5_dpo.py:90`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/r5_dpo.py:90) still defaults to **6000**.  
+1. **Amended cap is not the default.** [`r5_dpo.py:90`](~/Documents/GitHub/Thesis-wt-distill/sft/r5_dpo.py:90) still defaults to **6000**.  
    **Edit:** change parser and usage text to **9500**. Explicit `--max-seq 9500` currently works.
 
-2. **Chosen-only preflight runs incompatible DPO gradient checks.** [`r5_dpo.py:156`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/r5_dpo.py:156) runs unconditionally, but `vg` uses token means for `sft_chosen`, while `joint` differentiates sequence-sum DPO.  
+2. **Chosen-only preflight runs incompatible DPO gradient checks.** [`r5_dpo.py:156`](~/Documents/GitHub/Thesis-wt-distill/sft/r5_dpo.py:156) runs unconditionally, but `vg` uses token means for `sft_chosen`, while `joint` differentiates sequence-sum DPO.  
    **Edit:** gate DPO equivalence checks by objective; give SFT its own mean-NLL descent check.
 
-3. **Sliced-head equivalence is printed, not enforced.** [`r5_dpo.py:154`](/Users/sanskarthapa/Documents/GitHub/Thesis-wt-distill/sft/r5_dpo.py:154) can print a large discrepancy and still declare success.  
+3. **Sliced-head equivalence is printed, not enforced.** [`r5_dpo.py:154`](~/Documents/GitHub/Thesis-wt-distill/sft/r5_dpo.py:154) can print a large discrepancy and still declare success.  
    **Edit:** assert finite values and an explicit tolerance.
 
 4. **Empty retained datasets crash obscurely.** Empty train accesses `train[0]`; empty DPO validation divides by zero.  

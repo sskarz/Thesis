@@ -10,7 +10,7 @@ from mlx_lm import load, generate
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from benchmark.iffc import try_parse_iffc_response, iffc_calls_to_func_strings
 
-M = "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
+M = "/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx"
 ad, rows_p, out = sys.argv[1], sys.argv[2], sys.argv[3]
 n = int(sys.argv[4]) if len(sys.argv) > 4 else 35
 gen = int(sys.argv[5]) if len(sys.argv) > 5 else 0

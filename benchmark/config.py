@@ -150,7 +150,7 @@ MODELS: dict[str, dict[str, str]] = {
     # (never resume 30/42). Do not invent BFCL %.
     "gemma4-e2b-dpo-full-beta02": {
         "hf_repo": "",  # serve with -m, not -hf
-        "gguf_path": "/Users/sanskarthapa/Documents/Thesis-sft-v9/sft/fused/gemma-4-e2b-it-dpo-full-beta02-Q4_K_M.gguf",
+        "gguf_path": "/Users/USER/Documents/Thesis-sft-v9/sft/fused/gemma-4-e2b-it-dpo-full-beta02-Q4_K_M.gguf",
         "quant": "Q4_K_M",
         "api_name": "gemma4-e2b-dpo-full-beta02",
         "display": "Gemma-4-E2B-it DPO full beta0.2 (Q4_K_M)",
@@ -171,7 +171,7 @@ MODELS: dict[str, dict[str, str]] = {
     # path, and an adapter trained on the base's own greedy replies (near-zero loss).
     "gemma4-e2b-basepipe": {
         "hf_repo": "",
-        "gguf_path": "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/fused/gemma-4-e2b-it-basepipe-Q4_K_M.gguf",
+        "gguf_path": "/Users/USER/Documents/GitHub/Thesis/sft/fused/gemma-4-e2b-it-basepipe-Q4_K_M.gguf",
         "quant": "Q4_K_M",
         "api_name": "gemma4-e2b-basepipe",
         "display": "Gemma-4-E2B-it base via local convert (Q4_K_M)",
@@ -179,7 +179,7 @@ MODELS: dict[str, dict[str, str]] = {
     },
     "gemma4-e2b-distill-c1": {
         "hf_repo": "",
-        "gguf_path": "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/fused/gemma-4-e2b-it-distill-c1-Q4_K_M.gguf",
+        "gguf_path": "/Users/USER/Documents/GitHub/Thesis/sft/fused/gemma-4-e2b-it-distill-c1-Q4_K_M.gguf",
         "quant": "Q4_K_M",
         "api_name": "gemma4-e2b-distill-c1",
         "display": "Gemma-4-E2B-it Distill control c1 (Q4_K_M)",
@@ -189,7 +189,7 @@ MODELS: dict[str, dict[str, str]] = {
     # (llama-server --lora). No fuse, no re-quantization. gguf_path is the base; the adapter is named in the run notes.
     "gemma4-e2b-distill-c1-rt": {
         "hf_repo": "",
-        "gguf_path": "/Users/sanskarthapa/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf",
+        "gguf_path": "/Users/USER/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf",
         "quant": "Q4_K_M",
         "api_name": "gemma4-e2b-distill-c1-rt",
         "display": "Gemma-4-E2B-it bartowski + runtime LoRA c1 (Q4_K_M)",
@@ -197,7 +197,7 @@ MODELS: dict[str, dict[str, str]] = {
     },
     "gemma4-e2b-distill-t1": {
         "hf_repo": "",  # serve with -m, not -hf
-        "gguf_path": "/Users/sanskarthapa/Documents/GitHub/Thesis/sft/fused/gemma-4-e2b-it-distill-t1-Q4_K_M.gguf",
+        "gguf_path": "/Users/USER/Documents/GitHub/Thesis/sft/fused/gemma-4-e2b-it-distill-t1-Q4_K_M.gguf",
         "quant": "Q4_K_M",
         "api_name": "gemma4-e2b-distill-t1",
         "display": "Gemma-4-E2B-it Distill-t1 (Q4_K_M)",

@@ -157,7 +157,7 @@ def gguf_check(a):
     P = A[in,r] @ B[r,out]; the GGUF holds lora_a [r,in] and lora_b [out,r] (as the converter writes them), so scale * P^T must equal
     (alpha / r) * (lora_b @ lora_a). Requires the exact tensor set, finite values and metadata, and reports the worst relative Frobenius
     error of the whole matrix per pair (fp16 storage error is expected to be about 1e-4 or below; tolerance 1e-2)."""
-    sys.path.insert(0, "/Users/sanskarthapa/Documents/GitHub/Thesis/llama.cpp/gguf-py")
+    sys.path.insert(0, "/Users/USER/Documents/GitHub/Thesis/llama.cpp/gguf-py")
     from gguf import GGUFReader
     from safetensors import safe_open
     scale = float(json.load(open(pathlib.Path(a.adapter_dir) / "adapter_config.json"))["lora_parameters"]["scale"])
