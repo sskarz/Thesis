@@ -56,3 +56,8 @@ Single seed; greedy decoding; the screening banks share their author with the tr
 ## Paths
 
 For privacy the author's home directory is replaced in this branch: `~` in documents, `/Users/USER` in scripts, configs and code. The scripts were run from the author's Mac with the real path; to run one, replace `/Users/USER` with your own home directory. Nothing else differs from the versions that produced the results.
+
+## Notes on what the diff contains
+
+* **Figures.** Ten older figure files appear under `paper/figures/` (`accuracy_comparison.pdf`, `comparison_dashboard.pdf`, `failure_buckets.pdf` and `.png`, `gemma_accuracy_by_category.pdf`, `memory_comparison.pdf`, `multiturn_scoreboard.pdf` and `.png`, `performance_comparison.pdf`, `sft_v2_accuracy.pdf`). They come from the `thesis/compact-list-r81` branch, which starts from the February 2026 paper draft; `main` does not have them. `paper/main.tex` does not use any of them. They are kept only so that merge is complete and can be dropped.
+* **Commit hashes.** The commit hashes named in this README and in `docs/TRAINING_RESULTS_LOG.md` refer to the author's local work branches. This branch is published as a single commit, so those hashes do not exist in this repository. The work branches are kept in a Git bundle in the author's dated backup (`~/thesis-backups/2026-11-10/work-branches.bundle`, ten branches including the merged one with full history).
