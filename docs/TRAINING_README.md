@@ -2,7 +2,7 @@
 
 Branch `thesis/training`. It collects, in one place, the work done after the main paper's experiments: the fine-tuning rounds that did not beat the untuned model, the compact tool-list stack, the synthetic-data pipeline, and the scaled training runs. Scope is unchanged: Gemma-4-E2B-it only, BFCL v4 `multi_turn_base`, one MacBook M4 Pro. The 200 BFCL test tasks have not been used in any step recorded here. `paper/main.tex` and the CSULA thesis sources are not changed by this branch.
 
-**Status (2026-11-10, evening):** data pipeline finished (501 checked synthetic tasks over two batches). Arm A (direct-answer adapter, 2 passes) is training; arm B and a combined retrain are queued; nothing has been scored on the 200 test tasks. A first look at arm A after one pass (37 of 81 on one screening bank) is exploratory and is not the registered screen. Update this line with every merge into the branch.
+**Status (2026-11-11, morning):** data pipeline finished (501 checked synthetic tasks over two batches). Arm A (direct-answer adapter, 2 passes) is trained and scored 118 of 155 on the two screening banks, against 59, 61 (thinking on) and 54 (thinking off) for the untuned model, and passed the registered screening threshold of 70 on run 1 and on the repeat. **This is a screening result: those banks come from the same generator and teacher as the training tasks, so it shows that the adapter learned that task distribution, not a gain on BFCL.** Paired against the untuned runs on the same 155 tasks the adapter solves 63, 61 and 69 tasks the untuned run misses and misses 4, 4 and 5 that it solves (thinking on run 1, run 2, thinking off). Leakage checks so far are partial (task ids and long strings, not paraphrases or shared state templates). Arm B is training; a combined retrain and the BFCL 200 evaluation are planned but not approved or run; nothing has been scored on the 200 test tasks. Update this line with every merge into the branch.
 
 ## What is in the branch
 
@@ -39,7 +39,8 @@ The tree is the result of merging nine work branches in dependency order. The br
 | G1 overfit gate (11 to 32 of 40; pipeline check only) | results log section 3; `docs/DISTILLATION_G1_PREREGISTRATION.md` |
 | Batch 1 and batch 2 funnels, 501 tasks | results log sections 4 to 8d; `docs/DATA_YIELD_G2_PREREGISTRATION.md`, `docs/DATA_YIELD_G2B_PREREGISTRATION.md` |
 | G3 base references (59, 61 thinking on; 54 off; threshold 70 of 155) | results log section 5; `docs/DISTILLATION_G3_PREREGISTRATION.md` |
-| Arm A training and pass-1 probe | results log sections 7 and 8e |
+| Arm A training, screening score and pass-1 probe | results log sections 7, 8e and 10 |
+| BFCL 200 evaluation plan (draft, not approved) | `docs/DISTILLATION_G4_PREREGISTRATION_DRAFT.md` |
 | Combined retrain (approved, not launched) | `docs/DISTILLATION_G3C_COMBINED_PREREGISTRATION.md` |
 | Chapter and appendix draft | `docs/drafts/ch6_appA_distillation_draft.tex` |
 
