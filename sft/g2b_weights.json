@@ -1,0 +1,10 @@
+{
+ "MessageAPI": 3.0,
+ "TravelAPI": 2.8,
+ "MathAPI": 0.59,
+ "VehicleControlAPI": 1.0,
+ "GorillaFileSystem": 0.95,
+ "TicketAPI": 0.57,
+ "TwitterAPI": 0.71,
+ "TradingBot": 0.62
+}

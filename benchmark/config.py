@@ -1,11 +1,13 @@
 """Shared constants for the BFCL benchmark pipeline."""
 
+import os
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
-SERVER_URL = "http://localhost:8080"
+# Override only for offline stub smokes (R81); default unchanged.
+SERVER_URL = os.environ.get("BFCL_SERVER_URL", "http://localhost:8080")
 
 # ---------------------------------------------------------------------------
 # Model registry
@@ -148,7 +150,7 @@ MODELS: dict[str, dict[str, str]] = {
     # (never resume 30/42). Do not invent BFCL %.
     "gemma4-e2b-dpo-full-beta02": {
         "hf_repo": "",  # serve with -m, not -hf
-        "gguf_path": "/Users/sanskarthapa/Documents/Thesis-sft-v9/sft/fused/gemma-4-e2b-it-dpo-full-beta02-Q4_K_M.gguf",
+        "gguf_path": "/Users/USER/Documents/Thesis-sft-v9/sft/fused/gemma-4-e2b-it-dpo-full-beta02-Q4_K_M.gguf",
         "quant": "Q4_K_M",
         "api_name": "gemma4-e2b-dpo-full-beta02",
         "display": "Gemma-4-E2B-it DPO full beta0.2 (Q4_K_M)",
@@ -160,6 +162,46 @@ MODELS: dict[str, dict[str, str]] = {
         "api_name": "functiongemma-270m",
         "display": "FunctionGemma-270M-IT",
         "slug": "FunctionGemma-270M-IT",
+    },
+
+    # Teacher-student distillation, null-scale (154 verified teacher rows, rank 8, 156 micro-batches =
+    # 39 updates; sft/lora_config_distill_t1.yaml). Distinct api_name/slug: never overwrites other rows.
+    # Serve with -m <absolute GGUF>. Gate protocol: docs/DISTILLATION_HANDOFF.md section 6.
+    # Pipeline controls for the distillation gate (not candidates): untuned base through OUR convert+quantize
+    # path, and an adapter trained on the base's own greedy replies (near-zero loss).
+    "gemma4-e2b-basepipe": {
+        "hf_repo": "",
+        "gguf_path": "/Users/USER/Documents/GitHub/Thesis/sft/fused/gemma-4-e2b-it-basepipe-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-basepipe",
+        "display": "Gemma-4-E2B-it base via local convert (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-BasePipe-Q4_K_M",
+    },
+    "gemma4-e2b-distill-c1": {
+        "hf_repo": "",
+        "gguf_path": "/Users/USER/Documents/GitHub/Thesis/sft/fused/gemma-4-e2b-it-distill-c1-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-distill-c1",
+        "display": "Gemma-4-E2B-it Distill control c1 (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-Distill-c1-Q4_K_M",
+    },
+    # Runtime-LoRA candidates: the EXACT bar GGUF (bartowski Q4_K_M, as Run 69) + a GGUF LoRA applied at runtime
+    # (llama-server --lora). No fuse, no re-quantization. gguf_path is the base; the adapter is named in the run notes.
+    "gemma4-e2b-distill-c1-rt": {
+        "hf_repo": "",
+        "gguf_path": "/Users/USER/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-distill-c1-rt",
+        "display": "Gemma-4-E2B-it bartowski + runtime LoRA c1 (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-Distill-c1-RT-Q4_K_M",
+    },
+    "gemma4-e2b-distill-t1": {
+        "hf_repo": "",  # serve with -m, not -hf
+        "gguf_path": "/Users/USER/Documents/GitHub/Thesis/sft/fused/gemma-4-e2b-it-distill-t1-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "api_name": "gemma4-e2b-distill-t1",
+        "display": "Gemma-4-E2B-it Distill-t1 (Q4_K_M)",
+        "slug": "Gemma-4-E2B-it-Distill-t1-Q4_K_M",
     },
 }
 DEFAULT_MODEL = "qwen2.5-3b"
@@ -178,7 +220,10 @@ RUN_ID: int | None = None
 # Paths  (results are organized per model)
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RESULTS_DIR = PROJECT_ROOT / "benchmark" / "results"
+# BENCHMARK_RESULTS_DIR lets a worktree write to the main checkout DB (R81).
+RESULTS_DIR = Path(
+    os.environ.get("BENCHMARK_RESULTS_DIR") or (PROJECT_ROOT / "benchmark" / "results")
+)
 MODEL_RESULTS_DIR: Path = RESULTS_DIR
 RESPONSES_DIR: Path = RESULTS_DIR
 METRICS_DIR: Path = RESULTS_DIR
@@ -311,8 +356,14 @@ FC_XLAM = "xlam"
 FC_IFFC_STOP_REPEAT = "iffc-stop-repeat"
 FC_IFFC_DECISION = "iffc-decision"
 FC_IFFC_OODA_CARD = "iffc-ooda-card"
+FC_IFFC_OODA_RECOVER = "iffc-ooda-card-recover"  # round 4 H: iffc-ooda-card + error-recovery nudge (docs/DISTILLATION_ROUND4_H_SPEC.md)
 FC_IFFC_DECISION_OODA = "iffc-decision-ooda"
 FC_IFFC_STATE_OODA = "iffc-state-ooda"
+# iffc-state-ooda-slim (R81) = iffc-state-ooda with a compact tool list:
+#        strict hoist of byte-identical class preambles under "Tool classes:",
+#        schema JSON without indentation, tool order unchanged.
+FC_IFFC_STATE_OODA_SLIM = "iffc-state-ooda-slim"
+FC_IFFC_STATE_OODA_FAMILY = (FC_IFFC_STATE_OODA, FC_IFFC_STATE_OODA_SLIM)
 FC_MODES = (
     FC_NFC,
     FC_IFFC,
@@ -324,8 +375,10 @@ FC_MODES = (
     FC_IFFC_STOP_REPEAT,
     FC_IFFC_DECISION,
     FC_IFFC_OODA_CARD,
+    FC_IFFC_OODA_RECOVER,
     FC_IFFC_DECISION_OODA,
     FC_IFFC_STATE_OODA,
+    FC_IFFC_STATE_OODA_SLIM,
 )
 FC_JSON_TEXT_MODES = (
     FC_IFFC,
@@ -336,21 +389,29 @@ FC_JSON_TEXT_MODES = (
     FC_IFFC_STOP_REPEAT,
     FC_IFFC_DECISION,
     FC_IFFC_OODA_CARD,
+    FC_IFFC_OODA_RECOVER,
     FC_IFFC_DECISION_OODA,
     FC_IFFC_STATE_OODA,
+    FC_IFFC_STATE_OODA_SLIM,
 )
-FC_IFFC_STATE_MODES = (FC_IFFC_STATE, FC_IFFC_STATE_BON, FC_IFFC_STATE_OODA)
+FC_IFFC_STATE_MODES = (
+    FC_IFFC_STATE, FC_IFFC_STATE_BON, FC_IFFC_STATE_OODA, FC_IFFC_STATE_OODA_SLIM
+)
 # stop-repeat MIN=6 stack (R42 / compose share the same gate)
 FC_IFFC_STOP_REPEAT_MODES = (
     FC_IFFC_STOP_REPEAT,
     FC_IFFC_OODA_CARD,
+    FC_IFFC_OODA_RECOVER,
     FC_IFFC_DECISION_OODA,
     FC_IFFC_STATE_OODA,
+    FC_IFFC_STATE_OODA_SLIM,
 )
 # Decision probe / name-bind / soft_once / hard-noop
 FC_IFFC_DECISION_MODES = (FC_IFFC_DECISION, FC_IFFC_DECISION_OODA)
 # OODA card inject + system addendum + tracker
-FC_IFFC_OODA_MODES = (FC_IFFC_OODA_CARD, FC_IFFC_DECISION_OODA, FC_IFFC_STATE_OODA)
+FC_IFFC_OODA_MODES = (
+    FC_IFFC_OODA_CARD, FC_IFFC_OODA_RECOVER, FC_IFFC_DECISION_OODA, FC_IFFC_STATE_OODA, FC_IFFC_STATE_OODA_SLIM
+)
 FC_MODE: str = FC_NFC
 
 # Best-of-N (only used by --fc-mode iffc-state-bon)

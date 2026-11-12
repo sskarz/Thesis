@@ -1,0 +1,13 @@
+- **BLOCKER — [sft/yield_author.py:46](~/Documents/GitHub/Thesis-wt-data/sft/yield_author.py:46):** Missing-cost detection happens after authoring finishes and checks only aggregate zero spend. If costs disappear after smoke, thousands of paid calls can proceed without an effective dollar cap. **Fix:** Stop issuing requests immediately when any response lacks cost accounting.
+
+- **BLOCKER — [sft/data_yield_chain.sh:26](~/Documents/GitHub/Thesis-wt-data/sft/data_yield_chain.sh:26):** Hard timeouts are 170 minutes for authoring and 100 for solving, versus registered caps of 150 and 90. Internal deadlines check between slots/episodes; an active request or episode can continue beyond them. **Fix:** Enforce the registered wall-clock caps externally, allowing only brief termination grace.
+
+- **BLOCKER — [sft/build_bank_f.py:33](~/Documents/GitHub/Thesis-wt-data/sft/build_bank_f.py:33):** The filter requires `task_id` on every verdict, but `distill_solve.pilot` writes budget/deadline-skipped verdicts without that key. Normal capped completion therefore raises `KeyError`, losing the registered funnel report and row production after spending money. **Fix:** Ignore skipped verdicts before accessing `task_id`; retain their counts in the report.
+
+- **BLOCKER — [docs/DATA_YIELD_PLAN.md:52](~/Documents/GitHub/Thesis-wt-data/docs/DATA_YIELD_PLAN.md:52):** A1 permits up to two WRONG tasks even when fewer than 40 exist: two entirely wrong tasks can pass. A2/A3 also pass empty rows vacuously, so a tiny result can certify pipeline soundness without supporting evidence. **Fix:** Require sufficient reviewed tasks and nonempty row splits; classify insufficient yield as inconclusive.
+
+- **BLOCKER — [docs/DATA_YIELD_PLAN.md:68](~/Documents/GitHub/Thesis-wt-data/docs/DATA_YIELD_PLAN.md:68):** “60 of 166” is superseded by the runlog’s strict-format correction to **45 eligible rows** (line 98). Using 60 to size native conversion overstates usable yield. **Fix:** Use 45/166, or explicitly identify 60 as the preliminary count before strict JSON filtering.
+
+Explicit answers: **(1)** The quarantine set correctly excludes dropped task IDs once filtering completes. **(2)** No complete guarantee: authoring covers held-out user-text 8-grams, but provenance additionally checks actual row content, including assistant text and execution history. **(3)** The JSON-only versus native-format distinction agrees with `distill_rationalize.py`, `distill_native.py`, and the handoff pitfalls. **(4)** Tiny-input acceptance can pass; empty-row A2/A3 pass vacuously. Other copied historical aggregate counts match the cited records.
+
+Not ready: fix these blockers before paid execution.

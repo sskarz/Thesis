@@ -49,6 +49,7 @@ user turn. Default off. History-bookkeeping ablation, not a training method.
 import argparse
 import asyncio
 import json
+import os
 
 import aiohttp
 import requests
@@ -61,6 +62,7 @@ from . import gst as gst_mode
 from . import iffc_state as iffc_state_mode
 from . import ooda_card as ooda_card_mode
 from . import stop_on_repeat
+from . import teacher_api
 from . import decision_sidecar
 from . import xlam as xlam_mode
 from .generate_responses import bfcl_to_openai_tools, load_jsonl
@@ -77,6 +79,7 @@ from .iffc import (
 
 # Mapping from class name → func-doc JSON filename
 from bfcl_eval.constants.executable_backend_config import MULTI_TURN_FUNC_DOC_FILE_MAPPING
+from . import run_metrics
 from bfcl_eval.eval_checker.multi_turn_eval.multi_turn_utils import (
     execute_multi_turn_func_call,
 )
@@ -178,6 +181,15 @@ def _tool_calls_to_func_strings(tool_calls: list[dict]) -> list[str]:
     return result
 
 
+def _filter_entry_ids(entries: list[dict]) -> list[dict]:
+    """Optional subset via ``BFCL_ENTRY_IDS`` (comma list of full ids). Off when unset."""
+    raw = os.environ.get("BFCL_ENTRY_IDS", "").strip()
+    if not raw:
+        return entries
+    want = {x.strip() for x in raw.split(",") if x.strip()}
+    return [e for e in entries if e["id"] in want]
+
+
 def _build_miss_func_sets(entry: dict) -> tuple[set[str], dict[int, list[str]]]:
     """Parse ``missed_function`` field.
 
@@ -268,10 +280,13 @@ def _build_chat_payload(
         tracker = ooda_tracker or ooda_card_mode.OodaCardTracker()
         inject = (
             ooda_card_mode.inject_card_after_state
-            if fc_mode == config.FC_IFFC_STATE_OODA
+            if fc_mode in config.FC_IFFC_STATE_OODA_FAMILY
             else ooda_card_mode.inject_card
         )
-        messages = inject(chat_history, tracker, has_tools=bool(active_tools))
+        if fc_mode == config.FC_IFFC_OODA_RECOVER:
+            messages = inject(chat_history, tracker, has_tools=bool(active_tools), recover=True)
+        else:
+            messages = inject(chat_history, tracker, has_tools=bool(active_tools))
     payload: dict = {
         "model": config.MODEL_NAME,
         "messages": messages,
@@ -299,12 +314,18 @@ def _prepare_step_messages(
         if fc_mode == config.FC_IFFC_STATE_OODA:
             # Full stack: STATE + OODA addenda merged (neither overwrites).
             ooda_card_mode.ensure_state_ooda_system_message(chat_history, active_tools)
+        elif fc_mode == config.FC_IFFC_STATE_OODA_SLIM:
+            # R81: same as iffc-state-ooda, compact tool list only.
+            ooda_card_mode.ensure_state_ooda_system_message(
+                chat_history, active_tools, compact=True
+            )
         elif fc_mode in config.FC_IFFC_STATE_MODES:
             iffc_state_mode.ensure_iffc_state_system_message(chat_history, active_tools)
         elif fc_mode == config.FC_XLAM:
             xlam_mode.ensure_xlam_system_message(chat_history, active_tools)
         elif _uses_ooda(fc_mode):
-            ooda_card_mode.ensure_ooda_system_message(chat_history, active_tools)
+            ooda_card_mode.ensure_ooda_system_message(
+                chat_history, active_tools, recover=(fc_mode == config.FC_IFFC_OODA_RECOVER))
         else:
             ensure_iffc_system_message(chat_history, active_tools)
         return
@@ -313,6 +334,9 @@ def _prepare_step_messages(
 
 
 def _post_chat_sync(payload: dict) -> dict:
+    teacher = teacher_api.get_active()
+    if teacher is not None:  # distillation: hosted teacher, auth + retries
+        return teacher.post_chat(payload)
     resp = requests.post(
         f"{config.SERVER_URL}/v1/chat/completions",
         json=payload,
@@ -368,6 +392,9 @@ def _complete_chat_sync(
 
 
 async def _post_chat_async(session: aiohttp.ClientSession, payload: dict) -> dict:
+    teacher = teacher_api.get_active()
+    if teacher is not None:
+        return await teacher.post_chat_async(payload)
     async with session.post(
         f"{config.SERVER_URL}/v1/chat/completions",
         json=payload,
@@ -550,7 +577,13 @@ def _append_execution_feedback(
                 func_strings, exec_results
             )
         else:
-            content = format_iffc_execution_user_message(func_strings, exec_results)
+            note = None
+            if fc_mode == config.FC_IFFC_OODA_RECOVER and any(
+                iffc_state_mode.is_error_result(r) for r in exec_results
+            ):
+                note = ooda_card_mode.RECOVER_EXEC_NOTE
+            content = format_iffc_execution_user_message(
+                func_strings, exec_results, recover_note=note)
             if _uses_ooda(fc_mode) and ooda_tracker is not None:
                 ooda_card_mode.record_execution(
                     ooda_tracker, func_strings, exec_results
@@ -926,6 +959,7 @@ async def _generate_entry_async(
         ooda_card_mode.OodaCardTracker() if _uses_ooda(fc_mode) else None
     )
     strip_empty_assistant = _resolve_strip_empty_assistant(None)
+    metrics = run_metrics.TaskMetrics(entry_id, fc_mode) if run_metrics.enabled() else None
 
     for turn_idx, turn_messages in enumerate(questions):
         _maybe_strip_trailing_empty_assistant(
@@ -1008,6 +1042,8 @@ async def _generate_entry_async(
                     decision_name_hint = pol.tool_name
                     name_bind_retries_left = 1
 
+            if metrics is not None:
+                metrics.start_request()
             try:
                 if fc_mode == config.FC_CD:
                     data, n_calls = await cd_mode.complete_step_async(
@@ -1054,6 +1090,8 @@ async def _generate_entry_async(
                 step_results.append([f"ERROR: {e}"])
                 break
 
+            if metrics is not None:
+                metrics.end_request(data, turn_idx, _step)
             t = data.get("timings", {})
             total_prompt_n += t.get("prompt_n", 0)
             total_prompt_ms += t.get("prompt_ms", 0)
@@ -1135,6 +1173,13 @@ async def _generate_entry_async(
                         )
                     else:
                         flags.append(f"{flag}:turn_{turn_idx}")
+            if metrics is not None:
+                metrics.on_step(action, flag)
+                if action == "execute" and _is_json_text_mode(fc_mode):
+                    metrics.check_calls(
+                        try_parse_iffc_response(chat_history[-1].get("content") or ""),
+                        active_tools,
+                    )
             if action == "retry":
                 continue
             if action == "end_turn":
@@ -1180,6 +1225,8 @@ async def _generate_entry_async(
         turn_results.append(step_results)
 
     pbar.update(1)
+    if metrics is not None:
+        metrics.write()
 
     result_row = {
         "id": entry_id,
@@ -1252,7 +1299,7 @@ def generate_for_category(
 ) -> tuple[list[dict], list[dict]]:
     """Generate multi-turn responses for all entries in one category (sync)."""
     data_file = config.BFCL_DATA_DIR / category_info["file"]
-    entries = load_jsonl(data_file)
+    entries = _filter_entry_ids(load_jsonl(data_file))
     fc_mode = _resolve_fc_mode(fc_mode)
     if run_id is None:
         run_id = config.RUN_ID
@@ -1315,7 +1362,7 @@ async def _generate_for_category_async(
 ) -> tuple[list[dict], list[dict]]:
     """Generate multi-turn responses for all entries concurrently."""
     data_file = config.BFCL_DATA_DIR / category_info["file"]
-    entries = load_jsonl(data_file)
+    entries = _filter_entry_ids(load_jsonl(data_file))
     fc_mode = _resolve_fc_mode(fc_mode)
     if run_id is None:
         run_id = config.RUN_ID

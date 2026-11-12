@@ -1785,7 +1785,7 @@ R67 unparseable **turns** by entry: `_6` 5, `_126` 3, `_130` 3, `_27` 3, `_101` 
 | `run_id` | **42** (do **not** resume) | **68** (new; never resume 30 / 42 / 51–69) |
 | `model_key` | `gemma4-e2b` (BASE) | `gemma4-e2b` (BASE, **NO adapters**) |
 | `fc_mode` | `iffc-ooda-card` | `iffc-ooda-card` (same `benchmark/ooda_card.py` stacked on stop-repeat MIN=6) |
-| GGUF | bartowski Gemma-4-E2B-it Q4_K_M | `/Users/sanskarthapa/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf` |
+| GGUF | bartowski Gemma-4-E2B-it Q4_K_M | `~/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf` |
 | Serve | notes: `-np4 -c65536 temp=0` | `-ngl 99 -c 65536 --temp 0.0 -np 4 -cb -ub 1024 --jinja -fa on` |
 | Soft10 IDs | same 10 (historical subset) | `multi_turn_base_{11,101,126,130,6,18,26,27,32,34}` (n=10; poison bank PARKED / not used) |
 | Wall | N=200 (historical) | 09:03:09 → 09:07:39 EDT; wrapper exit **0** |
@@ -1836,7 +1836,7 @@ R66/R67 fail mix: `state_mismatch` **×5** (`_11,_6,_18,_27,_34`) + missing GT e
 | `run_id` | **42** (do **not** resume) | **69** (new; never resume 30 / 42 / 51–69) |
 | `model_key` | `gemma4-e2b` (BASE) | `gemma4-e2b` (BASE, **NO adapters**) |
 | `fc_mode` | `iffc-ooda-card` | `iffc-ooda-card` (same `benchmark/ooda_card.py` stacked on stop-repeat MIN=6) |
-| GGUF | bartowski Gemma-4-E2B-it Q4_K_M | `/Users/sanskarthapa/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf` |
+| GGUF | bartowski Gemma-4-E2B-it Q4_K_M | `~/.cache/huggingface/hub/models--bartowski--google_gemma-4-E2B-it-GGUF/snapshots/81012ba3538e061d5ee003f11f25335b17f82e2d/google_gemma-4-E2B-it-Q4_K_M.gguf` |
 | Serve | notes: `-np4 -c65536 temp=0` (no recorded `llama_cpp_version` / full argv) | `-ngl 99 -c 65536 --temp 0.0 -np 4 -cb -ub 1024 --jinja -fa on` (adds `-cb -ub 1024 -fa on --jinja` vs R42 notes) |
 | Harness commit | `b5891b6` (2026-09-28 ~23:04 ET) | `8aad985` (3 commits later; incl. turn-0 timeout hygiene) |
 | Prompt/harness | OODA card stacked on stop-repeat | same `iffc-ooda-card` path |

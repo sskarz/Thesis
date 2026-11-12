@@ -1,0 +1,58 @@
+{
+ "counts": {
+  "response_execution_error": 350,
+  "response_exact": 408,
+  "response_unresolved": 676,
+  "response_return_equivalent": 169,
+  "response_unparsable": 273,
+  "response_premature_stop": 956,
+  "exact_but_reasoning_over_3500": 5,
+  "states_total": 472,
+  "states_with_exact": 171,
+  "states_with_inferior": 299,
+  "states_with_both": 99,
+  "pairs_before_split": 132,
+  "pairs_rejected_overlength": 11
+ },
+ "tasks_with_pairs": 67,
+ "val_tasks": 7,
+ "unique_chosen_response_contents": 120,
+ "chosen_content_multiplicity_max": 1,
+ "student_agreed_with_teacher_originally_share": 0.18333333333333332,
+ "mean_branch_len_diff_tokens": 18.641666666666666,
+ "by_source": {
+  "g": 38,
+  "r3": 42,
+  "s2a": 40
+ },
+ "train_pairs": 120,
+ "train_tasks": 60,
+ "val_pairs": 12,
+ "train_unique_states": 82,
+ "train_unique_chosen_responses": 120,
+ "chosen_multiplicity_max": 1,
+ "by_rejected_class": {
+  "execution_error": 50,
+  "premature_stop": 70
+ },
+ "by_recovery": {
+  "correction": 74,
+  "recovery": 46
+ },
+ "by_api_class": {
+  "TradingBot": 21,
+  "GorillaFileSystem": 72,
+  "MathAPI": 7,
+  "TicketAPI": 11,
+  "TwitterAPI": 9
+ },
+ "by_label_kind": {
+  "act_ok": 120
+ },
+ "mean_len_chosen_tokens": 6724.933333333333,
+ "mean_len_rejected_tokens": 6706.291666666667,
+ "mean_reasoning_chars_chosen": 1460.2,
+ "mean_reasoning_chars_rejected": 1504.175,
+ "chosen_greedy_share": 0.11666666666666667,
+ "floor_met_(>=150 pairs, >=50 tasks)": false
+}

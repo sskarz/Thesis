@@ -1,0 +1,33 @@
+# Distillation stage 3 (null-scale): teacher-verified rows from sft/data/distill/mlx-t3-null154.
+# Frozen to match the Run 73 null test (sft/lora_config_v13_null.yaml on the Mac) except data,
+# seed and adapter path. NOT launched until Sans approves.
+#
+# mlx-lm counts micro-batches as iterations: batch 1 x grad_accumulation 4, so 156 iters =
+# 39 optimizer updates (39 iters would be only ~9). Train folder has 154 rows (156 minus 2 rows
+# dropped after Codex round 3), so 2 rows are seen twice. Run 73 had exactly 156 rows.
+# Start from the BASE MLX model converted from google/gemma-4-e2b-it (not the mlx-community 4bit
+# conversion, which lacks text-only PLE weights; see sft/README.md). No resume.
+# Eval only at the start and end (steps_per_eval 1000 > iters); full valid set (31 rows).
+# Gate: mid20 >= 17/20, fresh-20 bank no worse than base, <= 1 regression vs base. Never screen
+# on validation loss.
+fine_tune_type: lora
+seed: 61
+num_layers: 16
+batch_size: 1
+iters: 156
+val_batches: -1
+learning_rate: 5.0e-6
+steps_per_report: 10
+steps_per_eval: 1000
+save_every: 50
+max_seq_length: 8192
+mask_prompt: true
+grad_checkpoint: true
+grad_accumulation_steps: 4
+adapter_path: sft/adapters-distill-t1
+
+lora_parameters:
+  rank: 8
+  scale: 2.0
+  dropout: 0.0
+  keys: ["self_attn.q_proj", "self_attn.v_proj"]

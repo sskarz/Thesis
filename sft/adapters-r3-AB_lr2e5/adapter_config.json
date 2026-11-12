@@ -1,0 +1,46 @@
+{
+    "adapter_path": "sft/adapters-r3-AB_lr2e5",
+    "batch_size": 1,
+    "clear_cache_threshold": 0,
+    "config": "sft/lora_config_r3_AB_lr2e5.yaml",
+    "data": "sft/data/distill/r3/mlx-AB",
+    "fine_tune_type": "lora",
+    "grad_accumulation_steps": 4,
+    "grad_checkpoint": true,
+    "iters": 320,
+    "learning_rate": 2e-05,
+    "lora_parameters": {
+        "rank": 8,
+        "scale": 2.0,
+        "dropout": 0.0,
+        "keys": [
+            "self_attn.q_proj",
+            "self_attn.v_proj"
+        ]
+    },
+    "lr_schedule": null,
+    "mask_prompt": true,
+    "max_seq_length": 9500,
+    "model": "/Users/USER/Documents/GitHub/Thesis/sft/models/gemma-4-e2b-it-mlx",
+    "num_layers": 16,
+    "optimizer": "adam",
+    "optimizer_config": {
+        "adam": {},
+        "adamw": {},
+        "muon": {},
+        "sgd": {},
+        "adafactor": {}
+    },
+    "project_name": null,
+    "report_to": null,
+    "resume_adapter_file": null,
+    "save_every": 100,
+    "seed": 61,
+    "steps_per_eval": 1000,
+    "steps_per_report": 10,
+    "test": false,
+    "test_batches": 500,
+    "train": true,
+    "trust_remote_code": false,
+    "val_batches": -1
+}

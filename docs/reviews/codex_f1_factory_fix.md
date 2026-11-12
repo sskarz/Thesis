@@ -1,0 +1,9 @@
+- **BLOCKER — `sft/yield_judge.py:81`**: The deadline is checked only before starting a task. An active request can continue through seven 180-second attempts plus backoff, and the executor waits for it, exceeding the registered 30-minute cap by many minutes. **Fix:** enforce the remaining deadline throughout requests and retries, with a watchdog that terminates outstanding work.
+
+- **BLOCKER — `sft/yield_calibrate.py:46`**: Missing, SKIPPED, and UNPARSED verdicts count as successful catches of WRONG tasks and can satisfy `calibration_pass`; additionally, `yield_judge.py:109` lets UNPARSED results exit successfully. API or parsing failures can therefore manufacture a calibration pass. **Fix:** mark these runs incomplete and prohibit calibration acceptance until every expected task has a parsed verdict and guard checks pass.
+
+- **BLOCKER — `sft/yield_judge.py:34`**: The prompt embeds the distinctive mean-versus-standard-deviation error and target value 42 from reviewed task `distill_y_1575`, contradicting the “no text from any reviewed task” claim in `docs/DATA_YIELD_FACTORY_FIX.md:10`. This conceals task-specific calibration tuning and can inflate apparent judge performance. **Fix:** remove the task-specific examples and disclose that the prompt was informed by the reviewed errors.
+
+- **BLOCKER — `sft/yield_judge.py:33`**: Requiring every user-supplied value to exist in starting state or an earlier result wrongly rejects legitimate new values, including requested message text and funding amounts. Reviewed FAITHFUL task `distill_y_1439`, for example, supplies new tweet text. This can distort false-drop and survivor counts. **Fix:** distinguish references to existing objects from user-specified new content and action parameters.
+
+Not ready to run the judge because deadline enforcement, incomplete-run calibration, and prompt validity need correction.

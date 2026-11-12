@@ -1,0 +1,5 @@
+- **BLOCKER — sft/g2_sentences.py:95:** `_finish` replaces `content` only when `sent is not None`. A same-line reasoning-plus-list reply returns `(None, canonical_list)`, but that cleaned list is discarded: raw reasoning reaches stock logs, later turns, and stored row prompts. Permissively parsed tails can also retain prose. **Fix:** always replace successfully parsed content with canonical call-list JSON; quarantine unparseable replies.
+
+- **BLOCKER — sft/check_provenance.py:150:** Arm B reasoning is checked for 8-gram overlap against `$HELD`, but the BFCL scan checks only user-role content (`benchmark/distill_exclusions.py:248`). BFCL text in `reasoning_content` can therefore pass provenance, violating handoff §4’s requirement to extend checks to rendered reasoning. **Fix:** apply BFCL text checks to arm B’s rendered reasoning as well.
+
+Not ready to run when phase 1 finishes until these blockers are fixed.

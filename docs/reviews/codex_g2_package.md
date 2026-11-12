@@ -1,0 +1,9 @@
+- **BLOCKER — sft/g2_chain.sh:110:** `$RL` is never initialized. Under `set -u`, the first monitor check aborts the chain after paid authoring has started, wasting calls and preventing completion. **Fix:** set `RL="$ATT/runlogs"` immediately after `init_attempt`.
+
+- **BLOCKER — sft/g2_chain.sh:98,175:** Authoring’s watchdog allows 15 extra minutes beyond its registered deadline; solve allows 10. Internal deadlines only prevent new slots/episodes, so an active request’s retries or an active episode can exceed the caps by substantially more than a few minutes. **Fix:** enforce the registered deadlines with outer watchdogs and a short termination grace.
+
+- **BLOCKER — sft/g2_author.py:61 and sft/g2_chain.sh:115:** A process that stops before completing its slots because less than $0.02 remains returns success. `wait_authors` checks only exit codes, so paid judging and solving proceed; aggregation discards the stop reason, and a small shortfall can still pass A6. **Fix:** require completed authoring before downstream paid steps and preserve each process’s completion status in the reports.
+
+- **BLOCKER — sft/yield_report.py:237,272:** The reported spend excludes the judge, and its earlier-attempt ledger includes only Part 1 attempts, excluding earlier G2 smoke/full attempts. Spend totals, cost-per-task/row and A5 therefore use incomplete accounting despite the broader ledger elsewhere. **Fix:** use the shared G2 ledger for reporting and cap acceptance, including judge costs and all earlier real attempts.
+
+Not ready to be proposed for approval because paid execution, deadline enforcement, completion gating and spend reporting need these fixes.

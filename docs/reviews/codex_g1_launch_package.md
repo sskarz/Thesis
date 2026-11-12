@@ -1,0 +1,5 @@
+- **BLOCKER — sft/g1_chain.sh:70:** The restart receives a fresh 28,800-second budget, allowing total training to exceed the registered eight-hour cap. The 5.2 h training / 6.3 h expected / 8.3 h worst-case estimates cover one attempt; they omit up to 400 micro-batches before a restart. The 36,000-second chain cap bounds elapsed time but can terminate that path as INVALID. **Fix:** share one eight-hour training deadline across both attempts and include restart costs in the estimate.
+
+- **BLOCKER — docs/DISTILLATION_G1_PREREGISTRATION.md:36:** The row check cannot establish the claimed fault location. Poor row agreement could reflect conversion, serving, truncation, or imperfect targets; strong agreement with failed rollouts could reflect incomplete coverage or gold/checker disagreement. These categorical conclusions exceed the evidence. **Fix:** describe both outcomes as clues for investigation, without assigning a proven fault.
+
+Not ready to launch under the pre-registration’s conditions until the shared training cap, restart estimate, and diagnostic claims are corrected.

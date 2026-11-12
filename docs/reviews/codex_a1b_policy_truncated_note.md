@@ -1,0 +1,1 @@
+BLOCKER — `sft/data/distill/yield/attempts/20261109_144037_part1.E11FEx/fresh_sample.md:444`: `distill_y_0843`, turn 2 is WRONG. Cancelling a pending sell produces no proceeds; gold nevertheless buys NVDA using existing funds, silently violating the requested funding source. Fix: quarantine this task from later use.

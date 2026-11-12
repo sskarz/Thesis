@@ -1,0 +1,64 @@
+# Training work: what this branch holds
+
+Branch `thesis/training`. It collects, in one place, the work done after the main paper's experiments: the fine-tuning rounds that did not beat the untuned model, the compact tool-list stack, the synthetic-data pipeline, and the scaled training runs. Scope is unchanged: Gemma-4-E2B-it only, BFCL v4 `multi_turn_base`, one MacBook M4 Pro. In the work on this branch, the 200 BFCL test tasks were not used for training or for data selection, and the only scoring on them is the registered 200-task test of one trained model against fresh untuned runs (results log, sections 13 and 14); the fine-tunes reported in the main paper were scored on them as well. Their opening prompts were rendered offline once, to check that two versions of the prompt code produce identical text. `paper/main.tex` and the CSULA thesis sources are not changed by this branch.
+
+**Status (2026-11-11, morning):** data pipeline finished (501 checked synthetic tasks over two batches). Arm A (direct-answer adapter, 2 passes) is trained and scored 118 of 155 on the two screening banks, against 59, 61 (thinking on) and 54 (thinking off) for the untuned model, and passed the registered screening threshold of 70 on run 1 and on the repeat. **This is a screening result: those banks come from the same generator and teacher as the training tasks, so it shows that the adapter learned that task distribution, not a gain on BFCL.** Paired against the untuned runs on the same 155 tasks the adapter solves 63, 61 and 69 tasks the untuned run misses and misses 4, 4 and 5 that it solves (thinking on run 1, run 2, thinking off). Leakage checks so far are partial (task ids and long strings, not paraphrases or shared state templates). Arm B is training; a combined retrain and the BFCL 200 evaluation are planned but not approved or run; nothing has been scored on the 200 test tasks. Update this line with every merge into the branch.
+
+## What is in the branch
+
+The tree is the result of merging nine work branches in dependency order. The branch is published as a single commit on top of `main`; the detailed commit history of the work branches stays in the author's local repository. Heads merged:
+
+| Source branch | Head merged | Contents |
+|---|---|---|
+| `thesis/distill-stage0` | `5187288` | Rounds 2 to 5: teacher-student training, harness, findings documents |
+| `thesis/compact-list-r81` | `8f62b8a` | compact tool-list mode as first used for Runs 84 and 85 |
+| `thesis/slim-port` | `dfdbc2b` | the same mode ported onto the distillation code (used for G2 and G3) |
+| `thesis/distill-r6-diagnostics` | `65169a6` | Round 6 diagnostics, G1 overfit gate, G3 base references, arm A and combined-retrain pre-registrations, probe |
+| `thesis/distill-data-scale` | `dc6c7a9` | data-yield measurement and factory fix |
+| `thesis/g2-scale` | `8beee53` | batch 1 authoring chain and pre-registration |
+| `thesis/g2-phase2` | `063b6e1` | batch 1 and 2 solve with reasoning sentences, provenance gate, id-collision repair |
+| `thesis/g2b-scale` | `90725fa` | batch 2 authoring chain and pre-registration |
+| `thesis/negative-result-draft` | `9ed2f1d` | `docs/TRAINING_RESULTS_LOG.md`, chapter draft `docs/drafts/ch6_appA_distillation_draft.tex` |
+
+### Merge notes (from the local merge)
+
+* `thesis/compact-list-r81` branches from the February base `7e5262c` and conflicted with the distillation lineage in 15 files (`.gitignore`, `CLAUDE.md`, `METHODS.md`, `PLAN.md`, `README.md`, `THESIS.md`, `benchmark/config.py`, `generate_multi_turn.py`, `iffc.py`, `ooda_card.py`, `run_all.py`, `paper/Makefile`, `paper/README.md`, `paper/main.tex`, `paper/references.bib`). All 15 were resolved by keeping the side already in the branch, so no paper file changes. Runs 84 (compact list, 88 of 200) and 85 (full list, 72 of 200) used commit `8f62b8a`; that commit is in the history and is the point to check out to reproduce them. The same mode in the distillation lineage is `dfdbc2b`.
+* `thesis/g2-phase2`: one conflict in `docs/DATA_YIELD_G2_PREREGISTRATION.md` (both sides appended after section 8); both texts kept, the older placeholder section is renamed 9a.
+* The other six merges were clean.
+* Checks on the merged tree: every commit of the nine source branches is reachable; no tracked file under `sft/data`, no `.gguf` or `.safetensors`, nothing over 5 MB; offline render of the opening prompts of all 200 `multi_turn_base` tasks gives identical text and message hashes to the earlier renders in all three modes used (`iffc-state-ooda-slim`, `iffc-state-ooda`, `iffc-ooda-card`); the test suite gives 351 passed, 3 skipped, 2 failed. The 2 failures (`tests/sft/test_cap_nontool_v7.py::test_build_mix_cli_subprocess_nonzero`, `tests/sft/test_filter_empty_after_exec.py::test_train_mlx_prepare_recipe_v7`) also fail on the unmerged source branches because they expect a `/workspace` directory from the earlier cloud environment.
+
+## From a result to its file
+
+`docs/TRAINING_RESULTS_LOG.md` has the full table at its top (result, worktree, branch, commit, attempt directory, report file). In short:
+
+| Result | Where |
+|---|---|
+| Rounds 2 to 5 (no trained variant beat the untuned model) | `docs/DISTILLATION_ROUND{2,3,4,5}_FINDINGS.md` |
+| Round 6 stage 1 (no arm separable from the untuned model; it moved 64 to 68 across a session) | results log section 1 |
+| Data factory fix and review samples | results log section 2; `docs/DATA_YIELD_FACTORY_FIX.md`; `docs/reviews/` |
+| G1 overfit gate (11 to 32 of 40; pipeline check only) | results log section 3; `docs/DISTILLATION_G1_PREREGISTRATION.md` |
+| Batch 1 and batch 2 funnels, 501 tasks | results log sections 4 to 8d; `docs/DATA_YIELD_G2_PREREGISTRATION.md`, `docs/DATA_YIELD_G2B_PREREGISTRATION.md` |
+| G3 base references (59, 61 thinking on; 54 off; threshold 70 of 155) | results log section 5; `docs/DISTILLATION_G3_PREREGISTRATION.md` |
+| Arm A training, screening score and pass-1 probe | results log sections 7, 8e and 10 |
+| BFCL 200 evaluation plan (draft, not approved) | `docs/DISTILLATION_G4_PREREGISTRATION_DRAFT.md` |
+| Combined retrain (approved, not launched) | `docs/DISTILLATION_G3C_COMBINED_PREREGISTRATION.md` |
+| Chapter and appendix draft | `docs/drafts/ch6_appA_distillation_draft.tex` |
+
+## What is not in git
+
+* Data, adapters, GGUF files, banks and run logs sit under the gitignored `sft/data/distill/` on the Mac. They are backed up in `~/thesis-backups/2026-11-09` and `~/thesis-backups/2026-11-10` with a SHA-256 manifest (`MANIFEST_sha256*.txt`).
+* The screening banks (F, K2), the earlier dev and confirm banks and the BFCL test tasks are held-out material. Their per-task text is not in this branch. Their SHA-256 hashes are recorded in the pre-registrations (F `7a45cd08…`, K2 `e2ac40e4…`; full hashes in `sft/g3lib.sh`) and the frozen training rows have hashes in `sft/g3_expected.sha`.
+* The OpenRouter API key and the commands that use it stay in the Mac's environment. Costs are in the results log (ledger total $23.22; the key's own counter reads $31.68, with the gap unexplained there).
+
+## Limits that apply to every number here
+
+Single seed; greedy decoding; the screening banks share their author with the training data, so only the 200 test tasks can settle a claim; the 200-task result needs the paired test used in Chapter 5 and a separate decision; statistics wording is never stronger than the record. Reviewers of the synthetic tasks are models, not people, on 40-task samples.
+
+## Paths
+
+For privacy the author's home directory is replaced in this branch: `~` in documents, `/Users/USER` in scripts, configs and code. The scripts were run from the author's Mac with the real path; to run one, replace `/Users/USER` with your own home directory. Nothing else differs from the versions that produced the results.
+
+## Notes on what the diff contains
+
+* **Figures.** Ten older figure files appear under `paper/figures/` (`accuracy_comparison.pdf`, `comparison_dashboard.pdf`, `failure_buckets.pdf` and `.png`, `gemma_accuracy_by_category.pdf`, `memory_comparison.pdf`, `multiturn_scoreboard.pdf` and `.png`, `performance_comparison.pdf`, `sft_v2_accuracy.pdf`). They come from the `thesis/compact-list-r81` branch, which starts from the February 2026 paper draft; `main` does not have them. `paper/main.tex` does not use any of them. They are kept only so that merge is complete and can be dropped.
+* **Commit hashes.** The commit hashes named in this README and in `docs/TRAINING_RESULTS_LOG.md` refer to the author's local work branches. This branch is published as a single commit, so those hashes do not exist in this repository. The work branches are kept in a Git bundle in the author's dated backup (`~/thesis-backups/2026-11-10/work-branches.bundle`, ten branches including the merged one with full history).
