@@ -1,0 +1,64 @@
+{
+ "exploratory": true,
+ "scores": {
+  "D1": 48,
+  "D3": 33,
+  "D2": 92
+ },
+ "errored": {
+  "D1": 1,
+  "D3": 0,
+  "D2": 0
+ },
+ "readings": {
+  "D1": "75 or below: answering without thinking explains most of the loss.",
+  "D3": "More than 5 below 69: not covered by the registered readings; reported as a score only.",
+  "D2": "82 or above: reasoning-first training does no harm even with the gap; strong case for this plan in that format."
+ },
+ "use_rule": "Format stays reasoning-first (the exception, D2 at 75 or below together with D1 at 82 or above, did not occur).",
+ "descriptive_counts_vs_reference": {
+  "D1": {
+   "U1": {
+    "this_only": 6,
+    "reference_only": 46
+   },
+   "T1": {
+    "this_only": 7,
+    "reference_only": 28
+   },
+   "U2": {
+    "this_only": 5,
+    "reference_only": 46
+   }
+  },
+  "D3": {
+   "U1": {
+    "this_only": 4,
+    "reference_only": 59
+   },
+   "T1": {
+    "this_only": 4,
+    "reference_only": 40
+   },
+   "U2": {
+    "this_only": 3,
+    "reference_only": 59
+   }
+  },
+  "D2": {
+   "U1": {
+    "this_only": 23,
+    "reference_only": 19
+   },
+   "T1": {
+    "this_only": 34,
+    "reference_only": 11
+   },
+   "U2": {
+    "this_only": 22,
+    "reference_only": 19
+   }
+  }
+ },
+ "note": "Readings are the registered wording and are hypotheses, not established causes: no diagnostic changes data coverage or isolates one training factor. Exploratory, post hoc, outside the G4 registration; U1 88 and U2 89 (thinking on) and T1 69 (arm A, thinking off) are from an earlier session."
+}
