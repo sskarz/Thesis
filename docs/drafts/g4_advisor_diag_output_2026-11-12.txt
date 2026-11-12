@@ -1,0 +1,33 @@
+CLASS n U1 T1
+GorillaFileSystem 50 10 6
+VehicleControlAPI 50 17 3
+TradingBot 50 40 41
+TravelAPI 50 21 19
+MessageAPI 40 20 15
+TwitterAPI 39 12 7
+TicketAPI 31 15 12
+MathAPI 25 9 7
+BFCL gold: tasks 200 turns 734 mean calls/turn 1.56 dist [(0, 3), (1, 474), (2, 156), (3, 67), (4, 20), (5, 11), (6, 1), (7, 2)] turns/task {4: 50, 5: 43, 2: 40, 3: 50, 1: 3, 6: 12, 7: 2}
+U1 pass 88 turn cats {'equal': 487, 'more': 158, 'fewer': 52, 'empty': 34, 'gold0': 3} name recall 0.861 name precision 0.765 exact gold-call found 0.683 model calls 1285 gold calls 1142 mean steps/turn 1.46
+T1 pass 69 turn cats {'more': 179, 'fewer': 70, 'equal': 481, 'empty': 1, 'gold0': 3} name recall 0.854 name precision 0.745 exact gold-call found 0.635 model calls 1309 gold calls 1142 mean steps/turn 1.59
+meta keys ['task_id', 'episode_id', 'sample', 'step', 'action', 'n_calls', 'lookup_calls', 'classes', 'exercised', 'api_model', 'api_provider', 'date']
+actions {'execute': 1959, 'end_turn': 708} n_calls [(0, 708), (1, 1450), (2, 414), (3, 85), (4, 10)]
+train tasks 292 class counts {'TicketAPI': 85, 'TradingBot': 134, 'GorillaFileSystem': 98, 'MathAPI': 70, 'VehicleControlAPI': 38, 'TravelAPI': 22, 'TwitterAPI': 51, 'MessageAPI': 19}
+BFCL class counts {'TwitterAPI': 39, 'GorillaFileSystem': 50, 'TicketAPI': 31, 'MessageAPI': 40, 'MathAPI': 25, 'VehicleControlAPI': 50, 'TradingBot': 50, 'TravelAPI': 50}
+train distinct fns 96 train target calls 2573 BFCL gold distinct fns 81 gold calls 1142
+share of BFCL gold calls whose function has >=1 training targets: 0.792 distinct fns below: 22
+share of BFCL gold calls whose function has >=5 training targets: 0.602 distinct fns below: 35
+share of BFCL gold calls whose function has >=20 training targets: 0.435 distinct fns below: 55
+top BFCL gold fns (gold, train): [('cd', 51, 285), ('pressBrakePedal', 44, 2), ('startEngine', 44, 2), ('get_stock_info', 43, 57), ('lockDoors', 42, 5), ('book_flight', 41, 1), ('get_zipcode_based_on_city', 38, 0), ('get_flight_cost', 36, 21), ('post_tweet', 34, 20), ('fillFuelTank', 32, 24), ('get_order_details', 32, 228), ('place_order', 29, 39), ('send_message', 28, 3), ('retrieve_invoice', 25, 0), ('check_tire_pressure', 24, 25), ('touch', 22, 0)]
+top train fns: [('cd', 285), ('get_order_details', 228), ('ls', 225), ('cat', 151), ('add_to_watchlist', 101), ('get_order_history', 99), ('cancel_order', 99), ('resolve_ticket', 73), ('cp', 65), ('wc', 62), ('get_account_info', 59), ('get_stock_info', 57)]
+rows/episode mean 6.09 episodes 438 episodes/task 1.5
+BFCL user turn words mean 30.7 median 27.0
+---- follow-up
+vehicle tasks 50 U1 17 T1 3 untuned-only 14 trained-only 0
+non-vehicle tasks 150 U1 71 T1 66 untuned-only 20 trained-only 15
+{'U-only GorillaFileSystem': 9, 'U-only TwitterAPI': 8, 'U-only VehicleControlAPI': 14, 'U-only TicketAPI': 7, 'U-only TravelAPI': 9, 'U-only MessageAPI': 8, 'U-only TradingBot': 2, 'U-only MathAPI': 3, 'T-only GorillaFileSystem': 5, 'T-only TradingBot': 3, 'T-only TicketAPI': 4, 'T-only TwitterAPI': 3, 'T-only TravelAPI': 7, 'T-only MessageAPI': 3, 'T-only MathAPI': 1}
+all gold fns seen >=5 times in training : 38 tasks; U1 25 T1 27 untuned-only 2 trained-only 4
+some rare/unseen (<50% of calls) : 74 tasks; U1 27 T1 23 untuned-only 10 trained-only 6
+mostly rare/unseen (>=50% of calls) : 88 tasks; U1 36 T1 19 untuned-only 22 trained-only 5
+U1 {'lockDoors gold turns': 42, 'lockDoors called': 40, 'startEngine gold turns': 44, 'startEngine called': 43, 'pressBrakePedal gold turns': 44, 'pressBrakePedal called': 38}
+T1 {'lockDoors gold turns': 42, 'lockDoors called': 39, 'startEngine gold turns': 44, 'startEngine called': 43, 'pressBrakePedal gold turns': 44, 'pressBrakePedal called': 18}

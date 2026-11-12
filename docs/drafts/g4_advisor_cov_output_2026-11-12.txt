@@ -1,0 +1,27 @@
+doc files {'trading_bot': 20, 'memory_vector': 12, 'ticket_api': 9, 'gorilla_file_system': 18, 'memory_kv': 15, 'vehicle_control': 22, 'web_search': 2, 'memory_rec_sum': 5, 'math_api': 17, 'message_api': 10, 'travel_booking': 18, 'posting_api': 14}
+== armA batch1 rows 2667 tasks 292 classes {'TicketAPI': 85, 'TradingBot': 134, 'GorillaFileSystem': 98, 'MathAPI': 70, 'VehicleControlAPI': 38, 'TravelAPI': 22, 'TwitterAPI': 51, 'MessageAPI': 19}
+  BFCL gold calls on functions with >=1 training targets: 0.792
+  BFCL gold calls on functions with >=5 training targets: 0.602
+  BFCL gold calls on functions with >=20 training targets: 0.435
+   gorilla_file_system functions in docs 18 with 0 targets 4 with <5 7
+   math_api functions in docs 17 with 0 targets 4 with <5 9
+   message_api functions in docs 10 with 0 targets 0 with <5 4
+   posting_api functions in docs 14 with 0 targets 4 with <5 6
+   ticket_api functions in docs 9 with 0 targets 0 with <5 1
+   trading_bot functions in docs 20 with 0 targets 2 with <5 4
+   travel_booking functions in docs 18 with 0 targets 11 with <5 14
+   vehicle_control functions in docs 22 with 0 targets 7 with <5 14
+  vehicle chain targets: {'startEngine': 2, 'pressBrakePedal': 2, 'lockDoors': 5, 'releaseBrakePedal': 1, 'setCruiseControl': 0, 'activateParkingBrake': 3} | travel: {'book_flight': 1, 'get_flight_cost': 21, 'get_zipcode_based_on_city': 0, 'retrieve_invoice': 0, 'cancel_booking': 0} | msg: {'send_message': 3, 'view_messages_sent': 5, 'get_user_id': 16, 'message_login': 9} | fs: {'touch': 0, 'mkdir': 11, 'echo': 0, 'mv': 3, 'grep': 11, 'sort': 0, 'diff': 43}
+== combined A (retrain) rows 4083 tasks 451 classes {'TicketAPI': 115, 'TradingBot': 187, 'GorillaFileSystem': 145, 'MathAPI': 98, 'VehicleControlAPI': 67, 'TravelAPI': 52, 'TwitterAPI': 92, 'MessageAPI': 50}
+  BFCL gold calls on functions with >=1 training targets: 0.802
+  BFCL gold calls on functions with >=5 training targets: 0.661
+  BFCL gold calls on functions with >=20 training targets: 0.489
+   gorilla_file_system functions in docs 18 with 0 targets 4 with <5 6
+   math_api functions in docs 17 with 0 targets 2 with <5 8
+   message_api functions in docs 10 with 0 targets 0 with <5 1
+   posting_api functions in docs 14 with 0 targets 2 with <5 5
+   ticket_api functions in docs 9 with 0 targets 0 with <5 1
+   trading_bot functions in docs 20 with 0 targets 1 with <5 4
+   travel_booking functions in docs 18 with 0 targets 11 with <5 13
+   vehicle_control functions in docs 22 with 0 targets 7 with <5 12
+  vehicle chain targets: {'startEngine': 3, 'pressBrakePedal': 3, 'lockDoors': 6, 'releaseBrakePedal': 2, 'setCruiseControl': 0, 'activateParkingBrake': 6} | travel: {'book_flight': 4, 'get_flight_cost': 36, 'get_zipcode_based_on_city': 0, 'retrieve_invoice': 0, 'cancel_booking': 0} | msg: {'send_message': 10, 'view_messages_sent': 11, 'get_user_id': 52, 'message_login': 28} | fs: {'touch': 0, 'mkdir': 15, 'echo': 0, 'mv': 6, 'grep': 13, 'sort': 0, 'diff': 51}
