@@ -1,0 +1,3 @@
+- **BLOCKER — sft/g3c_wait_launch.sh:21–22:** If `rsync` fails, `diff` is skipped; a missing or empty `verify.txt` then passes the check. G3c starts without the required verified backup, leaving G4 results unprotected. **Fix:** Abort on either command’s nonzero exit status.
+
+- **BLOCKER — sft/g3c_arm.sh:73–77:** The documented direct `run` command checks GPU availability but never requires G4 COMPLETE or a verified backup. It can launch training before G4 has run, violating the required launch order. **Fix:** Enforce completion and backup verification for the intended G4 attempt inside `g3c_arm.sh` before starting GPU work.

@@ -42,7 +42,7 @@ say() { echo "$(date +%T) $*" >> $ATT/chain.log; }
 die() { echo "DIE: $*" >> $ATT/chain.log; exit 9; }
 start_server() { :; }; check_identity() { :; }; stop_server() { :; }; chain_left() { echo 99999; }
 conn_ok() { return 0; }; swap_gb() { echo 1; }
-HARNESS=$T/h; SRC=$SRC; RUN_CAP=1200; MAX_ERR=10; FMODE=iffc-state-ooda-slim; BAND_LO=82; BAND_HI=94; MARGIN=8; ARM=A; echo fake > $T/g.gguf; GGUF=$T/g.gguf; SHA=$(shasum -a 256 $GGUF | cut -d' ' -f1); THINK=off; RENDER_REF=/nonexistent
+HARNESS=$T/h; SRC=$SRC; RUN_CAP=1200; MAX_ERR=10; FMODE=iffc-state-ooda-slim; BAND_LO=82; BAND_HI=94; MARGIN=8; ARM=A; SRC_COMMIT=testcommit; HARNESS_COMMIT=dfdbc2b; echo fake > $T/g.gguf; GGUF=$T/g.gguf; SHA=$(shasum -a 256 $GGUF | cut -d' ' -f1); THINK=off; RENDER_REF=/nonexistent
 echo '{"chosen": "A", "arms": {"A": {"gguf": "x", "gguf_sha256": "x", "think": "off"}}}' > $ATT/G4_SELECTION.json
 source $SRC/sft/g4_lib.sh
 export G4_MON_TICK=1 G4_EARLY=2 G4_NOPROG=4

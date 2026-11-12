@@ -12,7 +12,8 @@ source $SRC/sft/g3lib.sh                          # server lifecycle helpers (st
 D6=$ROOT/Thesis-wt-r6/sft/data/distill/r6g4        # G4 attempts live here (outside git; the folder is new)
 R6G3=$ROOT/Thesis-wt-r6/sft/data/distill/r6g3/attempts
 A_ATT=$R6G3/20261110_062035_run_A.lBKtpA
-B_ATT=$(ls -d $R6G3/*_run_B.* 2>/dev/null | head -1)
+B_ATT=""; NB=0                                    # arm B folder: the one that holds G3_B_RUN1.json; two such folders -> the chain refuses (no guessing after a restart)
+for d in $R6G3/*_run_B.*; do [ -d "$d" ] || continue; if [ -f "$d/G3_B_RUN1.json" ]; then NB=$((NB+1)); B_ATT=$d; elif [ -z "$B_ATT" ]; then B_ATT=$d; fi; done
 HARNESS=$ROOT/Thesis-wt-g4; HARNESS_COMMIT=dfdbc2b
 RUN_CAP=16200                                      # 4.5 h per run: 1.5 x the longest recorded run (2 h 59 min); a run above it is void
 CHAIN_CAP=68400                                    # 19 h = 4 runs x 4.5 h + 1 h
@@ -34,13 +35,18 @@ swap_gb() { sysctl -n vm.swapusage | $PY -c "import re,sys; m=re.search(r'used =
 
 # ---------------------------------------------------------------- preflight (dry and run)
 mkdir -p $D6/attempts || abort "cannot create $D6"
+echo $(date +%s) > $D6/chain_start_epoch          # fresh clock at the very start of every invocation (dry runs remove it at the end)
 init_attempt g4$MODE
 chain_clock
 say "G4 chain ($MODE) attempt $ATT; arm A attempt $A_ATT; arm B attempt ${B_ATT:-none}"
 FAILS=0
+SRC_COMMIT=$(git -C $SRC rev-parse --short HEAD 2>/dev/null)
+say "code commit (Thesis-wt-training): $SRC_COMMIT; harness commit: $HARNESS_COMMIT"
 chk() { if [ "$1" = ok ]; then say "check ok: $2"; else say "CHECK FAILED: $2"; FAILS=$((FAILS+1)); fi; }
 if [ "$MODE" = run ]; then [ "${G4_APPROVAL:-}" = "A-003" ] || abort "G4_APPROVAL=A-003 is not set (ledger A-003, Sans 2026-11-11)"; fi
 $PY -c "import datetime,sys; sys.exit(0 if datetime.datetime.now() < datetime.datetime(2026,11,25,23,59) else 1)" && chk ok "date before the Nov 25 stop" || chk fail "date is past Nov 25"
+[ -z "$(git -C $SRC status --porcelain --untracked-files=no 2>/dev/null)" ] && chk ok "code worktree Thesis-wt-training clean at $SRC_COMMIT" || chk fail "Thesis-wt-training has uncommitted tracked changes"
+[ $NB -le 1 ] && chk ok "at most one arm B folder holds a run-1 result ($NB)" || chk fail "two arm B folders hold a run-1 result"
 [ "$(git -C $HARNESS rev-parse --short HEAD 2>/dev/null)" = "$HARNESS_COMMIT" ] && chk ok "harness worktree at $HARNESS_COMMIT" || chk fail "harness worktree $HARNESS missing or not at $HARNESS_COMMIT"
 [ -z "$(git -C $HARNESS status --porcelain --untracked-files=no 2>/dev/null)" ] && chk ok "harness worktree clean" || chk fail "harness worktree has tracked changes"
 [ "$(shasum -a 256 "$K" | cut -d' ' -f1)" = "$K2SHA" ] && [ "$(shasum -a 256 "$F" | cut -d' ' -f1)" = "$F_SHA" ] && chk ok "F and K2 hashes unchanged" || chk fail "F or K2 hash changed"
@@ -65,6 +71,7 @@ done
 $PY -B $SRC/sft/test_g4_stats.py > $RL/stats_test.out 2>&1 && chk ok "statistics tests (paper numbers)" || chk fail "statistics tests"
 (cd $HARNESS && BENCHMARK_RESULTS_DIR=$ATT/helpcheck PYTHONDONTWRITEBYTECODE=1 $PY -m benchmark.run_all --help > /dev/null 2>&1) && chk ok "harness imports and run_all --help" || chk fail "harness does not import"
 if [ "$MODE" = dry ]; then
+  rm -f $D6/chain_start_epoch
   say "DRY RUN DONE: $FAILS check(s) failed (in dry mode, while arm B trains, the training-process check, the model selection and port checks are expected to fail until arm B's screen is finished)"
   say "plan: U1 untuned thinking on -> verdict (band $BAND_LO-$BAND_HI) -> T1 -> T2 -> U2; caps $RUN_CAP s per run, $CHAIN_CAP s for the chain; margin $MARGIN; void above $MAX_ERR errored tasks"
   exit 0

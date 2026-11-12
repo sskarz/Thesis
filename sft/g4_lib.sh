@@ -74,7 +74,7 @@ sys.path.insert(0, "$SRC/sft")
 from g4_analyze import analyze
 a = sys.argv[1]; runs = {k: json.load(open(f"{a}/RUN_{k}.json"))["passed_ids"] for k in ("U1", "T1", "T2", "U2")}
 d = {"margin": $MARGIN, "all_tasks": [f"multi_turn_base_{i}" for i in range(200)], "stack_ok": True, "runs": runs}
-json.dump(d, open(f"{a}/PAIRS.json", "w")); r = analyze(d); r["trained_arm"] = "$ARM"; r["selection"] = json.load(open(f"{a}/G4_SELECTION.json"))["arms"]
+json.dump(d, open(f"{a}/PAIRS.json", "w")); r = analyze(d); r["trained_arm"] = "$ARM"; r["code_commit"] = "$SRC_COMMIT"; r["harness_commit"] = "$HARNESS_COMMIT"; r["selection"] = json.load(open(f"{a}/G4_SELECTION.json"))["arms"]
 json.dump(r, open(f"{a}/G4_RESULT.json", "w"), indent=1); print(json.dumps({k: r[k] for k in ("scores", "pair1", "pair2", "combined_sign_test", "outcome")}))
 PYEOF
 }

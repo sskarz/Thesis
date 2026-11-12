@@ -95,11 +95,15 @@ def cmd_parity(a):
         G._prepare_step_messages(hist, tools, "iffc-state-ooda-slim")
         tracker = OC.OodaCardTracker() if G._uses_ooda("iffc-state-ooda-slim") else None
         msgs = G._build_chat_payload(hist, tools, "iffc-state-ooda-slim", ooda_tracker=tracker)["messages"]
-        srv = requests.post(os.environ.get("G4_SERVER", "http://127.0.0.1:8080") + "/apply-template", json={"messages": msgs}, timeout=60).json()["prompt"]
+        if a.local_only:
+            srv = None
+        else:
+            srv = requests.post(os.environ.get("G4_SERVER", "http://127.0.0.1:8080") + "/apply-template", json={"messages": msgs}, timeout=60).json()["prompt"]
         loc = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True, enable_thinking=think)
-        markers += srv.count("<|think|>")
-        if norm(srv) != norm(loc):
-            bad.append(e["id"])
+        if srv is not None:
+            markers += srv.count("<|think|>")
+            if norm(srv) != norm(loc):
+                bad.append(e["id"])
         if think and e["id"] in ref:      # the offline render recorded 2026-11-09 for Runs 83 to 85 was made with the tokenizer's default (no thinking marker); compare the body without the marker
             ref_n += 1
             body = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True, enable_thinking=False)
@@ -108,13 +112,13 @@ def cmd_parity(a):
     res = {"think": a.think, "tasks": len(entries), "mismatches_server_vs_local": len(bad), "mismatch_ids": bad[:10], "server_think_markers": markers,
            "expected_markers": len(entries) if think else 0, "ref_compared": ref_n, "ref_mismatches": len(ref_bad), "ref_mismatch_ids": ref_bad[:10]}
     json.dump(res, open(a.out, "w"), indent=1); print(json.dumps(res))
-    sys.exit(0 if not bad and markers == res["expected_markers"] and not ref_bad else 1)
+    sys.exit(0 if not bad and (a.local_only or markers == res["expected_markers"]) and not ref_bad else 1)
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); sp = ap.add_subparsers(dest="cmd", required=True)
     s = sp.add_parser("select"); s.add_argument("--a-attempt", required=True); s.add_argument("--b-attempt", required=True); s.add_argument("--out", required=True)
     c = sp.add_parser("collect"); c.add_argument("--results-dir", required=True); c.add_argument("--out", required=True); c.add_argument("--name", required=True); c.add_argument("--partial", action="store_true")
-    p = sp.add_parser("parity"); p.add_argument("--think", choices=["on", "off"], required=True); p.add_argument("--out", required=True); p.add_argument("--ref", default="")
+    p = sp.add_parser("parity"); p.add_argument("--think", choices=["on", "off"], required=True); p.add_argument("--out", required=True); p.add_argument("--ref", default=""); p.add_argument("--local-only", action="store_true", help="tokenizer render against the stored reference only; no server (CPU rehearsal)")
     a = ap.parse_args()
     {"select": cmd_select, "collect": cmd_collect, "parity": cmd_parity}[a.cmd](a)
